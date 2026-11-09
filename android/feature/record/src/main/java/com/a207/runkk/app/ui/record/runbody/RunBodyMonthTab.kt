@@ -81,7 +81,7 @@ private fun MonthHeader(state: RunBodyUiState, actions: RunBodyActions) {
         stringResource(R.string.record_runbody_month_label),
         Locale.KOREAN
     ).format(state.month)
-    // 피그마 "‹  2026년 10월  ›"(16 Bold, 왼쪽 정렬). 화살표는 누름 칸 40을 두고 꺾쇠가 본문 왼쪽 끝에 오게 당긴다.
+    // 피그마 "‹  2026년 10월  ›"(16 Bold, 왼쪽 정렬). 화살표는 누름 칸 48을 두고 꺾쇠가 본문 왼쪽 끝에 오게 당긴다.
     Row(Modifier.offset(x = -ARROW_INSET), verticalAlignment = Alignment.CenterVertically) {
         MonthArrow(
             RunkkIcons.Back,
@@ -103,7 +103,7 @@ private fun MonthHeader(state: RunBodyUiState, actions: RunBodyActions) {
 private fun MonthArrow(icon: ImageVector, label: String, isEnabled: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(40.dp)
+            .size(MONTH_ARROW_SIZE)
             .clickable(enabled = isEnabled, onClickLabel = label, role = Role.Button, onClick = onClick)
             .alpha(if (isEnabled) 1f else DISABLED_ALPHA),
         contentAlignment = Alignment.Center
@@ -177,7 +177,8 @@ private fun BaselineCard(baseline: RunBodyMonth.Baseline) {
             baseline.pace?.let {
                 RunBodyValueRow(
                     stringResource(R.string.record_stat_avg_pace),
-                    stringResource(R.string.record_runbody_pace_per_km, runBodyPace(it))
+                    stringResource(R.string.record_runbody_pace_per_km, runBodyPace(it)),
+                    spokenValue = RunkkFormat.paceSpoken(it)
                 )
             }
             baseline.averageHeartRate?.let {
@@ -350,4 +351,5 @@ private const val DISABLED_ALPHA = 0.3f
 private const val WEEK_AXIS_STEP_METERS = 5_000L
 private val WEEK_VALUE_WIDTH = 54.dp
 private val BAR_HEIGHT = 6.dp
-private val ARROW_INSET = 12.dp
+private val ARROW_INSET = 16.dp
+private val MONTH_ARROW_SIZE = 48.dp

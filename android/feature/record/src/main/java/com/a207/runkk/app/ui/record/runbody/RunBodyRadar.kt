@@ -2,8 +2,8 @@ package com.a207.runkk.app.ui.record.runbody
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,18 +45,21 @@ import kotlin.math.sin
 internal fun RunBodyRadar(scores: Map<RunBodyAxis, Int?>, modifier: Modifier = Modifier, centerText: String? = null) {
     val grid = RunkkColors.Border
     val line = RunkkColors.Violet
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .height(RADAR_HEIGHT)
             .clip(RunkkShapes.Large)
             .background(RunkkColors.Background)
     ) {
+        // 피그마 상자(폭 310)보다 좁은 화면(360dp 폰 280)에서는 오각형 크기와 라벨 가로 자리를 같은 비율로 줄여 라벨끼리 겹치지 않게 한다.
+        val scale = (maxWidth / FIGMA_BOX_WIDTH).coerceAtMost(1f)
+        val radius = RADAR_RADIUS * scale
         Canvas(
             Modifier
                 .align(Alignment.TopCenter)
-                .padding(top = RADAR_CENTER_Y - RADAR_RADIUS)
-                .size(RADAR_RADIUS * 2)
+                .padding(top = RADAR_CENTER_Y - radius)
+                .size(radius * 2)
                 .clearAndSetSemantics {}
         ) {
             val center = Offset(size.width / 2, size.height / 2)
@@ -85,25 +88,30 @@ internal fun RunBodyRadar(scores: Map<RunBodyAxis, Int?>, modifier: Modifier = M
                     .padding(top = RADAR_CENTER_Y - (CENTER_LINE_HEIGHT / 2).dp)
             )
         }
-        AxisLabels(scores, isAnalyzing = centerText != null)
+        AxisLabels(scores, isAnalyzing = centerText != null, scale = scale)
     }
 }
 
-/** 축 이름·점수 자리(피그마 좌표): 운동 강도 위 가운데, 지구력·심폐체력 양옆 위 75.5, 페이스 안정성·러닝 폼 아래 216. */
+/**
+ * 축 이름·점수 자리(피그마 좌표): 운동 강도 위 가운데, 지구력·심폐체력 양옆 위 75.5, 페이스 안정성·러닝 폼 아래 216. 가로 값은 [scale]배다.
+ */
 @Composable
-private fun BoxScope.AxisLabels(scores: Map<RunBodyAxis, Int?>, isAnalyzing: Boolean) {
+private fun BoxScope.AxisLabels(scores: Map<RunBodyAxis, Int?>, isAnalyzing: Boolean, scale: Float) {
+    val sideWidth = SIDE_LABEL_WIDTH * scale
+    val bottomWidth = BOTTOM_LABEL_WIDTH * scale
+    val bottomInset = BOTTOM_LABEL_INSET * scale
     AxisLabel(RunBodyAxis.INTENSITY, scores, isAnalyzing, Modifier.align(Alignment.TopCenter).padding(top = 4.dp))
     AxisLabel(
         RunBodyAxis.ENDURANCE,
         scores,
         isAnalyzing,
-        Modifier.align(Alignment.TopEnd).padding(top = SIDE_LABEL_TOP).width(SIDE_LABEL_WIDTH)
+        Modifier.align(Alignment.TopEnd).padding(top = SIDE_LABEL_TOP).width(sideWidth)
     )
     AxisLabel(
         RunBodyAxis.FITNESS,
         scores,
         isAnalyzing,
-        Modifier.align(Alignment.TopStart).padding(top = SIDE_LABEL_TOP).width(SIDE_LABEL_WIDTH)
+        Modifier.align(Alignment.TopStart).padding(top = SIDE_LABEL_TOP).width(sideWidth)
     )
     AxisLabel(
         RunBodyAxis.STABILITY,
@@ -111,8 +119,8 @@ private fun BoxScope.AxisLabels(scores: Map<RunBodyAxis, Int?>, isAnalyzing: Boo
         isAnalyzing,
         Modifier
             .align(Alignment.TopEnd)
-            .padding(end = BOTTOM_LABEL_INSET, top = BOTTOM_LABEL_TOP)
-            .width(BOTTOM_LABEL_WIDTH)
+            .padding(end = bottomInset, top = BOTTOM_LABEL_TOP)
+            .width(bottomWidth)
     )
     AxisLabel(
         RunBodyAxis.FORM,
@@ -120,8 +128,8 @@ private fun BoxScope.AxisLabels(scores: Map<RunBodyAxis, Int?>, isAnalyzing: Boo
         isAnalyzing,
         Modifier
             .align(Alignment.TopStart)
-            .padding(start = BOTTOM_LABEL_INSET, top = BOTTOM_LABEL_TOP)
-            .width(BOTTOM_LABEL_WIDTH)
+            .padding(start = bottomInset, top = BOTTOM_LABEL_TOP)
+            .width(bottomWidth)
     )
 }
 
@@ -167,6 +175,7 @@ private fun polygon(center: Offset, radius: Float): Path = Path().apply {
 }
 
 private val RADAR_HEIGHT = 258.dp
+private val FIGMA_BOX_WIDTH = 310.dp
 
 /** 오각형 외접 반지름과 상자 위에서 중심까지(피그마 79.5, 123.2). */
 private val RADAR_RADIUS: Dp = 79.5.dp

@@ -15,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.MetaItem
@@ -44,7 +46,8 @@ internal fun RunBodyPickPage(state: RunBodyUiState, actions: RunBodyActions) {
                 stringResource(R.string.record_km_value, RunkkFormat.kmShort(run.distance))
             )
             RunkkCard(
-                Modifier.fillMaxWidth().heightIn(min = PICK_ROW_HEIGHT),
+                // 라임 테두리가 없어져 고른 칸을 보조 기술에 선택 상태로 알린다
+                Modifier.fillMaxWidth().heightIn(min = PICK_ROW_HEIGHT).semantics { selected = isSelected },
                 shape = RunkkShapes.Large,
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 onClick = { actions.onPick(run) },

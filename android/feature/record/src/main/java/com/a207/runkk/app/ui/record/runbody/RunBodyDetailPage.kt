@@ -63,7 +63,8 @@ private fun SummaryCard(summary: RunBodyResult.Summary) {
         summary.pace?.let {
             RunBodyValueRow(
                 stringResource(R.string.record_stat_avg_pace),
-                stringResource(R.string.record_runbody_pace_per_km, runBodyPace(it))
+                stringResource(R.string.record_runbody_pace_per_km, runBodyPace(it)),
+                spokenValue = RunkkFormat.paceSpoken(it)
             )
         }
         summary.averageHeartRate?.let {
@@ -154,7 +155,16 @@ private fun CompareCard(summary: RunBodyResult.Summary, previous: RunBodyResult.
         )
         RunBodyValueRow(
             stringResource(R.string.record_stat_avg_pace),
-            stringResource(R.string.record_runbody_compare_value, runBodyPace(summary.pace), runBodyPace(previous.pace))
+            stringResource(
+                R.string.record_runbody_compare_value,
+                runBodyPace(summary.pace),
+                runBodyPace(previous.pace)
+            ),
+            spokenValue = stringResource(
+                R.string.record_runbody_compare_value,
+                RunkkFormat.paceSpoken(summary.pace),
+                RunkkFormat.paceSpoken(previous.pace)
+            )
         )
     }
 }

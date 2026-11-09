@@ -19,6 +19,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -59,10 +61,18 @@ internal fun RunBodyCard(
     }
 }
 
-/** 라벨(왼쪽, 13 Medium 보조색) + 값(오른쪽, 17 Bold) 한 줄, 글자 기준선 맞춤(피그마 G-20·G-22). 보조 기술은 한 줄로 읽는다. */
+/**
+ * 라벨(왼쪽, 13 Medium 보조색) + 값(오른쪽, 17 Bold) 한 줄, 글자 기준선 맞춤(피그마 G-20·G-22). 보조 기술은 한 줄로 읽는다. [spokenValue]가
+ * 있으면 값 대신 그 문구로 읽는다(페이스 "5′48″" → "1킬로미터당 5분 48초").
+ */
 @Composable
-internal fun RunBodyValueRow(label: String, value: String, modifier: Modifier = Modifier) {
-    Row(modifier = modifier.fillMaxWidth().semantics(mergeDescendants = true) {}) {
+internal fun RunBodyValueRow(label: String, value: String, modifier: Modifier = Modifier, spokenValue: String? = null) {
+    val rowSemantics = if (spokenValue != null) {
+        Modifier.clearAndSetSemantics { contentDescription = "$label, $spokenValue" }
+    } else {
+        Modifier.semantics(mergeDescendants = true) {}
+    }
+    Row(modifier = modifier.fillMaxWidth().then(rowSemantics)) {
         Text(
             label,
             style = RunkkTextStyles.text(13, FontWeight.Medium),
