@@ -1,0 +1,111 @@
+package com.a207.runkk.app.core.avatar
+
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
+import java.io.ByteArrayOutputStream
+
+/**
+ * Rive 이미지 자리에 넣을 머리 텍스처(PoC AvatarImages 가운데 렌더러가 쓰는 부분). 원본 PNG는 바꾸지 않고, 톤은 매번 원본에서
+ * 다시 계산해 누적되지 않는다. 피부 얼굴에만 톤을 쓰고 눈·헤어는 원래 색으로 그 위에 얹는다.
+ */
+internal object AvatarImages {
+    private const val SIZE = 1024
+
+    /** 피부 얼굴 레이어에 러닝량 톤을 적용한다. 러닝량 0이면 원본 바이트를 그대로 돌려준다. */
+    fun faceForRunningAmount(bytes: ByteArray, amount: Int): ByteArray {
+        val matrix = SkinToneFilter.matrix(amount)
+        if (amount == MIN_RUNNING_AMOUNT) return bytes
+        val source = decode(bytes)
+        try {
+            val result = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+            try {
+                Canvas(result).drawBitmap(
+                    source,
+                    0f,
+                    0f,
+                    Paint().apply {
+                        colorFilter = ColorMatrixColorFilter(matrix)
+                    }
+                )
+                return encode(result)
+            } finally {
+                result.recycle()
+            }
+        } finally {
+            source.recycle()
+        }
+    }
+
+    /** 측면 머리: 톤을 적용한 얼굴(내장 샘플은 목 등록 메시) 위에 눈, 헤어 순서로 원래 색을 얹는다. */
+    fun composeSideHead(layers: SideHeadLayers, amount: Int): ByteArray {
+        val face = decode(faceForRunningAmount(layers.face, amount))
+        try {
+            val result = Bitmap.createBitmap(face.width, face.height, Bitmap.Config.ARGB_8888)
+            try {
+                val canvas = Canvas(result)
+                val neck = layers.neckRegistration
+                if (neck == null) {
+                    canvas.drawBitmap(face, 0f, 0f, null)
+                } else {
+                    drawRegisteredFace(canvas, face, neck)
+                }
+                drawOverlay(canvas, layers.eyes, face, clipFemaleStrand = false)
+                drawOverlay(canvas, layers.hair, face, clipFemaleStrand = neck == SideNeckRegistration.FEMALE)
+                return encode(result)
+            } finally {
+                result.recycle()
+            }
+        } finally {
+            face.recycle()
+        }
+    }
+
+    private fun drawRegisteredFace(canvas: Canvas, face: Bitmap, neck: SideNeckRegistration) {
+        require(face.width == SIZE && face.height == SIZE) { "side face must be ${SIZE}x$SIZE" }
+        val pixels = IntArray(SIZE * SIZE)
+        face.getPixels(pixels, 0, SIZE, 0, 0, SIZE, SIZE)
+        val clean = Bitmap.createBitmap(neck.cleanNeckPixels(pixels), SIZE, SIZE, Bitmap.Config.ARGB_8888)
+        try {
+            canvas.drawBitmapMesh(
+                clean,
+                1,
+                SIZE,
+                neck.meshVertices(),
+                0,
+                null,
+                0,
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+        } finally {
+            clean.recycle()
+        }
+    }
+
+    private fun drawOverlay(canvas: Canvas, bytes: ByteArray, face: Bitmap, clipFemaleStrand: Boolean) {
+        val overlay = decode(bytes)
+        try {
+            require(overlay.width == face.width && overlay.height == face.height) { "side layers differ in size" }
+            val saved = canvas.save()
+            try {
+                // 내장 여자 옆얼굴: 이 머리카락 한 가닥은 줄인 목·옷깃 뒤에 있다. 헤어 원본을 바꾸지 않고 그 자리만 가린다.
+                if (clipFemaleStrand) canvas.clipOutRect(680f, 770f, 760f, 880f)
+                canvas.drawBitmap(overlay, 0f, 0f, null)
+            } finally {
+                canvas.restoreToCount(saved)
+            }
+        } finally {
+            overlay.recycle()
+        }
+    }
+
+    private fun decode(bytes: ByteArray): Bitmap =
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: throw IllegalArgumentException("unreadable PNG layer")
+
+    fun encode(bitmap: Bitmap): ByteArray = ByteArrayOutputStream().use {
+        check(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) { "PNG encoding failed" }
+        it.toByteArray()
+    }
+}

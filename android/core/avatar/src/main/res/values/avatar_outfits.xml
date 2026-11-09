@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 의상 번호(AvatarOutfit, 0..6)별 이름. PoC OutfitStyles 순서와 같다. 0은 기본 의상이다. -->
+<resources>
+    <string-array name="avatar_outfit_top_names">
+        <item>기본</item>
+        <item>민소매</item>
+        <item>카라티</item>
+        <item>긴팔 맨투맨</item>
+        <item>후드티</item>
+        <item>집업 재킷</item>
+        <item>코랄 집업 후드</item>
+    </string-array>
+    <string-array name="avatar_outfit_bottom_names">
+        <item>기본</item>
+        <item>러닝 쇼츠</item>
+        <item>레깅스</item>
+        <item>조거 팬츠</item>
+        <item>와이드 팬츠</item>
+        <item>카고 쇼츠</item>
+        <item>라인 쇼츠</item>
+    </string-array>
+    <string-array name="avatar_outfit_shoes_names">
+        <item>기본</item>
+        <item>로우탑</item>
+        <item>하이탑</item>
+        <item>트레일 러너</item>
+        <item>슬립온</item>
+        <item>앵클 부츠</item>
+        <item>코랄 스니커즈</item>
+    </string-array>
+</resources>
