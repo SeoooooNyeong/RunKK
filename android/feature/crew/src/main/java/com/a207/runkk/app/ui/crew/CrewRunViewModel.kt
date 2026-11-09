@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
@@ -53,6 +54,10 @@ class CrewRunViewModel @Inject constructor(
     private var tickJob: Job? = null
     private var hintJob: Job? = null
     private var startAt: Instant? = null
+
+    /** 대기실 응답 없이 다시 들어왔을 때 결과 응답에서 읽은 크루원 표시 성별(memberId → 성별). */
+    private var rejoinGenders: Map<Long, Gender> = emptyMap()
+    private var genderJob: Job? = null
 
     fun bind(key: Routes.CrewRunLobby) {
         if (bound == key.postId) return
@@ -185,12 +190,22 @@ class CrewRunViewModel @Inject constructor(
             }
 
             is CrewRunState.Running -> if (s.postId == postId) {
+                // 대기실 응답 없이 진행에 들어왔으면(진행 중 앱을 다시 띄움) 크루원 표시 성별을 결과 응답에서 한 번 읽는다(계약 v1.3).
+                if (_state.value.lobby == null) readGendersOnce(postId)
                 // 줄 순서는 서버가 준 대기실 입장 순 그대로다(순위가 없다).
                 _state.update { st ->
                     st.copy(
                         phase = CrewRunPhase.RUNNING,
                         countdown = null,
-                        relay = s.entries.map { e -> RelayRow(e.name, e.distance, MateState.of(e.state.name), e.isMe) },
+                        relay = s.entries.map { e ->
+                            RelayRow(
+                                e.name,
+                                e.distance,
+                                MateState.of(e.state.name),
+                                e.isMe,
+                                st.lobby.genderOf(e.memberId) ?: e.memberId?.let(rejoinGenders::get)
+                            )
+                        },
                         totalDistance = s.totalDistance,
                         mine = s.mine
                     )
@@ -200,7 +215,15 @@ class CrewRunViewModel @Inject constructor(
             is CrewRunState.Finished -> if (s.postId == postId) {
                 tickJob?.cancel()
                 if (s.cancelledReason != null) {
-                    _state.update { it.copy(phase = CrewRunPhase.CANCELLED, cancelledReason = s.cancelledReason) }
+                    // 취소 화면(F-14c)은 대기실 틀이다: 마지막 대기실(참가자·준비 상태)을 그대로 두고 남은 시간은 0:00이다.
+                    _state.update {
+                        it.copy(
+                            phase = CrewRunPhase.CANCELLED,
+                            cancelledReason = s.cancelledReason,
+                            untilStart = Duration.ZERO,
+                            countdown = null
+                        )
+                    }
                 } else {
                     _state.update { it.copy(phase = CrewRunPhase.FINISHED, isConfirmingQuit = false) }
                     _events.trySend(CrewRunEvent.Finished(postId))
@@ -208,6 +231,21 @@ class CrewRunViewModel @Inject constructor(
             }
 
             else -> Unit
+        }
+    }
+
+    /**
+     * 진행 중 앱을 다시 띄워 대기실에 들어가지 못하면(이미 시작) 중계에 크루원 성별이 없어 남자 기본 캐릭터가 된다. 결과 응답(진행 중에도
+     * participants에 memberId·shownGender가 있다)을 한 번 읽어 다음 중계부터 채운다. 실패하면 기본 캐릭터 그대로다.
+     */
+    private fun readGendersOnce(postId: Long) {
+        if (genderJob != null) return
+        genderJob = viewModelScope.launch {
+            val result = (crews.crewRunResult(postId) as? Outcome.Success)?.value ?: return@launch
+            // 다음 중계(1초마다)부터 이 성별로 그린다.
+            rejoinGenders = result.participants
+                .mapNotNull { p -> p.memberId?.let { id -> p.shownGender?.let { id to it } } }
+                .toMap()
         }
     }
 
@@ -256,3 +294,7 @@ class CrewRunViewModel @Inject constructor(
 
 /** 대기실 응답의 내 줄(me) 준비 여부. 내 줄이 없으면 null. */
 private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.isMe }?.isReady
+
+/** 중계 줄 회원의 표시 성별(대기실 응답의 같은 memberId 줄, 크루원 아바타). 중계에는 아바타 값을 싣지 않는다(계약 crewrun-sum v1.2). */
+private fun Lobby?.genderOf(memberId: Long?): Gender? =
+    memberId?.let { id -> this?.participants?.firstOrNull { it.memberId == id }?.shownGender }

@@ -66,7 +66,6 @@ import com.a207.runkk.app.core.designsystem.RunPermissionEffect
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
@@ -305,23 +304,21 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         when (state.phase) {
             CrewRunPhase.ENTERING -> EnteringBody(state, actions)
+
             CrewRunPhase.LOBBY -> LobbyContent(state, actions)
+
             CrewRunPhase.COUNTDOWN -> CountdownBody(state)
+
             CrewRunPhase.RUNNING, CrewRunPhase.FINISHED -> RunningContent(state, actions)
-            CrewRunPhase.CANCELLED -> CancelledBody(state, actions)
+
+            // 취소(F-14c)도 대기실 틀이다. 대기실에 들어가기 전에 취소를 받았으면(대기실 없음) 사유와 돌아가기만 보인다.
+            CrewRunPhase.CANCELLED -> {
+                val hasLobby = state.lobby != null
+                if (hasLobby) LobbyContent(state, actions) else CancelledBody(state, actions)
+            }
         }
     }
-    if (state.isConfirmingQuit) {
-        RunkkConfirmDialog(
-            title = stringResource(R.string.crew_run_quit_confirm_title),
-            message = stringResource(R.string.crew_run_quit_confirm_message),
-            confirmLabel = stringResource(R.string.crew_run_quit_confirm_action),
-            onConfirm = actions.onQuitConfirm,
-            onDismiss = actions.onQuitDismiss,
-            dismissLabel = stringResource(R.string.crew_run_quit_confirm_dismiss),
-            isDestructive = true
-        )
-    }
+    if (state.isConfirmingQuit) CrewQuitDialog(onConfirm = actions.onQuitConfirm, onDismiss = actions.onQuitDismiss)
 }
 
 /** 대기실에 들어가는 중: 읽는 중이거나 오류. 열리지 않음·이미 시작 같은 거부는 다시 해도 같으니 "돌아가기"를 준다. */
@@ -349,7 +346,7 @@ private fun EnteringBody(state: CrewRunUiState, actions: CrewRunActions) {
     }
 }
 
-/** 취소된 크루런(피그마 F-14c): 서버가 보낸 사유 문구를 그대로 보이고 크루런 일정으로 돌아간다. */
+/** 대기실 없이 받은 취소: 서버가 보낸 사유 문구를 그대로 보이고 크루런 일정으로 돌아간다. */
 @Composable
 private fun CancelledBody(state: CrewRunUiState, actions: CrewRunActions) {
     Column(Modifier.fillMaxSize()) {
@@ -373,20 +370,22 @@ private fun CrewRunChip(distance: Distance?) {
 }
 
 /**
- * 대기실(F-14·F-14b): 칩과 나가기, 모집 시각·출발까지 남은 시간, 참가자 3열 격자(나·이름, 준비 완료·대기 중·미입장)와
- * "준비 완료 n / m", 아래 준비 완료 단추(준비하면 회색, 다시 누르면 풀린다).
+ * 대기실(F-14·F-14b)과 취소(F-14c): 칩과 나가기, 모집 시각·출발까지 남은 시간, 참가자 3열 격자(나를 첫 칸, 이름, 준비 완료·대기 중·
+ * 미입장)와 "준비 완료 n / m", 아래 준비 완료 단추(준비하면 회색, 다시 누르면 풀린다). 취소면 남은 시간 0:00 아래에 "출발까지" 대신
+ * 서버 취소 사유를 보이고, 아래 단추와 나가기가 크루런 일정으로 돌아간다.
  */
 @Composable
 private fun LobbyContent(state: CrewRunUiState, actions: CrewRunActions) {
     val lobby = state.lobby ?: return
+    val isCancelled = state.phase == CrewRunPhase.CANCELLED
     Column(Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             CrewRunChip(state.distance)
             Spacer(Modifier.weight(1f))
             RunkkPillButton(
                 stringResource(R.string.crew_run_lobby_leave),
-                onClick = actions.onLeave,
-                isEnabled = !state.isLeaving
+                onClick = if (isCancelled) actions.onClose else actions.onLeave,
+                isEnabled = isCancelled || !state.isLeaving
             )
         }
         Column(
@@ -404,17 +403,31 @@ private fun LobbyContent(state: CrewRunUiState, actions: CrewRunActions) {
                 )
             }
         }
-        LobbyReadyButton(state, actions)
+        if (isCancelled) {
+            RunkkPrimaryButton(
+                stringResource(R.string.crew_run_cancelled_to_schedule),
+                onClick = actions.onClose,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+            )
+        } else {
+            LobbyReadyButton(state, actions)
+        }
     }
 }
 
-/** "오늘 오후 9:00", 큰 남은 시간, "출발까지". */
+/** "오늘 오후 9:00", 큰 남은 시간, "출발까지"(취소면 서버 취소 사유). */
 @Composable
 private fun LobbyUntilStart(state: CrewRunUiState, lobby: Lobby) {
     val meet = lobbyMeetLabel(lobby.meetAt)
+    val cancelled = if (state.phase == CrewRunPhase.CANCELLED) {
+        state.cancelledReason ?: stringResource(R.string.crew_run_cancelled)
+    } else {
+        null
+    }
     val untilSpoken = state.untilStart?.let { RunkkFormat.durationSpoken(it) }
         ?: stringResource(R.string.crew_run_lobby_until_checking)
-    val description = stringResource(R.string.crew_run_lobby_until_description, untilSpoken, meet)
+    val description = cancelled?.let { "$it, $meet" }
+        ?: stringResource(R.string.crew_run_lobby_until_description, untilSpoken, meet)
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 16.dp).clearAndSetSemantics {
             contentDescription = description
@@ -425,9 +438,10 @@ private fun LobbyUntilStart(state: CrewRunUiState, lobby: Lobby) {
         Text(meet, style = RunkkTextStyles.Caption, color = RunkkColors.TextPrimary)
         Text(untilLabel(state.untilStart), style = RunkkTextStyles.display(52), color = RunkkColors.TextPrimary)
         Text(
-            stringResource(R.string.crew_run_lobby_until_label),
+            cancelled ?: stringResource(R.string.crew_run_lobby_until_label),
             style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextPrimary
+            color = RunkkColors.TextPrimary,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -492,7 +506,8 @@ private fun Participants(lobby: Lobby) {
                 color = RunkkColors.TextPrimary
             )
         }
-        lobby.participants.chunked(LOBBY_COLUMNS).forEach { row ->
+        // 나를 첫 칸에 둔다(피그마 F-14). 나머지는 서버가 준 입장 순 그대로다.
+        lobby.participants.sortedByDescending { it.isMe }.chunked(LOBBY_COLUMNS).forEach { row ->
             Row(Modifier.fillMaxWidth()) {
                 row.forEach { p -> ParticipantCell(p, Modifier.weight(1f)) }
                 repeat(LOBBY_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
@@ -642,7 +657,8 @@ private fun RunStat(value: String, label: String, spoken: String) {
 
 /**
  * 지도와 아바타(F-15): 경로 끝에 내 아바타, 아직 끝내지 않은 크루원은 내 경로 위 거리 차만큼 떨어진 지점(OpponentMarkerPlacer, 대결 상대와
- * 같은 방식). 크루원 성별을 모르므로 기본 캐릭터이고 멈췄으면 이름표가 "이름 · 멈춤"이다. Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다.
+ * 같은 방식). 크루원 캐릭터는 그 크루원의 표시 성별(대기실 응답, D-327)이고 멈췄으면 이름표가 "이름 · 멈춤"이다.
+ * Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다.
  */
 @Composable
 private fun CrewRunMap(state: CrewRunUiState) {
@@ -662,12 +678,13 @@ private fun CrewRunMap(state: CrewRunUiState) {
             MateMarker(
                 point,
                 if (isPaused) resources.getString(R.string.crew_run_mate_paused, row.name) else row.name,
-                row.state == MateState.RUNNING && !mine.isPaused
+                row.state == MateState.RUNNING && !mine.isPaused,
+                AvatarCharacter.of(row.shownGender)
             )
         }
     }
-    val mateFigure: @Composable (Boolean) -> Unit = { moving ->
-        RunkkRunningFigure(moving, runFrameMillis(null), character = AvatarCharacter.of(null), isFacingLeft = isLeft)
+    val mateFigure: @Composable (MateMarker) -> Unit = { m ->
+        RunkkRunningFigure(m.isMoving, runFrameMillis(null), character = m.character, isFacingLeft = isLeft)
     }
     // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340)
     var isMapFailed by remember { mutableStateOf(false) }
@@ -675,7 +692,7 @@ private fun CrewRunMap(state: CrewRunUiState) {
         KakaoRunMap(
             route = route,
             modifier = Modifier.fillMaxSize(),
-            others = mates.map { m -> RunMapMarker(m.point, label = m.label, figure = { mateFigure(m.isMoving) }) },
+            others = mates.map { m -> RunMapMarker(m.point, label = m.label, figure = { mateFigure(m) }) },
             myLabel = myLabel,
             onMapError = { isMapFailed = true }
         ) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
@@ -688,7 +705,7 @@ private fun CrewRunMap(state: CrewRunUiState) {
         return
     }
     val markers = mates.map { m ->
-        RouteMarker(m.point, label = m.label, tag = OPPONENT_MARKER_TAG, figure = { mateFigure(m.isMoving) })
+        RouteMarker(m.point, label = m.label, tag = OPPONENT_MARKER_TAG, figure = { mateFigure(m) })
     } +
         RouteMarker(point = me, label = myLabel, figure = {
             RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
@@ -716,7 +733,8 @@ private fun RunControls(state: CrewRunUiState, actions: CrewRunActions, isPaused
             borderWidth = 0.dp,
             background = RunkkColors.LimeFill
         ) {
-            Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.TextPrimary))
+            // 라임 위 사각형은 두 테마 모두 짙은 색이다(다크에서 흰 사각형이면 대비가 낮다).
+            Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.OnLimeFill))
         }
         val label = stringResource(if (isPaused) R.string.crew_run_resume else R.string.crew_run_pause)
         Box(

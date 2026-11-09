@@ -56,6 +56,7 @@ class CrewScenarioTest {
     @Autowired CrewRunParticipationReader participationReader;
     @Autowired CrewQueryService queries;
     @Autowired MemberRepository members;
+    @Autowired com.a207.runkk.member.MemberQueryService memberQueries;
     @Autowired TransactionTemplate tx;
 
     private long member() {
@@ -193,10 +194,17 @@ class CrewScenarioTest {
                                 crewId,
                                 new CrewRunDraft("둘이", at, StandardDistance.KM1, null))
                         .postId();
+        LobbyView lobby = null;
         for (long m : List.of(leader, a)) {
             crewRuns.enterLobby(m, run);
-            crewRuns.toggleReady(m, run);
+            lobby = crewRuns.toggleReady(m, run);
         }
+        java.util.Map<Long, com.a207.runkk.member.Gender> shown =
+                memberQueries.shownGendersOf(List.of(leader, a));
+        assertThat(lobby.participants())
+                .as("대기실 참가자마다 표시 성별(D-327, 크루원 아바타 S15P31A207-236)")
+                .extracting(LobbyView.Entry::shownGender)
+                .containsExactly(shown.get(leader).name(), shown.get(a).name());
         crewRuns.tick(at);
         sessions.delete(run);
         sessions.save(CrewRunLiveSession.open(-77L, java.util.Map.of(), at));
@@ -233,6 +241,9 @@ class CrewScenarioTest {
                 .extracting(CrewRunResultView.Line::memberId)
                 .containsExactly(leader, a);
         assertThat(result.participants()).allMatch(CrewRunResultView.Line::ended);
+        assertThat(result.participants())
+                .extracting(CrewRunResultView.Line::shownGender)
+                .containsExactly(shown.get(leader).name(), shown.get(a).name());
         CrewRunResultView.Line mine = result.participants().get(1);
         assertThat(mine.distance()).as("기록 요약이 없으면 끝낼 때 남긴 중계 값").isEqualTo(Distance.ofMeters(200));
         assertThat(mine.elapsed()).isEqualTo(Duration.ofSeconds(60));

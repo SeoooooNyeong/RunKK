@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.crew
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
 import com.a207.runkk.app.domain.crew.CelebrationCard
@@ -195,7 +196,9 @@ internal fun LobbyResponse.toDomain(): Lobby = Lobby(
             it.ready,
             it.memberId,
             it.me,
-            isEntered = it.readiness?.let { r -> r != NOT_ENTERED } ?: true
+            isEntered = it.readiness?.let { r -> r != NOT_ENTERED } ?: true,
+            faceKey = it.faceKey,
+            shownGender = enumByName<Gender>(it.shownGender)
         )
     },
     ServerTime.parse(scheduledAt),
@@ -211,7 +214,9 @@ internal fun CrewRunResultResponse.toDomain(): CrewRunResult {
             averagePaceSecondsPerKm = it.averagePaceSecondsPerKm,
             hasEnded = it.ended,
             memberId = it.memberId,
-            isMe = it.me
+            isMe = it.me,
+            faceKey = it.faceKey,
+            shownGender = enumByName<Gender>(it.shownGender)
         )
     }
     return CrewRunResult(

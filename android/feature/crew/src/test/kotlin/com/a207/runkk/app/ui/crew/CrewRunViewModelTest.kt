@@ -6,9 +6,11 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.live.CrewRunCancelled
@@ -151,6 +153,12 @@ class CrewRunViewModelTest {
         runCurrent()
         assertEquals(CrewRunPhase.CANCELLED, vm.state.value.phase)
         assertEquals("준비 완료 2명 미만", vm.state.value.cancelledReason)
+        // 취소 화면(F-14c)도 대기실 틀이다: 마지막 대기실(참가자·준비 상태)을 그대로 두고 남은 시간은 0:00이다.
+        assertEquals(3, vm.state.value.lobby?.participants?.size)
+        assertEquals(Duration.ZERO, vm.state.value.untilStart)
+        w.clock.now = w.clock.now.plusSeconds(5)
+        advanceTimeBy(5_000)
+        assertEquals(Duration.ZERO, vm.state.value.untilStart, "취소된 뒤에는 다시 세지 않는다")
     }
 
     @Test
@@ -272,6 +280,104 @@ class CrewRunViewModelTest {
         assertTrue(result.isFirstCrewRun)
         assertEquals(listOf("rec-31"), read)
         assertEquals(listOf("result:31"), w.crews.calls.filter { it.startsWith("result") }, "끝났고 내 기록이 있으면 다시 읽지 않는다")
+    }
+
+    @Test
+    fun `결과 - 가운데 내 아바타는 홈과 같은 출처(본인 요약의 얼굴·배경)로 한 번 읽는다(F-16)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val look = MyAvatar("face-7", emptyList(), "bg-park")
+        var reads = 0
+        val vm = vms.track(
+            CrewRunResultViewModel(
+                w.crews,
+                w.coordinator,
+                timeSource = testScheduler.timeSource,
+                myAvatar = {
+                    reads++
+                    look
+                }
+            ) { Outcome.Failure(AppError.Network) }
+        )
+        vm.load(31)
+        runCurrent()
+        assertEquals(look, vm.state.value.myAvatar)
+        vm.load(31, isForced = true)
+        runCurrent()
+        assertEquals(1, reads, "다시 읽어도 내 아바타는 한 번만 읽는다")
+    }
+
+    @Test
+    fun `진행 - 크루원 캐릭터는 대기실 응답의 같은 memberId 줄 표시 성별이다(크루원 아바타)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val vm = lobbyVm(w, vms)
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("바람처럼", "달빛", "나")))
+        runCurrent()
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        w.channels.channel.push(
+            CrewRunRelay(
+                31,
+                Distance(2_000),
+                listOf(
+                    CrewRunRelay.Entry("바람처럼", Distance(900), CrewRunRelay.State.RUNNING, memberId = 1),
+                    CrewRunRelay.Entry("달빛", Distance(800), CrewRunRelay.State.RUNNING, memberId = 2),
+                    CrewRunRelay.Entry("모름", Distance(300), CrewRunRelay.State.RUNNING, memberId = 99)
+                )
+            )
+        )
+        runCurrent()
+        assertEquals(
+            listOf(Gender.FEMALE, Gender.MALE, null),
+            vm.state.value.relay.map { it.shownGender },
+            "대기실에 없는 회원은 모름(남자 기본 캐릭터)"
+        )
+    }
+
+    @Test
+    fun `진행 - 대기실 응답 없이 다시 들어오면 크루원 성별을 결과 응답에서 한 번 읽어 채운다(계약 v1_3)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        lobbyVm(w, vms)
+        // 앱을 다시 띄운 화면: 대기실 입장은 이미 시작이라 거부되고 진행 상태만 이어진다.
+        w.crews.fail["enter"] = AppError.Rejected("ALREADY_STARTED")
+        val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock, ServerClock(w.clock)))
+        vm.bind(Routes.CrewRunLobby(31))
+        runCurrent()
+        assertEquals(null, vm.state.value.lobby)
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("바람처럼", "달빛", "나")))
+        runCurrent()
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        fun relayOf(meters: Long) = CrewRunRelay(
+            31,
+            Distance(meters),
+            listOf(
+                CrewRunRelay.Entry("바람처럼", Distance(meters), CrewRunRelay.State.RUNNING, memberId = 1),
+                CrewRunRelay.Entry("달빛", Distance(meters), CrewRunRelay.State.RUNNING, memberId = 2)
+            )
+        )
+        w.channels.channel.push(relayOf(500))
+        runCurrent()
+        w.channels.channel.push(relayOf(600))
+        runCurrent()
+        assertEquals(listOf(Gender.FEMALE, Gender.MALE), vm.state.value.relay.map { it.shownGender })
+        assertEquals(1, w.crews.calls.count { it == "result:31" }, "결과 응답은 한 번만 읽는다")
+    }
+
+    @Test
+    fun `결과 - 크루원 셀카 얼굴 그림은 얼굴 키마다 한 번만 받는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val vm = vms.track(resultVm(w))
+        vm.load(31)
+        runCurrent()
+        advanceTimeBy(3_100)
+        runCurrent()
+        assertEquals(
+            listOf("face:default:FOX", "face:selfie:face/2/set-a", "face:default:BEAR"),
+            w.crews.calls.filter { it.startsWith("face:") },
+            "다시 읽어도 또 받지 않고, 내 줄·얼굴 없는 크루원은 받지 않는다"
+        )
+        assertEquals(setOf("selfie:face/2/set-a"), vm.state.value.mateFaces.keys, "빈 목록(기본 캐릭터 얼굴)은 담지 않는다")
     }
 
     @Test
