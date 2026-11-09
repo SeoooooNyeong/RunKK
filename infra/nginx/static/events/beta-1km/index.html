@@ -301,7 +301,7 @@ main{position:relative;margin-top:-40px;padding:0 16px calc(128px + env(safe-are
     var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
     return m ? (+m[2]) + '월 ' + (+m[3]) + '일' : '';
   }
-  function km(m) { return (Math.floor(m / 10) / 100).toFixed(2) + 'km'; }
+  function km(m) { return (Math.round(m / 10) / 100).toFixed(2) + 'km'; }
 
   // 남은 시간
   var last = '';
