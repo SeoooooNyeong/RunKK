@@ -9,7 +9,7 @@
   const RIG = 'runkk-front-v1';
   const LAYER_SIZE = 1024;
   const HEAD_LAYER_VERSION = 'runkk-coherent-head-v2';
-  const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v38';
+  const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v41';
   const DEFAULT_PIVOT={x:49.3,y:70.1};
   const builtinBodies=window.RUNKK_BODY_PACKS||[];
   const bodySets={};
@@ -303,6 +303,8 @@
   async function applyAiHead(data){
     const hasLayers=data.faceImage&&data.eyesImage&&data.hairImage;
     if(hasLayers&&data.styleVersion!==HEAD_LAYER_VERSION)throw new Error('이전 생성 결과는 코·입과 정렬 정보가 없어요. 셀카로 다시 생성해 주세요.');
+    const glassesPresent=data.glassesPresent===true||data.regions?.features?.glassesPresent===true||data.rightProfile?.glassesPresent===true;
+    $('hairLayerCaption').textContent=glassesPresent?'헤어 · 눈썹 · 안경':'헤어 · 눈썹';$('rightHairLayerCaption').textContent=glassesPresent?'우측 헤어 · 눈썹 · 안경':'우측 헤어 · 눈썹';$('saveRightHairLayer').textContent=glassesPresent?'우측 헤어 · 눈썹 · 안경 PNG ↓':'우측 헤어 · 눈썹 PNG ↓';
     if(hasLayers)state.headData=data.frontImage||null;const normalized=hasLayers?await setLayers(data.faceImage,data.eyesImage,data.hairImage,'AI 생성 얼굴 + 눈 + 머리카락'):await setHead(data.frontImage||data.image,'AI 생성 머리');const crop=normalized.trimmed?.crop||normalized.crop;const anchor=data.alignment||{};
     const px=Number.isFinite(anchor.pivotX)?anchor.pivotX:.5,py=Number.isFinite(anchor.pivotY)?anchor.pivotY:.985;
     state.headData=hasLayers?(data.frontImage||null):normalized.canvas.toDataURL('image/png');state.faceData=hasLayers?data.faceImage:null;state.eyesData=hasLayers?data.eyesImage:null;state.hairData=hasLayers?data.hairImage:null;state.headName=hasLayers?'AI 생성 얼굴 + 눈 + 머리카락':'AI 생성 머리';state.headScale=100;state.headX=0;state.headY=0;
