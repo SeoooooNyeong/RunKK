@@ -192,7 +192,7 @@ class CrewScenarioTest {
                 posts.writeCrewRun(
                                 leader,
                                 crewId,
-                                new CrewRunDraft("둘이", at, StandardDistance.KM1, null))
+                                new CrewRunDraft("둘이", at, StandardDistance.KM3, null))
                         .postId();
         LobbyView lobby = null;
         for (long m : List.of(leader, a)) {

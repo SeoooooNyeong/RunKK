@@ -236,7 +236,7 @@ class CrewThreadIntegrationTest {
                                 leader,
                                 crewId,
                                 new CrewRunDraft(
-                                        "10명 크루런", scheduledAt, StandardDistance.KM1, null))
+                                        "10명 크루런", scheduledAt, StandardDistance.KM3, null))
                         .postId();
         for (long m : runners) {
             crewRuns.enterLobby(m, postId);

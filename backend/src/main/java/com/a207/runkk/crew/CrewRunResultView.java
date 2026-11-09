@@ -14,7 +14,7 @@ import java.util.List;
  *
  * @param postId 크루런 게시글 ID
  * @param status 크루런 상태
- * @param title 모집글 본문 첫 줄
+ * @param title 모집글 제목(W6)
  * @param distance 크루런 거리(목표)
  * @param startedAt 출발 일시, 출발 전이면 null
  * @param totalDistance 참가자 거리 합

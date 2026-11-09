@@ -44,7 +44,8 @@ public class CrewPostService {
     /** 신고 미리보기 길이(D-135). */
     static final int PREVIEW_LENGTH = 100;
 
-    private static final String RECRUIT_TEXT = "크루런 모집 · 참석 응답이 열렸어요";
+    /** 크루런 모집 알림 문구(직접 쓴 글과 반복 회차가 같다, CrewRunRepeater). */
+    static final String RECRUIT_TEXT = "크루런 모집 · 참석 응답이 열렸어요";
 
     private final CrewPostRepository crewPostRepository;
     private final CrewAccess crewAccess;
@@ -56,6 +57,7 @@ public class CrewPostService {
     private final WeeklyRaceRepository weeklyRaceRepository;
     private final AuditService auditService;
     private final CrewTransactions transactions;
+    private final CrewRunRepeater repeater;
     private final Clock clock;
 
     CrewPostService(
@@ -69,6 +71,7 @@ public class CrewPostService {
             WeeklyRaceRepository weeklyRaceRepository,
             AuditService auditService,
             CrewTransactions transactions,
+            CrewRunRepeater repeater,
             Clock clock) {
         this.crewPostRepository = crewPostRepository;
         this.crewAccess = crewAccess;
@@ -80,6 +83,7 @@ public class CrewPostService {
         this.weeklyRaceRepository = weeklyRaceRepository;
         this.auditService = auditService;
         this.transactions = transactions;
+        this.repeater = repeater;
         this.clock = clock;
     }
 
@@ -95,13 +99,17 @@ public class CrewPostService {
     }
 
     /**
-     * check(WRITE_POST) → new CrewRunPost(작성자 GOING) → 작성자를 뺀 크루원에게 CREW_RUN_RECRUIT(FR-132,
-     * FR-193).
+     * check(WRITE_POST) → new CrewRunPost(작성자 GOING) → 반복이 WEEKLY면 이 글로 반복 시작(W6) → 작성자를 뺀 크루원에게
+     * CREW_RUN_RECRUIT(FR-132, FR-193). 15일·5분 규칙(CrewRunSlot)은 요청 변환이 먼저 본다.
      */
     @Transactional
     public PostResult writeCrewRun(long memberId, long crewId, CrewRunDraft draft) {
         Crew crew = crewAccess.check(memberId, crewId, CrewAction.WRITE_POST);
-        CrewPost post = crewPostRepository.save(new CrewRunPost(crewId, memberId, draft, now()));
+        CrewRunPost post = new CrewRunPost(crewId, memberId, draft, now());
+        crewPostRepository.save(post);
+        if (draft.repeat() == CrewRunRepeat.WEEKLY) {
+            repeater.start(post, now());
+        }
         NavigationTarget target =
                 new NavigationTarget(Screen.CREW_RUN_RECRUIT, String.valueOf(post.getId()));
         crew.activeMemberIds().stream()
@@ -392,6 +400,7 @@ public class CrewPostService {
         crewPostRepository.save(post);
         if (post instanceof CrewRunPost run) {
             crewRunService.endByDeletion(run);
+            repeater.stopIfLatest(run, now()); // 반복의 최신 회차를 지우면 반복도 끝난다(W6)
         }
         if (post instanceof BoardPost) {
             postPhotoStore.deleteByPost(postId);
