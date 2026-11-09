@@ -307,7 +307,6 @@ public class CrewQueryService {
                 rejoinAvailableAt(viewerHistory));
     }
 
-
     /** 크루원에게 보일 초대 코드. 7일이 지났으면 새로 발급한다(재발급 화면 삭제, 피그마 맞춤 W7). */
     private InviteCode validInviteCode(Crew crew) {
         InviteCode code = crew.inviteCode();
