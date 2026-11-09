@@ -40,4 +40,39 @@ class LocationFilterTest {
         assertEquals(s.at, p?.at)
         assertEquals(s.point, p?.point)
     }
+
+    @Test
+    fun `정지 표본은 직전 좌표와 새 시각을 쓰고 걸음이 재개되면 새 좌표를 쓴다`() {
+        val start = sample(0, 0.0)
+        filter.accept(start)
+        for (second in 1..60L) {
+            val drift = sample(second, if (second % 2L == 0L) -4.0 else 4.0, accuracy = 25.0)
+                .copy(speedUpperEstimateMps = 0.5)
+            val accepted = filter.accept(drift)
+            assertEquals(start.point, accepted?.point)
+            assertEquals(drift.at, accepted?.at)
+        }
+        val walking = sample(61, 2.0).copy(speedUpperEstimateMps = 0.8)
+        assertEquals(walking.point, filter.accept(walking)?.point)
+    }
+
+    @Test
+    fun `속도 정보가 없거나 마지막 표본이 오래됐으면 받은 좌표를 쓴다`() {
+        filter.accept(sample(0, 0.0))
+        val unknown = sample(1, 4.0)
+        assertEquals(unknown.point, filter.accept(unknown)?.point)
+        val afterGap = sample(5, 8.0).copy(speedUpperEstimateMps = 0.2)
+        assertEquals(afterGap.point, filter.accept(afterGap)?.point)
+    }
+
+    @Test
+    fun `저정확도가 이어진 뒤에는 정지 표본도 회복점 좌표로 새 기준을 잡는다`() {
+        filter.accept(sample(0, 0.0))
+        assertNull(filter.accept(sample(1, 40.0, accuracy = 50.0).copy(speedUpperEstimateMps = 0.1)))
+        val recovery = sample(11, 18.0).copy(speedUpperEstimateMps = 0.1)
+        val accepted = filter.accept(recovery)
+        assertEquals(SignalState.UNSTABLE, accepted?.state)
+        assertEquals(recovery.point, accepted?.point)
+        assertEquals(recovery.point, filter.accept(sample(12, 25.0).copy(speedUpperEstimateMps = 0.1))?.point)
+    }
 }

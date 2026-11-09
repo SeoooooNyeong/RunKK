@@ -1,9 +1,12 @@
 package com.a207.runkk.app.domain.run
 
-import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
-import com.a207.runkk.app.core.model.SignalState
 import java.time.Instant
 
-/** 위치 측정값(측정일시, 좌표, 정확도 반경 m). data.device.MeasurementService가 넘긴다(FR-032). */
-data class LocationSample(val at: Instant, val point: GeoPoint, val accuracyMeters: Double)
+/** 속도 상단 추정치(m/s)는 기기가 측정한 속도에 속도 오차를 더한 값이다. 둘 중 하나가 없으면 null이다. */
+data class LocationSample(
+    val at: Instant,
+    val point: GeoPoint,
+    val accuracyMeters: Double,
+    val speedUpperEstimateMps: Double? = null
+)
