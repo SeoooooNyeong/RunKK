@@ -1,13 +1,18 @@
 package com.a207.runkk.app.ui.record.runbody
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
@@ -18,6 +23,7 @@ import com.a207.runkk.app.domain.runbody.RunBodyAxis
 import com.a207.runkk.app.domain.runbody.RunBodyMonth
 import com.a207.runkk.app.domain.runbody.RunBodyTrend
 import com.a207.runkk.app.ui.record.summary
+import com.github.takahirom.roborazzi.captureRoboImage
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -205,6 +211,52 @@ class RunBodyScreensTest {
     }
 
     @Test
+    fun `지난달은 이 달로 부르고 주간 거리와 부하 거리를 피그마 표기로 보인다(G-22)`() {
+        compose.setContent { RunkkTheme { RunBodyScreen(monthState(sampleMonth()), RunBodyActions()) } }
+        compose.onNodeWithText("18.4 km").performScrollTo().assertExists()
+        compose.onNodeWithText("1.14 적정").assertExists()
+        compose.onNodeWithText("이 달 개인 최고").performScrollTo().assertExists()
+        compose.onNodeWithText("이번 달 개인 최고").assertDoesNotExist()
+        compose.onNodeWithText("20.2km", useUnmergedTree = true).performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `첫 러닝 달이면 이전 달로 가지 않고 이전 달 보기도 없다(G-32)`() {
+        val empty = sampleMonth(YearMonth.of(2026, 11)).copy(sessionCount = 0, averages = emptyMap())
+        compose.setContent {
+            RunkkTheme {
+                RunBodyScreen(
+                    monthState(empty, YearMonth.of(2026, 11)).copy(
+                        trend = sampleTrend().copy(firstRunAt = Instant.parse("2026-11-02T22:00:00Z"))
+                    ),
+                    RunBodyActions()
+                )
+            }
+        }
+        compose.onNodeWithText("이번 달의 러닝을\n아직 분석하지 않았어요").assertExists()
+        compose.onNodeWithContentDescription("이전 달").assertIsNotEnabled()
+        compose.onNodeWithText("이전 달 보기").assertDoesNotExist()
+    }
+
+    @Test
+    fun `상세 구간 기록은 한 줄에 페이스와 심박을, 피드백은 라벨과 본문을 한 줄에 보인다(G-20)`() {
+        compose.setContent {
+            RunkkTheme {
+                RunBodyScreen(
+                    runState(RunBodySessionState.Done(sampleResult())).copy(page = RunBodyPage.DETAIL),
+                    RunBodyActions()
+                )
+            }
+        }
+        compose.onNodeWithText("구간, 페이스, 평균 심박").performScrollTo().assertExists()
+        compose.onNodeWithText("5'42\"/km, 148 bpm", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("마지막 0.2 km", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("좋았던 점 전반과 후반 페이스 차이가 작아요.").performScrollTo().assertExists()
+        compose.onNodeWithText("확인 근거 전반 5'44\"/km → 후반 5'52\"/km").performScrollTo().assertExists()
+        compose.onNodeWithText("5.2 km / 5.0 km", useUnmergedTree = true).performScrollTo().assertExists()
+    }
+
+    @Test
     fun `분석된 러닝이 없는 달은 이전 달 보기를 주고 개인 최고·주간 거리는 그리지 않는다(G-32)`() {
         var previous = 0
         val empty = sampleMonth(YearMonth.of(2026, 11)).copy(
@@ -228,15 +280,78 @@ class RunBodyScreensTest {
         assertEquals(1, previous)
     }
 
-    private fun summaryState(trend: RunBodyTrend?, period: RunBodyPeriod = RunBodyPeriod.WEEK) = RunBodyUiState(
+    /** 피그마 G-14 주간 러닝 기록: 11/2(월) 4.2km, 11/4(수) 5km, 11/6(금) 4km, 11/7(토) 5.2km = 18.4km, 4회, 1:47:20. */
+    private val weekRuns = listOf(
+        Triple("w1", 2, 4_200L) to 24 * 60 + 20L,
+        Triple("w2", 4, 5_000L) to 29 * 60L,
+        Triple("w3", 6, 4_000L) to 23 * 60 + 10L,
+        Triple("w4", 7, 5_200L) to 30 * 60 + 50L
+    ).map { (run, seconds) ->
+        summary(run.first, 1, run.third).copy(
+            startedAt = LocalDate.of(2026, 11, run.second).atTime(7, 10).atZone(zone).toInstant(),
+            elapsed = Duration.ofSeconds(seconds)
+        )
+    }
+
+    private fun summaryState(
+        trend: RunBodyTrend?,
+        period: RunBodyPeriod = RunBodyPeriod.WEEK,
+        comment: String? = null
+    ) = RunBodyUiState(
         today = today,
         zone = zone,
         isReportLoading = false,
-        report = Report("이번 주 3회, 15.2km", null, null),
+        report = Report("1~2회 평균 점수 33.0 · 1회 거리 +0 m", comment, null),
         isTrendLoading = false,
         trend = trend,
-        period = period
+        period = period,
+        isWeekLoading = false,
+        weekRuns = weekRuns
     )
+
+    @Test
+    fun `요약은 주간 러닝 기록·최근 10회 평균·러닝 코멘트를 보이고 개발용 요약 줄은 없다(G-14)`() {
+        var previous = 0
+        var next = 0
+        compose.setContent {
+            RunkkTheme {
+                RunBodyScreen(
+                    summaryState(sampleTrend(), comment = "평균 페이스가 14초 빨라졌어요."),
+                    RunBodyActions(onPreviousWeek = { previous++ }, onNextWeek = { next++ })
+                )
+            }
+        }
+        compose.onNodeWithText("주간 러닝 기록").performScrollTo().assertExists()
+        compose.onNodeWithText("11월 1주").assertExists()
+        compose.onNodeWithText("18.4", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("4회 달림").assertExists()
+        compose.onNodeWithText("1:47:20").assertExists()
+        compose.onNodeWithContentDescription("월요일 4.2km").assertExists()
+        compose.onNodeWithContentDescription("수요일 5km").assertExists()
+        compose.onNodeWithContentDescription("화요일 러닝 없음").assertExists()
+        compose.onNodeWithContentDescription("다음 주").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("이전 주").performClick()
+        assertEquals(1, previous)
+        assertEquals(0, next)
+        compose.onNodeWithText("평균 거리", useUnmergedTree = true).performScrollTo().assertExists()
+        compose.onNodeWithText("4.6", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("149", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("러닝 코멘트", useUnmergedTree = true).performScrollTo().assertExists()
+        compose.onNodeWithText("평균 페이스가 14초 빨라졌어요.", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("이번 주 요약").assertDoesNotExist()
+        compose.onNodeWithText("평균 점수", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `10회 전이면 아무것도 바꾸지 않는 주간·월간 토글과 최근 10회 평균을 그리지 않는다(G-33)`() {
+        compose.setContent {
+            RunkkTheme { RunBodyScreen(summaryState(RunBodyTrend(2, 0, 8, null, null, null, null)), RunBodyActions()) }
+        }
+        compose.onNodeWithText("러닝을 8번 더 하면 최근 10회 변화를 보여 드려요").assertExists()
+        compose.onNodeWithText("주간").assertDoesNotExist()
+        compose.onNodeWithText("평균 거리", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("코멘트 준비 중", useUnmergedTree = true).performScrollTo().assertExists()
+    }
 
     @Test
     fun `요약은 최근 10회 변화의 회차와 페이스·같은 심박·빈도·러닝 유형을 보이고 토글을 알린다(G-14)`() {
@@ -293,7 +408,38 @@ class RunBodyScreensTest {
 
     @Test
     fun summaryShot() = compose.captureRunkkScreen("G14_runbody_summary", isDarkTheme = false) {
-        RunBodyScreen(summaryState(sampleTrend()), coach)
+        RunBodyScreen(summaryState(sampleTrend(), comment = FIGMA_COMMENT), coach)
+    }
+
+    /** [content]를 라이트 벌로 그리고 맨 아래까지 올려 찍는다(화면 아래쪽 카드 확인용). */
+    private fun captureBottom(name: String, content: @Composable () -> Unit) {
+        compose.setContent { RunkkTheme(darkTheme = false, reduceMotion = true, content = content) }
+        repeat(BOTTOM_SWIPES) { compose.onNode(hasScrollAction()).performTouchInput { swipeUp() } }
+        compose.onRoot().captureRoboImage("src/test/snapshots/$name.png")
+    }
+
+    /** G-14 아래쪽: 주간 러닝 기록, 최근 10회 평균, 러닝 코멘트. */
+    @Test
+    fun summaryLowerShot() = captureBottom("G14_runbody_summary_lower") {
+        RunBodyScreen(summaryState(sampleTrend(), comment = FIGMA_COMMENT), coach)
+    }
+
+    /** G-20 아래쪽: 구간 기록 한 줄, 피드백·코칭 라벨, 이전 러닝과 비교. */
+    @Test
+    fun detailLowerShot() = captureBottom("G20_runbody_detail_lower") {
+        RunBodyScreen(runState(RunBodySessionState.Done(sampleResult())).copy(page = RunBodyPage.DETAIL), coach)
+    }
+
+    /** G-22 아래쪽(지난달): 이 달 개인 최고, 주간 거리 막대. */
+    @Test
+    fun monthLowerShot() = captureBottom("G22_runbody_month_lower") {
+        RunBodyScreen(monthState(sampleMonth()), coach)
+    }
+
+    /** G-33: 10회 전(토글·평균 없음), 코멘트 준비 중. */
+    @Test
+    fun summaryPendingShot() = compose.captureRunkkScreen("G33_runbody_summary_pending", isDarkTheme = false) {
+        RunBodyScreen(summaryState(RunBodyTrend(2, 0, 8, null, null, null, null)), coach)
     }
 
     @Test
@@ -373,6 +519,11 @@ class RunBodyScreensTest {
             )
         )
         RunBodyScreen(monthState(month), coach)
+    }
+
+    private companion object {
+        const val BOTTOM_SWIPES = 5
+        const val FIGMA_COMMENT = "평균 페이스가 14초 빨라졌어요.\n주간 러닝 빈도도 0.7회 늘었어요."
     }
 
     @Test

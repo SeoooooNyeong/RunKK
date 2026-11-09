@@ -110,7 +110,8 @@ internal fun RunBodyTrendResponse.toDomain(): RunBodyTrend = RunBodyTrend(
     recent = recent?.toDomain(),
     previous = previous?.toDomain(),
     sameHeartRatePaceChange = sameHeartRatePaceChange,
-    runimalType = runimalType
+    runimalType = runimalType,
+    firstRunAt = firstRunAt?.let { runCatching { OffsetDateTime.parse(it).toInstant() }.getOrNull() }
 )
 
 private fun RunBodyTrendResponse.Window.toDomain(): RunBodyTrend.Window? = paceSecondsPerKm.takeIf { it > 0 }?.let {
@@ -120,7 +121,8 @@ private fun RunBodyTrendResponse.Window.toDomain(): RunBodyTrend.Window? = paceS
         pace = Pace(it),
         runsPerWeek = runsPerWeek.coerceAtLeast(0.0),
         runsPerMonth = runsPerMonth.coerceAtLeast(0.0),
-        averageHeartRate = averageHeartRate
+        averageHeartRate = averageHeartRate,
+        averageDistance = averageDistanceMeters?.takeIf { d -> d > 0 }?.let(::meters)
     )
 }
 

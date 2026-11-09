@@ -11,7 +11,8 @@ internal data class RunBodyTrendResponse(
     val recent: Window? = null,
     val previous: Window? = null,
     val sameHeartRatePaceChange: Int? = null,
-    val runimalType: String? = null
+    val runimalType: String? = null,
+    val firstRunAt: String? = null
 ) {
     @Serializable
     data class Window(
@@ -20,6 +21,7 @@ internal data class RunBodyTrendResponse(
         val paceSecondsPerKm: Int,
         val runsPerWeek: Double = 0.0,
         val runsPerMonth: Double = 0.0,
-        val averageHeartRate: Int? = null
+        val averageHeartRate: Int? = null,
+        val averageDistanceMeters: Long? = null
     )
 }

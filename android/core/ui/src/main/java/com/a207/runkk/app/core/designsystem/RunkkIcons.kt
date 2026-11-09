@@ -105,6 +105,21 @@ object RunkkIcons {
         "M9 14l-3 7"
     )
 
+    /** 두 점을 잇는 길(평균 거리, 런바디 요약 G-14). */
+    val Route: ImageVector = line(
+        "Route",
+        circle(6f, 19f, 3f),
+        "M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15",
+        circle(18f, 5f, 3f)
+    )
+
+    /** 채운 말풍선(러닝 코멘트, 런바디 요약 G-14). */
+    val ChatBubble: ImageVector = line(
+        "ChatBubble",
+        "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
+        isFilled = true
+    )
+
     /** 해(홈 러닝 설정 버튼, A-4). */
     val Sun: ImageVector = line(
         "Sun",

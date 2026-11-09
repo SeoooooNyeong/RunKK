@@ -2,6 +2,7 @@ package com.a207.runkk.runbody;
 
 import com.a207.runkk.running.ValidRunStat;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
@@ -24,6 +25,7 @@ import java.util.List;
  * @param recent 최근 10회. round가 0이면 null. 수를 센 뒤 그 회차 기록이 지워져 셈할 러닝이 없어도 null(MR !91 BR-3)
  * @param previous 직전 10회. round가 2 미만이면 null. 그 회차 기록이 지워져 셈할 러닝이 없어도 null
  * @param sameHeartRatePaceChange 같은 심박 페이스 변화(초/km, 양수면 빨라짐). 셈할 수 없으면 null
+ * @param firstRunStartedAt 첫 유효 러닝 시작 일시(앱 월간·주간 이동 하한). 유효 러닝이 없으면 null
  */
 public record RunBodyTrend(
         int validRunCount,
@@ -31,7 +33,8 @@ public record RunBodyTrend(
         int needs,
         Window recent,
         Window previous,
-        Integer sameHeartRatePaceChange) {
+        Integer sameHeartRatePaceChange,
+        LocalDateTime firstRunStartedAt) {
 
     /** 한 회차의 러닝 수. */
     public static final int WINDOW = 10;
@@ -51,6 +54,7 @@ public record RunBodyTrend(
      * @param runsPerWeek 주간 러닝 빈도(회/주)
      * @param runsPerMonth 월간 러닝 빈도(회/30일)
      * @param averageHeartRate 심박 있는 러닝의 시간 가중 평균 심박. 그런 러닝이 3회보다 적으면 null
+     * @param averageDistanceMeters 평균 거리(m, 거리 합 ÷ 러닝 수 반올림, 요약 "최근 10회 평균")
      */
     public record Window(
             int fromOrdinal,
@@ -58,7 +62,8 @@ public record RunBodyTrend(
             int paceSecondsPerKm,
             double runsPerWeek,
             double runsPerMonth,
-            Integer averageHeartRate) {}
+            Integer averageHeartRate,
+            long averageDistanceMeters) {}
 
     /** 회차 수. */
     public static int roundOf(int validRunCount) {
@@ -75,10 +80,29 @@ public record RunBodyTrend(
      */
     public static RunBodyTrend of(
             int validRunCount, List<ValidRunStat> recentRuns, List<ValidRunStat> previousRuns) {
+        return of(validRunCount, null, recentRuns, previousRuns);
+    }
+
+    /**
+     * {@link #of(int, List, List)}에 첫 유효 러닝 시작 일시를 싣는다.
+     *
+     * @param firstRunStartedAt 첫 유효 러닝 시작 일시(없으면 null)
+     */
+    public static RunBodyTrend of(
+            int validRunCount,
+            LocalDateTime firstRunStartedAt,
+            List<ValidRunStat> recentRuns,
+            List<ValidRunStat> previousRuns) {
         int round = roundOf(validRunCount);
         if (round == 0) {
             return new RunBodyTrend(
-                    validRunCount, 0, WINDOW - Math.max(0, validRunCount), null, null, null);
+                    validRunCount,
+                    0,
+                    WINDOW - Math.max(0, validRunCount),
+                    null,
+                    null,
+                    null,
+                    firstRunStartedAt);
         }
         Window recent = window(recentRuns);
         Window previous = round >= 2 ? window(previousRuns) : null;
@@ -90,7 +114,8 @@ public record RunBodyTrend(
                 previous,
                 recent == null || previous == null
                         ? null
-                        : sameHeartRateChange(recentRuns, previousRuns));
+                        : sameHeartRateChange(recentRuns, previousRuns),
+                firstRunStartedAt);
     }
 
     /** 한 회차 값. 러닝이 없거나 거리 합이 0이면 null. */
@@ -111,7 +136,10 @@ public record RunBodyTrend(
                 (int) Math.round(pace(runs)),
                 perUnit(runs.size(), days, WEEK_DAYS),
                 perUnit(runs.size(), days, MONTH_DAYS),
-                heartRate(runs));
+                heartRate(runs),
+                Math.round(
+                        runs.stream().mapToLong(r -> r.distance().meters()).sum()
+                                / (double) runs.size()));
     }
 
     private static double perUnit(int runs, long days, int unitDays) {

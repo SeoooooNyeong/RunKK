@@ -1,6 +1,8 @@
 package com.a207.runkk.app.domain.runbody
 
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
+import java.time.Instant
 
 /**
  * 요약 "최근 10회 변화"(G-14, 서버 RunBodyTrendResponse, 계약 v1.2 8절). 유효 러닝을 10회씩 묶은 회차에서 마지막으로 다 찬 회차가
@@ -8,6 +10,7 @@ import com.a207.runkk.app.core.model.Pace
  *
  * @property sameHeartRatePaceChange 같은 심박에서의 페이스 변화(초/km, 양수면 빨라짐). 셈할 수 없으면 null
  * @property runimalType 나의 러닝 유형(서버 RunimalType 이름). 없으면 null
+ * @property firstRunAt 첫 유효 러닝 시작 시각. 월간·주간 이동 하한(기기 시간대로 바꿔 쓴다). 유효 러닝이 없거나 옛 서버면 null
  */
 data class RunBodyTrend(
     val validRunCount: Int,
@@ -16,16 +19,18 @@ data class RunBodyTrend(
     val recent: Window?,
     val previous: Window?,
     val sameHeartRatePaceChange: Int?,
-    val runimalType: String?
+    val runimalType: String?,
+    val firstRunAt: Instant? = null
 ) {
-    /** 한 회차(10회): 순번 범위, 거리 가중 평균 페이스, 주간·월간(30일) 빈도, 평균 심박(없으면 null). */
+    /** 한 회차(10회): 순번 범위, 거리 가중 평균 페이스, 주간·월간(30일) 빈도, 평균 심박·평균 거리(없으면 null). */
     data class Window(
         val fromOrdinal: Int,
         val toOrdinal: Int,
         val pace: Pace,
         val runsPerWeek: Double,
         val runsPerMonth: Double,
-        val averageHeartRate: Int?
+        val averageHeartRate: Int?,
+        val averageDistance: Distance? = null
     )
 
     /** 직전 10회 대비 평균 페이스 변화(초/km, 양수면 빨라짐). 직전 회차가 없으면 null. */
