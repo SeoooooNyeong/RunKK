@@ -138,13 +138,17 @@ val SAMPLE_RUN_SCORES: List<RunBodyRunScore> = listOf(
     RunBodyRunScore("r2", RunBodyStatus.DONE, 72, null)
 )
 
-/** G-14 견본: 2회차(11~20번째), 6'02" → 5'48", 같은 심박 12초 단축, 주 2.1 → 2.8회, 출근도장 거북이. */
+/**
+ * G-14 견본: 2회차(11~20번째), 6'02" → 5'48", 같은 심박 12초 단축, 주 2.1 → 2.8회, 출근도장 거북이, 최근 10회 평균 4.6km·149 bpm.
+ * 첫 유효 러닝은 2026-08-03 아침(한국)이다.
+ */
 fun sampleTrend(): RunBodyTrend = RunBodyTrend(
     validRunCount = 23,
     round = 2,
     needs = 0,
-    recent = RunBodyTrend.Window(11, 20, Pace(348), 2.8, 12.0, 150),
-    previous = RunBodyTrend.Window(1, 10, Pace(362), 2.1, 9.0, 149),
+    recent = RunBodyTrend.Window(11, 20, Pace(348), 2.8, 12.0, 149, Distance(4_600)),
+    previous = RunBodyTrend.Window(1, 10, Pace(362), 2.1, 9.0, 149, Distance(4_400)),
     sameHeartRatePaceChange = 12,
-    runimalType = "COMMUTER_TURTLE"
+    runimalType = "COMMUTER_TURTLE",
+    firstRunAt = Instant.parse("2026-08-02T22:10:00Z")
 )

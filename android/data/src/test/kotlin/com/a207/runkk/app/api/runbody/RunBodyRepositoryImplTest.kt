@@ -186,9 +186,9 @@ class RunBodyRepositoryImplTest {
         api.reply(
             """
             {"validRunCount":23,"round":2,"needs":0,
-             "recent":{"fromOrdinal":11,"toOrdinal":20,"paceSecondsPerKm":348,"runsPerWeek":2.8,"runsPerMonth":11.1,"averageHeartRate":150},
+             "recent":{"fromOrdinal":11,"toOrdinal":20,"paceSecondsPerKm":348,"runsPerWeek":2.8,"runsPerMonth":11.1,"averageHeartRate":150,"averageDistanceMeters":4620},
              "previous":{"fromOrdinal":1,"toOrdinal":10,"paceSecondsPerKm":362,"runsPerWeek":2.1,"runsPerMonth":9.0,"averageHeartRate":149},
-             "sameHeartRatePaceChange":12,"runimalType":"COMMUTER_TURTLE"}
+             "sameHeartRatePaceChange":12,"runimalType":"COMMUTER_TURTLE","firstRunAt":"2026-08-03T07:10:00+09:00"}
             """.trimIndent()
         )
         api.reply("""{"validRunCount":4,"round":0,"needs":6,"recent":null,"previous":null}""")
@@ -197,7 +197,9 @@ class RunBodyRepositoryImplTest {
 
         assertEquals("GET /api/v1/runbody/trend", api.take().let { "${it.method} ${it.url.encodedPath}" })
         assertEquals(2, trend.round)
-        assertEquals(RunBodyTrend.Window(11, 20, Pace(348), 2.8, 11.1, 150), trend.recent)
+        assertEquals(RunBodyTrend.Window(11, 20, Pace(348), 2.8, 11.1, 150, Distance(4620)), trend.recent)
+        assertNull(trend.previous?.averageDistance)
+        assertEquals(Instant.parse("2026-08-02T22:10:00Z"), trend.firstRunAt)
         assertEquals(Pace(362), trend.previous?.pace)
         assertEquals(14, trend.paceChange)
         assertEquals(12, trend.sameHeartRatePaceChange)

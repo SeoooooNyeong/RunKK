@@ -33,11 +33,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunimalArt
-import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
-import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Pace
@@ -48,18 +46,21 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * 요약 탭(G-14·G-33): 주간/월간 토글, 최근 10회 변화(계약 v1.2 8절), 이번 주 요약과 코치 코멘트(FR-066). 토글은 빈도 줄만 바꾼다.
- * 코멘트가 없으면 "코멘트 준비 중", 출처는 표시하지 않는다.
+ * 요약 탭(G-14·G-33): 주간/월간 토글, 최근 10회 변화(계약 v1.2 8절), 주간 러닝 기록, 최근 10회 평균, 러닝 코멘트(FR-066). 토글은 빈도 줄만
+ * 바꾸므로 빈도 줄이 없으면(10회 전, 최근 10회 변화를 못 읽음) 그리지 않는다. 코멘트가 없으면 "코멘트 준비 중", 출처는 표시하지 않는다.
  */
 @Composable
 internal fun SummaryTab(state: RunBodyUiState, actions: RunBodyActions) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        RunkkSegmentedTabs(
-            options = RunBodyPeriod.entries.map { stringResource(it.labelRes) },
-            selectedIndex = state.period.ordinal,
-            onSelect = { actions.onPeriod(RunBodyPeriod.entries[it]) },
-            modifier = Modifier.fillMaxWidth()
-        )
+        val recent = state.trend?.recent
+        if (recent != null) {
+            RunkkSegmentedTabs(
+                options = RunBodyPeriod.entries.map { stringResource(it.labelRes) },
+                selectedIndex = state.period.ordinal,
+                onSelect = { actions.onPeriod(RunBodyPeriod.entries[it]) },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
         RunBodyLoadable(
             isLoading = state.isTrendLoading && state.trend == null,
             error = state.trendError?.asString(),
@@ -67,43 +68,14 @@ internal fun SummaryTab(state: RunBodyUiState, actions: RunBodyActions) {
         ) {
             state.trend?.let { TrendCard(it, state.period) }
         }
+        WeeklyRecordCard(state, actions)
+        if (recent != null) RecentAverageCards(recent)
         RunBodyLoadable(
             isLoading = state.isReportLoading && state.report == null,
             error = state.reportError?.asString(),
             onRetry = actions.onRetryReport
         ) {
-            ReportCards(state)
-        }
-    }
-}
-
-@Composable
-private fun ReportCards(state: RunBodyUiState) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        RunkkCard(Modifier.fillMaxWidth(), shape = RunkkShapes.ExtraLarge) {
-            Text(
-                stringResource(R.string.record_report_summary_title),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-            Text(state.summaryText.asString(), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
-        }
-        val hasComment = state.report?.comment != null
-        RunkkCard(
-            Modifier.fillMaxWidth(),
-            shape = RunkkShapes.ExtraLarge,
-            borderColor = if (hasComment) RunkkColors.Lime else RunkkColors.Border
-        ) {
-            Text(
-                stringResource(R.string.record_report_comment_title),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-            Text(
-                state.commentText.asString(),
-                style = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 24),
-                color = if (hasComment) RunkkColors.TextPrimary else RunkkColors.TextSecondary
-            )
+            CommentCard(state)
         }
     }
 }
@@ -234,11 +206,10 @@ private fun PacePanel(recent: Pace, previous: Pace?, change: Int?) {
     }
 }
 
-/** 같은 축(왼쪽 느림, 오른쪽 빠름) 위의 직전·최근 페이스. 축 끝은 두 값에서 30초 바깥을 30초 단위로 맞춘다. */
+/** 같은 축(왼쪽 느림, 오른쪽 빠름) 위의 직전·최근 페이스. 축 끝은 [paceAxisRange]. */
 @Composable
 private fun PaceAxis(previous: Pace, recent: Pace) {
-    val slowest = roundUp(maxOf(previous.secondsPerKm, recent.secondsPerKm) + AXIS_MARGIN)
-    val fastest = roundDown(minOf(previous.secondsPerKm, recent.secondsPerKm) - AXIS_MARGIN).coerceAtLeast(AXIS_STEP)
+    val (slowest, fastest) = paceAxisRange(previous, recent)
     val track = RunkkColors.Border
     val fill = RunkkColors.LimeFill
     val ring = RunkkColors.Violet
@@ -396,11 +367,18 @@ private fun frequencyOf(window: RunBodyTrend.Window, period: RunBodyPeriod): Dou
 /** 소수 첫째 자리(2.8). */
 private fun one(value: Double): String = String.format(Locale.US, "%.1f", value)
 
-private fun roundUp(seconds: Int): Int = (seconds + AXIS_STEP - 1) / AXIS_STEP * AXIS_STEP
+/**
+ * 페이스 축 끝(느린 쪽, 빠른 쪽, 초/km): 두 값을 감싸는 가장 가까운 30초 눈금(피그마 6'02"·5'48" → 6'30"~5'30"). 값이 눈금에 딱 맞으면
+ * 점이 축 끝에 붙지 않게 한 칸 바깥으로 둔다.
+ */
+internal fun paceAxisRange(previous: Pace, recent: Pace): Pair<Int, Int> {
+    val slowest = maxOf(previous.secondsPerKm, recent.secondsPerKm)
+    val fastest = minOf(previous.secondsPerKm, recent.secondsPerKm)
+    val top = (slowest / AXIS_STEP + 1) * AXIS_STEP
+    val bottom = ((fastest - 1).coerceAtLeast(0) / AXIS_STEP * AXIS_STEP).coerceAtLeast(AXIS_STEP)
+    return top to minOf(bottom, top - AXIS_STEP)
+}
 
-private fun roundDown(seconds: Int): Int = seconds / AXIS_STEP * AXIS_STEP
-
-private const val AXIS_MARGIN = 30
 private const val AXIS_STEP = 30
 private const val TENTHS = 10.0
 private const val LAVENDER_ALPHA = 0.3f

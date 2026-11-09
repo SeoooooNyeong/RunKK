@@ -52,6 +52,9 @@ fun RunBodyRoute(viewModel: RunBodyViewModel = hiltViewModel()) {
             onRetryMonth = viewModel::refreshMonth,
             onPeriod = viewModel::onPeriod,
             onRetryTrend = viewModel::refreshTrend,
+            onPreviousWeek = viewModel::onPreviousWeek,
+            onNextWeek = viewModel::onNextWeek,
+            onRetryWeek = viewModel::refreshWeek,
             onEditProfile = { navigator.navigate(Routes.PROFILE_EDIT) }
         )
     )

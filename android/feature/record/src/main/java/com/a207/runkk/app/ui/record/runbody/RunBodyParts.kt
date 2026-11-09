@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -31,13 +32,14 @@ internal fun RunBodyCard(
     title: String?,
     modifier: Modifier = Modifier,
     titleSize: Int = SECTION_TITLE_SIZE,
+    spacing: Dp = 12.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     RunkkCard(
         modifier.fillMaxWidth(),
         shape = RunkkShapes.ExtraLarge,
         contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(spacing)
     ) {
         title?.let {
             Text(

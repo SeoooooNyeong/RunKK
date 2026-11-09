@@ -1,19 +1,14 @@
 package com.a207.runkk.app.ui.record.runbody
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.withStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -82,47 +77,32 @@ private fun SummaryCard(summary: RunBodyResult.Summary) {
     }
 }
 
-/** 구간 기록: 머리줄(구간, 페이스, 평균 심박) + 1km마다 한 줄, 마지막 남은 구간은 "마지막 0.2km". */
+/** 구간 기록: 머리 문구(구간, 페이스, 평균 심박) + 1km마다 한 줄("1km" 왼쪽, "5'42"/km, 148 bpm" 오른쪽), 남은 구간은 "마지막 0.2 km". */
 @Composable
 private fun LapsCard(laps: List<RunBodyResult.Lap>) {
     RunBodyCard(stringResource(R.string.record_runbody_laps)) {
-        LapRow(
-            stringResource(R.string.record_runbody_lap),
-            stringResource(R.string.record_runbody_lap_pace),
-            stringResource(R.string.record_runbody_avg_heart),
-            isHeader = true
-        )
+        RunBodyCaption(stringResource(R.string.record_runbody_lap_header))
         laps.forEach { lap ->
-            val km = runBodyKm(lap.km)
-            LapRow(
+            val pace = stringResource(R.string.record_runbody_pace_per_km, runBodyPace(lap.pace))
+            RunBodyValueRow(
                 if (lap.isPartial) {
-                    stringResource(R.string.record_runbody_lap_last, km)
+                    stringResource(R.string.record_runbody_lap_last, runBodyKm(lap.km))
                 } else {
                     stringResource(R.string.record_runbody_lap_km, lap.km.toInt().toString())
                 },
-                stringResource(R.string.record_runbody_pace_per_km, runBodyPace(lap.pace)),
-                lap.averageHeartRate?.let { stringResource(R.string.record_runbody_bpm, it) }
-                    ?: stringResource(R.string.record_runbody_no_score)
+                lap.averageHeartRate?.let {
+                    stringResource(
+                        R.string.record_runbody_lap_value,
+                        pace,
+                        stringResource(R.string.record_runbody_bpm, it)
+                    )
+                } ?: pace
             )
         }
     }
 }
 
-@Composable
-private fun LapRow(label: String, pace: String, heart: String, isHeader: Boolean = false) {
-    val style = if (isHeader) RunkkTextStyles.Caption else RunkkTextStyles.text(15, FontWeight.Bold)
-    val tone = if (isHeader) RunkkColors.TextSecondary else RunkkColors.TextPrimary
-    Row(
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(label, style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary, modifier = Modifier.weight(1f))
-        Text(pace, style = style, color = tone, textAlign = TextAlign.End, modifier = Modifier.width(96.dp))
-        Text(heart, style = style, color = tone, textAlign = TextAlign.End, modifier = Modifier.width(80.dp))
-    }
-}
-
-/** 피드백: 판정 한 줄 + 좋았던 점·보완할 점·다음 러닝. */
+/** 피드백: 판정 한 줄 + 좋았던 점·보완할 점·다음 러닝(라벨과 본문을 한 줄에). */
 @Composable
 private fun FeedbackCard(feedback: RunBodyResult.Feedback) {
     RunBodyCard(stringResource(R.string.record_runbody_feedback)) {
@@ -161,8 +141,8 @@ private fun CompareCard(summary: RunBodyResult.Summary, previous: RunBodyResult.
             stringResource(R.string.record_runbody_distance),
             stringResource(
                 R.string.record_runbody_compare_value,
-                stringResource(R.string.record_km_value, RunkkFormat.kmShort(summary.distance)),
-                stringResource(R.string.record_km_value, RunkkFormat.kmShort(previous.distance))
+                stringResource(R.string.record_runbody_km_spaced, RunkkFormat.kmShort(summary.distance)),
+                stringResource(R.string.record_runbody_km_spaced, RunkkFormat.kmShort(previous.distance))
             )
         )
         RunBodyValueRow(
@@ -172,15 +152,18 @@ private fun CompareCard(summary: RunBodyResult.Summary, previous: RunBodyResult.
     }
 }
 
-/** 라벨(13, 보조색) 위 + 본문(14) 아래. */
+/** 라벨(보라, 굵게)과 본문을 한 문단에: "좋았던 점 전반과 후반 페이스 차이가 작아요."(G-20). */
 @Composable
 private fun LabeledText(label: String, text: String) {
-    Column(
-        Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
+    val violet = RunkkColors.Violet
+    Text(
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = violet, fontWeight = FontWeight.Bold)) { append(label) }
+            append(' ')
+            append(text)
         },
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(label, style = RunkkTextStyles.Label, color = RunkkColors.Violet)
-        Text(text, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
-    }
+        style = RunkkTextStyles.Body,
+        color = RunkkColors.TextPrimary,
+        modifier = Modifier.fillMaxWidth()
+    )
 }
