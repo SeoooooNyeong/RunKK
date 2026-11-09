@@ -59,6 +59,9 @@ object Routes {
     const val REPORT = "records/report"
     const val COACH = "records/coach"
 
+    /** AI 코치 대화(런바디 화면의 "AI 코치에게 물어보기"). 러닝 코치 계획(COACH)과 경로를 나눈다. */
+    const val COACH_CHAT = "records/coach/chat"
+
     // 알림(ui.notification)
     const val NOTIFICATIONS = "notifications"
 
