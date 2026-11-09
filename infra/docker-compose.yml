@@ -56,6 +56,7 @@ services:
       # actuator 관리 포트(develop·prod 프로필). 밖으로 열지 않는다. healthcheck·nginx /actuator/health·Prometheus만 부른다
       MANAGEMENT_PORT: "8081"
       RUNKK_INTERNAL_TOKEN: ${RUNKK_INTERNAL_TOKEN:?set RUNKK_INTERNAL_TOKEN in .env}
+      RUNKK_WRITER_MODEL_URLS: ${RUNKK_WRITER_MODEL_URLS-http://writer:8080}
       # 회원 JWT 서명 키. 비우면 api가 기동마다 임의 키를 만들어 재시작 때 모든 토큰이 무효가 되므로 배포에서는 필수
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       # 관리툴 운영자 토큰 서명 키(D-42). JWT_SECRET과 달라야 하며(같으면 api가 기동을 멈춘다) 비우면 재시작 때마다 관리툴 재로그인
