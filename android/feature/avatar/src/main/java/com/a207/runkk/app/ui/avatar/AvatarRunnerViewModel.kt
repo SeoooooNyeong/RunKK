@@ -8,8 +8,11 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.BackgroundUnlockSeenStore
 import com.a207.runkk.app.domain.avatar.SelfieProgress
+import com.a207.runkk.app.domain.record.RecordRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
+import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -33,7 +36,9 @@ class AvatarRunnerViewModel internal constructor(
     private val heads: SelfieHeads,
     private val myAvatar: MyAvatarStore,
     /** 본인 레벨(본인 요약). 모르면 null. */
-    private val level: suspend () -> Int?
+    private val level: suspend () -> Int?,
+    /** 이번 주 횟수·거리와 연속 러닝 일수(대시보드). 못 읽으면 null. */
+    private val stats: suspend () -> RunnerStats?
 ) : ViewModel() {
     @Inject
     constructor(
@@ -42,8 +47,21 @@ class AvatarRunnerViewModel internal constructor(
         clock: Clock,
         heads: SelfieHeads,
         accounts: AccountRepository,
+        records: RecordRepository,
         myAvatar: MyAvatarStore
-    ) : this(avatars, seenStore, clock, heads, myAvatar, { accounts.mySummary().getOrNull()?.level })
+    ) : this(
+        avatars,
+        seenStore,
+        clock,
+        heads,
+        myAvatar,
+        level = { accounts.mySummary().getOrNull()?.level },
+        stats = {
+            records.dashboard(LocalDate.now(clock.withZone(RUNNER_ZONE))).getOrNull()?.let {
+                RunnerStats(it.weekly?.actualRuns, it.weekly?.actualDistance, it.streakDays)
+            }
+        }
+    )
 
     private val _state = MutableStateFlow(AvatarRunnerUiState())
     val state: StateFlow<AvatarRunnerUiState> = _state.asStateFlow()
@@ -72,11 +90,13 @@ class AvatarRunnerViewModel internal constructor(
             val runnerCall = async { avatars.runner() }
             val shopCall = async { avatars.shop(null) }
             val levelCall = async { level() }
+            val statsCall = async { stats() }
             val avatar = avatars.avatar()
             val runner = runnerCall.await()
             if (avatar !is Outcome.Success || runner !is Outcome.Success) {
                 shopCall.cancel()
                 levelCall.cancel()
+                statsCall.cancel()
                 val failure = (avatar as? Outcome.Failure) ?: (runner as Outcome.Failure)
                 _state.update { it.copy(isLoading = false, error = AvatarErrorText.of(failure.error)) }
                 return@launch
@@ -95,7 +115,7 @@ class AvatarRunnerViewModel internal constructor(
                 )
             }
             loadHead(avatar.value.faceKey)
-            _state.update { it.copy(level = levelCall.await()) }
+            _state.update { it.copy(level = levelCall.await(), stats = statsCall.await()) }
             checkUnlocks()
         }
     }
@@ -151,3 +171,6 @@ class AvatarRunnerViewModel internal constructor(
         resumedOnce = true
     }
 }
+
+/** 대시보드 기준 날짜의 시간대(홈과 같다). */
+private val RUNNER_ZONE: ZoneId = ZoneId.of("Asia/Seoul")

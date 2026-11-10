@@ -79,7 +79,9 @@ fun RunkkNavHost(
     pendingInvite: PendingInvite? = null,
     onInviteDone: () -> Unit = {},
     pendingBattleReturn: Long? = null,
-    onBattleReturnDone: () -> Unit = {}
+    onBattleReturnDone: () -> Unit = {},
+    pendingSelfieResult: String? = null,
+    onSelfieResultDone: () -> Unit = {}
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
@@ -95,6 +97,13 @@ fun RunkkNavHost(
         inviteToOpen(pendingInvite, loggedIn, current, now)?.let { token ->
             navigator.navigate(Routes.FriendInviteJoin(token))
             onInviteDone()
+        }
+    }
+    // 셀카 결과 알림([임시:D-성-146]): 로그인한 동안 로그인·가입 화면이 아니면 얼굴 만들기(결과 단계)를 연다. 로그인 전이면 로그인 뒤에 연다.
+    LaunchedEffect(pendingSelfieResult, loggedIn, current) {
+        if (selfieResultToOpen(pendingSelfieResult, loggedIn, current)) {
+            navigator.navigate(Routes.AVATAR_SETUP)
+            onSelfieResultDone()
         }
     }
     // 로그인 상태가 풀리면(로그아웃·토큰 갱신 실패 → TokenProvider.clear, 6.1.14) 로그인·가입 화면이 아닌 한 로그인으로 돌린다.
@@ -174,6 +183,10 @@ fun RunkkNavHost(
         if (isLockedNoticeVisible) LockedFeatureDialog(onDismiss = { isLockedNoticeVisible = false })
     }
 }
+
+/** 셀카 결과 알림으로 얼굴 만들기를 지금 열지: 받은 작업이 있고 로그인 상태이며 맨 위가 로그인·가입 화면이 아닐 때. */
+internal fun selfieResultToOpen(pendingSelfieResult: String?, loggedIn: Boolean, top: NavKey?): Boolean =
+    pendingSelfieResult != null && loggedIn && (top as? Routes.Key)?.route?.let { it !in AUTH_ROUTES } == true
 
 /** 지금 열 초대 토큰: 받은 지 5분이 안 된 초대가 있고 로그인 상태이며 홈이 맨 위일 때만(D-272, AN8-8). 그 밖에는 null(기다린다). */
 internal fun inviteToOpen(pendingInvite: PendingInvite?, loggedIn: Boolean, top: NavKey?, now: Instant): String? =

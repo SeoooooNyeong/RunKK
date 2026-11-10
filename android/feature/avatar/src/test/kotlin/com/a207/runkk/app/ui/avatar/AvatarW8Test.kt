@@ -171,8 +171,11 @@ class AvatarW8LogicTest {
     }
     private val clock = Clock.fixed(NOW, ZoneOffset.UTC)
 
-    private fun runnerVm(store: BackgroundUnlockSeenStore, level: Int? = 12) =
-        AvatarRunnerViewModel(repo, store, clock, headsOf(repo), storeOf(repo)) { level }
+    private fun runnerVm(
+        store: BackgroundUnlockSeenStore,
+        level: Int? = 12,
+        stats: RunnerStats? = RunnerStats(3, Distance(12_400), 4)
+    ) = AvatarRunnerViewModel(repo, store, clock, headsOf(repo), storeOf(repo), level = { level }, stats = { stats })
 
     @Test
     fun `내 러너는 아바타와 내 러너를 읽어 렌더러 체형·러닝량을 정하고, 새 해금이 있으면 팝업을 띄운다`() {
@@ -186,6 +189,7 @@ class AvatarW8LogicTest {
         assertNull(s.look.headLayers, "셀카 머리가 아니면 기본 머리")
         assertEquals(listOf("DAEJEON", "CHUNCHEON"), s.unlock?.items?.map { it.key })
         assertEquals(12, s.level)
+        assertEquals(RunnerStats(3, Distance(12_400), 4), s.stats, "숫자 타일은 이번 주 횟수·거리와 연속 러닝 일수")
         assertEquals(3, s.unlockedBackgrounds)
         assertEquals(4, s.totalBackgrounds)
 
@@ -208,6 +212,11 @@ class AvatarW8LogicTest {
         vm.onUnlockClose()
         assertNull(vm.state.value.unlock)
         assertNull(runnerVm(store).state.value.unlock)
+    }
+
+    @Test
+    fun `대시보드를 못 읽으면 숫자 타일 값이 없다`() {
+        assertNull(runnerVm(FakeSeenStore(), stats = null).state.value.stats)
     }
 
     @Test
@@ -283,6 +292,7 @@ class AvatarW8ScreenTest {
                         avatar = avatar,
                         runner = runner,
                         level = 12,
+                        stats = RunnerStats(3, Distance(12_400), 4),
                         unlockedBackgrounds = 3,
                         totalBackgrounds = 12
                     ),
@@ -298,7 +308,7 @@ class AvatarW8ScreenTest {
         compose.onNodeWithContentDescription(text(R.string.avatar_runner_level_description, 12)).assertExists()
         compose.onNodeWithContentDescription(text(R.string.avatar_runner_runs_description, 3)).assertExists()
         compose.onNodeWithContentDescription(text(R.string.avatar_runner_distance_description, "12.4")).assertExists()
-        compose.onNodeWithContentDescription(text(R.string.avatar_runner_rest_description, 4)).assertExists()
+        compose.onNodeWithContentDescription(text(R.string.avatar_runner_streak_description, 4)).assertExists()
         compose.onNodeWithContentDescription(text(R.string.avatar_shop_balance_description, 1_240)).assertExists()
         compose.onNodeWithText("3/12").assertExists()
         compose.onNodeWithText(text(R.string.avatar_runner_face)).performClick()
@@ -307,6 +317,21 @@ class AvatarW8ScreenTest {
         compose.onNodeWithText(text(R.string.avatar_shop_title)).performClick()
         assertEquals(listOf("face", "background", "decorate", "shop"), calls)
         assertNoBodyOrSkinText()
+    }
+
+    @Test
+    fun `내 러너 - 대시보드를 못 읽으면 숫자 타일은 「-」다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarRunnerScreen(
+                    AvatarRunnerUiState(isLoading = false, avatar = avatar, runner = runner),
+                    AvatarRunnerActions()
+                )
+            }
+        }
+        // 타일은 그림 하나로 읽고(숫자는 「-」로 그린다) 모르는 값은 읽어 주지 않는다.
+        compose.onAllNodes(hasContentDescription("이번 주", substring = true)).assertCountEquals(0)
+        compose.onAllNodes(hasContentDescription("연속", substring = true)).assertCountEquals(0)
     }
 
     @Test
@@ -502,6 +527,7 @@ class AvatarW8ScreenshotTest {
         avatar = avatar,
         runner = runner,
         level = 12,
+        stats = RunnerStats(3, Distance(12_400), 4),
         unlockedBackgrounds = 3,
         totalBackgrounds = 12
     )

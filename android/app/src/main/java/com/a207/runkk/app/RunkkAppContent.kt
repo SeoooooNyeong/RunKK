@@ -44,7 +44,9 @@ fun RunkkAppContent(
     pendingInvite: PendingInvite? = null,
     onInviteDone: () -> Unit = {},
     pendingBattleReturn: Long? = null,
-    onBattleReturnDone: () -> Unit = {}
+    onBattleReturnDone: () -> Unit = {},
+    pendingSelfieResult: String? = null,
+    onSelfieResultDone: () -> Unit = {}
 ) {
     var startRoute by remember { mutableStateOf<String?>(null) }
     // 스플래시 워드마크가 한 번 다 뛸 때까지는 시작 경로를 알아도 스플래시를 둔다.
@@ -89,7 +91,9 @@ fun RunkkAppContent(
                     pendingInvite = pendingInvite,
                     onInviteDone = onInviteDone,
                     pendingBattleReturn = pendingBattleReturn,
-                    onBattleReturnDone = onBattleReturnDone
+                    onBattleReturnDone = onBattleReturnDone,
+                    pendingSelfieResult = pendingSelfieResult,
+                    onSelfieResultDone = onSelfieResultDone
                 )
             }
         }

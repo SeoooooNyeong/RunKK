@@ -120,7 +120,7 @@ fun AvatarRunnerScreen(state: AvatarRunnerUiState, actions: AvatarRunnerActions,
             ) {
                 RunnerStage(state, avatar)
                 Spacer(Modifier.height(16.dp))
-                RunnerTiles(runner)
+                RunnerTiles(state.stats)
                 Spacer(Modifier.height(22.dp))
                 RunnerLinks(state, actions)
             }
@@ -192,18 +192,18 @@ private fun LevelChip(level: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/** 숫자 타일 3개(간격 8): 최근 7일 달린 횟수, 거리, 쉬어도 되는 날. 숫자 22 Bold + 단위 13 Medium. 모르면 「-」. */
+/** 숫자 타일 3개(간격 8): 이번 주 달린 횟수, 거리, 연속 러닝 일수(불꽃). 숫자 22 Bold + 단위 13 Medium. 모르면 「-」. */
 @Composable
-private fun RunnerTiles(runner: AvatarRunner?) {
+private fun RunnerTiles(stats: RunnerStats?) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         NumberTile(
             icon = R.drawable.avatar_ic_run,
-            value = runner?.recentRunCount?.toString(),
+            value = stats?.weekRuns?.toString(),
             unit = stringResource(R.string.avatar_runner_unit_runs),
-            description = runner?.let { stringResource(R.string.avatar_runner_runs_description, it.recentRunCount) },
+            description = stats?.weekRuns?.let { stringResource(R.string.avatar_runner_runs_description, it) },
             modifier = Modifier.weight(1f)
         )
-        val km = runner?.recentDistance?.let(RunkkFormat::kmShort)
+        val km = stats?.weekDistance?.let(RunkkFormat::kmShort)
         NumberTile(
             icon = R.drawable.avatar_ic_route,
             value = km,
@@ -213,11 +213,9 @@ private fun RunnerTiles(runner: AvatarRunner?) {
         )
         NumberTile(
             icon = R.drawable.avatar_ic_fire,
-            value = runner?.restDaysBeforeDecline?.toString(),
+            value = stats?.streakDays?.toString(),
             unit = stringResource(R.string.avatar_runner_unit_days),
-            description = runner?.let {
-                stringResource(R.string.avatar_runner_rest_description, it.restDaysBeforeDecline)
-            },
+            description = stats?.streakDays?.let { stringResource(R.string.avatar_runner_streak_description, it) },
             modifier = Modifier.weight(1f)
         )
     }
@@ -392,6 +390,7 @@ private fun AvatarRunnerPreview() {
                 avatar = Avatar(null, "FOX", "STAGE3", "MORNING", emptyMap(), 1_240, true, emptyMap()),
                 runner = AvatarRunner("STAGE3", 1, "MORNING", 7, 3, Distance(12_400), 51, 4),
                 level = 12,
+                stats = RunnerStats(3, Distance(12_400), 4),
                 unlockedBackgrounds = 3,
                 totalBackgrounds = 12
             ),
