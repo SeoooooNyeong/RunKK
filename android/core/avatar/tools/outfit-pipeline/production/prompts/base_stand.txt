@@ -1,0 +1,11 @@
+Use your image generation tool (edit the attached image). Save the result as base_stand_a.png and a second variation base_stand_b.png in the current folder, each exactly 1024x1536 pixels, PNG with a fully TRANSPARENT background.
+
+The first attached image is a game avatar TEXTURE ATLAS for a cute chibi sports character: a headless body seen from the FRONT (1024x1536). It is mapped onto a 2D mesh, so every body part must stay at EXACTLY the same pixel position and size. Do not move, scale, crop, or re-pose anything.
+
+Task: make the plain BASE LAYER version of this same character, used under all other sports clothes:
+- Replace the white T-shirt with a plain light grey (#CDD0D6) cotton sleeveless undershirt (simple tank top with thin shoulder straps, deep armholes, low round neckline), so the shoulders and the full upper arms are visible and join the existing forearms naturally.
+- Replace the dark shorts with plain light grey (#CDD0D6) short boxer shorts, a bit shorter than the dark shorts were.
+- Replace the socks and sneakers with simple bare feet (rounded chibi feet, toes not detailed) standing on the same ground line, same size as the sneakers were.
+- Same soft painterly chibi style, same skin color, same warm brown outline thickness and soft shading as the visible forearms and legs.
+- Keep the hands, forearms and the legs between the shorts and the socks EXACTLY as in the image.
+- Everything outside the body stays transparent. No head, no text, no ground shadow.

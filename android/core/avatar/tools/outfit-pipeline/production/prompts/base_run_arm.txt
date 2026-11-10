@@ -1,0 +1,5 @@
+Use your image generation tool (edit the attached image). Save the result as base_run_arm_a.png and base_run_arm_b.png in the current folder, each exactly 512x2048 pixels, PNG with a fully TRANSPARENT background.
+
+The attached image is a game avatar TEXTURE (512x2048): one SIDE-VIEW arm of a chibi runner, from the shoulder at the top to the fist at the bottom, with a white T-shirt sleeve covering the shoulder and upper arm. It is mapped onto a mesh, so the arm must stay at EXACTLY the same pixel position, width and length.
+
+Task: remove the white T-shirt sleeve and paint the bare shoulder and upper arm skin in its place: same skin color, same soft painterly shading and the same warm brown outline as the visible lower arm, continuing smoothly to the top edge with the same width as the sleeve silhouette (rounded shoulder at the top). Keep the forearm and hand EXACTLY as they are. Transparent everywhere else. No text.

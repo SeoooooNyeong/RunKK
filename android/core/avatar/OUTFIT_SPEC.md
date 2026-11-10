@@ -22,26 +22,29 @@ riv 네 파일(`res/raw`, 승인본 SHA 고정, 읽기만)의 아트보드는 80
 
 | 부위 | 필수 파일 | 크기(px) |
 |------|-----------|----------|
-| 상의 | `{g}_stand{b}.png`, `{g}_run_body{b}.png`, `{g}_run_arm{b}.png` | 512x768, 256x384, 256x1024 |
-| 하의 | `{g}_stand{b}.png`, `{g}_run_leg{b}.png` | 512x768, 256x768 |
-| 신발 | `{g}_stand{b}.png`, `{g}_run_shoe{b}.png` | 512x768, 256x160 |
-| 모두 | `shop.png`(파이프라인이 만든다) | 512x512 |
+| 상의 | `{g}_stand{b}.webp`, `{g}_run_body{b}.webp`, `{g}_run_arm{b}.webp` | 512x768, 256x384, 256x1024 |
+| 하의 | `{g}_stand{b}.webp`, `{g}_run_leg{b}.webp` | 512x768, 256x768 |
+| 신발 | `{g}_stand{b}.webp`, `{g}_run_shoe{b}.webp` | 512x768, 256x160 |
+| 모두 | `shop.webp`(파이프라인이 만든다) | 512x512 |
 
 `index.json` 항목: `assetKey`, `part`(`TOP`|`BOTTOM`|`SHOES`), `maleTopSurface`(상의만, 1 또는 2), `bodyOverrides`(있는 체형 파일 이름, 확장자 없이).
 
-맨몸 바탕은 `outfits/body/{g}_{stand|run_body|run_arm|run_leg}.png` 8장이다. 설계서의 `_body` 대신 `body`를 쓴다: aapt는 `_`로 시작하는 assets 폴더를 APK에서 뺀다(기본 무시 규칙 `<dir>_*`).
+자산 파일은 모두 **무손실 WebP**다(APK 크기, 조정자 결정 2026-11-10). 디자이너 원본(build 입력)은 PNG도 된다. 남녀 같은 내용의 파일은 한 장만 두고 `index.json`의 `shared`(이름 → 실제 파일 이름, 확장자 없이)로 함께 쓴다(예: `"shared": {"male_run_arm": "female_run_arm"}`). 공용 이름의 파일은 폴더에 없어야 한다. 파이프라인 `build`가 남녀 픽셀이 같으면 자동으로 공용으로 바꾼다.
+
+맨몸 바탕은 `outfits/body/{g}_{stand|run_body|run_arm|run_leg}.webp` 8장(남녀 공용이면 `index.json` `body.shared`), 상의 자르기 칸은 `outfits/body/{g}_{stand|run_body|run_arm}_cut.webp`(알파 255 = 칸, 3절 「상의 자르기」)다. 설계서의 `_body` 대신 `body`를 쓴다: aapt는 `_`로 시작하는 assets 폴더를 APK에서 뺀다(기본 무시 규칙 `<dir>_*`).
 
 ## 3. 그림 규칙
 
 | 항목 | 규칙 |
 |------|------|
 | 좌표 | 슬롯 텍스처와 같은 크기·좌표. 템플릿(아래 4절)을 밑그림으로 깔고 그린다 |
-| 허용 영역 | 그 텍스처를 쓰는 riv 메시의 UV 덮임(화면에 보이는 픽셀) 안, 그리고 그 부위 칸 안. 위 부위가 아래 부위를 덮는 겹침 띠 8px(상의 밑단 ↔ 하의 허리, 하의 밑단 ↔ 신발 목)는 양쪽 허용 |
+| 허용 영역 | 그 텍스처를 쓰는 riv 메시의 UV 덮임(화면에 보이는 픽셀) 안, 그리고 그 부위 칸 안. 위 부위가 아래 부위를 덮는 겹침 띠 8px(상의 밑단 ↔ 하의 허리, 하의 밑단 ↔ 신발 목)는 양쪽 허용. 단 하의는 상의 칸으로 24px까지 올라갈 수 있다(서기 아틀라스의 실제 허리선 y 약 300이 상의 칸 경계 y 319보다 높아, 허리 밴드가 상의 밑단 아래로 들어가야 맨몸이 비치지 않는다, [임시:D-성-158]) |
 | 메시 밖 금지 | 옷 실루엣은 몸 메시 UV 안에서만 보인다. 넓은 옷도 영역 안에서 주름·음영으로 부피를 낸다 |
 | 바탕 | RGBA, 옷이 아닌 곳은 알파 0. 반투명은 가장자리 안티에일리어싱 1px만 |
 | 그 부위만 | 상의 파일에 하의·신발 픽셀 없음(금지 영역은 템플릿의 빨간 빗금) |
-| 피부 | 의상 PNG에 피부를 그리지 않는다. 민소매 어깨·반바지 다리는 알파 0으로 두어 맨몸 바탕이 보이게 한다. 피부톤 필터는 맨몸 바탕에만 걸린다 |
+| 피부 | 의상 그림에 피부를 그리지 않는다. 민소매 어깨·반바지 다리는 알파 0으로 두어 맨몸 바탕이 보이게 한다. 피부톤 필터는 맨몸 바탕에만 걸린다 |
 | 겹침 순서 | 맨몸 바탕(피부톤) → 신발 → 하의 → 상의 |
+| 상의 자르기 ([임시:D-성-156]) | 앱이 합성할 때 상의 자르기 칸 안에서 상의 밖(옷으로 둘러싸인 빈 곳은 옷으로 친다)인 맨몸 픽셀 가운데 상의와 배경(맨몸도 상의도 없는 곳) 사이에 낀 얇은 띠를 지운다: 가장 가까운 상의·배경까지 거리 합 ≤ 26px이고 두 방향이 반대(코사인 < −0.6). 그래서 맨몸 실루엣보다 좁은 상의(최대 24px)도 어깨·몸통·소매 옆 피부 테두리가 옷 밖으로 비치지 않는다. 소매 끝 아래 팔(상의는 위, 배경은 옆)·민소매 팔·목·손은 남는다. 칸: 서기 = 상의 칸 − 손 칸 − 목·가슴 위(x 196~316, y 0~109)·맨 위 목 둘레(x 176~336, y 0~13), 달리기 몸통 = 전체 − 목 조각(x 100~199, y 0~39, 알파 240: 띠 판정 없이 상의 밖을 모두 지운다. 옆모습 몸통은 맨몸이 보일 곳이 없다), 달리기 팔 = 전체. 팔 띠(서기 x 0~144·367~511의 y 185~301, 허리 옆 모서리는 몸통 칸, 달리기 팔의 y 300 아래)는 상의가 그 띠의 맨몸을 60% 넘게 덮을 때(긴소매)만 자른다(반팔·민소매의 팔은 몸통에 붙어 있어도 그대로). 칸 파일 알파: 몸통 255, 왼팔 200, 오른팔 160. 앱 `TopBodyCut`, 파이프라인 `outfit_pipeline/cut.py`(검수 렌더)가 같은 규칙이다 |
 | 신발 기준점 | 정면 발 칸 (96,627)-(257,768)·(260,627)-(421,768), 양말 위 끝은 y 616 이하로 올리지 않는다 |
 | 하의 길이 | 달리기 다리(`run_leg`)의 하의는 기본 반바지 밑단(y 약 250)보다 짧게 끝나지 않는다(맨몸 허벅지의 이음선이 그 위에 있다) |
 | 품질 | 코랄 집업 후드(`top_cherry_vest`) 기준: 외곽선 2px(옷 기본색의 어두운 톤, 검정 아님), 음영 3단, 주름은 관절·지퍼·밑단, 광택·질감 무늬 없음 |
@@ -52,7 +55,7 @@ riv 네 파일(`res/raw`, 승인본 SHA 고정, 읽기만)의 아트보드는 80
 
 각 템플릿은 세 층이다. (1) 맨몸 바탕(신발 슬롯은 기본 신발을 옅게), (2) 하늘색 = UV 허용 영역, (3) 부위 칸 경계 실선(상의 파랑, 하의 초록, 신발 보라, 손 주황), 부위별 허용 경계 점선(겹침 띠 포함), 빨간 빗금 = 어느 부위도 그릴 수 없는 곳(UV 밖, 손 칸).
 
-사용법: 그림 도구에서 템플릿을 맨 아래 레이어로 깔고(같은 캔버스 크기, 2배로 그릴 때는 정확히 2배), 옷만 새 레이어에 그린 뒤 그 레이어만 투명 PNG로 내보낸다. 남자 상의는 묶음의 `maleTopSurface`에 맞는 `male_stand_s1`(반팔·민소매)·`male_stand_s2`(긴소매)를 쓴다. 하의·신발의 남자 서기는 `male_stand_s1`이다. 마스크(`templates/masks/<템플릿>.png` = UV, `<템플릿>_<부위>.png` = 그 부위 허용)는 검사가 쓰는 1비트 PNG다.
+사용법: 그림 도구에서 템플릿을 맨 아래 레이어로 깔고(같은 캔버스 크기, 2배로 그릴 때는 정확히 2배), 옷만 새 레이어에 그린 뒤 그 레이어만 투명 PNG(또는 WebP)로 내보낸다. 남자 상의는 묶음의 `maleTopSurface`에 맞는 `male_stand_s1`(반팔·민소매)·`male_stand_s2`(긴소매)를 쓴다. 하의·신발의 남자 서기는 `male_stand_s1`이다. 마스크(`templates/masks/<템플릿>.png` = UV, `<템플릿>_<부위>.png` = 그 부위 허용)는 검사가 쓰는 1비트 PNG다.
 
 ## 5. 파이프라인 (`tools/outfit-pipeline`, Python 3.12, uv, Pillow)
 
@@ -60,7 +63,8 @@ riv 네 파일(`res/raw`, 승인본 SHA 고정, 읽기만)의 아트보드는 80
 cd android/core/avatar/tools/outfit-pipeline
 uv run outfit-pipeline uv-mask          # riv Mesh·MeshVertex(u, v)로 templates/masks 생성(riv가 바뀌면 다시, H-성-1)
 uv run outfit-pipeline templates        # 템플릿 11장
-uv run outfit-pipeline build <원본폴더> [assetKey...]   # <원본>/<assetKey>/{g}_{slot}.png → 정리·잘라내기·shop.png·index.json
+uv run outfit-pipeline body <맨몸 원본폴더>         # {g}_{slot}.png → body/(무손실 WebP)·상의 자르기 칸·index.json body.shared
+uv run outfit-pipeline build <원본폴더> [assetKey...]   # <원본>/<assetKey>/{g}_{slot}.png → 정리·잘라내기·WebP·shop.webp·남녀 공용·index.json
 uv run outfit-pipeline check            # 아래 6절 여덟 항목
 uv run pytest
 ```
@@ -73,8 +77,8 @@ uv run pytest
 2. 파일 크기가 2절 표와 같고 RGBA 8비트다.
 3. 금지 영역(그 부위 칸 밖)에서 알파가 0이다.
 4. 알파가 0이 아닌 픽셀이 UV 허용 영역 안에만 있고 1% 이상이다.
-5. `shop.png`가 512x512, 불투명 영역 긴 변 420~460px, 가운데에서 ±8px.
-6. 파일 이름이 규칙(`{g}_{stand|run_body|run_arm|run_leg|run_shoe}{|_b1|_b2}.png`, `shop.png`) 안이고 그 부위 슬롯이다.
+5. `shop.webp`가 512x512, 불투명 영역 긴 변 420~460px, 가운데에서 ±8px.
+6. 파일 이름이 규칙(`{g}_{stand|run_body|run_arm|run_leg|run_shoe}{|_b1|_b2}.webp`, `shop.webp`) 안이고 그 부위 슬롯이다. `shared`의 이름은 파일이 없고 가리키는 파일이 있다. 공용 파일은 그 이름(성별)의 템플릿으로도 검사한다.
 7. 묶음 하나 합계 1.5MB 이하.
 8. 상의 `maleTopSurface`가 1 또는 2(남자 서기 검사는 그 표면 템플릿), `bodyOverrides` 파일이 있다.
 
@@ -87,3 +91,7 @@ uv run pytest
 | 신발 | `base_shoes` | `shoes_basic_runner` | `shoes_high_top` | `shoes_carbon_racer` | `shoes_slip_on` | `shoes_ankle_boots` | `shoes_lime_runner` |
 
 상의 `maleTopSurface`: 0·1·2 → 1, 3~6 → 2. 목록에 없는 키는 그 부위 `base_*`로 그린다.
+
+## 8. 다시 만들기(제작 스크립트)
+
+그림 도구 출력에서 이 저장소의 자산까지 다시 만드는 순서는 `tools/outfit-pipeline/README.md`에 있다(제작 스크립트 `production/`, 그림 도구 지시문 `production/prompts/`).

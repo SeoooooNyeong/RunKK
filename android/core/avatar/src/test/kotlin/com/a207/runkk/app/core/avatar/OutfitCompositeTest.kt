@@ -14,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 의상 레이어 합성(D-성-110·112, OUTFIT_SPEC.md 5.3·5.4·5.6). 실제 자산(assets/outfits)으로 슬롯 텍스처를 만들어 픽셀을 본다.
+ * 의상 레이어 합성(D-성-110·112, [임시:D-성-156] 상의 자르기, OUTFIT_SPEC.md 3절). 실제 자산(assets/outfits)으로 슬롯 텍스처를 만들어 픽셀을 본다.
  * Rive 그림은 Robolectric에 나오지 않으므로 riv에 넣는 합성 텍스처를 검사한다.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -32,9 +32,9 @@ class OutfitCompositeTest {
         val all = { _: String -> true }
         assertEquals(
             listOf(
-                "outfits/shoes_carbon_racer/female_stand.png",
-                "outfits/bottom_leggings/female_stand.png",
-                "outfits/top_crew_tee/female_stand.png"
+                "outfits/shoes_carbon_racer/female_stand.webp",
+                "outfits/bottom_leggings/female_stand.webp",
+                "outfits/top_crew_tee/female_stand.webp"
             ),
             OutfitLayerComposer.layerFiles(
                 catalog,
@@ -46,7 +46,7 @@ class OutfitCompositeTest {
             )
         )
         assertEquals(
-            listOf("outfits/top_cherry_vest/male_run_arm.png"),
+            listOf("outfits/top_cherry_vest/female_run_arm.webp"),
             OutfitLayerComposer.layerFiles(
                 catalog,
                 OutfitSlot.RUN_ARM,
@@ -55,7 +55,7 @@ class OutfitCompositeTest {
                 AvatarOutfit(top = 6),
                 all
             ),
-            "체형 전용 파일이 없으면 기준 파일"
+            "체형 전용 파일이 없으면 기준 파일, 남녀 같은 파일은 공용(shared)"
         )
         assertEquals("base_top", catalog.bundle(OutfitPart.TOP, "hat_beanie")?.assetKey, "모르는 키")
         assertEquals("base_top", catalog.bundle(OutfitPart.TOP, "bottom_leggings")?.assetKey, "다른 부위 키")
@@ -66,7 +66,7 @@ class OutfitCompositeTest {
             AvatarBodyShape.BASE,
             AvatarOutfit(bottom = 4)
         ) { !it.contains("bottom_wide_pants") }
-        assertEquals(listOf("outfits/base_bottom/female_run_leg.png"), missing, "파일을 못 찾으면 base_*")
+        assertEquals(listOf("outfits/base_bottom/female_run_leg.webp"), missing, "파일을 못 찾으면 base_*")
     }
 
     @Test
@@ -142,6 +142,177 @@ class OutfitCompositeTest {
         composed.recycle()
     }
 
+    @Test
+    fun `상의 자르기 - 상의와 배경 사이 얇은 피부 띠는 지우고 상의에서 뻗은 팔과 칸 밖은 남긴다`() {
+        // 맨몸: 가운데 몸통(x 4..15, y 2..19)과 팔(x 4..7, y 20..61, 상의에서 길게 뻗는다). 상의: x 6..13, y 4..19(맨몸보다 좌우 2px
+        // 좁고 위로 2px 낮다).
+        val body = png(20, 64) { bitmap ->
+            for (y in 2..61) {
+                for (x in 4..15) {
+                    if (y < 20 || x <= 7) bitmap.setPixel(x, y, Color.rgb(250, 220, 200))
+                }
+            }
+        }
+        val top = png(20, 64) { bitmap -> for (y in 4..19) for (x in 6..13) bitmap.setPixel(x, y, Color.BLUE) }
+        val area = png(20, 64) { bitmap -> for (y in 0..63) for (x in 0..14) bitmap.setPixel(x, y, Color.BLACK) }
+        val out = decode(OutfitLayerComposer.compose(body, listOf(OutfitPart.TOP to top), 0, 20, 64, area))
+        assertEquals(0, Color.alpha(out.getPixel(4, 10)), "상의 왼쪽 2px 띠(어깨·몸통 테두리)")
+        assertEquals(0, Color.alpha(out.getPixel(9, 2)), "상의 위 2px 띠")
+        assertEquals(Color.BLUE, out.getPixel(9, 10), "상의")
+        assertEquals(255, Color.alpha(out.getPixel(5, 55)), "상의 아래로 뻗은 팔")
+        assertEquals(255, Color.alpha(out.getPixel(6, 21)), "소매 끝 바로 아래 팔(상의는 위, 배경은 옆)")
+        assertEquals(255, Color.alpha(out.getPixel(15, 10)), "자르기 칸 밖")
+        out.recycle()
+    }
+
+    @Test
+    fun `상의 알파 밖 몸통 피부 테두리 0px - 21가지 × 남녀 × 서기·달리기 몸통·팔 × 러닝량 0·100`() {
+        val slots = listOf(OutfitSlot.STAND, OutfitSlot.RUN_BODY, OutfitSlot.RUN_ARM)
+        OutfitCatalog.LEGACY_KEYS.forEach { (part, keys) ->
+            keys.indices.forEach { id ->
+                val outfit = when (part) {
+                    OutfitPart.TOP -> AvatarOutfit(top = id)
+                    OutfitPart.BOTTOM -> AvatarOutfit(bottom = id)
+                    OutfitPart.SHOES -> AvatarOutfit(shoes = id)
+                }
+                listOf(AvatarGender.FEMALE, AvatarGender.MALE).forEach { gender ->
+                    slots.forEach { slot ->
+                        listOf(0, 100).forEach { amount ->
+                            assertNoRim(slot, gender, outfit, amount, "${keys[id]} $gender ${slot.fileName} $amount")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 자르기 칸 안에서 옷(상의·하의·신발) 밖(상의로 둘러싸인 빈 곳 제외)에 보이는 맨몸 피부를 4방향으로 이은 덩어리 가운데, 상의와 맞닿아 있고 상의에서
+     * 가장 먼 픽셀까지 [TopBodyCut.RIM_PX] 이하인 것(옷 밖으로 비치는 어깨·몸통·소매 옆 피부 테두리)이 없다. 소매 끝 아래 팔·민소매 팔은
+     * 상의에서 길게 뻗은 덩어리라, 목·손·하의 칸은 칸 밖이라 검사에 걸리지 않는다. [MIN_VISIBLE_RIM]픽셀 미만 조각(옷 가장자리
+     * 안티에일리어싱, 외곽선 폭)은 보지 않는다.
+     */
+    private fun assertNoRim(
+        slot: OutfitSlot,
+        gender: AvatarGender,
+        outfit: AvatarOutfit,
+        amount: Int,
+        message: String
+    ) {
+        val width = slot.width
+        val height = slot.height
+        val size = width * height
+        val composed = compose(slot, gender, outfit, amount)
+        val pixels = IntArray(size).also { composed.getPixels(it, 0, width, 0, 0, width, height) }
+        composed.recycle()
+        val top = decodeLayer(slot, gender, outfit, onlyTop = true)
+        val clothes = decodeLayer(slot, gender, outfit)
+        val areaBitmap = decode(OutfitLibrary.read(checkNotNull(catalog.cutFile(gender, slot)))!!)
+        val area = IntArray(size).also { areaBitmap.getPixels(it, 0, width, 0, 0, width, height) }
+        areaBitmap.recycle()
+        val outside = TopBodyCut.outsideOf(top, width, height)
+        // 기본 의상 서기는 승인 기본 텍스처 그대로가 정답이다: 맨몸이 승인 픽셀과 같은 곳(팔과 밑단이 만나는 승인 그림)은 테두리가 아니다.
+        val approved = if (outfit.isDefault) approvedMask(slot, gender) else null
+        val visible = uvMask(slot, gender, outfit)
+        // 맨몸 외곽선(러닝량 0에서 어두운 갈색 선)은 피부 테두리가 아니다: 옷 외곽선과 같은 색이라 옷 가장자리 선으로 보인다.
+        val light = compose(slot, gender, outfit, 0)
+        val outline = BooleanArray(size) { luma(light.getPixel(it % width, it / width)) < 110 }
+        light.recycle()
+        val exposed = BooleanArray(size) {
+            clothes[it] ushr 24 == 0 && pixels[it] ushr 24 != 0 && area[it] ushr 24 >= 128 && outside[it] &&
+                visible[it] && (approved == null || !approved[it])
+        }
+        val distance = IntArray(size) { Int.MAX_VALUE }
+        val queue = ArrayDeque<Int>()
+        for (i in 0 until size) {
+            if (exposed[i] && neighbors(i, width, height).any { top[it] ushr 24 != 0 }) {
+                distance[i] = 1
+                queue.add(i)
+            }
+        }
+        while (queue.isNotEmpty()) {
+            val i = queue.removeFirst()
+            neighbors(i, width, height).filter { exposed[it] && distance[it] == Int.MAX_VALUE }.forEach {
+                distance[it] = distance[i] + 1
+                queue.add(it)
+            }
+        }
+        val seen = BooleanArray(size)
+        val rims = mutableListOf<String>()
+        for (start in 0 until size) {
+            if (!exposed[start] || seen[start]) continue
+            val members = mutableListOf(start)
+            seen[start] = true
+            var k = 0
+            while (k < members.size) {
+                neighbors(members[k++], width, height).filter { exposed[it] && !seen[it] }.forEach {
+                    seen[it] = true
+                    members += it
+                }
+            }
+            val farthest = members.maxOf { distance[it] }
+            val skin = members.count { !outline[it] }
+            if (farthest <= TopBodyCut.RIM_PX && skin >= MIN_VISIBLE_RIM) {
+                rims += "$message (${members[0] % width}, ${members[0] / width}) ${skin}px"
+            }
+        }
+        assertTrue(rims.isEmpty(), "피부 테두리 ${rims.size}곳: ${rims.take(5)}")
+    }
+
+    /** riv 메시 UV가 덮어 화면에 보이는 픽셀(tools/outfit-pipeline/templates/masks, 템플릿 이름은 OUTFIT_SPEC.md 4절). */
+    private fun uvMask(slot: OutfitSlot, gender: AvatarGender, outfit: AvatarOutfit): BooleanArray {
+        val g = gender.fileName
+        val name = when {
+            slot != OutfitSlot.STAND -> "${g}_${slot.fileName}"
+            gender == AvatarGender.FEMALE -> "female_stand"
+            else -> "male_stand_s${catalog.bundle(OutfitPart.TOP, outfit.top)!!.maleTopSurface}"
+        }
+        val mask = BitmapFactory.decodeFile("tools/outfit-pipeline/templates/masks/$name.png")
+        val width = mask.width
+        return BooleanArray(width * mask.height) { mask.getPixel(it % width, it / width) and 0xFFFFFF != 0 }
+            .also { mask.recycle() }
+    }
+
+    /** 기본 의상 러닝량 0 합성이 승인 기본 텍스처(서기 PNG, 달리기는 riv 내장)와 같은 픽셀(러닝량과 무관하게 같은 자리). */
+    private fun approvedMask(slot: OutfitSlot, gender: AvatarGender): BooleanArray {
+        val bytes = if (slot == OutfitSlot.STAND) {
+            File("src/main/res/raw/avatar_legacy_standing_body.png").readBytes()
+        } else {
+            val asset = mapOf(
+                OutfitSlot.RUN_BODY to "side_body_coral",
+                OutfitSlot.RUN_ARM to "continuous_arm",
+                OutfitSlot.RUN_LEG to "side_leg_skin",
+                OutfitSlot.RUN_SHOE to "side_shoe"
+            ).getValue(slot)
+            RivEmbeddedImages.read(File("src/main/res/raw/avatar_run_approved.riv").readBytes()).getValue(asset)
+        }
+        val legacy = decode(bytes)
+        val composed = compose(slot, gender, AvatarOutfit(), 0)
+        val width = legacy.width
+        return BooleanArray(width * legacy.height) {
+            near(legacy.getPixel(it % width, it / width), composed.getPixel(it % width, it / width), 6)
+        }.also {
+            legacy.recycle()
+            composed.recycle()
+        }
+    }
+
+    private fun neighbors(i: Int, width: Int, height: Int): List<Int> = buildList {
+        val x = i % width
+        if (x > 0) add(i - 1)
+        if (x < width - 1) add(i + 1)
+        if (i >= width) add(i - width)
+        if (i < (height - 1) * width) add(i + width)
+    }
+
+    private fun png(width: Int, height: Int, draw: (Bitmap) -> Unit): ByteArray {
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        draw(bitmap)
+        return AvatarImages.encode(bitmap).also { bitmap.recycle() }
+    }
+
+    private fun decode(bytes: ByteArray): Bitmap = checkNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+
     private fun luma(c: Int) = (Color.red(c) * 299 + Color.green(c) * 587 + Color.blue(c) * 114) / 1000
 
     @Test
@@ -170,20 +341,21 @@ class OutfitCompositeTest {
         dark.recycle()
     }
 
-    /** 그 모습의 의상 레이어만 겹친 알파(맨몸 없이). */
-    private fun decodeLayer(slot: OutfitSlot, gender: AvatarGender, outfit: AvatarOutfit): IntArray {
-        val files = OutfitLayerComposer.layerFiles(catalog, slot, gender, AvatarBodyShape.BASE, outfit) {
+    private fun layersOf(slot: OutfitSlot, gender: AvatarGender, outfit: AvatarOutfit) =
+        OutfitLayerComposer.layers(catalog, slot, gender, AvatarBodyShape.BASE, outfit) {
             OutfitLibrary.read(it) != null
         }
-        val bytes = OutfitLayerComposer.compose(
-            null,
-            files.map {
-                OutfitLibrary.read(it)!!
-            },
-            0,
-            slot.width,
-            slot.height
-        )
+            .map { it.part to OutfitLibrary.read(it.path)!! }
+
+    /** 그 모습의 의상 레이어만 겹친 픽셀(맨몸 없이). [onlyTop]이면 상의만. */
+    private fun decodeLayer(
+        slot: OutfitSlot,
+        gender: AvatarGender,
+        outfit: AvatarOutfit,
+        onlyTop: Boolean = false
+    ): IntArray {
+        val layers = layersOf(slot, gender, outfit).filter { !onlyTop || it.first == OutfitPart.TOP }
+        val bytes = OutfitLayerComposer.compose(null, layers, 0, slot.width, slot.height)
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
         return IntArray(slot.width * slot.height).also {
             bitmap.getPixels(it, 0, slot.width, 0, 0, slot.width, slot.height)
@@ -191,21 +363,18 @@ class OutfitCompositeTest {
         }
     }
 
-    private fun compose(slot: OutfitSlot, gender: AvatarGender, outfit: AvatarOutfit, amount: Int): Bitmap {
-        val files = OutfitLayerComposer.layerFiles(catalog, slot, gender, AvatarBodyShape.BASE, outfit) {
-            OutfitLibrary.read(it) != null
-        }
-        val body = slot.bodyFile(gender)?.let { OutfitLibrary.read(it) }
-        val bytes = OutfitLayerComposer.compose(
-            body,
-            files.map {
-                OutfitLibrary.read(it)!!
-            },
-            amount,
-            slot.width,
-            slot.height
-        )
-        return checkNotNull(BitmapFactory.decodeByteArray(bytes, 0, bytes.size))
+    private fun compose(
+        slot: OutfitSlot,
+        gender: AvatarGender,
+        outfit: AvatarOutfit,
+        amount: Int,
+        onlyTop: Boolean = false
+    ): Bitmap {
+        val body = catalog.bodyFile(gender, slot)?.let { OutfitLibrary.read(it) }
+        val layers = layersOf(slot, gender, outfit).filter { !onlyTop || it.first == OutfitPart.TOP }
+        val cut = catalog.cutFile(gender, slot)?.let { OutfitLibrary.read(it) }
+        val bytes = OutfitLayerComposer.compose(body, layers, amount, slot.width, slot.height, cut)
+        return decode(bytes)
     }
 
     /** 러닝량 100 톤(R×0.70, G×0.50, B×0.32). 반투명 가장자리 반올림을 감안해 채널마다 3까지. */
@@ -223,4 +392,9 @@ class OutfitCompositeTest {
 
     private fun near(a: Int, b: Int, tolerance: Int): Boolean =
         listOf(Color::red, Color::green, Color::blue).all { abs(it(a) - it(b)) <= tolerance }
+
+    private companion object {
+        /** 눈에 띄는 피부 테두리 조각의 최소 크기(픽셀 수, 4x4). 이보다 작은 조각은 옷 모서리 안티에일리어싱 수준이다. */
+        const val MIN_VISIBLE_RIM = 16
+    }
 }
