@@ -193,16 +193,13 @@
     <string name="record_runbody_pick_open">기록 선택</string>
     <string name="record_runbody_runs_empty">아직 러닝 기록이 없어요</string>
     <string name="record_runbody_pick_title">러닝 선택</string>
-    <string name="record_runbody_pick_selected">%1$skm, 선택됨</string>
-    <string name="record_runbody_pick_row">%1$skm, %2$s</string>
+    <string name="record_runbody_pick_selected">선택됨</string>
     <string name="record_runbody_pick_score">러닝 점수</string>
     <string name="record_runbody_pick_score_up">▲ %1$d</string>
     <string name="record_runbody_pick_score_down">▼ %1$d</string>
     <string name="record_runbody_pick_score_spoken">러닝 점수 %1$d점</string>
     <string name="record_runbody_pick_score_up_spoken">%1$d점 올랐어요</string>
     <string name="record_runbody_pick_score_down_spoken">%1$d점 내려갔어요</string>
-    <string name="record_runbody_period_week">주간</string>
-    <string name="record_runbody_period_month">월간</string>
     <string name="record_runbody_trend_title">최근 10회 변화</string>
     <string name="record_runbody_trend_range">%1$d~%2$d번째 러닝</string>
     <string name="record_runbody_trend_round">%1$d회차</string>
@@ -222,7 +219,6 @@
     <string name="record_runbody_trend_shorter">단축</string>
     <string name="record_runbody_trend_longer">늘어남</string>
     <string name="record_runbody_trend_weekly">주간 러닝 빈도</string>
-    <string name="record_runbody_trend_monthly">월간 러닝 빈도</string>
     <string name="record_runbody_trend_freq_value">%1$s회</string>
     <string name="record_runbody_trend_freq_change">%1$s → %2$s회</string>
     <string name="record_runbody_trend_freq_more">%1$s회 늘었어요</string>
@@ -280,7 +276,6 @@
     <string name="record_runbody_no_score">—</string>
     <string name="record_runbody_radar_spoken">%1$s, %2$s</string>
     <string name="record_runbody_detail_title">런바디 상세</string>
-    <string name="record_runbody_detail_caption">%1$s, %2$skm</string>
     <string name="record_runbody_detail_profile">러닝 능력 상세</string>
     <string name="record_runbody_detail_summary">러닝 요약</string>
     <string name="record_runbody_distance">거리</string>

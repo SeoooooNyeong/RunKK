@@ -35,7 +35,6 @@ data class RunBodyUiState(
     val isTrendLoading: Boolean = true,
     val trend: RunBodyTrend? = null,
     val trendError: UiText? = null,
-    val period: RunBodyPeriod = RunBodyPeriod.WEEK,
     /** 요약 주간 러닝 기록의 주(월요일). */
     val week: LocalDate = weekStartOf(today),
     val isWeekLoading: Boolean = true,
