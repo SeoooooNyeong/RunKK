@@ -39,7 +39,43 @@ internal object AvatarImages {
         }
     }
 
-    /** 측면 머리: 톤을 적용한 얼굴(내장 샘플은 목 등록 메시) 위에 눈, 헤어 순서로 원래 색을 얹는다. */
+    /**
+     * 헤어 레이어: 고유색은 그대로 두고 얼굴과 맞닿은 경계의 피부 섞인 색만 섞인 몫만큼 러닝량 톤을 준다([HairSkinFringe], DV-성-5).
+     * 러닝량 0이거나 얼굴과 크기가 다르면 원본 바이트를 그대로 돌려준다.
+     */
+    fun hairForRunningAmount(hair: ByteArray, face: ByteArray, amount: Int): ByteArray {
+        val matrix = SkinToneFilter.matrix(amount)
+        if (amount == MIN_RUNNING_AMOUNT) return hair
+        val hairBitmap = decode(hair)
+        try {
+            val faceBitmap = decode(face)
+            try {
+                if (hairBitmap.width != faceBitmap.width || hairBitmap.height != faceBitmap.height) return hair
+                val toned = tonedHair(hairBitmap, faceBitmap, matrix)
+                try {
+                    return encode(toned)
+                } finally {
+                    toned.recycle()
+                }
+            } finally {
+                faceBitmap.recycle()
+            }
+        } finally {
+            hairBitmap.recycle()
+        }
+    }
+
+    /** [hair] 경계를 [face]에 맞춰 톤을 준 새 비트맵. 부른 쪽이 recycle한다. */
+    private fun tonedHair(hair: Bitmap, face: Bitmap, matrix: FloatArray): Bitmap {
+        val width = hair.width
+        val height = hair.height
+        val hairPixels = IntArray(width * height).also { hair.getPixels(it, 0, width, 0, 0, width, height) }
+        val facePixels = IntArray(width * height).also { face.getPixels(it, 0, width, 0, 0, width, height) }
+        val toned = HairSkinFringe.tone(hairPixels, facePixels, width, height, matrix)
+        return Bitmap.createBitmap(toned, width, height, Bitmap.Config.ARGB_8888)
+    }
+
+    /** 측면 머리: 톤을 적용한 얼굴(내장 샘플은 목 등록 메시) 위에 눈, 헤어 순서로 얹는다. 헤어는 피부 섞인 경계만 톤을 받는다. */
     fun composeSideHead(layers: SideHeadLayers, amount: Int): ByteArray {
         val face = decode(faceForRunningAmount(layers.face, amount))
         try {
@@ -53,7 +89,12 @@ internal object AvatarImages {
                     drawRegisteredFace(canvas, face, neck)
                 }
                 drawOverlay(canvas, layers.eyes, face, clipFemaleStrand = false)
-                drawOverlay(canvas, layers.hair, face, clipFemaleStrand = neck == SideNeckRegistration.FEMALE)
+                drawOverlay(
+                    canvas,
+                    hairForRunningAmount(layers.hair, layers.face, amount),
+                    face,
+                    clipFemaleStrand = neck == SideNeckRegistration.FEMALE
+                )
                 return encode(result)
             } finally {
                 result.recycle()

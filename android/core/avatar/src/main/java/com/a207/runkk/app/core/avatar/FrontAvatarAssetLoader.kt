@@ -74,13 +74,14 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
         checkNotNull(fullnessAsset) { "fullness overlay slot missing" }.assignPng(bytes ?: TRANSPARENT_PNG)
 
     /**
-     * 톤을 적용한 피부 얼굴을 넣는다. 머리 원본을 바꾼 뒤 처음이면 눈 세 장과 헤어(원래 색)도 함께 넣어, 눈·헤어가 톤을 거치지 않고
-     * 피부 얼굴 위에 합성되게 한다.
+     * 톤을 적용한 피부 얼굴과 그 얼굴에 맞춘 헤어(고유색 그대로, 피부 섞인 경계만 톤, DV-성-5)를 넣는다. 머리 원본을 바꾼 뒤 처음이면
+     * 눈 세 장(원래 색)도 함께 넣어, 눈이 톤을 거치지 않고 피부 얼굴 위에 합성되게 한다.
      */
     fun replaceFace(face: ByteArray, hair: ByteArray) {
         check(hasApprovedAssets()) { "front head slots missing" }
         if (hasPreparedHead) {
             assets.getValue("face_layer").assignPng(face)
+            assets.getValue("hair_layer").assignPng(hair)
             return
         }
         AvatarVariantAssets.FRONT_SLOTS.forEach { slot ->

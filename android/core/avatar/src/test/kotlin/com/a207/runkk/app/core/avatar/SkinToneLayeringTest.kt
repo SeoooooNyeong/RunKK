@@ -73,7 +73,7 @@ class SkinToneLayeringTest {
     }
 
     @Test
-    fun `정면 헤어는 톤 계산을 거치지 않고 얼굴만 러닝량 캐시를 다시 쓴다`() {
+    fun `정면 헤어 고유색은 톤을 거치지 않고 얼굴·헤어 경계는 러닝량 캐시를 다시 쓴다`() {
         val face = png(32, 32) { fill(it, 0..31, 0..31, SKIN) }
         val hair = png(32, 32) { fill(it, 0..31, 0..3, HAIR) }
         val request = AvatarToneRequest(
@@ -92,8 +92,26 @@ class SkinToneLayeringTest {
             generatedSkinColor = null
         )
         val first = AvatarTextureComposer.compose(request, AvatarToneCache())
-        assertSame(hair, first.hair, "헤어는 원본 바이트")
+        val firstHair = decode(checkNotNull(first.hair))
+        assertEquals(HAIR, firstHair.getPixel(10, 1), "헤어 고유색은 톤을 거치지 않는다")
+        firstHair.recycle()
         assertNotSame(face, checkNotNull(first.face).bytes, "얼굴은 톤을 적용한 새 텍스처")
+        val still = AvatarToneRequest(
+            version = 3,
+            identity = 1,
+            gender = AvatarGender.FEMALE,
+            amount = 0,
+            outfit = AvatarOutfit(),
+            shape = AvatarBodyShape.BASE,
+            face = face,
+            hair = hair,
+            frontFullness = null,
+            runFullness = null,
+            sideLayers = null,
+            skinAssets = emptyMap(),
+            generatedSkinColor = null
+        )
+        assertSame(hair, AvatarTextureComposer.compose(still, AvatarToneCache()).hair, "러닝량 0 헤어는 원본")
 
         val cached = AvatarTextureComposer.compose(request, first.toCache(AvatarToneCache()))
         assertSame(first.face, cached.face, "같은 러닝량이면 다시 계산하지 않는다")
@@ -118,6 +136,30 @@ class SkinToneLayeringTest {
         assertEquals(80, checkNotNull(changed.face).amount)
     }
 
+    @Test
+    fun `러닝량 100 - 얼굴과 맞닿은 헤어 경계의 피부 섞인 색만 섞인 몫만큼 어두워지고 헤어 고유색과 먼 곳은 그대로다(DV-성-5)`() {
+        // 얼굴은 8행부터 불투명 피부, 헤어는 0~7행(얼굴과 겹치지 않음, 내장 머리와 같은 분할). 7행은 피부가 반쯤 섞인 경계,
+        // 0행 왼쪽 끝은 얼굴에서 먼 같은 색(밝은 머리카락 끝)이다.
+        val face = png(32, 32) { fill(it, 0..31, 8..31, SKIN) }
+        val hair = png(32, 32) { bitmap ->
+            fill(bitmap, 0..31, 0..6, HAIR)
+            fill(bitmap, 0..31, 7..7, FRINGE)
+            fill(bitmap, 0..1, 0..0, FRINGE)
+        }
+        val toned = decode(AvatarImages.hairForRunningAmount(hair, face, amount = 100))
+        val fringe = toned.getPixel(16, 7)
+        // 경계: 헤어 반 + 톤을 적용한 피부 반(R×0.70, G×0.50, B×0.32)
+        assertNear(Color.rgb((90 + 170) / 2, (60 + 90) / 2, (40 + 51) / 2), fringe, "경계는 피부 몫만 어둡다")
+        assertEquals(HAIR, toned.getPixel(16, 3), "헤어 고유색")
+        assertEquals(FRINGE, toned.getPixel(0, 0), "얼굴에서 먼 밝은 헤어는 그대로")
+        toned.recycle()
+
+        val composed = decode(AvatarImages.composeSideHead(SideHeadLayers(face, png(32, 32) {}, hair), amount = 100))
+        assertNear(fringe, composed.getPixel(16, 7), "측면 머리도 같은 경계 처리")
+        composed.recycle()
+        assertSame(hair, AvatarImages.hairForRunningAmount(hair, face, amount = 0), "러닝량 0은 원본 바이트")
+    }
+
     private fun assertNear(expected: Int, actual: Int, message: String) {
         val channels = listOf(Color::red, Color::green, Color::blue)
         assertTrue(
@@ -130,6 +172,9 @@ class SkinToneLayeringTest {
         val SKIN = Color.rgb(243, 180, 160)
         val EYE = Color.rgb(30, 20, 20)
         val HAIR = Color.rgb(90, 60, 40)
+
+        /** 헤어와 피부(SKIN)가 반씩 섞인 경계 색. */
+        val FRINGE = Color.rgb((90 + 243) / 2, (60 + 180) / 2, (40 + 160) / 2)
         val SHIRT = Color.rgb(250, 250, 250)
 
         fun png(width: Int, height: Int, draw: (Bitmap) -> Unit): ByteArray {

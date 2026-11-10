@@ -13,7 +13,8 @@ internal class AvatarToneCache(
 ) {
     class RenderedSkin(val key: SkinRenderKey, val bytes: ByteArray)
 
-    class RenderedFace(val amount: Int, val bytes: ByteArray)
+    /** 러닝량 톤을 준 정면 피부 얼굴과 그 얼굴에 맞춘 헤어(경계만 톤, DV-성-5). 헤어가 없는 요청이면 [hair]는 null. */
+    class RenderedFace(val amount: Int, val bytes: ByteArray, val hair: ByteArray? = null)
 
     class RenderedOverlay(val shape: AvatarBodyShape, val amount: Int, val bytes: ByteArray)
 }

@@ -2,7 +2,8 @@ package com.a207.runkk.app.core.avatar
 
 /**
  * 합성 스레드에서 도는 텍스처 계산(PoC MainActivity.startNextTone의 계산 부분). 순서는 디자인 규칙을 따른다:
- * 몸은 피부에 톤을 적용한 뒤 옷을 얹고, 정면 얼굴은 피부 레이어에만 톤을 적용하며 헤어·눈은 원본 그대로 둔다.
+ * 몸은 피부에 톤을 적용한 뒤 옷을 얹고, 정면 얼굴은 피부 레이어에만 톤을 적용하며 눈은 원본, 헤어는 고유색 그대로 피부와 맞닿아
+ * 피부가 섞인 경계 픽셀만 섞인 몫만큼 톤을 준다(DV-성-5).
  * 측면 머리는 톤을 적용한 얼굴 위에 눈·헤어를 얹는다.
  */
 internal object AvatarTextureComposer {
@@ -43,13 +44,15 @@ internal object AvatarTextureComposer {
             cache.face?.takeIf { it.amount == request.amount }
                 ?: AvatarToneCache.RenderedFace(
                     request.amount,
-                    AvatarImages.faceForRunningAmount(original, request.amount)
+                    AvatarImages.faceForRunningAmount(original, request.amount),
+                    request.hair?.let { AvatarImages.hairForRunningAmount(it, original, request.amount) }
                 )
         }
         return PreparedAvatarTone(
             request = request,
             face = face,
-            hair = request.hair,
+            // 헤어 고유색은 그대로, 피부 얼굴과 맞닿은 피부 섞인 경계만 얼굴과 같은 러닝량 톤(DV-성-5).
+            hair = face?.hair ?: request.hair,
             skinBases = skinBases,
             skinRenders = skinRenders,
             frontOverlay = request.frontFullness?.let { overlay(it, cache.frontOverlay, request) },
