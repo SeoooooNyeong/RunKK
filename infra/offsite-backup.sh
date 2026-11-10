@@ -15,7 +15,8 @@ OUT="$INFRA_DIR/offsite"
 COPY="runkk-offsite-copy"
 MAX_AGE_HOURS="${OFFSITE_MAX_AGE_HOURS:-26}"
 
-cleanup() { docker rm -f "$COPY" >/dev/null 2>&1 || true; }
+# -v: postgres 이미지가 만드는 익명 볼륨까지 지운다(매일 빈 볼륨이 쌓이던 문제)
+cleanup() { docker rm -fv "$COPY" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 cleanup
 
