@@ -421,7 +421,7 @@ class CrewScreensTest {
         }
         compose.onNodeWithText("함께 달리는 크루원 2명").assertExists()
         compose.onNodeWithContentDescription("3.22킬로미터").assertExists()
-        compose.onNodeWithText("크루런 · 5km").assertExists()
+        compose.onNodeWithText("크루런 5km", useUnmergedTree = true).assertExists()
     }
 
     @Test

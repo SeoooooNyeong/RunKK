@@ -59,6 +59,9 @@ class CrewRunViewModel @Inject constructor(
     private var rejoinGenders: Map<Long, Gender> = emptyMap()
     private var genderJob: Job? = null
 
+    /** 이미 받으러 간 대기실 얼굴 키(키마다 한 번). */
+    private val requestedFaces = mutableSetOf<String>()
+
     fun bind(key: Routes.CrewRunLobby) {
         if (bound == key.postId) return
         bound = key.postId
@@ -90,6 +93,7 @@ class CrewRunViewModel @Inject constructor(
                         )
                     }
                     if (first) coordinator.onLobbyEntered(s.postId, r.value.distance)
+                    readLobbyFaces(r.value)
                     tick()
                 }
 
@@ -126,8 +130,11 @@ class CrewRunViewModel @Inject constructor(
         _state.update { it.copy(isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.toggleReady(s.postId)) {
-                is Outcome.Success -> _state.update {
-                    it.copy(isBusy = false, lobby = r.value, isReady = r.value.myReady() ?: !it.isReady)
+                is Outcome.Success -> {
+                    _state.update {
+                        it.copy(isBusy = false, lobby = r.value, isReady = r.value.myReady() ?: !it.isReady)
+                    }
+                    readLobbyFaces(r.value)
                 }
 
                 is Outcome.Failure -> _state.update { it.copy(isBusy = false, error = CrewErrorText.of(r.error)) }
@@ -246,6 +253,30 @@ class CrewRunViewModel @Inject constructor(
             rejoinGenders = result.participants
                 .mapNotNull { p -> p.memberId?.let { id -> p.shownGender?.let { id to it } } }
                 .toMap()
+            // 칩의 크루런 거리도 결과 응답에서 채운다(대기실 응답이 없다).
+            _state.update { if (it.lobby == null) it.copy(distance = result.distance) else it }
+        }
+    }
+
+    /**
+     * 대기실에 들어온 참가자(나 포함)의 셀카 얼굴 부위 그림을 얼굴 키마다 한 번 받는다([임시:D-성-12], 결과 화면 readMateFaces와 같은
+     * 방식). 미입장은 점선 원이라 받지 않고, 들어오면 다음 대기실 응답에서 받는다. 받지 못하거나 빈 목록이면 얼굴 키로 기본 얼굴을 그린다.
+     */
+    private fun readLobbyFaces(lobby: Lobby) {
+        val keys = lobby.participants.filter {
+            it.isEntered
+        }.mapNotNull { it.faceKey }.filter { requestedFaces.add(it) }
+        keys.forEach { key ->
+            viewModelScope.launch {
+                when (val r = crews.faceLayers(key)) {
+                    is Outcome.Success -> r.value.takeIf { it.isNotEmpty() }?.let { layers ->
+                        _state.update { it.copy(mateFaces = it.mateFaces + (key to layers)) }
+                    }
+
+                    // 일시 실패면 다음 대기실 응답에서 다시 받는다(빈 목록, 기본 캐릭터 얼굴은 다시 받지 않는다).
+                    is Outcome.Failure -> requestedFaces.remove(key)
+                }
+            }
         }
     }
 
