@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
+import timber.log.Timber
 
 /**
  * 슬롯 텍스처 하나를 레이어로 겹친다(D-성-110, OUTFIT_SPEC.md 3절): 맨몸 바탕(피부톤 필터) → 신발 → 하의 → 상의.
@@ -52,6 +53,8 @@ internal object OutfitLayerComposer {
     /**
      * [body](맨몸 바탕, 신발 슬롯이면 null) 위에 [layers](겹치는 순서, 부위와 바이트)를 얹는다. 피부톤은 [amount]로 바탕에만.
      * [cut]은 상의 자르기 칸(없으면 자르지 않는다). [width]·[height]는 슬롯 크기.
+     * 레이어 하나를 읽지 못하면(깨진 파일, 크기 다름) 그 부위는 [fallback](그 부위 base_* 바이트)으로 그리고, 그것도 못 읽으면 그 레이어만
+     * 건너뛴다(로그를 남기고 전체는 실패하지 않는다). 맨몸 바탕을 읽지 못하면 IllegalArgumentException.
      */
     fun compose(
         body: ByteArray?,
@@ -59,29 +62,66 @@ internal object OutfitLayerComposer {
         amount: Int,
         width: Int,
         height: Int,
-        cut: ByteArray? = null
+        cut: ByteArray? = null,
+        fallback: (OutfitPart) -> ByteArray? = { null }
     ): ByteArray {
-        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val decoded = layers.map { (part, bytes) -> part to decode(bytes, width, height) }
+        val decoded = mutableListOf<Pair<OutfitPart, Bitmap>>()
+        var result: Bitmap? = null
         try {
-            val canvas = Canvas(result)
-            body?.let {
-                val skin = decode(it, width, height)
-                try {
-                    val top = decoded.lastOrNull { (part, _) -> part == OutfitPart.TOP }?.second
-                    val bottom = decoded.lastOrNull { (part, _) -> part == OutfitPart.BOTTOM }?.second
-                    if (top != null && cut != null) cutOutside(skin, top, bottom, cut)
-                    val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(SkinToneFilter.matrix(amount)) }
-                    canvas.drawBitmap(skin, 0f, 0f, if (amount == MIN_RUNNING_AMOUNT) null else paint)
-                } finally {
-                    skin.recycle()
+            layers.forEach { (part, bytes) ->
+                decodeLayer(part, bytes, fallback, width, height)?.let {
+                    decoded +=
+                        part to it
                 }
             }
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            result = bitmap
+            val canvas = Canvas(bitmap)
+            body?.let { drawBody(canvas, it, decoded, amount, cut) }
             decoded.forEach { (_, layer) -> canvas.drawBitmap(layer, 0f, 0f, null) }
-            return AvatarImages.encode(result)
+            return AvatarImages.encode(bitmap)
         } finally {
             decoded.forEach { it.second.recycle() }
-            result.recycle()
+            result?.recycle()
+        }
+    }
+
+    /** 맨몸 바탕에 상의 자르기와 피부톤을 걸어 [canvas]에 그린다. */
+    private fun drawBody(
+        canvas: Canvas,
+        body: ByteArray,
+        decoded: List<Pair<OutfitPart, Bitmap>>,
+        amount: Int,
+        cut: ByteArray?
+    ) {
+        val skin = decode(body, canvas.width, canvas.height)
+        try {
+            val top = decoded.lastOrNull { (part, _) -> part == OutfitPart.TOP }?.second
+            val bottom = decoded.lastOrNull { (part, _) -> part == OutfitPart.BOTTOM }?.second
+            if (top != null && cut != null) cutOutside(skin, top, bottom, cut)
+            val paint = Paint().apply { colorFilter = ColorMatrixColorFilter(SkinToneFilter.matrix(amount)) }
+            canvas.drawBitmap(skin, 0f, 0f, if (amount == MIN_RUNNING_AMOUNT) null else paint)
+        } finally {
+            skin.recycle()
+        }
+    }
+
+    /** 레이어 하나. 못 읽으면 [fallback], 그것도 못 읽으면 null(건너뜀). */
+    private fun decodeLayer(
+        part: OutfitPart,
+        bytes: ByteArray,
+        fallback: (OutfitPart) -> ByteArray?,
+        width: Int,
+        height: Int
+    ): Bitmap? = try {
+        decode(bytes, width, height)
+    } catch (error: IllegalArgumentException) {
+        Timber.w(error, "outfit layer %s unreadable, using base", part)
+        try {
+            fallback(part)?.let { decode(it, width, height) }
+        } catch (baseError: IllegalArgumentException) {
+            Timber.w(baseError, "base layer %s unreadable, skipped", part)
+            null
         }
     }
 

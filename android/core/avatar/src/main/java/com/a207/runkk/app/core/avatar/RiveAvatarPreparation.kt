@@ -72,7 +72,6 @@ internal class AvatarLookPreparer(
                     gender = gender,
                     look = look,
                     variant = head?.variants?.getValue(gender) ?: prepared.builtIn,
-                    legacyStandingBody = prepared.legacyStandingBody,
                     front = if (motion == AvatarMotion.STAND) AvatarToneRequests.frontOf(embedded) else null,
                     run = if (motion == AvatarMotion.RUN) AvatarToneRequests.runOf(embedded) else null,
                     generatedSkinColor = head?.skinColor

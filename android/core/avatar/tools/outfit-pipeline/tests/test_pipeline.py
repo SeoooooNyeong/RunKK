@@ -167,3 +167,12 @@ def test_cut_area_keeps_hands_and_neck() -> None:
 @pytest.mark.parametrize("key", ["top_cherry_vest", "top_lime_singlet", "base_top"])
 def test_default_male_top_surface(key: str) -> None:
     assert spec.default_male_top_surface(key) == (2 if key == "top_cherry_vest" else 1)
+
+
+def test_cut_matches_app_fixture() -> None:
+    """앱 TopBodyCutParityTest와 같은 픽스처: 파이프라인 cut.py 결과가 expected.png와 같다(Kotlin도 같은 파일과 비교한다)."""
+    import numpy as np
+
+    from tests.make_topcut_fixture import OUT, expected
+
+    assert np.array_equal(np.array(expected()), np.array(Image.open(OUT / "expected.png").convert("RGBA")))

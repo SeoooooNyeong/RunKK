@@ -6,7 +6,4 @@ package com.a207.runkk.app.core.avatar
  */
 internal object BodySkinLayers {
     const val STANDING_BODY = "standing_body"
-
-    /** 기본 의상(흰 반팔티, 검은 반바지)의 서기 몸. res/raw/avatar_legacy_standing_body.png. 첫 합성 전 자리 그림으로만 쓴다. */
-    const val STANDING_BODY_LEGACY = "standing_body_legacy"
 }

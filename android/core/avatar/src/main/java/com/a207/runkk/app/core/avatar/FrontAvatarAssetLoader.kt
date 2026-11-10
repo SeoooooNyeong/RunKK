@@ -59,15 +59,12 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
         return originals.getValue(BodySkinLayers.STANDING_BODY)
     }
 
+    /** 남자 서기 riv(내장 기본 옷 몸 자리와 selected_* 입력이 있다)인가. 그 자리는 바꾸지 않는다. */
     fun hasSelectedBody(): Boolean = MaleSelectedBody.ASSET in assets
-
-    fun originalSelectedBodyBytes(): ByteArray? = originals[MaleSelectedBody.ASSET]
 
     fun originalFullnessBytes(): ByteArray = checkNotNull(originalFullness) { "fullness overlay slot missing" }
 
     fun replaceBody(bytes: ByteArray) = assets.getValue(BodySkinLayers.STANDING_BODY).assignPng(bytes)
-
-    fun replaceSelectedBody(bytes: ByteArray) = assets.getValue(MaleSelectedBody.ASSET).assignPng(bytes)
 
     /** 볼 레이어. null이면 비운다. */
     fun replaceFullnessOverlay(bytes: ByteArray?) =

@@ -33,15 +33,18 @@ internal object RiveAvatarScene {
     fun bodyShapeValue(shape: AvatarBodyShape): Float = shape.stage * BODY_SHAPE_STEP
 
     /**
-     * 남자 서기 상의 표면(selected_top): 묶음 목록의 maleTopSurface(1 반팔·민소매, 2 긴소매, DR-성-1). 기본 상의(0 = base_top)도
-     * 묶음이라 riv 내장 기본 옷 몸(표면 0)은 쓰지 않는다(D-성-115). 목록이 없으면 기존 표(0·1·2 → 1, 3..6 → 2). 여자 서기 riv에는 이
-     * 입력이 없다.
+     * 남자 서기 상의 표면(selected_top): 실제로 그리는 상의 묶음의 maleTopSurface(1 반팔·민소매, 2 긴소매, DR-성-1). 고른 묶음에
+     * 그 체형의 남자 서기 파일이 없으면 합성이 base_top을 그리므로([OutfitLayerComposer.layers]) 표면도 base_top 값이다. 기본 상의
+     * (0 = base_top)도 묶음이라 riv 내장 기본 옷 몸(표면 0)은 쓰지 않는다(D-성-115). 목록이 없으면 기존 표(0·1·2 → 1, 3..6 → 2).
+     * 여자 서기 riv에는 이 입력이 없다. 파일 확인은 [OutfitLibrary]의 캐시(합성 스레드가 먼저 읽은 결과)를 쓴다.
      */
-    fun topSurface(gender: AvatarGender, top: Int): Float {
+    fun topSurface(gender: AvatarGender, top: Int, shape: AvatarBodyShape = AvatarBodyShape.BASE): Float {
         if (gender == AvatarGender.FEMALE) return 1f
-        val surface = OutfitLibrary.catalog?.bundle(OutfitPart.TOP, top)?.maleTopSurface
-            ?: if (top in LONG_SLEEVE_TOPS) 2 else 1
-        return surface.toFloat()
+        val catalog = OutfitLibrary.catalog ?: return (if (top in LONG_SLEEVE_TOPS) 2f else 1f)
+        val drawn = catalog.bundle(OutfitPart.TOP, top)
+            ?.takeIf { OutfitLibrary.exists(it.file(gender, OutfitSlot.STAND, shape)) }
+            ?: catalog.bundle(OutfitPart.TOP, OutfitCatalog.baseKey(OutfitPart.TOP))
+        return (drawn?.maleTopSurface ?: 1).toFloat()
     }
 
     /** 남자 서기 하의 표면: 모든 묶음이 아틀라스 표면 1(D-성-115). */

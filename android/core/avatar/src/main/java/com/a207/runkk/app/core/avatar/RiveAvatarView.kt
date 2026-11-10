@@ -36,7 +36,10 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
 
     private val tones = SharedToneCache.shared
 
-    private val io: ExecutorService = Executors.newSingleThreadExecutor()
+    // 합성 스레드가 프로세스 종료를 막지 않도록 데몬으로 둔다.
+    private val io: ExecutorService = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "runkk-avatar-tone").apply { isDaemon = true }
+    }
     private val main = Handler(Looper.getMainLooper())
     private val players = EnumMap<AvatarMotion, RiveAnimationView>(AvatarMotion::class.java)
     private val applied = EnumSet.noneOf(AvatarMotion::class.java)
@@ -226,7 +229,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private fun requestTone() {
         val current = state ?: return
         val variant = sources ?: return
-        val legacyStandingBody = assets?.legacyStandingBody ?: return
+        if (assets == null) return
         val front = frontLoader?.takeIf { AvatarMotion.STAND in players }
         val run = runLoader?.takeIf { AvatarMotion.RUN in players }
         if (front == null && run == null) return
@@ -237,13 +240,8 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             gender = current.gender,
             look = current.look,
             variant = variant,
-            legacyStandingBody = legacyStandingBody,
             front = front?.let {
-                AvatarToneRequests.FrontOriginals(
-                    body = it.originalBodyBytes(),
-                    selectedBody = it.originalSelectedBodyBytes(),
-                    fullness = it.originalFullnessBytes()
-                )
+                AvatarToneRequests.FrontOriginals(it.originalBodyBytes(), it.originalFullnessBytes())
             },
             run = run?.let { AvatarToneRequests.RunOriginals(it.originalSkinBytes(), it.originalFullnessBytes()) },
             generatedSkinColor = current.headLayers?.skinColor
@@ -322,59 +320,56 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
 
     /** 최신 요청의 텍스처와 body_shape를 함께 넣는다(몸과 볼 레이어가 같이 바뀐다). */
     private fun apply(prepared: PreparedAvatarTone) {
-        val request = prepared.request
-        if (!isCurrent(request)) return
+        if (!isCurrent(prepared.request)) return
         try {
-            val textures = prepared.textures
-            players[AvatarMotion.STAND]?.let { view ->
-                val loader = checkNotNull(frontLoader)
-                prepared.face?.let { loader.replaceFace(it.bytes, checkNotNull(prepared.hair)) }
-                textures[BodySkinLayers.STANDING_BODY]?.let(loader::replaceBody)
-                textures[MaleSelectedBody.ASSET]?.let(loader::replaceSelectedBody)
-                loader.replaceFullnessOverlay(prepared.frontOverlay?.bytes)
-                val machine = RiveAvatarScene.stateMachine(AvatarMotion.STAND)
-                view.setNumberState(
-                    machine,
-                    RiveAvatarScene.INPUT_BODY_SHAPE,
-                    RiveAvatarScene.bodyShapeValue(request.shape)
-                )
-                if (loader.hasSelectedBody()) {
-                    val outfit = request.outfit
-                    view.setNumberState(
-                        machine,
-                        RiveAvatarScene.INPUT_SELECTED_TOP,
-                        RiveAvatarScene.topSurface(request.gender, outfit.top)
-                    )
-                    view.setNumberState(
-                        machine,
-                        RiveAvatarScene.INPUT_SELECTED_BOTTOM,
-                        RiveAvatarScene.bottomSurface(outfit.bottom)
-                    )
-                    view.setNumberState(
-                        machine,
-                        RiveAvatarScene.INPUT_SELECTED_SHOES,
-                        RiveAvatarScene.shoesSurface(outfit.shoes)
-                    )
-                }
-                applied += AvatarMotion.STAND
-            }
-            players[AvatarMotion.RUN]?.let { view ->
-                val loader = checkNotNull(runLoader)
-                loader.applySkin(
-                    textures.filterKeys { it != BodySkinLayers.STANDING_BODY && it != MaleSelectedBody.ASSET }
-                )
-                loader.replaceFullnessOverlay(checkNotNull(prepared.runOverlay).bytes)
-                view.setNumberState(
-                    RiveAvatarScene.stateMachine(AvatarMotion.RUN),
-                    RiveAvatarScene.INPUT_BODY_SHAPE,
-                    RiveAvatarScene.bodyShapeValue(request.shape)
-                )
-                applied += AvatarMotion.RUN
-            }
+            players[AvatarMotion.STAND]?.let { applyStand(it, prepared) }
+            players[AvatarMotion.RUN]?.let { applyRun(it, prepared) }
             updateMotion()
         } catch (error: RuntimeException) {
             fail(error)
         }
+    }
+
+    private fun applyStand(view: RiveAnimationView, prepared: PreparedAvatarTone) {
+        val request = prepared.request
+        val loader = checkNotNull(frontLoader)
+        prepared.face?.let { loader.replaceFace(it.bytes, checkNotNull(prepared.hair)) }
+        prepared.textures[BodySkinLayers.STANDING_BODY]?.let(loader::replaceBody)
+        loader.replaceFullnessOverlay(prepared.frontOverlay?.bytes)
+        val machine = RiveAvatarScene.stateMachine(AvatarMotion.STAND)
+        view.setNumberState(machine, RiveAvatarScene.INPUT_BODY_SHAPE, RiveAvatarScene.bodyShapeValue(request.shape))
+        if (loader.hasSelectedBody()) {
+            // 남자 서기 riv만 표면 입력이 있다. 표면은 합성이 실제로 그린 묶음 값이다(D-성-115).
+            val outfit = request.outfit
+            view.setNumberState(
+                machine,
+                RiveAvatarScene.INPUT_SELECTED_TOP,
+                RiveAvatarScene.topSurface(request.gender, outfit.top, request.shape)
+            )
+            view.setNumberState(
+                machine,
+                RiveAvatarScene.INPUT_SELECTED_BOTTOM,
+                RiveAvatarScene.bottomSurface(outfit.bottom)
+            )
+            view.setNumberState(
+                machine,
+                RiveAvatarScene.INPUT_SELECTED_SHOES,
+                RiveAvatarScene.shoesSurface(outfit.shoes)
+            )
+        }
+        applied += AvatarMotion.STAND
+    }
+
+    private fun applyRun(view: RiveAnimationView, prepared: PreparedAvatarTone) {
+        val loader = checkNotNull(runLoader)
+        loader.applySkin(prepared.textures.filterKeys { it != BodySkinLayers.STANDING_BODY })
+        loader.replaceFullnessOverlay(checkNotNull(prepared.runOverlay).bytes)
+        view.setNumberState(
+            RiveAvatarScene.stateMachine(AvatarMotion.RUN),
+            RiveAvatarScene.INPUT_BODY_SHAPE,
+            RiveAvatarScene.bodyShapeValue(prepared.request.shape)
+        )
+        applied += AvatarMotion.RUN
     }
 
     private fun updateMotion() {

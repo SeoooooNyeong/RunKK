@@ -1,5 +1,6 @@
 package com.a207.runkk.app.core.avatar
 
+import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -13,7 +14,22 @@ import java.util.concurrent.ConcurrentHashMap
  * 값은 읽기 전용이라 주 스레드와 합성 스레드가 함께 읽는다.
  */
 internal class SharedToneCache {
-    class Entry(val head: GeneratedHeadLayers?, val look: AvatarLookKey, val cache: AvatarToneCache)
+    /** 자리 하나. 생성 머리는 약한 참조로만 잡는다(캐시가 지난 머리 레이어를 붙잡지 않는다). */
+    class Entry(head: GeneratedHeadLayers?, val look: AvatarLookKey, val cache: AvatarToneCache) {
+        private val headRef = head?.let(::WeakReference)
+
+        /** 넣을 때의 생성 머리. 내장 머리였거나 그 머리가 사라졌으면 null. */
+        val head: GeneratedHeadLayers? get() = headRef?.get()
+
+        /** [other]와 같은 머리인가(참조 동일성). 사라진 생성 머리는 어떤 머리와도(내장 머리 null 포함) 맞지 않는다. */
+        fun isFor(other: GeneratedHeadLayers?): Boolean = if (headRef ==
+            null
+        ) {
+            other == null
+        } else {
+            headRef.get() === other && other != null
+        }
+    }
 
     private val entries = ConcurrentHashMap<Pair<AvatarGender, AvatarMotion>, Entry>()
 
@@ -41,14 +57,14 @@ internal class SharedToneCache {
     ): AvatarToneCache? {
         if (motions.isEmpty()) return null
         val found = motions.map { motion ->
-            entries[gender to motion]?.takeIf { it.head === head && it.look == look } ?: return null
+            entries[gender to motion]?.takeIf { it.isFor(head) && it.look == look } ?: return null
         }
         return found.fold(AvatarToneCache()) { merged, entry -> merged.merged(entry.cache) }
     }
 
     /** 같은 머리의 동작별 캐시를 합친 것(모습이 달라도 몸 분리·남은 텍스처를 다시 쓴다). 없으면 빈 캐시. */
     fun seed(gender: AvatarGender, head: GeneratedHeadLayers?): AvatarToneCache = AvatarMotion.entries
-        .mapNotNull { motion -> entries[gender to motion]?.takeIf { it.head === head } }
+        .mapNotNull { motion -> entries[gender to motion]?.takeIf { it.isFor(head) } }
         .fold(AvatarToneCache()) { merged, entry -> merged.merged(entry.cache) }
 
     fun clear() = entries.clear()
@@ -59,11 +75,8 @@ internal class SharedToneCache {
     }
 }
 
-/** 정면(서기) 플레이어가 쓰는 몸 자리. 나머지는 달리기 자리다. */
-private val STAND_ASSETS =
-    setOf(BodySkinLayers.STANDING_BODY, BodySkinLayers.STANDING_BODY_LEGACY, MaleSelectedBody.ASSET)
-
-private fun isStandAsset(name: String) = name in STAND_ASSETS
+/** 정면(서기) 플레이어가 쓰는 몸 자리(서기 의상 슬롯). 나머지는 달리기 자리다. */
+private fun isStandAsset(name: String) = OutfitSlot.of(name) == OutfitSlot.STAND
 
 /** [motion]이 쓰는 텍스처만 남긴 캐시. */
 internal fun AvatarToneCache.only(motion: AvatarMotion): AvatarToneCache {
