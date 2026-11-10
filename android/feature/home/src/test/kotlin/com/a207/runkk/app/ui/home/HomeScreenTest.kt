@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
@@ -21,6 +22,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
@@ -121,6 +123,46 @@ class HomeScreenTest {
         compose.onNodeWithText("Lv.3", useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
         assertEquals(1, layouts.single().lineCount)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약의 Lv는 384dp 화면·닉네임 4자·배치 중 칩에서도 고유 폭만큼 다 보인다(실기기 DV3-9 재확인)`() {
+        assertLevelNotClipped(fontScale = 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `글꼴을 조금 키워도(1·15) 머리 알약의 Lv는 잘리지 않고 칩이 줄어든다`() {
+        assertLevelNotClipped(fontScale = 1.15f)
+    }
+
+    private fun assertLevelNotClipped(fontScale: Float) {
+        compose.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(
+                LocalReleaseScope provides ReleaseScope.FIRST_RELEASE,
+                LocalDensity provides Density(density.density, fontScale)
+            ) {
+                RunkkTheme(reduceMotion = true) {
+                    Box(Modifier.fillMaxSize()) {
+                        HomeScreen(
+                            loaded.copy(
+                                header = HomeHeader("한강러너", null, 3, 14_414),
+                                tierDisplay = TierDisplay.Placing
+                            ),
+                            HomeActions()
+                        )
+                    }
+                }
+            }
+        }
+        val node = compose.onNodeWithText("Lv.3", useUnmergedTree = true)
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val intrinsic = layouts.single().multiParagraph.intrinsics.maxIntrinsicWidth
+        val drawn = node.fetchSemanticsNode().size.width
+        assertTrue(drawn >= kotlin.math.ceil(intrinsic).toInt() - 1, "Lv.3 칸 $drawn px < 글자 고유 폭 $intrinsic px(잘림)")
     }
 
     @Test

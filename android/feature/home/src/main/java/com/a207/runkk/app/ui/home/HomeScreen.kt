@@ -377,8 +377,9 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
                 modifier = Modifier.semantics { heading() }
             )
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL) }
-                // 「Lv.3」는 쪼개지 않는다(실기기 DV3-9). 자리가 모자라면 위 닉네임이 말줄임된다.
+                // 「Lv.3」는 늘 고유 폭을 다 쓰고(쪼개지도 잘리지도 않는다, 실기기 DV3-9), 남는 폭을 티어 칩이 쓴다(모자라면 칩 글자가
+                // 말줄임). 위 닉네임은 따로 말줄임된다. Row는 무게 없는 Lv를 먼저 재고 칩에 나머지를 준다.
+                state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL, Modifier.weight(1f, fill = false)) }
                 Text(
                     text = level,
                     style = RunkkTextStyles.Caption,
