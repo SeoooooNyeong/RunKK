@@ -13,8 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +24,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -35,17 +35,15 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.ReportDialogState
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkReportDialog
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
-import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.reportDialogTexts
-import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
-import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.report.ReportReason
 import java.time.LocalDate
@@ -54,21 +52,27 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * 크루 채팅방(6.1.14 ChatRoomScreen). 화면이 보이는 동안(onStart~onStop)만 방을 열어 둔다: 보이면 ChatViewModel.onShown,
- * 사라지면 onHidden(D-103, D-130). 목록 위 끝에 닿거나 "이전 메시지 더 보기"를 누르면 이전 쪽을 읽는다.
+ * 크루 홈의 채팅 탭(피그마 F-09, 6.1.14, [임시:D-성-21]). 상단 바가 없다(크루 머리글과 탭 줄은 크루 홈이 그린다). [isVisible](채팅 탭
+ * 선택)이 참이고 화면이 보이는 동안(onStart~onStop)만 방을 열어 둔다: 보이면 ChatViewModel.onShown, 사라지면 onHidden(D-103, D-130).
+ * 목록 위 끝에 닿거나 「이전 메시지 더 보기」를 누르면 이전 쪽을 읽는다.
  */
 @Composable
-fun ChatRoomRoute(key: Routes.CrewChat, viewModel: ChatViewModel = hiltViewModel()) {
-    LifecycleStartEffect(key.crewId, viewModel) {
-        viewModel.onShown(key.crewId)
-        onStopOrDispose { viewModel.onHidden() }
+fun ChatTabContent(
+    crewId: Long,
+    isVisible: Boolean,
+    modifier: Modifier = Modifier,
+    viewModel: ChatViewModel = hiltViewModel()
+) {
+    if (isVisible) {
+        LifecycleStartEffect(crewId, viewModel) {
+            viewModel.onShown(crewId)
+            onStopOrDispose { viewModel.onHidden() }
+        }
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val navigator = LocalRunkkNavigator.current
     ChatRoomScreen(
         state = state,
         actions = ChatActions(
-            onBack = navigator::back,
             onDraft = viewModel::onDraft,
             onSend = viewModel::onSend,
             onRetry = viewModel::onRetry,
@@ -82,12 +86,16 @@ fun ChatRoomRoute(key: Routes.CrewChat, viewModel: ChatViewModel = hiltViewModel
             onReportDetail = viewModel::onReportDetail,
             onReportDismiss = viewModel::onReportDismiss,
             onReportSubmit = viewModel::onReportSubmit,
-            onMessageShown = viewModel::onMessageShown
-        )
+            onMessageShown = viewModel::onMessageShown,
+            onOpenReactors = viewModel::onOpenReactors,
+            onReactorTab = viewModel::onReactorTab,
+            onCloseReactors = viewModel::onCloseReactors
+        ),
+        modifier = modifier
     )
 }
 
-/** 상태 없는 채팅방 화면(와이어프레임 M4): 위 바, 메시지 목록(새 메시지가 아래, 날짜 줄), 입력칸. */
+/** 상태 없는 채팅 탭 화면(피그마 F-09): 메시지 목록(새 메시지가 아래, 날짜 알약), 입력 줄. 위 바·구분선이 없다. */
 @Composable
 fun ChatRoomScreen(state: ChatUiState, actions: ChatActions, modifier: Modifier = Modifier) {
     val snackbar = remember { SnackbarHostState() }
@@ -98,12 +106,9 @@ fun ChatRoomScreen(state: ChatUiState, actions: ChatActions, modifier: Modifier 
             actions.onMessageShown()
         }
     }
-    Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).imePadding()) {
+    Box(modifier.fillMaxSize().background(RunkkColors.Background).imePadding()) {
         Column(Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.chat_title), onBack = actions.onBack)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             ChatMessages(state, actions, Modifier.weight(1f))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             ChatComposer(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
@@ -146,8 +151,8 @@ private fun ChatMessages(state: ChatUiState, actions: ChatActions, modifier: Mod
         state = listState,
         reverseLayout = true,
         modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 11.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
         newestFirst.forEachIndexed { index, message ->
             item(key = message.listKey()) { ChatMessageRow(message, actions) }
@@ -166,27 +171,30 @@ private fun ChatMessages(state: ChatUiState, actions: ChatActions, modifier: Mod
     }
 }
 
-/** 날짜 줄: 양옆 가는 선 사이에 "10월 22일 (수)". */
+/** 날짜 알약(피그마 F-09): 가운데 surfaceHigh 알약(r12, 좌우 10, 위아래 4), 11 Regular. 오늘·어제는 말로, 그 밖은 「10월 22일 (수)」. */
 @Composable
 private fun DaySeparator(day: LocalDate) {
-    val colors = MaterialTheme.colorScheme
     val pattern = stringResource(R.string.chat_day_pattern)
-    Row(
-        Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        HorizontalDivider(Modifier.weight(1f), color = colors.outlineVariant)
+    val today = LocalDate.now(ZoneId.systemDefault())
+    val label = when (day) {
+        today -> stringResource(R.string.chat_today)
+        today.minusDays(1) -> stringResource(R.string.chat_yesterday)
+        else -> day.format(DateTimeFormatter.ofPattern(pattern, Locale.KOREAN))
+    }
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         Text(
-            day.format(DateTimeFormatter.ofPattern(pattern, Locale.KOREAN)),
-            style = RunkkTextStyles.Caption,
-            color = colors.onSurfaceVariant
+            label,
+            style = RunkkTextStyles.text(11, lineHeight = 13),
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(RunkkColors.SurfaceHigh)
+                .padding(horizontal = 10.dp, vertical = 4.dp)
         )
-        HorizontalDivider(Modifier.weight(1f), color = colors.outlineVariant)
     }
 }
 
-/** 삭제 확인과 신고 시트. */
+/** 삭제 확인(F-09b, W1 RunkkConfirmDialog), 신고 시트(F-10b, W1 RunkkReportDialog), 반응한 사람 시트(F-09d). */
 @Composable
 private fun ChatDialogs(state: ChatUiState, actions: ChatActions) {
     if (state.confirmDelete != null) {
@@ -220,6 +228,7 @@ private fun ChatDialogs(state: ChatUiState, actions: ChatActions) {
             onDismiss = actions.onReportDismiss
         )
     }
+    if (state.reactorsTarget != null) ReactorsSheet(state, actions)
 }
 
 /**

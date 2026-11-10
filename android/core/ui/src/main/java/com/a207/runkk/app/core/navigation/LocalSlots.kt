@@ -12,3 +12,6 @@ val LocalSlots = staticCompositionLocalOf<Map<SlotKey, List<@Composable () -> Un
 /** 기능 등록 묶음의 칸 기여를 칸 이름별로 모은다. */
 fun Collection<FeatureEntry>.collectSlots(): Map<SlotKey, List<@Composable () -> Unit>> =
     flatMap { it.slots.entries }.groupBy({ it.key }, { it.value })
+
+/** 칸을 그리는 화면이 칸 내용에 넘기는 크루 ID(SlotKey.CREW_CHAT_TAB). 크루 화면 밖이면 null이다. */
+val LocalSlotCrewId = staticCompositionLocalOf<Long?> { null }

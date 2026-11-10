@@ -35,12 +35,6 @@ class CrewHomeNavigationTest {
     }
 
     @Test
-    fun `탭 줄 채팅 칸은 크루 채팅방으로 간다(M4)`() {
-        actions.onChat()
-        assertEquals(listOf<NavKey>(Routes.CrewChat(11)), navigated)
-    }
-
-    @Test
     fun `크루원 줄은 그 러너의 프로필로 간다(F8)`() {
         actions.onMember(members.members[1])
         assertEquals(listOf<NavKey>(Routes.MemberProfile(2)), navigated)
@@ -97,14 +91,14 @@ class CrewWireLinksScreensTest {
     }
 
     @Test
-    fun `탭 줄의 채팅 칸은 채팅방을 연다(E2, M4)`() {
+    fun `탭 줄의 채팅 칸은 채팅 탭을 고르고, 채팅 탭은 목록 밖 칸에 채팅 내용을 그린다(D-성-21)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                CrewHomeScreen(home(CrewTab.RACE), CrewHomeActions(onChat = { calls += "chat" }))
+                CrewHomeScreen(home(CrewTab.RACE), CrewHomeActions(onTab = { calls += it.name }))
             }
         }
         compose.onNodeWithText("채팅").performClick()
-        assertEquals(listOf("chat"), calls)
+        assertEquals(listOf("CHAT"), calls)
     }
 
     private fun manage(menu: Boolean) = CrewManageUiState(

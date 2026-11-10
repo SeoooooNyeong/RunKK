@@ -61,7 +61,7 @@ class BetaLockTest {
             Routes.Key(Routes.CREW_CHAT),
             Routes.Key(Routes.CREW_NOTICE),
             Routes.CrewHome(1),
-            Routes.CrewChat(1),
+            Routes.CrewHome(1, "CHAT"),
             Routes.CrewRunLobby(1)
         ).forEach { assertEquals(UnreleasedFeature.CREW, BetaLock.featureOf(it), "$it") }
         listOf(Routes.AVATAR, Routes.AVATAR_SETUP, Routes.SHOP, Routes.AVATAR_BACKGROUND).forEach {

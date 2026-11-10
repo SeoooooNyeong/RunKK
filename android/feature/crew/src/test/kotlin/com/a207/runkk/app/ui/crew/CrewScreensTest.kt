@@ -205,7 +205,7 @@ class CrewScreensTest {
                         ranking = ranking,
                         members = members
                     ),
-                    CrewHomeActions(onTab = { calls += it.name }, onChat = { calls += "chat" })
+                    CrewHomeActions(onTab = { calls += it.name })
                 )
             }
         }
@@ -214,7 +214,7 @@ class CrewScreensTest {
         compose.onNodeWithText("게시판").assertDoesNotExist()
         compose.onNodeWithText("크루런").performClick()
         compose.onNodeWithText("채팅").performClick()
-        assertEquals(listOf("SCHEDULE", "chat"), calls)
+        assertEquals(listOf("SCHEDULE", "CHAT"), calls, "채팅도 탭이다(D-성-21)")
     }
 
     @Test

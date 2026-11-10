@@ -29,8 +29,7 @@ internal object BetaLock {
         is Routes.CrewNoticeWrite,
         is Routes.CrewPoll,
         is Routes.CrewMeetupDetail,
-        is Routes.CrewGoalSet,
-        is Routes.CrewChat -> UnreleasedFeature.CREW
+        is Routes.CrewGoalSet -> UnreleasedFeature.CREW
 
         else -> null
     }
