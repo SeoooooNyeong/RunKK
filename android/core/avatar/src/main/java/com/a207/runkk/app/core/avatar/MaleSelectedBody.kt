@@ -16,7 +16,7 @@ internal object MaleSelectedBody {
         if (r < 175 || g < 95 || b < 65 || r - g < 12 || g - b < 3 || r - g < g - b + 3) return false
         return when (y) {
             in 708..734 -> inside(x, y, neck)
-            in 831..934 -> inside(x, y, leftArm) || inside(x, y, rightArm)
+            in 822..934 -> inside(x, y, leftArm) || inside(x, y, rightArm)
             in 1041..1179 -> inside(x, y, leftLeg) || inside(x, y, rightLeg)
             else -> false
         }
@@ -25,8 +25,12 @@ internal object MaleSelectedBody {
     private val neck = intArrayOf(
         527, 709, 607, 708, 603, 721, 589, 731, 569, 734, 546, 729, 532, 721
     )
+
+    // The upper edges trace the centre of the sleeve-hem outline (DV-성-11). A
+    // straight edge below the hem left a band of untoned light skin under the
+    // sleeve; pink sleeve shading above the outline still stays outside.
     private val leftArm = intArrayOf(
-        424, 831, 477, 845, 476, 855, 474, 865, 472, 875, 469, 885,
+        422, 826, 432, 826, 444, 832, 456, 837, 468, 841, 477, 843, 476, 855, 474, 865, 472, 875, 469, 885,
         464, 895, 459, 905, 453, 915, 446, 934,
         386, 934, 391, 914, 400, 880, 414, 847
     )
@@ -36,7 +40,7 @@ internal object MaleSelectedBody {
     // One source-pixel margin covers edge samples between the traced points;
     // the unchanged chroma test still excludes the dark outline and background.
     private val rightArm = intArrayOf(
-        654, 845, 706, 832, 719, 855, 731, 889, 746, 934, 688, 934,
+        654, 843, 664, 840, 676, 836, 688, 830, 700, 824, 706, 822, 711, 835, 719, 855, 731, 889, 746, 934, 688, 934,
         679, 915, 672, 905, 667, 895, 663, 885, 660, 875, 657, 865, 655, 855
     )
     private val leftLeg = intArrayOf(

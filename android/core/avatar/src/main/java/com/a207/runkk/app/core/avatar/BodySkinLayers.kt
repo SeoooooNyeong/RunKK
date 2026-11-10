@@ -206,7 +206,12 @@ internal object BodySkinLayers {
                     (y in 405..622 && x in 110..400)
 
             STANDING_BODY_LEGACY ->
-                (y in 160..400 && ((x <= 150 && y >= 145 + x * .27) || (x >= 365 && y >= 145 + (512 - x) * .27))) ||
+                (
+                    y in 156..400 && (
+                        (x <= 150 && belowSleeve(x, y, 145 + x * .27, legacyLeftHem)) ||
+                            (x >= 365 && belowSleeve(x, y, 145 + (512 - x) * .27, legacyRightHem))
+                        )
+                    ) ||
                     (y in 405..632 && x in 110..400)
 
             "continuous_arm" -> y >= 330 || (x >= 50 && y >= 260 + x * .25)
@@ -240,6 +245,33 @@ internal object BodySkinLayers {
         695, 435, 725, 395, 745, 350, 757, 305
     )
     private val neckOutline = intArrayOf(111, 6, 182, 13, 188, 34, 168, 31, 138, 21)
+
+    /**
+     * 기본 서기 몸 소매 끝 윤곽선 가운데(x, y 꺾은선, 실기기 결함 DV-성-11). 팔 경계 사선이 소매 끝보다 아래라 그 사이 팔 피부가 톤을
+     * 받지 않고 밝은 띠로 남았다. 이 x 범위에서는 윤곽선 아래만 팔이고, 윤곽선 위 소매 안 분홍 그늘은 옷으로 둔다.
+     */
+    private val legacyLeftHem = intArrayOf(
+        80, 158, 88, 161, 96, 166, 104, 170, 112, 173, 120, 176, 128, 178, 136, 180, 140, 181
+    )
+    private val legacyRightHem = intArrayOf(
+        374, 180, 378, 179, 386, 177, 394, 174, 402, 170, 410, 167, 418, 162, 422, 160, 428, 156
+    )
+
+    /** 팔 영역 위쪽 경계: [hem] 범위 안이면 소매 끝 윤곽선과 사선([diagonal]) 가운데 위쪽보다 아래, 밖이면 사선 아래. */
+    private fun belowSleeve(x: Int, y: Int, diagonal: Double, hem: IntArray): Boolean {
+        val hemY = lineY(x, hem) ?: return y >= diagonal
+        return y > minOf(diagonal, hemY)
+    }
+
+    /** x 오름차순 꺾은선 [points]의 [x] 위치 y. 범위 밖이면 null. */
+    private fun lineY(x: Int, points: IntArray): Double? {
+        for (i in 0 until points.size - 2 step 2) {
+            val x0 = points[i]
+            val x1 = points[i + 2]
+            if (x in x0..x1) return points[i + 1] + (points[i + 3] - points[i + 1]).toDouble() * (x - x0) / (x1 - x0)
+        }
+        return null
+    }
 
     private fun inPolygon(x: Int, y: Int, points: IntArray): Boolean {
         var inside = false
