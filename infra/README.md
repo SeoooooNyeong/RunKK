@@ -236,7 +236,7 @@ grafana ─┬─ 망 runkk_db-prod (internal)    ─ postgres-prod:5432     (ru
 - 계정: `monitoring/grafana/runkk-db/readonly-role.sql`. `deploy.sh`가 환경 배포마다 api healthy 뒤(Flyway 뒤) 그 환경 DB에만 돌려 계정을 만들거나 비밀번호를 맞추고, 권한을 목록대로 다시 맞춥니다. 읽는 것: `event`, `event_point_grant` 전체, `battle`(판정 열), `run_record`(회원, 시작 시각, 거리, 유효만. 경로·심박 없음), `member`(ID, 닉네임, 상태만), `celebrity_record`(ID, 가림 이름), `flyway_schema_history`(버전, 성공). 대시보드가 다른 표나 열을 읽어야 하면 이 파일과 설계를 함께 고칩니다.
 - 비밀번호: GitLab CI 변수 `GRAFANA_DB_READONLY_PASSWORD`(masked·protected, 영숫자 16자 이상, 예 `openssl rand -hex 24`). 배포가 `edge.env` 끝에 붙이고, Grafana는 환경 변수로 읽어 데이터소스(`monitoring/grafana/runkk-db/datasources.yml`)에 씁니다. 두 환경이 같은 값을 씁니다. 값이 없거나 형식이 틀리면 데이터소스를 넣지 않고(이미 있으면 지움) 계정도 건드리지 않으며 배포는 계속됩니다. 계정 맞추기가 실패해도 경고만 남깁니다.
 - 처음 켜기와 비밀번호 바꾸기: CI 변수를 넣거나 바꾼 뒤 develop 배포(파이프라인 `backend:deploy` 재실행)와 prod 배포를 한 번씩 돌립니다. 에지(데이터소스)는 어느 배포든 맞추지만 계정은 그 배포의 환경 DB에만 맞추므로, 두 배포가 모두 끝나야 두 데이터소스가 붙습니다. 한쪽만 돌면 다른 쪽 데이터소스는 인증 오류로 보입니다.
-- 처음 배포 한 번은 postgres 컨테이너가 다시 만들어집니다(DB 전용 망이 붙으므로, 볼륨은 그대로). 배포 직전 덤프 단계에서 몇 초 끊깁니다.
+- 처음 배포 한 번은 postgres 컨테이너가 다시 만들어집니다(DB 전용 망이 붙으므로, 볼륨은 그대로). 배포 직전 덤프 단계에서 몇 초 끊깁니다. 이때 아직 옛 api가 돌고 있어 그 사이 요청은 실패하고 연결 풀이 다시 붙습니다. 정상 종료는 60초까지 기다립니다(compose `stop_grace_period`). 복구 시험(7절)은 이 계정도 미리 만들어 복원합니다.
 - 시각: 운영 DB는 2차 배포(V48) 전까지 서버가 쓴 시각이 9시간 앞서 저장됩니다(3절 운영 주의). 응모 판정과 개수는 저장 값끼리 비교하므로 V48 전후 모두 맞습니다. 화면에 보이는 시각과 일별 날짜만 대시보드 위쪽 **시각 보정**으로 맞춥니다. 기본 `자동`은 V48이 없는 DB만 9시간 빼서 보여 줍니다. 대시보드 시간대는 Asia/Seoul입니다.
 - 보안 영향: Grafana가 털리면 두 환경 DB를 위 표와 열만큼 읽을 수 있습니다(쓰기 불가, 닉네임까지, 경로·이메일 없음). Grafana 편집 권한이 있는 사람은 Explore로 같은 범위의 SQL을 돌릴 수 있습니다. 그래서 Grafana 계정은 지금처럼 관리자 하나만 두고, 계정을 늘릴 때는 Viewer로 줍니다. DB 전용 망에서 postgres 포트에 닿으므로 다른 DB 계정 비밀번호도 길게 둡니다.
 - 확인: Grafana **Connections › Data sources › runkk-db-prod / runkk-db-develop › Save & test**가 `Database Connection OK`. DB에서는 `docker exec runkk-prod-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\du runkk_grafana_ro"'`.
@@ -289,6 +289,7 @@ F=$(ls -t /var/backups/runkk/prod/runkk-prod-*.dump | head -n 1); echo "$F"
 docker run -d --name runkk-restore-rehearsal -e POSTGRES_PASSWORD=rehearsal postgres:17-alpine
 until docker exec runkk-restore-rehearsal pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 docker exec runkk-restore-rehearsal createdb -U postgres runkk
+for r in runkk runkk_ai runkk_grafana_ro; do docker exec runkk-restore-rehearsal psql -U postgres -qc "CREATE ROLE $r NOLOGIN"; done   # 덤프의 GRANT 대상(앱 계정 이름이 runkk가 아니면 바꾼다)
 docker exec -i runkk-restore-rehearsal pg_restore -U postgres -d runkk --no-owner --exit-on-error < "$F"
 docker exec runkk-restore-rehearsal psql -U postgres -d runkk -c "ANALYZE" \
   -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 10" \
