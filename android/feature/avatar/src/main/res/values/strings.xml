@@ -119,6 +119,7 @@
     <string name="avatar_background_locked_soon">%1$s, 곧 해금돼요</string>
     <string name="avatar_shop_buy_for">%1$s에 사기</string>
     <string name="avatar_shop_left_after">사면 %1$s 남아요</string>
+    <string name="avatar_shop_short_by">%1$s 부족해요</string>
     <string name="avatar_shop_selected">고름</string>
     <string name="avatar_shop_locked">잠김</string>
     <string name="avatar_unlock_title">%1$s 배경을 열었어요</string>

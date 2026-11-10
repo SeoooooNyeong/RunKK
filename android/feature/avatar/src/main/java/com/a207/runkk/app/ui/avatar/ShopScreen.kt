@@ -271,7 +271,10 @@ private fun ShopTile(item: Shop.Item, isSelected: Boolean, onClick: () -> Unit, 
     }
 }
 
-/** 아래 떠 있는 구매 바(피그마 H-4): 이름과 "사면 n 남아요", 보라 "300에 사기". */
+/**
+ * 아래 떠 있는 구매 바(피그마 H-4): 이름과 "사면 n 남아요", 보라 "300에 사기". 잔액이 값보다 적으면 "n 부족해요"를 보이고 사기 단추를
+ * 끈다(DV-성-4). 잔액을 모르면(null) 남는 금액을 보이지 않고 단추는 켠다(서버가 판정).
+ */
 @Composable
 private fun BuyBar(item: Shop.Item, balance: Int?, onBuyRequest: () -> Unit, modifier: Modifier = Modifier) {
     Row(
@@ -287,8 +290,13 @@ private fun BuyBar(item: Shop.Item, balance: Int?, onBuyRequest: () -> Unit, mod
         Column(Modifier.weight(1f)) {
             Text(item.name, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary, maxLines = 1)
             balance?.let {
+                val left = it - item.price
                 Text(
-                    stringResource(R.string.avatar_shop_left_after, formatReward(it - item.price)),
+                    if (left >= 0) {
+                        stringResource(R.string.avatar_shop_left_after, formatReward(left))
+                    } else {
+                        stringResource(R.string.avatar_shop_short_by, formatReward(-left))
+                    },
                     style = RunkkTextStyles.Caption,
                     color = RunkkColors.TextSecondary
                 )
@@ -298,7 +306,8 @@ private fun BuyBar(item: Shop.Item, balance: Int?, onBuyRequest: () -> Unit, mod
             stringResource(R.string.avatar_shop_buy_for, formatReward(item.price)),
             onClick = onBuyRequest,
             style = RunkkButtonStyle.Purple,
-            size = RunkkButtonSize.Medium
+            size = RunkkButtonSize.Medium,
+            isEnabled = balance == null || balance >= item.price
         )
     }
 }

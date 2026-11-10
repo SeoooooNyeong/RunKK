@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.avatar
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -307,6 +308,32 @@ class AvatarW8ScreenTest {
         compose.onNodeWithText("하프 완주하면 열려요").assertExists()
         compose.onNodeWithContentDescription("라임 러닝 티, 상의, 소지 중").performClick()
         assertEquals(listOf("buy", "pick:1"), calls)
+    }
+}
+
+/** 잔액이 모자라는 칸을 고른 구매 바(DV-성-4). */
+@RunWith(RobolectricTestRunner::class)
+@Config(qualifiers = RUNKK_PHONE)
+class ShopInsufficientTest {
+    @get:Rule
+    val compose = createComposeRule()
+
+    @Test
+    fun `H-4 상점 - 잔액보다 비싼 칸은 남는 금액 대신 모자란 금액을 보이고 사기 단추를 끈다(DV-성-4)`() {
+        val item = Shop.Item(9, ItemSlot.TOP, "보라 바람막이", 300, isOwned = false, isOnSale = true)
+        var bought = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ShopScreen(
+                    ShopUiState(isLoading = false, shop = Shop(listOf(item), 90), selected = item),
+                    ShopActions(onBuyRequest = { bought++ })
+                )
+            }
+        }
+        compose.onNodeWithText(text(R.string.avatar_shop_short_by, "210")).assertExists()
+        compose.onNodeWithText(text(R.string.avatar_shop_left_after, "-210")).assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.avatar_shop_buy_for, "300")).assertIsNotEnabled().performClick()
+        assertEquals(0, bought)
     }
 }
 
