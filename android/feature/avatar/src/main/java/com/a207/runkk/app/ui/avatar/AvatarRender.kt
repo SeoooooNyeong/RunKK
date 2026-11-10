@@ -61,18 +61,23 @@ internal fun outfitOf(equipped: Map<ItemSlot, Long>, items: List<Shop.Item>): Av
     return AvatarOutfit(top = idOf(ItemSlot.TOP), bottom = idOf(ItemSlot.BOTTOM), shoes = idOf(ItemSlot.SHOES))
 }
 
-/** Rive 의상 1..6에 대응하는 그림 키(서버 V62 기본 목록, contract-W8.md 6.3). 0은 기본 의상이라 표에 없다. */
-private val RIVE_OUTFITS: Map<ItemSlot, List<String>> = mapOf(
+/**
+ * Rive 의상 1..6에 대응하는 그림 키(contract-W8.md 6.3). 0은 기본 의상이라 표에 없다. 자리는 실제로 그려지는 의상(core/avatar
+ * 의상 번호 이름표 avatar_outfit_*_names: 상의 민소매·카라티·긴팔 맨투맨·후드티·집업 재킷·코랄 집업 후드, 하의 러닝 쇼츠·레깅스·
+ * 조거 팬츠…, 신발 로우탑·하이탑·트레일 러너·슬립온·앵클 부츠·코랄 스니커즈)과 같은 모양의 아이템이다. 맞는 그림이 없는 자리는 비운다.
+ * 상점 이름은 서버 V62가 이 모양에 맞춘다(실기기 2차 시험 관찰: 「라임 러닝화」가 파란 하이탑으로 그려졌다).
+ */
+private val RIVE_OUTFITS: Map<ItemSlot, List<String?>> = mapOf(
     ItemSlot.TOP to listOf(
         "top_lime_singlet",
-        "top_dawn_windbreaker",
         "top_crew_tee",
+        "top_finisher_tee",
         "top_winter_hoodie",
-        "top_cherry_vest",
-        "top_finisher_tee"
+        "top_dawn_windbreaker",
+        "top_cherry_vest"
     ),
-    ItemSlot.BOTTOM to listOf("bottom_running_shorts", "bottom_jogger_pants", "bottom_leggings"),
-    ItemSlot.SHOES to listOf("shoes_basic_runner", "shoes_lime_runner", "shoes_carbon_racer")
+    ItemSlot.BOTTOM to listOf("bottom_running_shorts", "bottom_leggings", "bottom_jogger_pants"),
+    ItemSlot.SHOES to listOf("shoes_basic_runner", null, "shoes_carbon_racer", null, null, "shoes_lime_runner")
 )
 
 /** 셀카 머리 얼굴 키("head:{회원ID}:{작업ID}")인가. */

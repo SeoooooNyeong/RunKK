@@ -11,6 +11,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.avatar.AvatarBodyShape
 import com.a207.runkk.app.core.avatar.AvatarOutfit
+import com.a207.runkk.app.core.avatar.R as AvatarAssetR
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
@@ -89,7 +90,7 @@ class AvatarW8LogicTest {
             Shop.Item(31, ItemSlot.HAT, "캡", 200, true, true, imageKey = "hat_running_cap")
         )
         assertEquals(
-            AvatarOutfit(top = 6, bottom = 2, shoes = 0),
+            AvatarOutfit(top = 3, bottom = 3, shoes = 0),
             outfitOf(
                 mapOf(ItemSlot.TOP to 6L, ItemSlot.BOTTOM to 12L, ItemSlot.SHOES to 99L, ItemSlot.HAT to 31L),
                 shop
@@ -97,6 +98,39 @@ class AvatarW8LogicTest {
         )
         assertEquals(AvatarOutfit(top = 1), outfitOf(mapOf(ItemSlot.TOP to 1L), shop))
         assertEquals(AvatarOutfit(), outfitOf(emptyMap(), shop))
+    }
+
+    /**
+     * 실기기 2차 시험 관찰: 「라임 러닝화」가 파란 하이탑으로, 「조거 팬츠」가 레깅스로 그려졌다. 대응표는 그림 키를 실제로 그려지는 의상
+     * (core/avatar 의상 번호 이름표 avatar_outfit_*_names)과 같은 모양에 둔다. 상점 이름은 서버 V62가 이 모양에 맞춘다.
+     */
+    @Test
+    fun `상점 그림 키는 같은 모양의 Rive 의상으로 그린다(contract-W8 6_3)`() {
+        val res = RuntimeEnvironment.getApplication().resources
+        fun drawn(slot: ItemSlot, key: String): String {
+            val outfit = outfitOf(mapOf(slot to 1L), listOf(Shop.Item(1, slot, key, 1, true, true, imageKey = key)))
+            val (names, index) = when (slot) {
+                ItemSlot.TOP -> AvatarAssetR.array.avatar_outfit_top_names to outfit.top
+                ItemSlot.BOTTOM -> AvatarAssetR.array.avatar_outfit_bottom_names to outfit.bottom
+                else -> AvatarAssetR.array.avatar_outfit_shoes_names to outfit.shoes
+            }
+            return res.getStringArray(names)[index]
+        }
+        val expected = mapOf(
+            (ItemSlot.TOP to "top_lime_singlet") to "민소매",
+            (ItemSlot.TOP to "top_crew_tee") to "카라티",
+            (ItemSlot.TOP to "top_finisher_tee") to "긴팔 맨투맨",
+            (ItemSlot.TOP to "top_winter_hoodie") to "후드티",
+            (ItemSlot.TOP to "top_dawn_windbreaker") to "집업 재킷",
+            (ItemSlot.TOP to "top_cherry_vest") to "코랄 집업 후드",
+            (ItemSlot.BOTTOM to "bottom_running_shorts") to "러닝 쇼츠",
+            (ItemSlot.BOTTOM to "bottom_leggings") to "레깅스",
+            (ItemSlot.BOTTOM to "bottom_jogger_pants") to "조거 팬츠",
+            (ItemSlot.SHOES to "shoes_basic_runner") to "로우탑",
+            (ItemSlot.SHOES to "shoes_carbon_racer") to "트레일 러너",
+            (ItemSlot.SHOES to "shoes_lime_runner") to "코랄 스니커즈"
+        )
+        expected.forEach { (item, name) -> assertEquals(name, drawn(item.first, item.second), item.second) }
     }
 
     @Test

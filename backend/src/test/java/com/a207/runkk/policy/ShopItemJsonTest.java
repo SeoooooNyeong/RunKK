@@ -153,6 +153,28 @@ class ShopItemJsonTest {
         assertThat(catalog.items().stream().filter(i -> i.unlock() != null))
                 .extracting(ShopItem::id)
                 .containsExactly(6L, 23L, 34L);
+        // 이름은 앱이 실제로 그리는 Rive 의상 모양에 맞춘다(실기기 2차 시험 관찰, contract-W8 6.3).
+        // 모자(31~34)는 Rive 슬롯이 없어 그대로다
+        assertThat(
+                        catalog.items().stream()
+                                .filter(i -> i.slot() != ItemSlot.HAT)
+                                .collect(
+                                        java.util.stream.Collectors.toMap(
+                                                ShopItem::id, ShopItem::name)))
+                .isEqualTo(
+                        java.util.Map.ofEntries(
+                                java.util.Map.entry(1L, "민트 싱글렛"),
+                                java.util.Map.entry(2L, "새벽 바람막이"),
+                                java.util.Map.entry(3L, "크루 카라티"),
+                                java.util.Map.entry(4L, "겨울 후디"),
+                                java.util.Map.entry(5L, "코랄 집업 후드"),
+                                java.util.Map.entry(6L, "완주 기념 맨투맨"),
+                                java.util.Map.entry(11L, "러닝 반바지"),
+                                java.util.Map.entry(12L, "조거 팬츠"),
+                                java.util.Map.entry(13L, "러닝 레깅스"),
+                                java.util.Map.entry(21L, "캔버스 로우탑"),
+                                java.util.Map.entry(22L, "코랄 러닝화"),
+                                java.util.Map.entry(23L, "트레일 러닝화")));
     }
 
     @Test
