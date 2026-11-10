@@ -6,8 +6,8 @@
 
 ## 고친 조각
 - srs/07-25-변경-요청-CR-이벤트현황-성.md: 새 조각(7.13.28). 변경 요청, 도출 기록, [임시:FR-성-1] 운영자 이벤트 현황 조회, 보안 비기능 2건, 시나리오 S-EV-DASH-1~5, 영향 분석, 확인 기준
-- design-oo/05-29-설계-이벤트현황-성.md: 새 조각. 결정 8건(연결 방식, 계정 생성 시점은 배포 스크립트, 권한, 비밀번호 전달, provisioning, 집계 SQL, 시각 보정), 배치와 망, 구성 요소 명세, 패널과 공통 SQL, 시각 처리, 보안 영향, 운영 적용 절차, 로컬 확인 결과
-- code-review/Grafana이벤트현황-성.md: 새 조각. MR !133 독립 리뷰(872fc650), 합격(0 / 2 / 6, 제안 1). 주요 [임시:GF-성-1](복구 시험이 runkk_grafana_ro GRANT에서 멈춤)과 [임시:GF-성-2](postgres 재생성 때 정상 종료 대기 10초)는 ca4e996b에서 고침(infra/restore-check.sh, infra/docker-compose.yml, infra/README.md). 경미 6과 제안 1은 남김
+- design-oo/05-29-설계-이벤트현황-성.md: 새 조각. 결정 8건(연결 방식, 계정 생성 시점은 배포 스크립트, 권한, 비밀번호 전달, provisioning, 집계 SQL, 시각 보정), 배치와 망, 구성 요소 명세, 패널과 공통 SQL, 시각 처리, 보안 영향, 운영 적용 절차, 로컬 확인 결과 코드 리뷰 뒤 3절 계정 SQL 명세, 4.1 패널 2 이름, 7절 4 release/* 주의를 고침(다음 판 변경)
+- code-review/Grafana이벤트현황-성.md: 새 조각. MR !133 독립 리뷰(872fc650), 합격(0 / 2 / 6, 제안 1). 주요 [임시:GF-성-1](복구 시험이 runkk_grafana_ro GRANT에서 멈춤)과 [임시:GF-성-2](postgres 재생성 때 정상 종료 대기 10초)는 ca4e996b에서 고침(infra/restore-check.sh, infra/docker-compose.yml, infra/README.md). 경미 가운데 GF-성-3(권한 재맞춤 범위), GF-성-4(비밀번호 실패 로그), GF-성-6(release/* 배포 순서 문서), GF-성-7(패널 2 제목)은 사용자 결정으로 후속 커밋에서 고침(readonly-role.sql, runkk-event.json, infra/README.md, design-oo/05-29). GF-성-5, GF-성-8, 제안 GF-성-9는 남김
 
 ## 새 임시 번호
 | 임시 번호 | 종류 | 한 줄 설명 | 위치 |
@@ -39,7 +39,7 @@
 
 ## 다른 담당에게 요청
 - 박재영: 대결 판정(battle.judged_at, winner_member_id, opponent_record_id)이나 셀럽 대결 종류 값을 바꾸면 `infra/monitoring/grafana/dashboards/runkk-event.json`의 공통 SQL과 `infra/monitoring/grafana/runkk-db/readonly-role.sql`의 battle 열 목록도 함께 고쳐 달라(design-oo/05-29 9절). 러닝 기록 유효 판정(run_record.valid, distance_meters)도 같다.
-- 이성현(design-oo/05-29, 다음 판): 코드 리뷰 8.1절 갱신 항목(6절 남는 위험에 임시 표와 손 권한 잔존, 7절 4에 release/*, 8절 TC-성-20 문구, 2절 재생성 문장)
+- 이성현(design-oo/05-29, 다음 판): 코드 리뷰 8.1절 남은 갱신 항목(6절 남는 위험에 임시 표, 8절 TC-성-20 문구, 2절 재생성 문장)
 
 ## 사용자 할 일
 1. GitLab CI 변수 `GRAFANA_DB_READONLY_PASSWORD`(Variable, masked, protected, 영숫자 16자 이상, 예: `openssl rand -hex 24`)를 넣는다. 병합 전에 넣으면 병합 뒤 develop 배포에서 바로 켜진다.
