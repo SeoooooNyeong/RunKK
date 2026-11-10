@@ -389,10 +389,12 @@ public class CrewPostService {
     /**
      * 글 없음·삭제·숨김 → POST_NOT_FOUND(숨김 중 삭제는 받지 않는다, D-126) → CrewPost.delete(본인 또는 L·M) → 크루런이면
      * CrewRunService.endByDeletion(D-66) → 게시글이면 PostPhotoStore.deleteByPost → FORCED면
-     * 감사(POST_FORCE_DELETE, 행위자 역할 CREW_LEADER 또는 CREW_MANAGER)(FR-130, FR-134, FR-213).
+     * 감사(POST_FORCE_DELETE, 행위자 역할 CREW_LEADER 또는 CREW_MANAGER)(FR-130, FR-134, FR-213). 반복 회차면 반복
+     * 행을 글보다 먼저 잠근다(반복 → 글 순서, 회차 생성과 같다, 코드 리뷰 M1).
      */
     @Transactional
     public PostResult delete(long requesterId, long postId) {
+        repeater.lockSeriesBeforePost(visible(postId));
         CrewPost post = visibleForUpdate(postId); // 크루런 시계·참석 응답과 줄을 세운다
         Crew crew = crewAccess.require(post.crewId());
         CrewRelation relation = crew.relationOf(requesterId);

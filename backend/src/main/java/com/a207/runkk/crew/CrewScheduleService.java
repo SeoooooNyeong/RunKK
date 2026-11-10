@@ -59,12 +59,14 @@ public class CrewScheduleService {
     }
 
     /**
-     * check(WRITE_POST) → 글 행을 잠가 CrewRunPost.edit(작성자만, VOTING·일시 전, 제목·내용·거리) → 반복 칸
-     * 반영(CrewRunRepeater.apply) → 바뀐 상세(F-13d·F-13e).
+     * check(WRITE_POST) → 반복 행 → 글 행 순서로 잠가(회차 생성과 같은 순서, 코드 리뷰 M1) CrewRunPost.edit(작성자만,
+     * VOTING·일시 전, 제목·내용·거리) → 반복 칸 반영(CrewRunRepeater.apply) → 바뀐 상세(F-13d·F-13e).
      */
     @Transactional
     public CrewRunDetailView edit(long memberId, long postId, CrewRunEdit edit) {
-        Crew crew = crewAccess.check(memberId, visible(postId).crewId(), CrewAction.WRITE_POST);
+        CrewRunPost unlocked = visible(postId);
+        Crew crew = crewAccess.check(memberId, unlocked.crewId(), CrewAction.WRITE_POST);
+        repeater.lockSeriesBeforePost(unlocked);
         CrewRunPost post = locked(postId);
         LocalDateTime now = LocalDateTime.now(clock);
         post.edit(memberId, edit, now);

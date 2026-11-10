@@ -346,10 +346,19 @@ public class JpaCrewPostRepository implements CrewPostRepository {
         return deleted;
     }
 
-    /** 딸린 행을 FK 순서대로 먼저 지우고 글을 지운다(DB의 ON DELETE CASCADE에 기대지 않는다). */
+    /**
+     * 딸린 행을 FK 순서대로 먼저 지우고 글을 지운다(DB의 ON DELETE CASCADE에 기대지 않는다). 글을 건드리기 전에 그 크루의 반복 행부터 잠근다: 회차
+     * 생성이 반복 → 최신 회차 글 순서로 잠그므로 같은 순서여야 교착이 없다(코드 리뷰 M1).
+     */
     @Override
     public void deleteByCrew(long crewId) {
         entityManager.flush();
+        entityManager
+                .createNativeQuery(
+                        "select id from crew_run_series where crew_id = :crew order by id for"
+                                + " update")
+                .setParameter("crew", crewId)
+                .getResultList();
         for (String table :
                 List.of(
                         "crew_poll_response",
