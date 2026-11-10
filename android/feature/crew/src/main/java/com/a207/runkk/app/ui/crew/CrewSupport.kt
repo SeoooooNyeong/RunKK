@@ -87,7 +87,7 @@ internal fun crewRunStatusLabelRes(status: CrewRunStatus): Int = when (status) {
 }
 
 /**
- * 크루런 모집글 한 줄 요약: "5km · 10월 24일(토) 07:00 · 참석 3명" (+ 끝났으면 "n명 참여"). 크루런 합산 방식에서 서버
+ * 크루런 모집글 한 줄 요약: "5km, 10월 24일(토) 07:00, 참석 3명" (+ 끝났으면 "n명 참여"). 크루런 합산 방식에서 서버
  * finisherCount는 완주 인원이 아니라 함께 달린(진행 참가) 인원이다.
  */
 internal fun crewRunSummary(
@@ -100,7 +100,7 @@ internal fun crewRunSummary(
     resources.getString(R.string.crew_run_going_count, info.goingCount),
     info.takeIf { it.status == CrewRunStatus.FINISHED }
         ?.let { resources.getString(R.string.crew_run_participant_count, it.finisherCount) }
-).joinToString(" · ")
+).joinToString(", ")
 
 /** 화면에서 쓰는 [crewRunSummary]. */
 @Composable

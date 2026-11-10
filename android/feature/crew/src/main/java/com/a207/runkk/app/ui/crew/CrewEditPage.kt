@@ -204,7 +204,7 @@ internal fun MyInfoSheet(state: CrewHomeUiState, actions: CrewHomeActions) {
     }
 }
 
-/** 공개 토글 줄(피그마 F-23): "나이" 15 Bold + "20대 · 공개" 15 Regular, 오른쪽 토글(켜짐 라임), 최소 높이 45, 아래 divider. */
+/** 공개 토글 줄(피그마 F-23): "나이" 15 Bold + "20대, 공개" 15 Regular, 오른쪽 토글(켜짐 라임), 최소 높이 45, 아래 divider. */
 @Composable
 private fun VisibilityRow(title: String, value: String?, isPublic: Boolean, onChange: (Boolean) -> Unit) {
     val state = stringResource(if (isPublic) R.string.crew_my_info_public else R.string.crew_member_private)
