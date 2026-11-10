@@ -384,6 +384,80 @@ class CrewFindControllerTest extends WebTestSupport {
                 .andExpect(status().isCreated());
     }
 
+    private String uploadLogo(Session s) throws Exception {
+        return json(mvc.perform(
+                                as(
+                                        s,
+                                        multipart("/api/v1/crew-logos")
+                                                .file(logo(JpegSamples.clean(new byte[16])))))
+                        .andExpect(status().isCreated()))
+                .get("logoUrl")
+                .asText();
+    }
+
+    @Test
+    @DisplayName("로고 남용(코드 리뷰 M2): 크루에 연결되지 않은 로고는 회원당 최근 3장만 남고, 크루가 쓰는 로고는 지우지 않는다")
+    void unlinkedLogos_keepNewestThree() throws Exception {
+        Session s = signUp();
+        Session viewer = signUp();
+        String linked = uploadLogo(s);
+        createCrew(s, uniqueName(), "PUBLIC", "FREE", linked);
+        String first = uploadLogo(s);
+        String second = uploadLogo(s);
+        String third = uploadLogo(s);
+        mvc.perform(as(viewer, get(first))).andExpect(status().isOk());
+
+        String fourth = uploadLogo(s);
+
+        mvc.perform(as(viewer, get(first)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("CREW_LOGO_NOT_FOUND"));
+        for (String kept : List.of(second, third, fourth, linked)) {
+            mvc.perform(as(viewer, get(kept))).andExpect(status().isOk());
+        }
+        uploadLogo(viewer); // 다른 회원의 미연결 로고는 세지 않는다
+        mvc.perform(as(viewer, get(second))).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("로고 주인 확인(코드 리뷰 M2): 남이 올린 로고·없는 로고 경로로 만들기·변경은 400, 크루에 이미 연결된 로고는 그대로 보낼 수 있다")
+    void logoUrl_mustBeOwnOrAlreadyLinked() throws Exception {
+        Session owner = signUp();
+        Session other = signUp();
+        String othersLogo = uploadLogo(other);
+        String missing = "/api/v1/crew-logos/999999999999";
+        for (String bad : List.of(othersLogo, missing)) {
+            Map<String, Object> form = new HashMap<>();
+            form.put("name", uniqueName());
+            form.put("tags", List.of("WEEKDAY_DAWN"));
+            form.put("visibility", "PUBLIC");
+            form.put("joinPolicy", "FREE");
+            form.put("logoUrl", bad);
+            call(owner, post("/api/v1/crews"), form)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+        }
+
+        String own = uploadLogo(owner);
+        long crewId = createCrew(owner, uniqueName(), "PUBLIC", "FREE", own).get("id").asLong();
+        call(owner, patch("/api/v1/crews/" + crewId), Map.of("logoUrl", othersLogo))
+                .andExpect(status().isBadRequest());
+
+        call(other, post("/api/v1/crews/join"), Map.of("crewId", crewId))
+                .andExpect(jsonPath("$.status").value("JOINED"));
+        call(
+                        owner,
+                        post("/api/v1/crews/" + crewId + "/leader"),
+                        Map.of("memberId", other.memberId()))
+                .andExpect(status().is2xxSuccessful());
+        call(other, patch("/api/v1/crews/" + crewId), Map.of("logoUrl", own, "intro", "새 크루장"))
+                .andExpect(status().isNoContent());
+        call(other, patch("/api/v1/crews/" + crewId), Map.of("logoUrl", othersLogo))
+                .andExpect(status().isNoContent());
+        call(other, get("/api/v1/crews/" + crewId), null)
+                .andExpect(jsonPath("$.logoUrl").value(othersLogo));
+    }
+
     @Test
     @DisplayName("크루명 2~12자: 만들기·이름 변경은 13자 거부, 이미 있는 13자 이상 크루는 이름을 그대로 두고 다른 항목을 고칠 수 있다")
     void crewName_isTwoToTwelve() throws Exception {

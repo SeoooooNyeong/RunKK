@@ -18,6 +18,7 @@ import com.a207.runkk.crew.CrewCreateCommand;
 import com.a207.runkk.crew.CrewDetailView;
 import com.a207.runkk.crew.CrewInfoChange;
 import com.a207.runkk.crew.CrewListView;
+import com.a207.runkk.crew.CrewLogo;
 import com.a207.runkk.crew.CrewName;
 import com.a207.runkk.crew.CrewProfileEdit;
 import com.a207.runkk.crew.CrewRole;
@@ -75,7 +76,7 @@ final class CrewDtos {
     static final String PHOTO_PATH = "/api/v1/crew-photos/";
 
     /** 크루 로고 주소(GET /crew-logos/{logoId}, S15P31A207-295). */
-    static final String LOGO_PATH = "/api/v1/crew-logos/";
+    static final String LOGO_PATH = CrewLogo.URL_PREFIX;
 
     /** 받는 로고 주소: 기존 https 주소 또는 업로드한 로고 경로(contract-W4 8절). */
     static final String LOGO_URL_PATTERN = "^(https://[^\\s]+|/api/v1/crew-logos/[0-9]{1,18})$";

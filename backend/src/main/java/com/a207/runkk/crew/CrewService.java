@@ -38,6 +38,7 @@ public class CrewService {
     private final AuditService auditService;
     private final CrewDeletion crewDeletion;
     private final CrewRunService crewRunService;
+    private final CrewLogoService crewLogoService;
     private final Clock clock;
 
     CrewService(
@@ -48,6 +49,7 @@ public class CrewService {
             AuditService auditService,
             CrewDeletion crewDeletion,
             CrewRunService crewRunService,
+            CrewLogoService crewLogoService,
             Clock clock) {
         this.crewRepository = crewRepository;
         this.crewAccess = crewAccess;
@@ -56,12 +58,13 @@ public class CrewService {
         this.auditService = auditService;
         this.crewDeletion = crewDeletion;
         this.crewRunService = crewRunService;
+        this.crewLogoService = crewLogoService;
         this.clock = clock;
     }
 
     /**
      * JoinEligibility(소속·쿨타임) → CrewName·이름 중복 → TagSet(CREW) → 초대 코드 발급 → Crew.create(srs.md 6.3
-     * 5.1.1). 이름이 동시에 겹치면 고유 인덱스가 막는다.
+     * 5.1.1). 이름이 동시에 겹치면 고유 인덱스가 막는다. 업로드 로고 경로는 요청자가 올린 것만 받는다(코드 리뷰 M2).
      */
     @Transactional
     public CrewCreateResult create(long memberId, CrewCreateCommand cmd) {
@@ -71,6 +74,7 @@ public class CrewService {
         if (crewRepository.existsByName(name.value())) {
             throw new BusinessRuleException(ReasonCode.CREW_NAME_TAKEN);
         }
+        crewLogoService.requireUsable(memberId, cmd.logoUrl(), null);
         CrewProfile profile =
                 new CrewProfile(
                         name,
@@ -88,7 +92,8 @@ public class CrewService {
 
     /**
      * check(EDIT_CREW) → 이름이 바뀌면 2~12자(결정 C1)·이름 중복 → Crew.changeInfo. 지금 이름을 그대로 보내면 길이를 다시 보지
-     * 않는다(기존 13~20자 크루, S15P31A207-295). 대기 중 가입 신청은 그대로다(Q-36).
+     * 않는다(기존 13~20자 크루, S15P31A207-295). 대기 중 가입 신청은 그대로다(Q-36). 업로드 로고 경로는 요청자가 올렸거나 이 크루에 이미 연결된
+     * 것만 받는다(코드 리뷰 M2).
      */
     @Transactional
     public CrewResult changeInfo(long requesterId, long crewId, CrewInfoChange change) {
@@ -99,6 +104,7 @@ public class CrewService {
                 throw new BusinessRuleException(ReasonCode.CREW_NAME_TAKEN);
             }
         }
+        crewLogoService.requireUsable(requesterId, change.logoUrl(), crew.logoUrl());
         crew.changeInfo(change);
         crewRepository.save(crew);
         return CrewResult.of(crewId);
