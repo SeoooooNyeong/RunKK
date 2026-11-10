@@ -303,34 +303,38 @@ private fun Top(state: HomeUiState, onNavigate: (String) -> Unit) {
 private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     val editProfile = stringResource(R.string.home_open_profile_edit)
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        // 프로필(얼굴과 닉네임)을 누르면 프로필 편집으로 간다
-        // 얼굴과 닉네임은 둥근 바탕(라이트 흰색, 다크 검은색) 위에 둔다
-        Row(
-            modifier = Modifier
-                .weight(1f, fill = false)
-                .clip(RoundedCornerShape(30.dp))
-                .background(RunkkColors.Surface)
-                .clickable(role = Role.Button, onClickLabel = editProfile) { onNavigate(Routes.PROFILE_EDIT) }
-                .padding(start = 4.dp, top = 4.dp, bottom = 4.dp, end = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
-                contentAlignment = Alignment.Center
+    // 머리 줄 사이는 8dp다. 알림 단추는 터치 48dp 안에 40dp 원이라 잔액과의 보이는 간격은 12dp다. 좁은 기기·큰 글꼴에서
+    // 4·5자 닉네임과 「Lv.n」이 한 줄에 다 들어가도록 알약 안팎 여백을 줄였다(실기기 DV3-9).
+    Row(horizontalArrangement = Arrangement.spacedBy(HEADER_GAP), verticalAlignment = Alignment.CenterVertically) {
+        // 프로필(얼굴과 닉네임)을 누르면 프로필 편집으로 간다. 얼굴과 닉네임은 둥근 바탕(라이트 흰색, 다크 검은색) 위에 둔다.
+        // 남는 폭은 바깥 칸이 다 차지해 잔액·알림이 늘 오른쪽 끝에 있고, 알약은 그 안에서 내용 폭만큼만 넓어진다(남는 폭이
+        // 모자랄 때만 닉네임이 줄어든다).
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(RunkkColors.Surface)
+                    .clickable(role = Role.Button, onClickLabel = editProfile) { onNavigate(Routes.PROFILE_EDIT) }
+                    .padding(start = 4.dp, top = 4.dp, bottom = 4.dp, end = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // 성별을 읽기 전에는 얼굴도 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02)
-                if (state.isAvatarReady) {
-                    RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
+                Box(
+                    modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // 성별을 읽기 전에는 얼굴도 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02)
+                    if (state.isAvatarReady) {
+                        RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
+                    }
                 }
+                HeaderIdentity(state, modifier = Modifier.weight(1f, fill = false))
             }
-            HeaderIdentity(state, modifier = Modifier.weight(1f))
         }
         // 잔액과 알림함을 묶어 첫 사용 가이드 포인트 단계(J-8)가 함께 강조한다(S15P31A207-250)
         Row(
             modifier = Modifier.guideAnchor(GuideStep.POINT),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(HEADER_GAP),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // 상점은 아바타 꾸미기와 함께 연다. 닫혀 있으면 잔액만 보인다(D-252, TC-9700).
@@ -440,6 +444,9 @@ private fun FillRemaining(
     }
 }
 
+/** 머리 줄(프로필 알약·잔액·알림) 사이 간격. */
+private val HEADER_GAP = 8.dp
+
 /** 리워드 잔액 알약 "n,nnn P". [onClick]이 없으면 누를 수 없는 표시다. 잔액을 모르면 "-". */
 @Composable
 private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
@@ -466,7 +473,8 @@ private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
         // 디자인 시스템 라임 알약: 기기 글자 크기에 맞춰 커진다(고정 높이 40에서 글자 아래가 잘렸다, 사용자 확인 2026-10-31)
         RunkkLimePill(
             stringResource(R.string.home_balance_value, amount),
-            textStyle = RunkkTextStyles.text(15, FontWeight.Bold)
+            textStyle = RunkkTextStyles.text(15, FontWeight.Bold),
+            horizontalPadding = 12.dp
         )
     }
 }

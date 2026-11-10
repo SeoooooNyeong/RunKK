@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -15,6 +16,8 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -42,6 +45,7 @@ import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.PlacementStatus
+import kotlin.math.abs
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -51,6 +55,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+
+/** 서버 닉네임 최대 글자 수(backend member.Nickname.MAX_LENGTH). */
+private const val NICKNAME_MAX_LENGTH = 20
 
 /** 홈 화면(A-4, D-276). 시험 설계 10-06 TC-9721, TC-9700(아바타 꾸미기 닫힘), TC-9701(기본 아바타), TC-9685(위치 동의 시트). */
 @RunWith(RobolectricTestRunner::class)
@@ -130,20 +137,61 @@ class HomeScreenTest {
 
     @Test
     @Config(qualifiers = "w384dp-h832dp-port-420dpi")
-    fun `머리 알약 - 384dp·글꼴 1배에서 Lv와 티어 칩 글자를 다 보이고 닉네임만 말줄임한다(실기기 DV3-9)`() {
-        assertHeaderNotClipped(fontScale = 1f)
+    fun `머리 알약 - 384dp·글꼴 1배에서 4·5자 닉네임과 Lv·티어 칩을 다 보이고 Lv는 닉네임 바로 뒤다(실기기 DV3-9)`() {
+        assertHeaderFits(fontScale = 1f)
     }
 
     @Test
     @Config(qualifiers = "w384dp-h832dp-port-420dpi")
-    fun `머리 알약 - 글꼴 1·15배에서도 Lv와 티어 칩 글자를 다 보인다`() {
-        assertHeaderNotClipped(fontScale = 1.15f)
+    fun `머리 알약 - 글꼴 1·15배에서도 닉네임·Lv·티어 칩을 다 보인다`() {
+        assertHeaderFits(fontScale = 1.15f)
     }
 
     @Test
     @Config(qualifiers = "w384dp-h832dp-port-420dpi")
-    fun `머리 알약 - 글꼴 1·3배에서도 Lv와 티어 칩 글자를 다 보인다`() {
-        assertHeaderNotClipped(fontScale = 1.3f)
+    fun `머리 알약 - 글꼴 1·3배에서도 닉네임·Lv·티어 칩을 다 보인다`() {
+        assertHeaderFits(fontScale = 1.3f)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 짧은 닉네임이면 알약이 내용 폭만큼만 넓어지고 Lv는 닉네임 바로 뒤다`() {
+        showHeader(fontScale = 1f, nickname = "곰")
+        assertLevelRightAfter("곰")
+        val level = compose.onNodeWithText("Lv.3", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val pill = compose.onNode(hasClickAction() and hasAnyDescendant(hasText("곰"))).fetchSemanticsNode().boundsInRoot
+        val badge = compose.onNodeWithContentDescription("배치 중").fetchSemanticsNode().boundsInRoot
+        // 내용 폭 = 「닉네임 + 6dp + Lv」 줄과 칩 줄 중 큰 쪽. 알약은 거기에 끝 여백 12dp만 더한다.
+        val content = maxOf(level.right, badge.right)
+        val endPadding = 12f * compose.density.density
+        assertTrue(abs(pill.right - (content + endPadding)) <= 1f, "알약 끝 ${pill.right} px, 내용 끝 $content px")
+        // 잔액·알림은 닉네임 길이와 상관없이 오른쪽 끝에 있다.
+        val bellShort = compose.onNodeWithContentDescription(
+            "알림",
+            substring = true
+        ).fetchSemanticsNode().boundsInRoot.right
+        showHeader(fontScale = 1f, nickname = "가".repeat(NICKNAME_MAX_LENGTH))
+        val bellLong = compose.onNodeWithContentDescription(
+            "알림",
+            substring = true
+        ).fetchSemanticsNode().boundsInRoot.right
+        assertEquals(bellLong, bellShort, "알림 단추 오른쪽 끝")
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 최대 길이 닉네임만 말줄임하고 Lv·티어 칩은 다 보인다`() {
+        val longest = "가".repeat(NICKNAME_MAX_LENGTH)
+        listOf(1f, 1.3f).forEach { scale ->
+            showHeader(fontScale = scale, nickname = longest)
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(longest, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue(layouts.single().isLineEllipsized(0), "최대 길이 닉네임은 말줄임(글꼴 $scale)")
+            assertFullyShown("Lv.3")
+            assertFullyShown("배치 중")
+            assertLevelRightAfter(longest)
+        }
     }
 
     @Test
@@ -164,26 +212,46 @@ class HomeScreenTest {
         assertTrue(badge.boundsInRoot.top >= level.bottom - 1f, "배지는 이름 칸 다음 차례")
     }
 
+    private val headerNickname = mutableStateOf("")
+    private val headerFontScale = mutableStateOf(1f)
+    private var headerShown = false
+
+    /** 실기기 조건(잔액 「14,414 P」·알림 단추)으로 머리를 그린다. 한 시험에서 닉네임·글꼴을 바꿔 다시 그릴 수 있다. */
     private fun showHeader(fontScale: Float, nickname: String) {
-        compose.setContent {
-            val density = LocalDensity.current
-            CompositionLocalProvider(
-                LocalReleaseScope provides ReleaseScope.FIRST_RELEASE,
-                LocalDensity provides Density(density.density, fontScale)
-            ) {
-                RunkkTheme(reduceMotion = true) {
-                    Box(Modifier.fillMaxSize()) {
-                        HomeScreen(
-                            loaded.copy(
-                                header = HomeHeader(nickname, null, 3, 14_414),
-                                tierDisplay = TierDisplay.Placing
-                            ),
-                            HomeActions()
-                        )
+        headerNickname.value = nickname
+        headerFontScale.value = fontScale
+        if (!headerShown) {
+            headerShown = true
+            compose.setContent {
+                val density = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalReleaseScope provides ReleaseScope.FIRST_RELEASE,
+                    LocalDensity provides Density(density.density, headerFontScale.value)
+                ) {
+                    RunkkTheme(reduceMotion = true) {
+                        Box(Modifier.fillMaxSize()) {
+                            HomeScreen(
+                                loaded.copy(
+                                    header = HomeHeader(headerNickname.value, null, 3, 14_414),
+                                    tierDisplay = TierDisplay.Placing
+                                ),
+                                HomeActions()
+                            )
+                        }
                     }
                 }
             }
         }
+        compose.waitForIdle()
+    }
+
+    /** 「Lv.n」은 닉네임 바로 뒤 6dp다(알약 오른쪽 끝에 떨어지지 않는다). */
+    private fun assertLevelRightAfter(nickname: String) {
+        val name = compose.onNodeWithText(nickname, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val level = compose.onNodeWithText("Lv.3", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val gap = level.left - name.right
+        val sixDp = 6f * compose.density.density
+        assertTrue(gap in (sixDp - 1f)..(sixDp + 1f), "닉네임과 Lv 사이 $gap px, 6dp = $sixDp px")
     }
 
     /** 글자 칸이 고유 폭 이상이고 말줄임하지 않았는가. */
@@ -198,10 +266,14 @@ class HomeScreenTest {
         assertFalse(layout.isLineEllipsized(0), "$text 말줄임")
     }
 
-    private fun assertHeaderNotClipped(fontScale: Float) {
-        showHeader(fontScale, nickname = "한강러너")
-        assertFullyShown("Lv.3")
-        assertFullyShown("배치 중")
+    private fun assertHeaderFits(fontScale: Float) {
+        listOf("한강러너", "달리는곰").forEach { nickname ->
+            showHeader(fontScale, nickname)
+            assertFullyShown(nickname)
+            assertFullyShown("Lv.3")
+            assertFullyShown("배치 중")
+            assertLevelRightAfter(nickname)
+        }
     }
 
     @Test
