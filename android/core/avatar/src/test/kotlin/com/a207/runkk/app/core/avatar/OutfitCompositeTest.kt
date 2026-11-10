@@ -191,7 +191,7 @@ class OutfitCompositeTest {
     /**
      * 자르기 칸 안에서 옷(상의·하의·신발) 밖(상의로 둘러싸인 빈 곳 제외)에 보이는 맨몸 피부를 4방향으로 이은 덩어리 가운데, 상의와 맞닿아 있고 상의에서
      * 가장 먼 픽셀까지 [TopBodyCut.RIM_PX] 이하인 것(옷 밖으로 비치는 어깨·몸통·소매 옆 피부 테두리)이 없다. 소매 끝 아래 팔·민소매 팔은
-     * 상의에서 길게 뻗은 덩어리라, 목·손·하의 칸은 칸 밖이라 검사에 걸리지 않는다. [MIN_VISIBLE_RIM]픽셀 미만 조각(옷 가장자리
+     * 상의에서 길게 뻗은 덩어리라, 목·손·하의 칸은 칸 밖이라 검사에 걸리지 않는다. 칸 밖의 보이는 맨몸(손·목)과 이어진 덩어리(손목)도 테두리가 아니다. [MIN_VISIBLE_RIM]픽셀 미만 조각(옷 가장자리
      * 안티에일리어싱, 외곽선 폭)은 보지 않는다.
      */
     private fun assertNoRim(
@@ -254,7 +254,14 @@ class OutfitCompositeTest {
             }
             val farthest = members.maxOf { distance[it] }
             val skin = members.count { !outline[it] }
-            if (farthest <= TopBodyCut.RIM_PX && skin >= MIN_VISIBLE_RIM) {
+            // 칸 밖의 보이는 맨몸(손·목)과 이어진 덩어리는 손목·목처럼 몸이 이어지는 곳이라 테두리가 아니다(DV3-8: 소매 끝 손목 피부를
+            // 옷 레이어에서 지우고 맨몸 바탕이 그리게 했다)
+            val joinsUncut = members.any { m ->
+                neighbors(m, width, height).any { n ->
+                    area[n] ushr 24 < 128 && clothes[n] ushr 24 == 0 && pixels[n] ushr 24 != 0
+                }
+            }
+            if (farthest <= TopBodyCut.RIM_PX && skin >= MIN_VISIBLE_RIM && !joinsUncut) {
                 rims += "$message (${members[0] % width}, ${members[0] / width}) ${skin}px"
             }
         }
@@ -392,6 +399,41 @@ class OutfitCompositeTest {
         val skipped = pixels(OutfitLayerComposer.compose(null, broken, 0, slot.width, slot.height))
         val withoutTop = layers.filter { it.first != OutfitPart.TOP }
         assertContentEquals(pixels(OutfitLayerComposer.compose(null, withoutTop, 0, slot.width, slot.height)), skipped)
+    }
+
+    @Test
+    fun `러닝량 100 합성에는 톤이 안 먹은 밝은 원래 피부가 없다(21가지 × 남녀 × 슬롯)`() {
+        val found = mutableListOf<String>()
+        OutfitCatalog.LEGACY_KEYS.forEach { (part, keys) ->
+            keys.indices.forEach { id ->
+                val outfit = when (part) {
+                    OutfitPart.TOP -> AvatarOutfit(top = id)
+                    OutfitPart.BOTTOM -> AvatarOutfit(bottom = id)
+                    OutfitPart.SHOES -> AvatarOutfit(shoes = id)
+                }
+                OutfitSlot.entries.filter { part in it.parts }.forEach { slot ->
+                    AvatarGender.entries.forEach { gender ->
+                        val count = untonedSkin(slot, gender, outfit)
+                        if (count > 0) found += "${keys[id]} $gender $slot: $count"
+                    }
+                }
+            }
+        }
+        assertEquals(emptyList(), found, "옷 레이어에서 온 밝은 맨살(빈 곳 = 옷이 없는 곳)")
+    }
+
+    /** 러닝량 100 합성에서 옷이 없는 곳(맨몸만 보이는 곳)에 닿은 맨살 픽셀 수([ExposedSkin]). 톤 걸린 피부는 맨살 색조가 아니다. */
+    private fun untonedSkin(slot: OutfitSlot, gender: AvatarGender, outfit: AvatarOutfit): Int {
+        val size = slot.width * slot.height
+        val clothed = BooleanArray(size)
+        layersOf(slot, gender, outfit).forEach { (_, bytes) ->
+            val layer = pixels(bytes)
+            for (i in 0 until size) if (layer[i] ushr 24 >= 32) clothed[i] = true
+        }
+        val composite = compose(slot, gender, outfit, 100)
+        val result = IntArray(size).also { composite.getPixels(it, 0, slot.width, 0, 0, slot.width, slot.height) }
+        composite.recycle()
+        return ExposedSkin.count(result, slot.width, slot.height) { !clothed[it] }
     }
 
     private fun pixels(bytes: ByteArray): IntArray {
