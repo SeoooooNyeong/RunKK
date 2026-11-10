@@ -16,7 +16,7 @@ import kotlinx.coroutines.test.runTest
 import retrofit2.create
 
 /**
- * 피그마 맞춤 W7(contract-W7 2~4장, contract-W6 지난 크루런, contract-W4 크루 상세 통계): 크루원 누적 거리·가입일·공개 정보,
+ * 피그마 맞춤 W7(contract-W7 2~4장, contract-W6 지난 크루런, (크루 상세 통계는 W4 시험이 맡는다)): 크루원 누적 거리·가입일·공개 정보,
  * 가입 신청자 보조 정보, 지난 공동 목표·지난 크루런 해독과 요청 경로.
  */
 class CrewW7RepositoryTest {
@@ -70,26 +70,6 @@ class CrewW7RepositoryTest {
         assertEquals(23, request.level)
         assertEquals("20대", request.ageBand)
         assertEquals(Gender.MALE, request.gender)
-    }
-
-    @Test
-    fun `크루 상세의 개설일·누적 거리·누적 크루런 횟수를 읽고 없으면 비운다`() = runTest {
-        api.reply(
-            """{"crewId":5,"name":"새벽러너스","visibility":"PUBLIC","joinPolicy":"FREE","leaderId":1,"headcount":7,
-               |"createdAt":"2026-10-01T09:00:00+09:00","totalDistanceMeters":1284670,"crewRunCount":5}
-            """.trimMargin()
-        )
-        api.reply("""{"crewId":5,"name":"옛서버","visibility":"PUBLIC","joinPolicy":"FREE","leaderId":1,"headcount":1}""")
-
-        val detail = repository.detail(5).value()
-        val old = repository.detail(5).value()
-
-        assertEquals(LocalDate.of(2026, 10, 1), detail.createdAt)
-        assertEquals(Distance(1_284_670), detail.totalDistance)
-        assertEquals(5, detail.crewRunCount)
-        assertNull(old.createdAt)
-        assertNull(old.totalDistance)
-        assertNull(old.crewRunCount)
     }
 
     @Test

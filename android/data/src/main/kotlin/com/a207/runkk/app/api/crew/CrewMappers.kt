@@ -11,6 +11,7 @@ import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewForm
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewMembers
+import com.a207.runkk.app.domain.crew.CrewPreview
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunForm
@@ -31,11 +32,13 @@ import com.a207.runkk.app.domain.crew.Poll
 import com.a207.runkk.app.domain.crew.PollMethod
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
+import com.a207.runkk.app.domain.crew.RecentCrewRun
 import java.time.YearMonth
 
 // 도메인 ↔ DTO 매퍼(13.2 toRequest·toDomain). 앱이 모르는 글 종류는 건너뛰고, 모르는 가입 방식은 승인제로 읽는다.
 
-internal fun CrewForm.toRequest(): CrewFormDto = CrewFormDto(name, intro, tags, visibility.name, joinPolicy.name)
+internal fun CrewForm.toRequest(): CrewFormDto =
+    CrewFormDto(name, intro, tags, visibility.name, joinPolicy.name, logoUrl)
 
 /** 서버 모집글에는 제목이 없어 제목과 본문을 줄바꿈으로 이어 body에 싣는다. 모집 일시는 오프셋 시각이다. */
 internal fun CrewRunForm.toRequest(): PostWriteRequest = PostWriteRequest(
@@ -62,18 +65,39 @@ internal fun CrewDetailResponse.toDomain(): CrewDetail = CrewDetail(
     inviteCode = inviteCode,
     inviteCodeExpiresAt = inviteCodeExpiresAt?.let(ServerTime::parse),
     lastWeekDistance = Distance(lastWeekDistanceMeters),
-    createdAt = createdAt?.let {
-        runCatching { ServerTime.parse(it).atZone(ServerTime.ZONE).toLocalDate() }.getOrNull()
+    createdAt = createdAt?.let(ServerTime::parse),
+    totalDistance = Distance(totalDistanceMeters),
+    crewRunCount = crewRunCount,
+    recentCrewRuns = recentCrewRuns.map {
+        RecentCrewRun(
+            it.postId,
+            ServerTime.parse(it.scheduledAt),
+            it.participantCount,
+            Distance(it.totalDistanceMeters)
+        )
     },
-    totalDistance = totalDistanceMeters?.let(::Distance),
-    crewRunCount = crewRunCount
+    joinableAt = rejoinAvailableAt?.let(ServerTime::parse)
+)
+
+/** 초대 코드 미리보기. 모르는 공개 범위는 비공개로(상세 이동을 숨긴다), 가입 방식은 승인제로 읽는다. */
+internal fun InvitePreviewResponse.toDomain(): CrewPreview = CrewPreview(
+    crewId = crewId,
+    name = name,
+    intro = intro,
+    tags = tags,
+    logoUrl = logoUrl,
+    visibility = enumByName<CrewVisibility>(visibility) ?: CrewVisibility.PRIVATE,
+    joinPolicy = enumByName<JoinPolicy>(joinPolicy) ?: JoinPolicy.APPROVAL,
+    headcount = headcount,
+    createdAt = ServerTime.parse(createdAt)
 )
 
 internal fun MyCrewResponse.toDomain(): MyCrew = MyCrew(
     crew = crew?.toDomain(),
     pendingRequests = pendingRequests.map {
         MyCrew.PendingJoin(it.requestId, it.crewId, it.crewName, ServerTime.parse(it.requestedAt))
-    }
+    },
+    joinableAt = rejoinAvailableAt?.let(ServerTime::parse)
 )
 
 /** 모르는 상태 이름은 PENDING으로 읽지 않고 실패(Server)로 본다: 가입했는지 모르는 채 화면을 고르지 않는다. */
@@ -85,6 +109,7 @@ internal fun JoinResponse.toDomain(): JoinResult = JoinResult(
 
 internal fun CrewListResponse.toDomain(): CrewList = CrewList(
     nextCursor = nextCursor,
+    totalCount = totalCount,
     crews = crews.map {
         CrewList.Item(
             crewId = it.crewId,
@@ -94,7 +119,8 @@ internal fun CrewListResponse.toDomain(): CrewList = CrewList(
             leaderName = it.leaderName.orEmpty(),
             headcount = it.headcount,
             weeklyDistance = Distance(it.weeklyDistanceMeters),
-            joinPolicy = enumByName<JoinPolicy>(it.joinPolicy) ?: JoinPolicy.APPROVAL
+            joinPolicy = enumByName<JoinPolicy>(it.joinPolicy) ?: JoinPolicy.APPROVAL,
+            logoUrl = it.logoUrl
         )
     }
 )

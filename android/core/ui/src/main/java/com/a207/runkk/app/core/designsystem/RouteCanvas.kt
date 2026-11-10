@@ -42,9 +42,16 @@ import kotlin.math.roundToInt
  * 측정 중 경로선(D-261, D60): 지도 타일 없이 경로 범위를 화면에 맞춰 등거리 투영(경도에 위도 cos 보정)으로 선을 그리고 마커를 얹는다.
  * 자유런·대결·일시정지 화면이 모두 이것을 쓴다. 지도 SDK는 부르지 않는다. 경로가 짧으면 [MIN_SPAN_METERS] 범위로 보아 처음부터
  * 과하게 확대되지 않게 한다. 마커는 그림 아래 가운데가 그 지점에 오게 놓는다. 장식 그림이라 읽기 정보는 부르는 쪽이 붙인다.
+ * [isFramed]가 거짓이면 둥근 모서리·테두리 없는 칸이다(크루런 F-15, 가장자리 페이드는 부르는 쪽).
  */
 @Composable
-fun RouteCanvas(route: RouteLine, markers: List<RouteMarker>, modifier: Modifier = Modifier, markerSize: Dp = 72.dp) {
+fun RouteCanvas(
+    route: RouteLine,
+    markers: List<RouteMarker>,
+    modifier: Modifier = Modifier,
+    markerSize: Dp = 72.dp,
+    isFramed: Boolean = true
+) {
     val lineColor = RunkkColors.Lime
     val startColor = RunkkColors.Surface
     val startBorder = RunkkColors.Lime
@@ -75,9 +82,15 @@ fun RouteCanvas(route: RouteLine, markers: List<RouteMarker>, modifier: Modifier
         Canvas(
             Modifier
                 .fillMaxSize()
-                .clip(MAP_SHAPE)
-                .background(RunkkColors.Surface)
-                .border(1.dp, RunkkColors.Border, MAP_SHAPE)
+                .then(
+                    if (isFramed) {
+                        Modifier.clip(
+                            MAP_SHAPE
+                        ).background(RunkkColors.Surface).border(1.dp, RunkkColors.Border, MAP_SHAPE)
+                    } else {
+                        Modifier.background(RunkkColors.Surface)
+                    }
+                )
         ) {
             val step = GRID_STEP.toPx()
             val gridStroke = 1.dp.toPx()

@@ -4,12 +4,14 @@ import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.SelfieJob
@@ -85,6 +87,14 @@ class FakeAvatars : AvatarRepository {
     var lastSelfie: ByteArray? = null
 
     override suspend fun avatar() = avatarResult
+
+    var runnerResult: Outcome<AvatarRunner> =
+        Outcome.Success(AvatarRunner("STAGE3", 1, "MORNING", 7, 3, Distance(15_400), 51, 4))
+
+    override suspend fun runner(): Outcome<AvatarRunner> {
+        calls += "runner"
+        return runnerResult
+    }
 
     override suspend fun submitSelfie(jpeg: ByteArray): Outcome<SelfieJob> {
         calls += "selfie"
@@ -477,12 +487,15 @@ class ShopViewModelTest {
         vm.onSlot(ItemSlot.HAT)
         assertEquals(listOf(3L), vm.state.value.shop?.items?.map { it.itemId })
         vm.onPick(items[2])
+        assertEquals(items[2], vm.state.value.selected)
+        vm.onBuyRequest()
         assertEquals(items[2], vm.state.value.confirming)
         vm.onBuy()
         val s = vm.state.value
         assertEquals(990, s.shop?.balance)
         assertTrue(s.shop!!.items.first().isOwned)
         assertNull(s.confirming)
+        assertNull(s.selected)
         assertTrue("buy:3" in repo.calls)
     }
 
@@ -492,10 +505,13 @@ class ShopViewModelTest {
         val vm = ShopViewModel(repo)
         vm.onPick(items[0])
         vm.onPick(items[4])
+        assertNull(vm.state.value.selected)
+        vm.onBuyRequest()
         assertNull(vm.state.value.confirming)
         assertNull(vm.state.value.shop)
         repo.purchaseResult = Outcome.Failure(AppError.Rejected("INSUFFICIENT_REWARD"))
         vm.onPick(items[3])
+        vm.onBuyRequest()
         assertEquals(items[3], vm.state.value.confirming)
         vm.onBuy()
         assertTrue("buy:4" in repo.calls)
@@ -508,6 +524,7 @@ class ShopViewModelTest {
         val vm = ShopViewModel(repo)
         // 카본 러닝화 2,000 P > 잔액 1,240 P
         vm.onPick(items[3])
+        vm.onBuyRequest()
         assertNull(vm.state.value.confirming)
         assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), vm.state.value.message)
         vm.onBuy()

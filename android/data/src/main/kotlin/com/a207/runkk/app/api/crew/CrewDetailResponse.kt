@@ -20,8 +20,19 @@ internal data class CrewDetailResponse(
     val myRole: String? = null,
     val inviteCode: String? = null,
     val inviteCodeExpiresAt: String? = null,
-    /** 개설일·누적 거리·누적 크루런 횟수(contract-W4 1장, W7 크루 정보 F-18). 옛 서버면 없다. */
+    // contract-W4 1절(S15P31A207-295): 개설일, 누적 거리·크루런, 최근 크루런 3건, 24시간 가입 제한 시각
     val createdAt: String? = null,
-    val totalDistanceMeters: Long? = null,
-    val crewRunCount: Int? = null
-)
+    val totalDistanceMeters: Long = 0,
+    val crewRunCount: Int = 0,
+    val recentCrewRuns: List<RecentCrewRun> = emptyList(),
+    val rejoinAvailableAt: String? = null
+) {
+    /** 최근 마친 크루런 한 건(서버 CrewDtos.CrewDetailResponse.RecentCrewRun). */
+    @Serializable
+    data class RecentCrewRun(
+        val postId: Long,
+        val scheduledAt: String,
+        val participantCount: Int,
+        val totalDistanceMeters: Long
+    )
+}

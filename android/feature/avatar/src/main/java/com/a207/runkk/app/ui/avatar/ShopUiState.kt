@@ -9,6 +9,8 @@ data class ShopUiState(
     /** 고른 부위(J4는 상의·하의·신발·모자 탭, 처음 상의). null이면 전체. */
     val slot: ItemSlot? = ItemSlot.TOP,
     val shop: Shop? = null,
+    /** 고른 칸(피그마 H-4). 고르면 아래 구매 바가 뜬다. */
+    val selected: Shop.Item? = null,
     val confirming: Shop.Item? = null,
     val isBuying: Boolean = false,
     val message: UiText? = null,

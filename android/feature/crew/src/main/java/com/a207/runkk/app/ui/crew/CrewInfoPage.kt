@@ -150,18 +150,18 @@ private fun CrewTagTints(tags: Collection<String>) {
     }
 }
 
-/** 통계 두 칸(피그마 F-18): "누적 거리"(1,284.67km)·"누적 크루런 횟수"(n회). 모르면 빈 값. */
+/** 통계 두 칸(피그마 F-18): "누적 거리"(1,284.67km)·"누적 크루런 횟수"(n회), W4 크루 상세 응답 값. */
 @Composable
 private fun CrewStats(detail: CrewDetail) {
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         StatBox(
             stringResource(R.string.crew_info_total_distance),
-            detail.totalDistance?.let { stringResource(R.string.crew_contribution_km, groupedKm(it)) },
+            stringResource(R.string.crew_contribution_km, groupedKm(detail.totalDistance)),
             Modifier.weight(1f)
         )
         StatBox(
             stringResource(R.string.crew_info_run_count),
-            detail.crewRunCount?.let { stringResource(R.string.crew_info_run_count_value, it) },
+            stringResource(R.string.crew_info_run_count_value, detail.crewRunCount),
             Modifier.weight(1f)
         )
     }

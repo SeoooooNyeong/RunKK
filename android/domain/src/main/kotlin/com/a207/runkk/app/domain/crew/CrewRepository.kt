@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.crew
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
@@ -102,4 +103,21 @@ interface CrewRepository {
      * 셀카 얼굴이 아니면 빈 목록, 받지 못하면 실패다. 구현이 없으면 빈 목록이다.
      */
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
+
+    /**
+     * 초대 코드로 크루 요약을 미리 본다(POST /crews/invite-preview, 피그마 F-03c). 가입시키지 않는다. 코드가 없거나 만료면
+     * AppError.Rejected(INVALID_CODE), 틀린 코드가 10분에 5번이면 TOO_MANY_ATTEMPTS. 구현이 없으면 실패다.
+     */
+    suspend fun previewByInviteCode(code: String): Outcome<CrewPreview> =
+        Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 크루 로고 JPEG(1MB 이하)를 올리고 로고 주소를 받는다(POST /crew-logos, 피그마 F-04). 구현이 없으면 실패다. */
+    suspend fun uploadLogo(jpeg: ByteArray): Outcome<String> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 로고 바이트(GET /crew-logos/{id}). 이 앱 서버의 로고 경로만 읽고 그 밖의 주소는 실패다. 구현이 없으면 실패다. */
+    suspend fun logo(url: String): Outcome<ByteArray> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    private companion object {
+        const val NOT_IMPLEMENTED = 501
+    }
 }

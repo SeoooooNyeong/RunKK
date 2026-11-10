@@ -18,6 +18,7 @@ class CrewFeatureEntry @Inject constructor() : FeatureEntry {
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.CREW) { CrewFindRoute() }
         builder.route(Routes.CREW_CREATE) { CrewCreateRoute() }
+        builder.route(Routes.CREW_SEARCH) { CrewSearchRoute() }
         builder.addEntryProvider(Routes.CrewHome::class) { key -> CrewHomeRoute(key) }
         builder.addEntryProvider(Routes.CrewPastRuns::class) { key -> CrewPastRunsRoute(key) }
         builder.addEntryProvider(Routes.CrewPastGoals::class) { key -> CrewPastGoalsRoute(key) }

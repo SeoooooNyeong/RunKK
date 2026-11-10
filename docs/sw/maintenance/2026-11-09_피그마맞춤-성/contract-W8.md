@@ -200,7 +200,7 @@ E6 잠긴 아이템 구매: `409 {"code": "ITEM_LOCKED", "message": "아직 해�
 | 홈 아바타 진입 | 홈 아바타 누름 → `Routes.AVATAR_RUNNER` (지금 `Routes.AVATAR`, HomeScreen.kt:529) | 홈 잔액 알약은 그대로 상점 |
 | H-3 꾸미기 배경 탭 | 기존 `Routes.AVATAR_BACKGROUND` | 잠긴 칸 문구 "{name}, {remainingMeters를 km 올림 정수}km 더 달리면 해금"(0이면 "{name}, 곧 해금돼요"). 미리보기 카드에 고른 배경을 깐다(FR-202) |
 | H-4 상점 | 기존 `Routes.SHOP` | `ShopUiState.selected: Shop.Item?` 추가. 칸 누름 = 선택(잠긴 칸은 선택하지 않고 스낵바로 `unlockCondition`). 하단 구매 바: 이름 + "사면 {balance-price} 남아요", 버튼 "{price}에 사기" → H-5 확인 → `purchase`. 잔액 부족은 지금처럼 확인 없이 스낵바(FR-160). 칸 그림은 `assetKey`로 리소스를 찾고 없으면 부위 기본 그림. 잠긴 칸 opacity 0.45, 가격 자리에 `unlockCondition`. 보유 칸은 "소지 중". `ITEM_LOCKED` 응답이면 상점을 다시 읽고 스낵바 |
-| H-6 배경 해금 팝업(신규) | 홈(A5) 위 대화상자, 라우트 없음 | 기기 저장소 `BackgroundUnlockSeenStore`(회원별 "확인한 해금 키 집합"과 "처음 기록 시각")로 판정한다. 홈 진입·복귀(ON_RESUME) 때 아바타 꾸미기 공개(AVATAR_RELEASED)면 `backgrounds()`를 읽어, `unlocked`이고 저장소에 없는 배경을 새 해금으로 본다. 저장소가 처음이면(설치 직후·새 기기·로그인 회원 변경) 지금 해금된 키를 모두 확인한 것으로 채우고 띄우지 않는다(배포·재설치 직후 팝업이 쏟아지지 않게). 새 해금이 있으면 **`distanceMeters` 내림차순**(같으면 `unlockedAt` 최신, 그다음 `key`)으로 정렬해 첫 배경을 제목("{name} 배경을 열었어요")으로, 2개 이상이면 "이번 러닝으로 함께 연 배경" 상자에 같은 순서로 이름을 모두 적는다(1개면 상자 없음). "닫기"·"배경 바꾸기" 모두 보인 키를 저장소에 넣는다. "배경 바꾸기" → `chooseBackground(첫 배경 key)`. 서버 알림 BACKGROUND_UNLOCKED 경로(알림함 → 배경 탭)는 그대로다 |
+| H-6 배경 해금 팝업(신규) | 내 러너 화면(H-2) 위 대화상자, 라우트 없음(B단계 구현. 홈 위 표시는 후속: 홈 모듈은 domain.avatar를 쓰지 않는다, D-276) | 기기 저장소 `BackgroundUnlockSeenStore`(회원별 "확인한 해금 키 집합"과 "처음 기록 시각")로 판정한다. 내 러너 진입·복귀(ON_RESUME) 때 아바타 꾸미기 공개(AVATAR_RELEASED)면 `backgrounds()`를 읽어, `unlocked`이고 저장소에 없는 배경을 새 해금으로 본다. 저장소가 처음이면(설치 직후·새 기기·로그인 회원 변경) 지금 해금된 키를 모두 확인한 것으로 채우고 띄우지 않는다(배포·재설치 직후 팝업이 쏟아지지 않게). 새 해금이 있으면 **`distanceMeters` 내림차순**(같으면 `unlockedAt` 최신, 그다음 `key`)으로 정렬해 첫 배경을 제목("{name} 배경을 열었어요")으로, 2개 이상이면 "이번 러닝으로 함께 연 배경" 상자에 같은 순서로 이름을 모두 적는다(1개면 상자 없음). "닫기"·"배경 바꾸기" 모두 보인 키를 저장소에 넣는다. "배경 바꾸기" → `chooseBackground(첫 배경 key)`. 서버 알림 BACKGROUND_UNLOCKED 경로(알림함 → 배경 탭)는 그대로다 |
 
 ### 5.3 그림 리소스 키
 
@@ -292,3 +292,16 @@ Rive 의상 그림 1~6이 실제로 어떤 옷인지에 맞춰 B단계가 이 �
 ### 6.4 내 러너 화면 예
 
 GET /avatar(얼굴·착용·배경·잔액) + GET /avatar/runner(체형·러닝량·피부톤 근거) + 셀카 머리면 GET /avatar/heads/{ownerId}/{jobId}를 함께 읽어 Rive 정면(서기)으로 그린다. 홈의 달리는 장면은 옆모습 레이어를 쓴다.
+
+## 7. B단계(앱) 구현 결과 (2026-11-09)
+
+| 항목 | 구현 |
+|---|---|
+| 경로 | `Routes.AVATAR_RUNNER = "avatar/runner"` → `AvatarRunnerRoute`. 홈 아바타(꾸미기 공개 때)는 이 화면으로 간다 |
+| 포트 | `AvatarRepository.runner()`, `headJson(faceKey)`(셀카 머리 JSON 그대로, 32MiB 상한), `BackgroundUnlockSeenStore`(domain, SharedPreferences 구현은 data) |
+| 도메인 | `AvatarRunner`, `AvatarBackgrounds.totalDistance`·`Item.remaining`, `Shop.Item.imageKey`·`isLocked`·`unlockLabel` |
+| 상태 | `AvatarRunnerUiState(avatar, runner, look, faceLayers, unlock, error)`, `ShopUiState.selected`, `AvatarUiState.look` |
+| 렌더러 | `MyRiveAvatar(look)`가 `RunkkRiveAvatar`로 그린다. 성별 `LocalAvatarCharacter`, 체형 `bodyVariant`(꾸미기는 `bodyShape` 4단계를 같은 규칙으로 접는다), 피부 `runAmount`, 의상 6.3 표, 머리 `GeneratedHeadLayers.fromHeadJson`(얼굴 키마다 한 번, 실패·옆모습 없음이면 null). Rive를 읽지 못하면 앞 단계 그림으로 바꾼다(시험 환경이 그렇다) |
+| 그린 곳 | 내 러너(H-2) 카드, 꾸미기(H-3) 미리보기. 얼굴 만들기(H-1)는 얼굴 고르기 화면이라 얼굴 그림(146x176 자리)을 유지했다. 홈은 바꾸지 않았다(홈은 착용·체형·러닝량을 읽지 않는다, D-276) |
+| 상점 | 칩 줄(모자 그대로), 칸 선택 라임 2, 아래 떠 있는 구매 바 "n에 사기"(보라) → H-5 `RunkkDialog`, 잠긴 칸 0.45와 조건 문구, "소지 중", 아이템 그림은 부위 실루엣(그림 자원이 들어오면 `ItemArt`에서 그림 키로 바꾼다) |
+

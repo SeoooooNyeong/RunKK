@@ -90,6 +90,9 @@ object Routes {
     const val RUNIMAL_TYPES = "runimal/types"
     const val AVATAR = "avatar"
 
+    /** 내 러너(피그마 H-2, W8): 홈 아바타를 누르면 온다. 체형·피부톤 근거와 꾸미기·상점 입구. */
+    const val AVATAR_RUNNER = "avatar/runner"
+
     /** 아바타 만들기(가입 5단계에서 이어진다, FR-155·FR-158). */
     const val AVATAR_SETUP = "avatar/setup"
     const val SHOP = "avatar/shop"
@@ -201,6 +204,9 @@ object Routes {
 
     /** 크루 만들기(FR-110). */
     const val CREW_CREATE = "crew/create"
+
+    /** 크루 검색(피그마 F-01d·F-01e, S15P31A207-295): 크루명으로 공개 크루를 찾는다. 하단 내비 없음. */
+    const val CREW_SEARCH = "crew/search"
 
     /** 내 크루 홈(레이스·크루런·응원보드·크루원 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. */
     @Serializable

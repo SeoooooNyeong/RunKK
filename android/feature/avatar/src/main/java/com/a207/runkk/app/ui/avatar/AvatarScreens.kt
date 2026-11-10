@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.avatar
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -52,17 +55,14 @@ import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkBadge
 import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
-import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkInfoChip
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkPillButton
-import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
-import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
-import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
+import com.a207.runkk.app.core.designsystem.RunkkSegmented
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -148,7 +148,12 @@ fun AvatarScreen(
     AvatarMessageEffect(background.message, snackbar, actions.onBackgroundMessageShown)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.avatar_decorate_title), onBack = actions.onBack) {
+            RunkkTopBar(
+                title = stringResource(R.string.avatar_decorate_title),
+                onBack = actions.onBack,
+                containerColor = RunkkColors.Surface,
+                hasDivider = true
+            ) {
                 Balance(state.avatar?.balance)
             }
             val avatar = state.avatar
@@ -165,15 +170,19 @@ fun AvatarScreen(
             }
             HorizontalDivider(color = RunkkColors.Border)
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 32.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(RunkkColors.Surface)
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                RunkkSecondaryButton(
+                RunkkButton(
                     stringResource(R.string.avatar_decorate_go_shop),
                     onClick = actions.onShop,
+                    style = RunkkButtonStyle.White,
                     modifier = Modifier.weight(1f)
                 )
-                RunkkPrimaryButton(
+                RunkkButton(
                     stringResource(R.string.avatar_decorate_save),
                     onClick = actions.onSave,
                     isEnabled = !state.isSaving,
@@ -195,20 +204,31 @@ private fun AvatarBody(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier = modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 배경을 읽었으면 지금 고른 배경으로 그린다(배경 탭에서 고르면 바로 바뀐다).
+        // 배경을 읽었으면 지금 고른 배경으로 그린다(배경 탭에서 고르면 바로 바뀐다, FR-202).
         val backgroundKey = if (background.backgrounds != null) background.selectedKey else avatar.backgroundKey
-        AvatarFigure(
-            avatar.copy(backgroundKey = backgroundKey),
-            equippedNames = ItemSlot.entries.associateWith { state.itemName(avatar.equipped[it]) },
-            faceLayers = state.faceLayers,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RunkkShapes.Large)
+                .background(RunkkColors.Surface)
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AvatarFigure(
+                avatar.copy(backgroundKey = backgroundKey),
+                equippedNames = ItemSlot.entries.associateWith { state.itemName(avatar.equipped[it]) },
+                faceLayers = state.faceLayers,
+                look = state.look
+            )
+        }
         AvatarTraits(avatar, actions.onFace)
-        val tabs = ItemSlot.entries.map { stringResource(it.labelRes) } + stringResource(R.string.avatar_tab_background)
-        RunkkSegmentedTabs(
+        // 꾸미기 탭의 모자 부위는 "악세서리"다(사용자 결정 A2). 상점 칩은 "모자" 그대로다.
+        val tabs = ItemSlot.entries.map { stringResource(it.decorateLabelRes) } +
+            stringResource(R.string.avatar_tab_background)
+        RunkkSegmented(
             options = tabs,
             selectedIndex = if (state.isBackgroundTab) ItemSlot.entries.size else state.slot.ordinal,
             onSelect = { index ->
@@ -239,15 +259,42 @@ private fun AvatarTraits(avatar: Avatar, onFace: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically
     ) {
-        RunkkInfoChip(
-            stringResource(R.string.avatar_trait_body, stringResource(bodyLabelRes(bodyStage(avatar.bodyShape))))
+        DecorateChip(
+            stringResource(R.string.avatar_trait_body, stringResource(bodyLabelRes(bodyStage(avatar.bodyShape)))),
+            RoundedCornerShape(16.dp)
         )
-        RunkkInfoChip(stringResource(R.string.avatar_trait_skin, skinLabel(avatar.skinTone).asString()))
-        RunkkPillButton(
+        DecorateChip(
+            stringResource(R.string.avatar_trait_skin, skinLabel(avatar.skinTone).asString()),
+            RoundedCornerShape(12.dp)
+        )
+        DecorateChip(
             stringResource(R.string.avatar_decorate_change_face),
-            onClick = onFace,
-            leadingIcon = RunkkIcons.Camera
+            RoundedCornerShape(18.dp),
+            onClick = onFace
         )
+    }
+}
+
+/** 꾸미기 칩(피그마 H-3: 흰 바탕, divider 테두리, 높이 32~34, 좌우 12, 글자 14). [onClick]이 있으면 버튼이다. */
+@Composable
+private fun DecorateChip(text: String, shape: Shape, onClick: (() -> Unit)? = null) {
+    Box(
+        Modifier
+            .heightIn(min = if (onClick != null) 48.dp else 32.dp)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier
+                .heightIn(min = if (onClick != null) 34.dp else 32.dp)
+                .clip(shape)
+                .background(RunkkColors.Surface)
+                .border(1.dp, RunkkColors.Border, shape)
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
+        }
     }
 }
 
@@ -296,9 +343,9 @@ internal fun Balance(balance: Int?) {
     val description = stringResource(R.string.avatar_shop_balance_description, balance ?: 0)
     Text(
         stringResource(R.string.avatar_points, formatReward(balance)),
-        style = RunkkTextStyles.text(14, FontWeight.Bold),
-        color = RunkkColors.Lime,
-        modifier = Modifier.padding(end = 8.dp).semantics { contentDescription = description }
+        style = RunkkTextStyles.text(14, FontWeight.Medium),
+        color = RunkkColors.TextPrimary,
+        modifier = Modifier.padding(end = 16.dp).semantics { contentDescription = description }
     )
 }
 
@@ -313,8 +360,8 @@ private fun ItemTile(item: Shop.Item, isEquipped: Boolean, onClick: () -> Unit, 
         },
         onClick = onClick,
         onClickLabel = stringResource(if (isEquipped) R.string.avatar_item_take_off else R.string.avatar_item_put_on),
-        borderColor = if (isEquipped) RunkkColors.Lime else RunkkColors.Border,
-        background = if (isEquipped) RunkkColors.LimeContainer else RunkkColors.Surface
+        borderColor = if (isEquipped) RunkkColors.LimeFill else RunkkColors.Border,
+        background = if (isEquipped) RunkkColors.SurfaceHigh else RunkkColors.Surface
     ) {
         Text(item.name, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
         RunkkBadge(
@@ -333,23 +380,25 @@ internal fun AvatarFigure(
     avatar: Avatar,
     equippedNames: Map<ItemSlot, String?>,
     modifier: Modifier = Modifier,
-    faceLayers: List<FaceLayer> = emptyList()
+    faceLayers: List<FaceLayer> = emptyList(),
+    look: AvatarLook = AvatarLook()
 ) {
     val stage = bodyStage(avatar.bodyShape) ?: 1
     val description = figureDescription(avatar, equippedNames, stage)
     // 고른 랜드마크 배경 위에 아바타를 그린다(FR-202). 배경은 장식이라 설명에 넣지 않는다.
+    // 피그마 H-3 "내 러너" 자리 152x200(모서리 16). Rive 렌더러로 그리고, 그리지 못하면 앞 단계 도형 그림이다(W9).
     Box(
         modifier = modifier
-            .size(width = 150.dp, height = 210.dp)
-            .clip(RunkkShapes.ExtraLarge)
-            .border(2.dp, RunkkColors.Lime, RunkkShapes.ExtraLarge)
+            .size(width = 152.dp, height = 200.dp)
+            .clip(RunkkShapes.Medium)
+            .background(RunkkColors.SurfaceHigh)
             .clearAndSetSemantics {
                 contentDescription = description
                 role = Role.Image
             }
     ) {
         AvatarBackdrop(avatar.backgroundKey, modifier = Modifier.matchParentSize())
-        AvatarFigureBody(avatar, equippedNames, faceLayers, stage)
+        MyRiveAvatar(look, Modifier.matchParentSize()) { AvatarFigureBody(avatar, equippedNames, faceLayers, stage) }
     }
 }
 
@@ -371,7 +420,7 @@ private fun AvatarFigureBody(
                 .width((BODY_BASE + (BODY_STAGES - stage) * BODY_STEP).dp)
                 .height(48.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(if (equippedNames[ItemSlot.TOP] != null) RunkkColors.Lime else RunkkColors.BorderStrong)
+                .background(if (equippedNames[ItemSlot.TOP] != null) RunkkColors.LimeFill else RunkkColors.BorderStrong)
         )
         FigureLegs(equippedNames[ItemSlot.BOTTOM] != null)
         Spacer(Modifier.height(2.dp))
@@ -379,7 +428,7 @@ private fun AvatarFigureBody(
             Modifier
                 .size(width = 48.dp, height = 6.dp)
                 .clip(RoundedCornerShape(3.dp))
-                .background(if (equippedNames[ItemSlot.SHOES] != null) RunkkColors.Lime else RunkkColors.Border)
+                .background(if (equippedNames[ItemSlot.SHOES] != null) RunkkColors.LimeFill else RunkkColors.Border)
         )
     }
 }

@@ -23,6 +23,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +68,7 @@ data class RunMapMarker(
  * 실행 중 지도 오류(잘못된 키·네트워크, MapLifeCycleCallback.onMapError)면 [onMapError]를 알리고, 부르는 쪽이 그 상태를
  * canShowKakaoMap(key, isMapFailed)에 넘겨 격자 바탕 RouteCanvas로 바꾼다(FR-034, D-322 (3), D-340).
  * 기록 상세 KakaoCourseMap과 같이 화면 수명에 맞춰 지도를 이어 그리고 멈추며, 화면을 떠나면 닫는다.
+ * [isFramed]가 거짓이면 둥근 모서리·테두리 없이 칸 그대로 자른다(크루런 F-15는 가장자리 페이드를 부르는 쪽이 덮는다).
  */
 @Composable
 fun KakaoRunMap(
@@ -76,6 +78,7 @@ fun KakaoRunMap(
     others: List<RunMapMarker> = emptyList(),
     myLabel: String? = null,
     onMapError: () -> Unit = {},
+    isFramed: Boolean = true,
     figure: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -189,7 +192,11 @@ fun KakaoRunMap(
         }
     }
     Box(
-        modifier = modifier.clip(MAP_SHAPE).border(1.dp, RunkkColors.Border, MAP_SHAPE),
+        modifier = if (isFramed) {
+            modifier.clip(MAP_SHAPE).border(1.dp, RunkkColors.Border, MAP_SHAPE)
+        } else {
+            modifier.clipToBounds()
+        },
         contentAlignment = Alignment.Center
     ) {
         AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())

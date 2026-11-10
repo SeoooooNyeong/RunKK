@@ -54,6 +54,10 @@ internal interface AvatarApi {
     @POST("shop/purchases")
     suspend fun purchase(@Body body: PurchaseRequest): PurchaseResponse
 
+    /** 내 러너(W8 H-2, contract-W8.md 2.1). */
+    @GET("avatar/runner")
+    suspend fun runner(): RunnerResponse
+
     /** 랜드마크 배경 목록(FR-201, FR-202). */
     @GET("avatar/backgrounds")
     suspend fun backgrounds(): BackgroundsResponse

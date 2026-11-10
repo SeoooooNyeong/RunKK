@@ -40,14 +40,18 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
         _state.update { it.copy(isLoading = true, error = null) }
         job = viewModelScope.launch {
             val shop = async { avatars.shop(null) }
+            val runner = async { avatars.runner() }
             finishPendingSelfie()
             when (val avatar = avatars.avatar()) {
                 is Outcome.Success -> {
+                    val items = shop.await().getOrNull()?.items.orEmpty()
+                    val runAmount = runner.await().getOrNull()?.runAmount ?: 0
                     _state.update {
                         it.copy(
                             isLoading = false,
                             avatar = avatar.value,
-                            items = shop.await().getOrNull()?.items.orEmpty()
+                            items = items,
+                            look = it.look.withAvatar(avatar.value, items, runAmount)
                         )
                     }
                     loadFace(avatar.value.faceKey)
@@ -55,6 +59,7 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
 
                 is Outcome.Failure -> {
                     shop.cancel()
+                    runner.cancel()
                     _state.update { it.copy(isLoading = false, error = AvatarErrorText.of(avatar.error)) }
                 }
             }
@@ -75,10 +80,13 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
 
     /** 셀카 얼굴 부위 그림을 받는다. 받지 못하면 비워 두어 자리 그림을 그린다. */
     private suspend fun loadFace(faceKey: String?) {
-        if (faceKey == faceKeyShown && (faceKey == null || _state.value.faceLayers.isNotEmpty())) return
+        val shown = _state.value
+        val isHeadMissing = isSelfieHead(faceKey) && shown.look.headLayers == null
+        if (faceKey == faceKeyShown && (faceKey == null || shown.faceLayers.isNotEmpty()) && !isHeadMissing) return
         faceKeyShown = faceKey
         val layers = if (faceKey == null) emptyList() else avatars.faceLayers(faceKey).getOrNull().orEmpty()
-        _state.update { it.copy(faceLayers = layers) }
+        val head = loadHeadLayers(avatars, faceKey)
+        _state.update { it.copy(faceLayers = layers, look = it.look.copy(headLayers = head)) }
     }
 
     private var resumedOnce = false
@@ -108,6 +116,7 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
                     it.copy(
                         isSaving = false,
                         avatar = result.value,
+                        look = it.look.copy(outfit = outfitOf(result.value.equipped, it.items)),
                         message = result.value.rejected[item.slot]?.let { reason ->
                             uiText(
                                 R.string.avatar_equip_rejected,

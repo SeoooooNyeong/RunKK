@@ -13,9 +13,11 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
+import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.MyCrew
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
 import kotlin.test.assertEquals
@@ -177,25 +179,74 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `초대 코드는 6자리 영문·숫자 대문자로 받고 가입한다(FR-122)`() {
+    fun `초대 코드는 6자리 영문·숫자 대문자로 받고 확인으로 크루를 먼저 조회한 뒤 가입한다(FR-122, F-03c)`() {
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()
         vm.onInviteCode("ab-12cd99")
-        assertEquals("AB12CD", vm.state.value.inviteCode)
+        assertEquals("AB12CD", vm.state.value.invite?.code)
+        vm.onInviteSubmit()
+        assertFalse(repo.calls.any { it.startsWith("invite") }, "미리보기 전에는 가입하지 않는다")
+        vm.onInviteConfirm()
+        assertTrue("preview:AB12CD" in repo.calls)
+        assertEquals(InviteStep.FOUND, vm.state.value.invite?.step)
+        assertEquals(invitePreview, vm.state.value.invite?.preview)
+        assertNull(vm.state.value.mine, "미리보기는 가입시키지 않는다")
         vm.onInviteSubmit()
         assertTrue("invite:AB12CD" in repo.calls)
-        assertFalse(vm.state.value.isInviteOpen)
+        assertNull(vm.state.value.invite)
         assertEquals(12L, vm.state.value.mine?.crewId, "초대 코드로 가입한 크루 홈을 연다")
     }
 
     @Test
+    fun `맞는 크루가 없는 코드는 칸 오류(NOT_FOUND)로 보이고 코드를 고치면 입력 단계로 돌아간다(F-03b)`() {
+        repo.fail["preview"] = AppError.Rejected("INVALID_CODE")
+        val vm = CrewFindViewModel(repo)
+        vm.onInviteOpen()
+        vm.onInviteCode("ZZZZZZ")
+        vm.onInviteConfirm()
+        assertEquals(InviteStep.NOT_FOUND, vm.state.value.invite?.step)
+        assertNull(vm.state.value.message, "칸 아래 안내로 보이고 스낵바는 띄우지 않는다")
+        vm.onInviteCode("ZZZZZ")
+        assertEquals(InviteStep.ENTERING, vm.state.value.invite?.step)
+    }
+
+    @Test
     fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 기다리라고 안내한다`() {
-        repo.fail["invite"] = AppError.Rejected("TOO_MANY_ATTEMPTS")
+        repo.fail["preview"] = AppError.Rejected("TOO_MANY_ATTEMPTS")
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()
         vm.onInviteCode("AB12CD")
-        vm.onInviteSubmit()
+        vm.onInviteConfirm()
         assertEquals(UiText.Res(R.string.crew_error_too_many_attempts), vm.state.value.message)
+        assertEquals(InviteStep.ENTERING, vm.state.value.invite?.step)
+    }
+
+    @Test
+    fun `공개 크루 미리보기를 누르면 시트를 닫고 크루 상세를 연다`() {
+        val vm = CrewFindViewModel(repo)
+        vm.onInviteOpen()
+        vm.onInvitePreviewOpen(invitePreview.copy(visibility = CrewVisibility.PUBLIC))
+        assertNull(vm.state.value.invite)
+        assertEquals(12L, vm.state.value.detail?.crewId)
+    }
+
+    @Test
+    fun `나온 지 24시간 안이면 남은 시간을 1초마다 줄이고 크루 만들기를 막는다(F-02c)`() = runTest(main.dispatcher) {
+        val clock = MutableClock(Instant.parse("2026-11-09T12:00:00Z"))
+        repo.mine = MyCrew(null, emptyList(), joinableAt = Instant.parse("2026-11-09T12:00:05Z"))
+        val vm = CrewFindViewModel(repo, clock)
+        runCurrent()
+        assertEquals(Duration.ofSeconds(5), vm.state.value.joinRemaining)
+        assertFalse(vm.onCreateRequested())
+        assertEquals(UiText.Res(R.string.crew_error_cooldown), vm.state.value.message)
+        clock.now = clock.now.plusSeconds(2)
+        advanceTimeBy(1_001)
+        assertEquals(Duration.ofSeconds(3), vm.state.value.joinRemaining)
+        clock.now = clock.now.plusSeconds(3)
+        advanceTimeBy(1_001)
+        assertNull(vm.state.value.joinRemaining)
+        assertNull(vm.state.value.joinableAt)
+        assertTrue(vm.onCreateRequested())
     }
 }
 
@@ -205,9 +256,11 @@ class CrewCreateViewModelTest {
     private val repo = FakeCrewRepository()
 
     @Test
-    fun `이름 2~20자·태그 1~5개가 아니면 보내지 않는다`() {
+    fun `이름 2~12자·태그 1~3개가 아니면 보내지 않는다(결정 C1)`() {
         val vm = CrewCreateViewModel(repo)
         vm.onForm(CrewFormState(name = "a", tags = setOf("WEEKDAY_EVENING")))
+        vm.onSubmit()
+        vm.onForm(CrewFormState(name = "열세글자크루이름입니다요!", tags = setOf("WEEKDAY_EVENING")))
         vm.onSubmit()
         vm.onForm(CrewFormState(name = "새벽질주"))
         vm.onSubmit()
@@ -223,6 +276,34 @@ class CrewCreateViewModelTest {
             assertEquals(CrewEvent.Created, awaitItem())
         }
         assertTrue("create:새벽질주" in repo.calls)
+    }
+
+    @Test
+    fun `로고를 고르면 바로 올리고 받은 주소를 크루 만들기에 싣는다(F-04)`() {
+        val vm = CrewCreateViewModel(repo)
+        vm.onForm(CrewFormState(name = "새벽질주", tags = setOf("WEEKDAY_EVENING")))
+        vm.onLogoPicked(byteArrayOf(1, 2, 3))
+        assertTrue("uploadLogo:3" in repo.calls)
+        assertEquals("/api/v1/crew-logos/7", vm.state.value.form.logoUrl)
+        assertFalse(vm.state.value.isUploadingLogo)
+        assertEquals("/api/v1/crew-logos/7", vm.state.value.form.toForm().logoUrl)
+    }
+
+    @Test
+    fun `로고를 올리지 못하면 로고를 비우고 사유를 보인다`() {
+        repo.fail["uploadLogo"] = AppError.Rejected("TOO_LARGE")
+        val vm = CrewCreateViewModel(repo)
+        vm.onLogoPicked(byteArrayOf(1))
+        assertNull(vm.state.value.logo)
+        assertNull(vm.state.value.form.logoUrl)
+        assertEquals(UiText.Res(R.string.crew_error_too_large), vm.state.value.error)
+    }
+
+    @Test
+    fun `정보 수정의 기존 긴 이름은 바꾸지 않으면 통과한다(결정 C1)`() {
+        val long = "열세글자크루이름입니다요!"
+        assertTrue(CrewFormState(name = long, tags = setOf("WEEKDAY_EVENING"), originalName = long).isValid)
+        assertFalse(CrewFormState(name = long + "더", tags = setOf("WEEKDAY_EVENING"), originalName = long).isValid)
     }
 
     @Test
@@ -436,5 +517,55 @@ class CrewRunWriteViewModelTest {
             assertNotNull(repo.lastCrewRun).meetAt,
             "10/21 19:00 KST"
         )
+    }
+}
+
+class CrewSearchViewModelTest {
+    @get:Rule
+    val main = MainDispatcherRule()
+    private val repo = FakeCrewRepository()
+
+    @Test
+    fun `빈 검색어는 찾지 않고, 찾으면 결과와 서버 전체 수를 보인다(F-01d)`() {
+        val vm = CrewSearchViewModel(repo)
+        vm.onSearch()
+        assertTrue(repo.calls.none { it.startsWith("search") })
+        vm.onKeyword(" 새벽 ")
+        vm.onSearch()
+        assertEquals("search:새벽:[]", repo.calls.last { it.startsWith("search") })
+        assertTrue(vm.state.value.hasSearched)
+        assertEquals(repo.searchFirstPage.size.toLong(), vm.state.value.results.size.toLong())
+        vm.onClear()
+        assertEquals("", vm.state.value.keyword)
+        assertFalse(vm.state.value.hasSearched)
+    }
+
+    @Test
+    fun `다음 쪽은 입력 중인 검색어가 아니라 마지막으로 찾은 검색어로 잇는다(리뷰 HIGH)`() {
+        repo.searchNext = 13
+        val vm = CrewSearchViewModel(repo)
+        vm.onKeyword("새벽")
+        vm.onSearch()
+        vm.onKeyword("고치는 중")
+        vm.loadMore()
+        assertEquals("search:새벽:[]:13", repo.calls.last { it.startsWith("search") })
+    }
+
+    @Test
+    fun `검색 결과에서 바로 가입하면 크루 탭으로 가는 이벤트를 낸다`() = runTest(main.dispatcher) {
+        val vm = CrewSearchViewModel(repo)
+        vm.events.test {
+            vm.onJoin(crewA)
+            assertEquals(CrewSearchEvent.Joined, awaitItem())
+        }
+    }
+
+    @Test
+    fun `승인제 크루는 신청 안내를 보이고 대기 중 신청을 다시 읽는다`() {
+        val vm = CrewSearchViewModel(repo)
+        vm.onOpen(crewC)
+        vm.onJoin(crewC)
+        assertEquals(UiText.Res(R.string.crew_find_applied_message), vm.state.value.message)
+        assertEquals(listOf(91L), vm.state.value.pending.map { it.requestId })
     }
 }

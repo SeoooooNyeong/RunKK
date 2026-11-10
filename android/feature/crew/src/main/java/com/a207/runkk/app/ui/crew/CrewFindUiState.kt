@@ -4,6 +4,8 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.MyCrew
+import java.time.Duration
+import java.time.Instant
 
 data class CrewFindUiState(
     /** 크루 탭에 들어와 내 크루(GET /crews/me)를 확인하는 중. */
@@ -28,13 +30,17 @@ data class CrewFindUiState(
     /** 다음 쪽 커서. null이면 끝까지 읽었다. */
     val nextCursor: Long? = null,
     val isLoadingMore: Boolean = false,
-    /** 상세(바텀 시트)로 연 크루. */
+    /** 상세로 연 크루. */
     val detail: CrewList.Item? = null,
-    /** 상세로 연 크루의 정보(GET /crews/{id}): 지난 주 달린 거리(피그마 F-02). 읽기 전이면 null. */
+    /** 상세로 연 크루의 정보(GET /crews/{id}): 개설일·통계·최근 크루런(피그마 F-02). 읽기 전이면 null. */
     val detailInfo: CrewDetail? = null,
     val isJoining: Boolean = false,
-    val isInviteOpen: Boolean = false,
-    val inviteCode: String = "",
+    /** 초대 코드 바텀시트(피그마 F-03, 2단계: 조회 → 가입). 닫혀 있으면 null. */
+    val invite: InviteSheetState? = null,
+    /** 크루를 나온 뒤 24시간 가입·만들기 제한이 풀리는 시각(서버 rejoinAvailableAt). 제한이 없으면 null. */
+    val joinableAt: Instant? = null,
+    /** [joinableAt]까지 남은 시간(1초마다 줄어든다, 피그마 F-02c 카운트다운). 제한이 없으면 null. */
+    val joinRemaining: Duration? = null,
     val message: UiText? = null,
     val error: UiText? = null
 )

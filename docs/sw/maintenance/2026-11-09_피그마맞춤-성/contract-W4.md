@@ -212,11 +212,11 @@ suspend fun logo(url: String): Outcome<ByteArray>                      // GET lo
 data class CrewPreview(
     val crewId: Long, val name: String, val intro: String?, val tags: Set<CrewTag>,
     val logoUrl: String?, val visibility: CrewVisibility, val joinPolicy: JoinPolicy,
-    val headcount: Int, val createdAt: LocalDate,
+    val headcount: Int, val createdAt: Instant,
 )
-// CrewDetail에: createdAt: LocalDate, totalDistance: Distance, crewRunCount: Int,
+// CrewDetail에: createdAt: Instant?, totalDistance: Distance, crewRunCount: Int,
 //   recentCrewRuns: List<RecentCrewRun>, joinableAt: Instant?   (서버 rejoinAvailableAt)
-data class RecentCrewRun(val postId: Long, val scheduledAt: LocalDateTime, val participantCount: Int, val totalDistance: Distance)
+data class RecentCrewRun(val postId: Long, val scheduledAt: Instant, val participantCount: Int, val totalDistance: Distance)
 // MyCrew에: joinableAt: Instant?   (서버 rejoinAvailableAt)
 // CrewForm에: logoUrl: String?
 ```
@@ -257,3 +257,11 @@ UiState 제안
 - 최근 크루런 거리 합의 기록 조회를 한 번에 읽기(지금은 최대 3건 × 참가자 10명 기록 조회).
 - V50 부분 색인과 맞도록 마친 크루런 조회의 상태를 바인드 값 대신 JPQL 리터럴로 쓰기(PostgreSQL 일반 실행 계획, 리뷰 LOW).
 - 업로드·초대 코드 시도 제한은 인스턴스 메모리 값이다(5.4 인스턴스 1개 전제, 재시작하면 비워진다).
+
+## 12. 앱 반영(B단계, 2026-11-09)
+
+- 위 10절대로 구현했다. 바뀐 점: 개설일·약속 시각은 `Instant`로 두고 화면이 기기 시간대로 바꾼다. 상세의 카운트다운은 `CrewFindUiState.joinRemaining`·`CrewSearchUiState.joinRemaining`(1초마다 줄어드는 `Duration`)이다.
+- `CrewRepository.logo(url)`은 `/api/v1/crew-logos/{id}` 경로만 읽는다(예전 https 로고는 인증 토큰을 남의 서버로 보내지 않도록 읽지 않고 기본 이미지).
+- 크루 검색 결과를 누르면 검색 화면 안에서 같은 크루 상세(`CrewDetailPage`)를 연다. 가입되면 크루 탭으로 돌아가 내 크루 홈을 연다.
+- 로고는 사진 고르기 뒤 긴 변 512px JPEG(1MB 이하)로 줄여 바로 올린다. 올리는 동안 "크루 만들기"를 막는다.
+

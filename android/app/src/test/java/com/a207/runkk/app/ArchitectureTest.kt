@@ -55,16 +55,17 @@ class ArchitectureTest {
      * 코치 재동의(S15P31A207-273)는 api.coach의 의존 3개와 ui.record.coach의 경로 등록, 런바디의 코치 진입을 더해 175개다.
      * 자유런 결과의 내 아바타(S15P31A207-248)가 ui.run → domain.account를 더해 176개다.
      * 얼굴 만들기 화면 안 동의(S15P31A207-248)가 ui.avatar → domain.account를 더해 177개다.
+     * 아바타 화면의 Rive 렌더러(W8·W9, S15P31A207-299·300)가 ui.avatar → core.avatar를 더해 178개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 177개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 178개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(177, phone.sumOf { it.value.size })
+        assertEquals(178, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -591,7 +592,7 @@ class ArchitectureTest {
                 "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share", "domain.account"),
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
                 // domain.account(S15P31A207-248): 얼굴 만들기 셀카 카드의 얼굴 변환 전송 동의(settings·giveConsent). Fan-Out 5.
-                "ui.avatar" to CORE_UI + setOf("domain.avatar", "domain.account"),
+                "ui.avatar" to CORE_UI + setOf("domain.avatar", "domain.account", "core.avatar"),
                 // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).
                 // domain.run(R79): 설정의 "못 올린 기록 n건, 다시 보내기"(ResendRejectedRunsUseCase, W40). Fan-Out 6.
                 "ui.me" to CORE_UI + setOf("domain.account", "domain.settings", "domain.run"),
