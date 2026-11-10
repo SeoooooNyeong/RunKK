@@ -19,7 +19,10 @@ import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
+import com.a207.runkk.app.domain.crew.CrewRunDetail
+import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
@@ -191,6 +194,30 @@ val crewRunVoting = PostList.CrewRunInfo(
     myAnswer = null,
     finisherCount = 0,
     raceContribution = null
+)
+
+/** 일정 상세(W6): 토 07:00 KST 제한 없음, 매주 반복, 작성자 "바람처럼"과 "달빛"이 참석, 나는 아직 응답 없음. */
+val crewRunDetail = CrewRunDetail(
+    postId = 42,
+    crewId = 11,
+    title = "토요일 한강 같이 뛰어요",
+    body = "반포 한강공원 8번 출구, 6분대 페이스",
+    authorName = "바람처럼",
+    isMine = false,
+    writtenAt = Instant.parse("2026-10-21T01:00:00Z"),
+    scheduledAt = Instant.parse("2026-10-23T22:00:00Z"),
+    distance = null,
+    status = CrewRunStatus.VOTING,
+    goingCount = 2,
+    myAnswer = null,
+    canEdit = false,
+    canDelete = false,
+    repeat = CrewRunRepeat.WEEKLY,
+    repeatDay = java.time.DayOfWeek.SATURDAY,
+    attendees = listOf(
+        CrewRunDetail.Attendee(1, "바람처럼", isAuthor = true, isMe = false),
+        CrewRunDetail.Attendee(2, "달빛", isAuthor = false, isMe = false)
+    )
 )
 
 val crewRunPosts = PostList(
@@ -568,7 +595,7 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long> {
         lastCrewRun = form
-        return answer("writeCrewRun:${form.distance.meters}", 33L)
+        return answer("writeCrewRun:${form.distance?.meters}", 33L)
     }
 
     override suspend fun deletePost(postId: Long) = answer("deletePost:$postId", Unit)
@@ -578,6 +605,31 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun answerAttendance(postId: Long, answer: AttendanceAnswer) =
         answer("vote:$postId:$answer", Unit).also { if (it is Outcome.Success) attendance[postId] = answer }
+
+    /** 참석 취소(W6): 응답을 거둔다. */
+    override suspend fun withdrawAttendance(postId: Long) =
+        answer("withdraw:$postId", Unit).also { if (it is Outcome.Success) attendance.remove(postId) }
+
+    /** 상세가 돌려주는 일정(W6). 참석·취소를 반영한다. */
+    var detailState = crewRunDetail
+
+    var lastEdit: CrewRunEdit? = null
+
+    override suspend fun crewRun(postId: Long) = answer(
+        "crewRun:$postId",
+        detailState.copy(postId = postId, myAnswer = attendance[postId] ?: detailState.myAnswer)
+    )
+
+    override suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail> {
+        lastEdit = edit
+        val changed = detailState.copy(
+            title = edit.title,
+            body = edit.body.orEmpty(),
+            distance = edit.distance,
+            repeat = edit.repeat
+        )
+        return answer("editCrewRun:$postId", changed).also { if (it is Outcome.Success) detailState = changed }
+    }
 
     override suspend fun appointManager(crewId: Long, memberId: Long) = answer("appoint:$memberId", Unit)
 

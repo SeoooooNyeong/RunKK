@@ -224,10 +224,11 @@ class InboxTest {
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
         assertEquals(
-            V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS + V0114_CONSTANTS + "COACH_CONSENTS" + "COACH_CHAT",
+            V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS + V0114_CONSTANTS + "COACH_CONSENTS" +
+                "COACH_CHAT",
             constants
         )
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS, keys)
+        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS, keys)
     }
 
     @Test
@@ -321,6 +322,9 @@ class InboxTest {
         /** 0.11.4 이벤트(S15P31A207-275): 이벤트 목록, 셀럽런 분절로 여는 기록런, 이벤트 상세 웹 페이지. */
         val V0114_CONSTANTS = setOf("EVENTS", "RECORD_RUN_CELEB")
         val V0114_KEYS = setOf("EventDetail")
+
+        /** 피그마 맞춤 W6(S15P31A207-297): 크루런 일정 상세·수정, 지난 크루런(화면은 W7). */
+        val W6_KEYS = setOf("CrewRunDetail", "CrewRunEdit", "CrewPastRuns")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"

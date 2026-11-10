@@ -47,6 +47,13 @@ class CrewHomeNavigationTest {
     }
 
     @Test
+    fun `크루런 제목은 일정 상세, 지난 크루런 링크는 지난 크루런 화면으로 간다(W6)`() {
+        actions.onRunOpen(crewRunPosts.posts[0])
+        actions.onPastRuns()
+        assertEquals(listOf<NavKey>(Routes.CrewRunDetail(31), Routes.CrewPastRuns(11)), navigated)
+    }
+
+    @Test
     fun `일정 만들기, 대기실, 결과, 크루 관리 경로는 그대로다`() {
         actions.onWriteSchedule()
         actions.onLobby(crewRunPosts.posts[0])

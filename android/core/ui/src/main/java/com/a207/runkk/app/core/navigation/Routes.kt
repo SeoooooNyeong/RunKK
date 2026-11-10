@@ -217,6 +217,18 @@ object Routes {
     @Serializable
     data class CrewRunWrite(val crewId: Long) : NavKey
 
+    /** 크루런 일정 상세(피그마 F-13·F-11d, S15P31A207-297): 정보 카드, 참석자, 참석하기·참석 취소하기, 작성자 메뉴(수정·삭제). */
+    @Serializable
+    data class CrewRunDetail(val postId: Long) : NavKey
+
+    /** 크루런 모집글 수정(피그마 F-13d, S15P31A207-297). 모집하기 화면을 수정 모드로 쓰고 날짜·시간은 잠근다. */
+    @Serializable
+    data class CrewRunEdit(val postId: Long) : NavKey
+
+    /** 지난 크루런(피그마 F-11b·F-11c 연·월 조회). 화면은 지난 크루런 달력 작업(W7)이 만든다. */
+    @Serializable
+    data class CrewPastRuns(val crewId: Long) : NavKey
+
     /** 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). 크루런 거리는 대기실 응답이 준다. */
     @Serializable
     data class CrewRunLobby(val postId: Long) : NavKey
