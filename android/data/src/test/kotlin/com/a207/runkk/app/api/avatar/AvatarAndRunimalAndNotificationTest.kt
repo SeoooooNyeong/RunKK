@@ -42,7 +42,7 @@ class AvatarAndRunimalAndNotificationTest {
 
         override fun load(): String? = jobId
 
-        override fun save(jobId: String) {
+        override fun save(jobId: String, submittedAtMillis: Long?) {
             this.jobId = jobId
         }
 
@@ -61,7 +61,13 @@ class AvatarAndRunimalAndNotificationTest {
         }
     }
 
-    private fun repository() = AvatarRepositoryImpl(api.retrofit.create(), api.faces, pending)
+    private fun repository() = AvatarRepositoryImpl(
+        api.retrofit.create(),
+        api.faces,
+        pending,
+        SelfieProgressHub(pending),
+        java.time.Clock.systemUTC()
+    )
 
     @Test
     fun `아바타 DTO를 부위별 맵으로 바꾸고 모르는 부위는 건너뛴다`() = runTest {

@@ -1,12 +1,12 @@
 package com.a207.runkk.app.ui.avatar
 
-import app.cash.turbine.test
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
@@ -14,20 +14,28 @@ import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.PendingSelfiePhoto
 import com.a207.runkk.app.domain.avatar.SelfieFailure
 import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieJob
+import com.a207.runkk.app.domain.avatar.SelfieJobFollower
+import com.a207.runkk.app.domain.avatar.SelfieProgress
+import com.a207.runkk.app.domain.avatar.SelfieScreenPresence
 import com.a207.runkk.app.domain.avatar.Shop
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -176,6 +184,61 @@ class FakeAvatars : AvatarRepository {
         calls += "head:$faceKey"
         return headResult
     }
+
+    /** 워커가 고치는 셀카 진행(design-oo 05-30 6.1). 시험이 값을 바꿔 워커를 흉내 낸다. */
+    val progress = MutableStateFlow<SelfieProgress>(SelfieProgress.None)
+
+    override fun selfieProgress(): Flow<SelfieProgress> = progress
+
+    override fun dismissSelfieResult() {
+        calls += "dismiss"
+        progress.value = SelfieProgress.None
+    }
+}
+
+/** 따라가기 기록. */
+internal class FakeFollower : SelfieJobFollower {
+    val calls = mutableListOf<String>()
+
+    override fun follow(jobId: String) {
+        calls += "follow:$jobId"
+    }
+
+    override fun resume(jobId: String) {
+        calls += "resume:$jobId"
+    }
+
+    override fun cancel() {
+        calls += "cancel"
+    }
+}
+
+/** 보낸 사진 한 장(메모리). */
+internal class FakePhoto(var saved: ByteArray? = null) : PendingSelfiePhoto {
+    override suspend fun save(jpeg: ByteArray) {
+        saved = jpeg
+    }
+
+    override suspend fun load(): ByteArray? = saved
+
+    override suspend fun clear() {
+        saved = null
+    }
+}
+
+/** 얼굴 만들기 화면 표시(열린 수). */
+internal class FakePresence : SelfieScreenPresence {
+    var open = 0
+
+    override val isVisible: Boolean get() = open > 0
+
+    override fun opened() {
+        open++
+    }
+
+    override fun closed() {
+        open--
+    }
 }
 
 /** 시험용 셀카 머리 캐시: 머리 레이어를 바로(같은 스레드에서) 만든다. 화면마다 새로 두면 시험끼리 섞이지 않는다. */
@@ -202,412 +265,409 @@ val tinyPng: ByteArray = java.util.Base64.getDecoder().decode(
 
 val faceLayers: List<FaceLayer> = FacePart.entries.map { FaceLayer(it, tinyPng) }
 
+/** 시험용 내 아바타 저장소: 성별을 [gender]로 두고 미리 읽기·합성은 하지 않는다. 성별이 null이면 refresh가 아무것도 하지 않는다. */
+internal fun storeOf(repo: AvatarRepository, gender: Gender? = null): MyAvatarStore = MyAvatarStore(
+    repo,
+    flowOf(gender),
+    headsOf(repo),
+    preload = {},
+    prepare = {},
+    scope = CoroutineScope(Dispatchers.Unconfined)
+)
+
+/** 얼굴 만들기(design-oo 05-30 6.2 상태도, 피그마 AV-7 1안): 고르기 → 사진 확인 → 보냄 → 만드는 중 → 새 얼굴 / 실패. */
 class AvatarSetupViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
     private val repo = FakeAvatars()
+    private val follower = FakeFollower()
+    private val photo = FakePhoto()
+    private val presence = FakePresence()
+
+    private fun vm(consent: FaceConsent = FakeConsent(true)) =
+        AvatarSetupViewModel(repo, follower, photo, presence, headsOf(repo), Dispatchers.Unconfined, consent)
 
     @Test
-    fun `지금 얼굴과 오늘 셀카 가능 여부를 읽는다`() {
-        val vm = AvatarSetupViewModel(repo)
-        assertEquals(DefaultCharacter.FOX, vm.state.value.selected)
-        assertTrue(vm.state.value.canCreateSelfie)
+    fun `지금 얼굴과 오늘 셀카 가능 여부를 읽고 고르기 단계로 연다`() {
+        val s = vm().state.value
+        assertEquals(SetupPhase.CHOOSE, s.phase)
+        assertTrue(s.canCreateSelfie)
+        assertEquals(DefaultCharacter.FOX, s.selected)
     }
 
     @Test
-    fun `셀카를 접수하면 만드는 중을 보이고 간격을 두고 조회해 끝나면 결과를 받아 돌아간다(FR-155)`() = runTest(main.dispatcher) {
-        repo.jobResults = mutableListOf(
-            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)),
-            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.SUCCEEDED))
-        )
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L, 2_000L))
-        vm.events.test {
-            vm.onSelfie(byteArrayOf(1, 2, 3))
-            assertTrue(vm.state.value.isMakingFace)
-            assertFalse(vm.state.value.isWorking)
-            assertTrue(repo.calls.none { it.startsWith("job:") }, "접수 직후에는 바로 조회하지 않는다")
-            advanceTimeBy(1_001)
-            assertEquals(1, repo.calls.count { it == "job:job-1" })
-            assertTrue(vm.state.value.isMakingFace)
-            advanceTimeBy(2_001)
-            assertEquals(AvatarSetupEvent.Done, awaitItem())
-        }
-        assertEquals(listOf("selfie", "job:job-1", "job:job-1", "finish:job-1"), repo.calls)
-        assertFalse(vm.state.value.isMakingFace)
-        assertEquals("head:7:job-1", vm.state.value.faceKey)
-        assertEquals(3, repo.lastSelfie?.size)
+    fun `사진을 고르면 보내지 않고 사진 확인에 크게 보인다`() {
+        val model = vm()
+        val jpeg = byteArrayOf(1, 2, 3)
+        model.onSelfie(jpeg)
+        assertEquals(SetupPhase.CONFIRM, model.state.value.phase)
+        assertTrue(jpeg.contentEquals(model.state.value.photo))
+        assertTrue(repo.calls.none { it == "selfie" })
     }
 
     @Test
-    fun `얼굴을 만들지 못하면 사유 문구를 보이고 다시 찍을 수 있다`() = runTest(main.dispatcher) {
-        repo.jobResults = mutableListOf(
-            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.FAILED, "SELFIE_QUALITY_REJECTED"))
-        )
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        vm.onSelfie(byteArrayOf(1))
-        advanceTimeBy(1_001)
-        assertFalse(vm.state.value.isMakingFace)
-        assertEquals(UiText.Res(R.string.avatar_error_no_face), vm.state.value.error)
-        assertTrue(vm.state.value.canCreateSelfie)
-        assertTrue(repo.calls.none { it.startsWith("finish:") })
+    fun `만들기 시작 - 접수되면 사진을 남기고 워커에 따라가기를 맡겨 만드는 중이다(D-성-117, D-성-119)`() {
+        val model = vm()
+        val jpeg = byteArrayOf(9)
+        model.onSelfie(jpeg)
+        model.onStart()
+        assertEquals(SetupPhase.WORKING, model.state.value.phase)
+        assertTrue(jpeg.contentEquals(photo.saved))
+        assertEquals(listOf("follow:job-1"), follower.calls)
+        assertTrue(repo.calls.none { it.startsWith("job:") }, "화면은 조회하지 않는다")
     }
 
     @Test
-    fun `얼굴을 만들지 못하면 다시 시도할 수 있고, 다시 시도는 동의를 확인한 뒤 사진을 고르게 한다(DV-성-10)`() = runTest(main.dispatcher) {
-        repo.jobResults = mutableListOf(
-            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.FAILED, "GENERATION_OUTCOME_UNKNOWN"))
-        )
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        assertFalse(vm.state.value.canRetrySelfie)
-        vm.onSelfie(byteArrayOf(1))
-        advanceTimeBy(1_001)
-        assertTrue(vm.state.value.canRetrySelfie)
-        assertEquals(UiText.Res(R.string.avatar_error_selfie_failed), vm.state.value.error)
-        assertTrue(vm.onSelfieRequested())
-        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)))
-        vm.onSelfie(byteArrayOf(1))
-        assertFalse(vm.state.value.canRetrySelfie, "다시 보내면 실패 표시를 지운다")
-        assertNull(vm.state.value.error)
-    }
-
-    @Test
-    fun `나갔다 다시 들어와도 남긴 실패를 셀카 카드에 보이고 서버에 한 번 다시 묻는다(DV-성-10)`() = runTest(main.dispatcher) {
-        repo.lastFailure = SelfieFailure("job-1", "SELFIE_QUALITY_REJECTED")
-        repo.jobResults = mutableListOf(
-            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.FAILED, "SELFIE_QUALITY_REJECTED"))
-        )
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        assertEquals(UiText.Res(R.string.avatar_error_no_face), vm.state.value.error)
-        assertTrue(vm.state.value.canRetrySelfie)
-        assertFalse(vm.state.value.isMakingFace)
-        assertEquals(listOf("job:job-1"), repo.calls)
-    }
-
-    @Test
-    fun `다시 들어왔을 때 실패했던 작업을 서버가 회수했으면 결과를 받아 돌아간다(DV-성-9)`() = runTest(main.dispatcher) {
-        repo.lastFailure = SelfieFailure("job-1", "GENERATION_OUTCOME_UNKNOWN")
-        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.SUCCEEDED)))
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        vm.events.test {
-            assertEquals(AvatarSetupEvent.Done, awaitItem())
-        }
-        assertEquals(listOf("job:job-1", "finish:job-1"), repo.calls)
-        assertNull(vm.state.value.error)
-        assertFalse(vm.state.value.canRetrySelfie)
-    }
-
-    @Test
-    fun `상태 조회는 아바타 서버의 생성 제한 15분보다 오래 이어 간다(DV-성-9)`() {
-        assertTrue(
-            AvatarSetupViewModel.pollWindowMillis() > AvatarSetupViewModel.AVATAR_GENERATION_LIMIT_MILLIS,
-            "조회 기간 ${AvatarSetupViewModel.pollWindowMillis()}ms"
-        )
-    }
-
-    @Test
-    fun `모르는 실패 사유는 공용 문구다`() = runTest(main.dispatcher) {
-        repo.jobResults = mutableListOf(
-            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.FAILED, "FACE_ASSETS_INCOMPLETE"))
-        )
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        vm.onSelfie(byteArrayOf(1))
-        advanceTimeBy(1_001)
-        assertEquals(UiText.Res(R.string.avatar_error_selfie_failed), vm.state.value.error)
-    }
-
-    @Test
-    fun `다시 들어오면 남은 작업을 바로 이어 조회한다`() = runTest(main.dispatcher) {
-        repo.pendingJob = "job-9"
-        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-9", SelfieJob.Status.SUCCEEDED)))
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        vm.events.test {
-            assertEquals(AvatarSetupEvent.Done, awaitItem())
-        }
-        assertEquals(listOf("job:job-9", "finish:job-9"), repo.calls)
-    }
-
-    @Test
-    fun `만드는 중에는 셀카를 막고 기본 캐릭터는 저장할 수 있으며 조회를 멈추고 한 번만 돌아간다`() = runTest(main.dispatcher) {
-        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)))
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        vm.onSelfie(byteArrayOf(1))
-        vm.onSelfie(byteArrayOf(2))
-        assertFalse(vm.onSelfieRequested())
-        assertEquals(1, repo.calls.count { it == "selfie" })
-        assertTrue(vm.state.value.isMakingFace)
-        vm.events.test {
-            vm.onCharacterSelected(DefaultCharacter.CAT)
-            vm.onConfirmCharacter()
-            assertEquals(AvatarSetupEvent.Done, awaitItem())
-            advanceTimeBy(10_000)
-            expectNoEvents()
-        }
-        assertTrue("default:CAT" in repo.calls)
-        assertFalse(vm.state.value.isMakingFace)
-        assertTrue(repo.calls.none { it.startsWith("job:") }, "저장 뒤에는 조회하지 않는다(다음에 들어올 때 이어 끝낸다)")
-    }
-
-    @Test
-    fun `동의하지 않았으면 셀카를 열지 않고 체크를 먼저 요구하며, 체크하면 바로 동의를 저장한다`() = runTest(main.dispatcher) {
-        val consent = FakeConsent(given = false)
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L), consent)
-        assertFalse(vm.state.value.hasFaceConsent)
-        assertFalse(vm.onSelfieRequested())
-        assertEquals(UiText.Res(R.string.avatar_setup_face_consent_needed), vm.state.value.error)
-        vm.onFaceConsent()
-        assertTrue(vm.state.value.hasFaceConsent)
-        assertNull(vm.state.value.error)
+    fun `만들기 시작 - 동의하지 않았으면 보내지 않고 체크를 요구하며, 체크하면 바로 동의를 저장한다`() {
+        val consent = FakeConsent(false)
+        val model = vm(consent)
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        assertEquals(UiText.Res(R.string.avatar_setup_face_consent_needed), model.state.value.error)
+        assertEquals(SetupPhase.CONFIRM, model.state.value.phase)
+        model.onFaceConsent()
         assertEquals(1, consent.gives)
-        vm.onFaceConsent()
-        assertEquals(1, consent.gives, "이미 동의했으면 다시 저장하지 않는다")
-        assertTrue(vm.onSelfieRequested())
+        assertTrue(model.state.value.hasFaceConsent)
+        model.onStart()
+        assertEquals(SetupPhase.WORKING, model.state.value.phase)
     }
 
     @Test
-    fun `이미 동의했으면 체크된 채 시작하고, 동의 저장이 실패하면 안내한다`() = runTest(main.dispatcher) {
-        assertTrue(
-            AvatarSetupViewModel(
-                repo,
-                main.dispatcher,
-                listOf(1_000L),
-                FakeConsent(given = true)
-            ).state.value.hasFaceConsent
-        )
-        val failing = FakeConsent(given = false, result = Outcome.Failure(AppError.Network))
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L), failing)
-        vm.onFaceConsent()
-        assertFalse(vm.state.value.hasFaceConsent)
-        assertFalse(vm.state.value.isSavingConsent)
-        assertNotNull(vm.state.value.error)
+    fun `워커가 낸 진행을 단계로 바꾼다 - 성공이면 새 얼굴, 실패면 사유(6_2)`() {
+        val model = vm()
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "head:7:job-1"))
+        repo.progress.value = SelfieProgress.Succeeded("job-1", "head:7:job-1")
+        assertEquals(SetupPhase.DONE, model.state.value.phase)
+        assertEquals("head:7:job-1", model.state.value.faceKey)
+        assertNotNull(model.state.value.look, "새 얼굴 무대를 그린다")
+
+        val other = vm()
+        repo.progress.value = SelfieProgress.Failed("job-2", "SELFIE_QUALITY_REJECTED")
+        assertEquals(SetupPhase.FAILED, other.state.value.phase)
+        assertEquals(UiText.Res(R.string.avatar_error_no_face), other.state.value.failure)
     }
 
     @Test
-    fun `조회가 잠깐 실패해도 이어 가고 세 번 이어 실패하면 멈춘다`() = runTest(main.dispatcher) {
-        repo.jobResults = mutableListOf(
-            Outcome.Failure(AppError.Network),
-            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)),
-            Outcome.Failure(AppError.Network),
-            Outcome.Failure(AppError.Server(503)),
-            Outcome.Failure(AppError.Network)
-        )
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        vm.onSelfie(byteArrayOf(1))
-        advanceTimeBy(4_001)
-        assertTrue(vm.state.value.isMakingFace)
-        advanceTimeBy(1_000)
-        assertFalse(vm.state.value.isMakingFace)
-        assertNotNull(vm.state.value.error)
-        assertEquals(5, repo.calls.count { it == "job:job-1" })
+    fun `상한 초과 실패는 시간 초과 문구다`() {
+        val model = vm()
+        repo.progress.value = SelfieProgress.Failed("job-1", SelfieProgress.TIMEOUT)
+        assertEquals(UiText.Res(R.string.avatar_error_selfie_timeout), model.state.value.failure)
     }
 
     @Test
-    fun `오래 끝나지 않으면 조회를 멈추고 만드는 중이라고 안내한다`() = runTest(main.dispatcher) {
-        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)))
-        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
-        vm.onSelfie(byteArrayOf(1))
-        advanceTimeBy(AvatarSetupViewModel.MAX_POLLS * 1_000L + 1)
-        assertFalse(vm.state.value.isMakingFace)
-        assertEquals(UiText.Res(R.string.avatar_error_selfie_in_progress), vm.state.value.error)
-        assertEquals(AvatarSetupViewModel.MAX_POLLS, repo.calls.count { it == "job:job-1" })
+    fun `다시 들어오면 만드는 중을 이어 보이고 남긴 사진을 보이며 남은 작업 따라가기를 잇는다`() {
+        photo.saved = byteArrayOf(7)
+        repo.pendingJob = "job-1"
+        repo.progress.value = SelfieProgress.Working("job-1", 1_000L)
+        val model = vm()
+        assertEquals(SetupPhase.WORKING, model.state.value.phase)
+        assertTrue(byteArrayOf(7).contentEquals(model.state.value.photo))
+        assertEquals(listOf("resume:job-1"), follower.calls)
     }
 
     @Test
-    fun `하루 1회를 넘기면 안내하고 셀카를 막고 기본 캐릭터는 고를 수 있다(FR-157·FR-158)`() = runTest(main.dispatcher) {
+    fun `사진 확인 중에는 다른 작업 진행이 단계를 바꾸지 않는다`() {
+        val model = vm()
+        model.onSelfie(byteArrayOf(1))
+        repo.progress.value = SelfieProgress.Failed("old", null)
+        assertEquals(SetupPhase.CONFIRM, model.state.value.phase)
+    }
+
+    @Test
+    fun `서버에 작업이 없다고 확인돼 진행이 없어지면 고르기로 돌아간다(회수)`() {
+        repo.progress.value = SelfieProgress.Working("job-1")
+        val model = vm()
+        repo.progress.value = SelfieProgress.None
+        assertEquals(SetupPhase.CHOOSE, model.state.value.phase)
+        assertNull(model.state.value.photo)
+    }
+
+    @Test
+    fun `새 얼굴 확인은 결과를 본 것으로 두고 돌아간다`() = runTest(main.dispatcher) {
+        repo.progress.value = SelfieProgress.Succeeded("job-1", "head:7:job-1")
+        val model = vm()
+        model.onDoneConfirm()
+        assertTrue("dismiss" in repo.calls)
+        assertEquals(AvatarSetupEvent.Done, model.events.first())
+    }
+
+    @Test
+    fun `실패에서 다른 사진 고르기는 실패를 지우고 고르기로 간다(실패는 횟수에 세지 않는다)`() {
+        repo.progress.value = SelfieProgress.Failed("job-1", null)
+        val model = vm()
+        model.onRetry()
+        assertEquals(SetupPhase.CHOOSE, model.state.value.phase)
+        assertTrue(model.state.value.canCreateSelfie)
+        assertTrue("dismiss" in repo.calls)
+    }
+
+    @Test
+    fun `보내지 못하면 고르기로 돌아가 사유를 보인다(6_2 Sending → Choose)`() {
+        repo.submitResult = Outcome.Failure(AppError.Server(503))
+        val model = vm()
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        assertEquals(SetupPhase.CHOOSE, model.state.value.phase)
+        assertEquals(UiText.Res(R.string.avatar_error_upstream_failed), model.state.value.error)
+        assertNull(model.state.value.photo)
+        assertTrue(follower.calls.isEmpty())
+    }
+
+    @Test
+    fun `하루 1회를 넘기면 안내하고 셀카를 막는다(FR-157)`() {
         repo.submitResult = Outcome.Failure(AppError.Rejected("SELFIE_LIMIT"))
-        val vm = AvatarSetupViewModel(repo)
-        vm.onSelfie(byteArrayOf(1))
-        assertFalse(vm.state.value.canCreateSelfie)
-        assertFalse(vm.state.value.isMakingFace)
-        assertEquals(UiText.Res(R.string.avatar_error_selfie_limit), vm.state.value.error)
-        vm.events.test {
-            vm.onCharacterSelected(DefaultCharacter.CAT)
-            vm.onConfirmCharacter()
-            assertEquals(AvatarSetupEvent.Done, awaitItem())
-        }
-        assertTrue("default:CAT" in repo.calls)
+        val model = vm()
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        assertFalse(model.state.value.canCreateSelfie)
+        assertFalse(model.onSelfieRequested())
+        assertEquals(UiText.Res(R.string.avatar_error_selfie_limit), model.state.value.error)
     }
 
     @Test
     fun `서버가 동의 없음으로 거부하면(다른 곳에서 철회) 체크를 풀고 체크를 요구한다`() {
         repo.submitResult = Outcome.Failure(AppError.Rejected("FACE_CONSENT_REQUIRED"))
-        val vm = AvatarSetupViewModel(repo)
-        assertTrue(vm.state.value.hasFaceConsent)
-        vm.onSelfie(byteArrayOf(1))
-        assertEquals(UiText.Res(R.string.avatar_setup_face_consent_needed), vm.state.value.error)
-        assertFalse(vm.state.value.hasFaceConsent)
-        assertTrue(vm.state.value.canCreateSelfie)
+        val model = vm()
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        assertFalse(model.state.value.hasFaceConsent)
+        assertEquals(UiText.Res(R.string.avatar_setup_face_consent_needed), model.state.value.error)
     }
 
     @Test
-    fun `얼굴 서버가 접수하지 못하면 셀카 문구이고 다시 시도할 수 있다`() {
-        repo.submitResult = Outcome.Failure(AppError.Server(503))
-        val vm = AvatarSetupViewModel(repo)
-        vm.onSelfie(byteArrayOf(1))
-        assertEquals(UiText.Res(R.string.avatar_error_upstream_failed), vm.state.value.error)
-        assertTrue(vm.state.value.canCreateSelfie)
+    fun `접수 응답이 이미 실패면 실패 화면이고 따라가지 않는다`() {
+        repo.submitResult = Outcome.Success(SelfieJob("job-1", SelfieJob.Status.FAILED, "NO_FACE_DETECTED"))
+        val model = vm()
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        assertEquals(SetupPhase.FAILED, model.state.value.phase)
+        assertTrue(follower.calls.isEmpty())
     }
 
     @Test
-    fun `네트워크 실패면 셀카를 다시 시도할 수 있다`() {
-        repo.submitResult = Outcome.Failure(AppError.Network)
-        val vm = AvatarSetupViewModel(repo)
-        vm.onSelfie(byteArrayOf(1))
-        assertTrue(vm.state.value.canCreateSelfie)
-        assertNotNull(vm.state.value.error)
+    fun `만드는 중에도 기본 캐릭터를 저장할 수 있고 따라가기를 멈추고 사진을 지운 뒤 돌아간다(FR-158)`() = runTest(main.dispatcher) {
+        val model = vm()
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        assertFalse(model.onSelfieRequested(), "만드는 중에는 셀카를 막는다")
+        model.onCharacterSelected(DefaultCharacter.BEAR)
+        model.onConfirmCharacter()
+        assertTrue("default:BEAR" in repo.calls)
+        assertTrue("cancel" in follower.calls)
+        assertNull(photo.saved)
+        assertEquals(AvatarSetupEvent.Done, model.events.first())
+    }
+
+    @Test
+    fun `화면이 보이는 동안 얼굴 만들기 화면 표시를 열고 안 보이면 닫는다(D-성-120)`() {
+        val model = vm()
+        model.onScreenVisible()
+        assertTrue(presence.isVisible)
+        model.onScreenHidden()
+        assertFalse(presence.isVisible)
     }
 }
 
+/** 꾸미기(피그마 제안 A안): 칸을 누르면 무대에만 입혀 보고, 저장이 바뀐 부위만 보낸다. */
 class AvatarDecorateViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
     private val repo = FakeAvatars()
 
+    private fun vm(source: AvatarRepository = repo) = AvatarViewModel(source, headsOf(source), storeOf(source))
+
     @Test
-    fun `아바타·잔액·보유 아이템을 부위별로 보인다(FR-162)`() {
-        val vm = AvatarViewModel(repo, headsOf(repo))
-        val s = vm.state.value
-        assertEquals(1_240, s.avatar?.balance)
-        assertEquals(listOf(1L, 2L), s.ownedInSlot.map { it.itemId })
-        assertEquals("라임 러닝 티", s.itemName(1))
-        vm.onSlot(ItemSlot.HAT)
-        assertTrue(vm.state.value.ownedInSlot.isEmpty())
+    fun `부위 칸은 가진 아이템과 잠긴 아이템이고 잠긴 칸은 해금 조건을 안내한다`() {
+        val locked =
+            Shop.Item(6, ItemSlot.TOP, "완주 기념 맨투맨", 300, false, true, isLocked = true, unlockLabel = "하프 완주하면 열려요")
+        val source = object : AvatarRepository by repo {
+            override suspend fun shop(slot: ItemSlot?) = Outcome.Success(Shop(items + locked, 1_240))
+        }
+        val model = vm(source)
+        assertEquals(listOf(1L, 2L, 6L), model.state.value.cellsInSlot.map { it.itemId })
+        model.onSlot(ItemSlot.HAT)
+        assertTrue(model.state.value.cellsInSlot.isEmpty())
+        model.onSlot(ItemSlot.TOP)
+        model.onToggle(locked)
+        assertEquals(UiText.Plain("하프 완주하면 열려요"), model.state.value.message)
     }
 
     @Test
-    fun `입은 아이템을 누르면 벗기고 다른 아이템은 바꿔 입힌다(FR-161)`() {
-        val vm = AvatarViewModel(repo, headsOf(repo))
-        vm.onToggle(items[1])
-        assertEquals(2L, vm.state.value.avatar?.equipped?.get(ItemSlot.TOP))
-        vm.onToggle(items[1])
-        assertNull(vm.state.value.avatar?.equipped?.get(ItemSlot.TOP))
-        assertEquals(listOf("equip:{TOP=2}", "equip:{TOP=null}"), repo.calls.filter { it.startsWith("equip") })
+    fun `칸을 누르면 저장 전에 무대에 바로 입혀 보고 되돌리기는 들어올 때로 돌린다`() {
+        val model = vm()
+        model.onToggle(items[1])
+        assertEquals(2L, model.state.value.draft[ItemSlot.TOP])
+        assertTrue(model.state.value.isDirty)
+        assertTrue(repo.calls.none { it.startsWith("equip") }, "저장 전에는 보내지 않는다")
+        model.onToggle(items[1])
+        assertNull(model.state.value.draft[ItemSlot.TOP])
+        model.onUndo()
+        assertEquals(1L, model.state.value.draft[ItemSlot.TOP])
+        assertFalse(model.state.value.isDirty)
     }
 
     @Test
-    fun `거부된 착용은 사유를 안내한다`() {
+    fun `저장은 바뀐 부위만 한 번에 보내고 홈 칸을 다시 준비한 뒤 닫는다(FR-161, D-성-104)`() {
+        val store = storeOf(repo, Gender.MALE).also { it.warm() }
+        val model = AvatarViewModel(repo, headsOf(repo), store)
+        val before = repo.calls.count { it == "runner" }
+        model.onToggle(items[1])
+        model.onSave()
+        assertEquals(listOf("equip:{TOP=2}"), repo.calls.filter { it.startsWith("equip") })
+        assertTrue(model.state.value.isDone)
+        assertEquals(2L, model.state.value.avatar?.equipped?.get(ItemSlot.TOP))
+        assertTrue(repo.calls.count { it == "runner" } > before, "저장 뒤 MyAvatarStore가 다시 읽는다")
+    }
+
+    @Test
+    fun `바꾼 것이 없으면 보내지 않고 닫는다`() {
+        val model = vm()
+        model.onSave()
+        assertTrue(repo.calls.none { it.startsWith("equip") })
+        assertTrue(model.state.value.isDone)
+    }
+
+    @Test
+    fun `거부된 착용은 사유를 안내하고 화면을 둔다`() {
         repo.equipResult = { Outcome.Success(avatar.copy(rejected = mapOf(ItemSlot.TOP to "ITEM_NOT_OWNED"))) }
-        val vm = AvatarViewModel(repo, headsOf(repo))
-        vm.onToggle(items[1])
+        val model = vm()
+        model.onToggle(items[1])
+        model.onSave()
         assertEquals(
             uiText(
                 R.string.avatar_equip_rejected,
                 UiText.Res(R.string.avatar_slot_top),
                 UiText.Res(R.string.avatar_error_item_not_owned)
             ),
-            vm.state.value.message
+            model.state.value.message
         )
+        assertFalse(model.state.value.isDone)
     }
 
     @Test
-    fun `얼굴 만들기를 떠난 사이 셀카 얼굴이 다 만들어졌으면 결과를 받아 새 얼굴을 보인다`() {
+    fun `셀카 결과 적용은 워커가 하므로 꾸미기는 결과를 받지 않는다(D-성-118)`() {
         repo.pendingJob = "job-1"
-        repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "head:7:job-1"))
-        val vm = AvatarViewModel(repo, headsOf(repo))
-        assertTrue("finish:job-1" in repo.calls)
-        assertEquals("head:7:job-1", vm.state.value.avatar?.faceKey)
-    }
-
-    @Test
-    fun `아직 만드는 중이면 결과를 받지 않는다`() {
-        repo.pendingJob = "job-1"
-        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)))
-        AvatarViewModel(repo, headsOf(repo))
-        assertTrue("job:job-1" in repo.calls)
-        assertTrue(repo.calls.none { it.startsWith("finish:") })
+        vm()
+        assertTrue(repo.calls.none { it.startsWith("finish:") || it.startsWith("job:") })
     }
 
     @Test
     fun `불러오지 못하면 오류`() {
         repo.avatarResult = Outcome.Failure(AppError.Network)
-        val vm = AvatarViewModel(repo, headsOf(repo))
-        assertNotNull(vm.state.value.error)
+        assertNotNull(vm().state.value.error)
     }
 
     @Test
     fun `셀카 얼굴이면 부위 그림을 받고 같은 얼굴은 다시 받지 않는다(FR-155)`() {
         repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "selfie:face/7/s1"))
-        val vm = AvatarViewModel(repo, headsOf(repo))
-        assertEquals(faceLayers, vm.state.value.faceLayers)
-        vm.onResumed()
-        vm.onResumed()
+        val model = vm()
+        assertEquals(faceLayers, model.state.value.faceLayers)
+        model.onResumed()
+        model.onResumed()
         assertEquals(1, repo.calls.count { it == "face:selfie:face/7/s1" })
     }
 
     @Test
     fun `기본 캐릭터면 받지 않고, 받지 못하면 비워 자리 그림을 그린다`() {
-        val plain = AvatarViewModel(repo, headsOf(repo))
+        val plain = vm()
         assertEquals(emptyList(), plain.state.value.faceLayers)
         assertTrue(repo.calls.none { it.startsWith("face:") })
         repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "selfie:face/7/s1"))
         repo.faceResult = Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND"))
-        val failed = AvatarViewModel(repo, headsOf(repo))
+        val failed = vm()
         assertEquals(emptyList(), failed.state.value.faceLayers)
         assertNull(failed.state.value.error, "얼굴 그림 실패는 화면 오류가 아니다")
     }
 }
 
+/** 상점(피그마 제안 A안): 칸을 골라 입어 보고, 확인 뒤 사고, 가진 것은 입는다. */
 class ShopViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
     private val repo = FakeAvatars()
 
+    private fun vm() = ShopViewModel(repo, headsOf(repo), storeOf(repo))
+
     @Test
-    fun `부위로 거르고, 확인 뒤 사면 잔액과 보유를 바꾼다(FR-160)`() {
-        val vm = ShopViewModel(repo)
-        vm.onSlot(ItemSlot.HAT)
-        assertEquals(listOf(3L), vm.state.value.shop?.items?.map { it.itemId })
-        vm.onPick(items[2])
-        assertEquals(items[2], vm.state.value.selected)
-        vm.onBuyRequest()
-        assertEquals(items[2], vm.state.value.confirming)
-        vm.onBuy()
-        val s = vm.state.value
+    fun `부위로 거르고 칸을 고르면 무대에 입혀 보며 확인 뒤 사면 잔액과 보유를 바꾸고 고른 채 둔다(FR-160)`() {
+        val model = vm()
+        model.onSlot(ItemSlot.HAT)
+        assertEquals(listOf(3L), model.state.value.itemsInSlot.map { it.itemId })
+        model.onPick(items[2])
+        assertEquals(3L, model.state.value.tryOn[ItemSlot.HAT])
+        model.onBuyRequest()
+        assertEquals(items[2], model.state.value.confirming)
+        model.onBuy()
+        val s = model.state.value
         assertEquals(990, s.shop?.balance)
-        assertTrue(s.shop!!.items.first().isOwned)
+        assertTrue(s.itemsInSlot.first().isOwned)
         assertNull(s.confirming)
-        assertNull(s.selected)
+        assertEquals(3L, s.selected?.itemId)
+        assertTrue(s.selected!!.isOwned, "산 칸은 바로 입을 수 있다")
         assertTrue("buy:3" in repo.calls)
     }
 
     @Test
-    fun `보유, 판매 종료 아이템은 고를 수 없고 잔액을 모르면 확인 뒤 서버의 잔액 부족 거절을 안내한다`() {
-        repo.shopFailure = AppError.Network
-        val vm = ShopViewModel(repo)
-        vm.onPick(items[0])
-        vm.onPick(items[4])
-        assertNull(vm.state.value.selected)
-        vm.onBuyRequest()
-        assertNull(vm.state.value.confirming)
-        assertNull(vm.state.value.shop)
-        repo.purchaseResult = Outcome.Failure(AppError.Rejected("INSUFFICIENT_REWARD"))
-        vm.onPick(items[3])
-        vm.onBuyRequest()
-        assertEquals(items[3], vm.state.value.confirming)
-        vm.onBuy()
-        assertTrue("buy:4" in repo.calls)
-        assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), vm.state.value.message)
-        assertFalse(vm.state.value.isBuying)
+    fun `가진 칸을 고르면 입기로 바로 입고 무대의 입어 보기를 푼다`() {
+        val model = vm()
+        model.onPick(items[1])
+        model.onBuyRequest()
+        assertNull(model.state.value.confirming, "가진 것은 사지 않는다")
+        model.onEquip()
+        assertEquals(listOf("equip:{TOP=2}"), repo.calls.filter { it.startsWith("equip") })
+        assertEquals(2L, model.state.value.avatar?.equipped?.get(ItemSlot.TOP))
+        assertNull(model.state.value.selected)
+        assertEquals(uiText(R.string.avatar_shop_equipped, items[1].name), model.state.value.message)
     }
 
     @Test
-    fun `잔액보다 비싼 아이템을 고르면 확인 창 없이 바로 리워드 부족을 안내한다`() {
-        val vm = ShopViewModel(repo)
+    fun `벗기기는 입어 보던 칸을 풀어 지금 착용으로 돌린다`() {
+        val model = vm()
+        model.onPick(items[3])
+        assertEquals(4L, model.state.value.tryOn[ItemSlot.SHOES])
+        model.onClearTryOn()
+        assertNull(model.state.value.tryOn[ItemSlot.SHOES])
+        assertEquals(1L, model.state.value.tryOn[ItemSlot.TOP])
+    }
+
+    @Test
+    fun `잠긴 칸은 고르지 않고 해금 조건을 안내하며 판매 종료이고 가지지 않은 칸은 고르지 않는다`() {
+        val locked =
+            Shop.Item(6, ItemSlot.TOP, "완주 기념 맨투맨", 300, false, true, isLocked = true, unlockLabel = "하프 완주하면 열려요")
+        val model = vm()
+        model.onPick(locked)
+        assertNull(model.state.value.selected)
+        assertEquals(UiText.Plain("하프 완주하면 열려요"), model.state.value.message)
+        model.onPick(items[4])
+        assertNull(model.state.value.selected)
+    }
+
+    @Test
+    fun `잔액보다 비싼 아이템은 확인 창 없이 바로 리워드 부족을 안내한다`() {
+        val model = vm()
         // 카본 러닝화 2,000 P > 잔액 1,240 P
-        vm.onPick(items[3])
-        vm.onBuyRequest()
-        assertNull(vm.state.value.confirming)
-        assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), vm.state.value.message)
-        vm.onBuy()
+        model.onPick(items[3])
+        model.onBuyRequest()
+        assertNull(model.state.value.confirming)
+        assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), model.state.value.message)
+        model.onBuy()
         assertFalse("buy:4" in repo.calls)
     }
 
     @Test
-    fun `셀카 접수 거부(사진 형식)는 사유 안내와 기본 캐릭터 선택으로 이어진다`() {
-        repo.submitResult = Outcome.Failure(AppError.Rejected("UNSUPPORTED_IMAGE"))
-        val vm = AvatarSetupViewModel(repo)
-        vm.onSelfie(byteArrayOf(1))
-        assertEquals(UiText.Res(R.string.avatar_error_unsupported_image), vm.state.value.error)
-        assertFalse(vm.state.value.isWorking)
-        assertTrue(vm.state.value.canCreateSelfie)
+    fun `잔액을 모르면 확인 뒤 서버의 잔액 부족 거절을 안내한다`() {
+        repo.shopFailure = AppError.Network
+        val model = vm()
+        assertNull(model.state.value.shop)
+        repo.purchaseResult = Outcome.Failure(AppError.Rejected("INSUFFICIENT_REWARD"))
+        model.onPick(items[3])
+        model.onBuyRequest()
+        assertEquals(items[3], model.state.value.confirming)
+        model.onBuy()
+        assertTrue("buy:4" in repo.calls)
+        assertEquals(UiText.Res(R.string.avatar_error_insufficient_reward), model.state.value.message)
+        assertFalse(model.state.value.isBuying)
     }
 }

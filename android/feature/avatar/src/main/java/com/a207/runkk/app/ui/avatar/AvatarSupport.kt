@@ -2,7 +2,6 @@ package com.a207.runkk.app.ui.avatar
 
 import androidx.annotation.StringRes
 import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
-import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.ItemSlot
 
@@ -52,29 +51,4 @@ internal fun bodyStage(bodyShape: String): Int? = bodyShape.filter(Char::isDigit
         1..BODY_STAGES
 }
 
-/**
- * 체형 이름(DV-성-12): 꾸미기와 내 러너가 같은 3단계 표를 쓴다. 서버 4단계를 [bodyVariantOf]로 접은 단계(D-성-58)의 이름이다.
- * 모르는 체형 값이면 「체형 확인 중」.
- */
-@StringRes
-internal fun bodyLabelRes(bodyShape: String): Int =
-    if (bodyStage(bodyShape) == null) R.string.avatar_body_unknown else bodyVariantLabelRes(bodyVariantOf(bodyShape))
-
-/** 3단계 체형(0 기본, 1 변화 1, 2 변화 2)의 이름. 범위 밖은 가까운 끝으로. */
-@StringRes
-internal fun bodyVariantLabelRes(variant: Int): Int =
-    BODY_VARIANT_LABELS[variant.coerceIn(0, BODY_VARIANT_LABELS.lastIndex)]
-
-private val BODY_VARIANT_LABELS = listOf(R.string.avatar_body_low, R.string.avatar_body_mid, R.string.avatar_body_high)
-
 internal const val BODY_STAGES = 4
-
-/** 피부톤(서버 SkinTone, FR-164): 이름과 근거 문구. */
-internal fun skinLabel(skinTone: String): UiText = when (skinTone) {
-    "DAWN" -> UiText.Res(R.string.avatar_skin_dawn)
-    "MORNING" -> UiText.Res(R.string.avatar_skin_morning)
-    "DAYTIME" -> UiText.Res(R.string.avatar_skin_daytime)
-    "EVENING" -> UiText.Res(R.string.avatar_skin_evening)
-    "NIGHT" -> UiText.Res(R.string.avatar_skin_night)
-    else -> UiText.Plain(skinTone)
-}

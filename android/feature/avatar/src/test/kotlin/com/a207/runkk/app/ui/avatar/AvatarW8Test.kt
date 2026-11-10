@@ -3,9 +3,13 @@ package com.a207.runkk.app.ui.avatar
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasStateDescription
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -23,6 +27,7 @@ import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundUnlockSeenStore
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieProgress
 import com.a207.runkk.app.domain.avatar.Shop
 import java.time.Clock
 import java.time.Instant
@@ -166,10 +171,13 @@ class AvatarW8LogicTest {
     }
     private val clock = Clock.fixed(NOW, ZoneOffset.UTC)
 
+    private fun runnerVm(store: BackgroundUnlockSeenStore, level: Int? = 12) =
+        AvatarRunnerViewModel(repo, store, clock, headsOf(repo), storeOf(repo)) { level }
+
     @Test
     fun `내 러너는 아바타와 내 러너를 읽어 렌더러 체형·러닝량을 정하고, 새 해금이 있으면 팝업을 띄운다`() {
         val store = FakeSeenStore(BackgroundUnlockSeenStore.Seen(setOf("INCHEON"), SINCE))
-        val vm = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
+        val vm = runnerVm(store)
 
         val s = vm.state.value
         assertEquals(3, s.runner?.recentRunCount)
@@ -177,6 +185,9 @@ class AvatarW8LogicTest {
         assertEquals(51, s.look.runAmount)
         assertNull(s.look.headLayers, "셀카 머리가 아니면 기본 머리")
         assertEquals(listOf("DAEJEON", "CHUNCHEON"), s.unlock?.items?.map { it.key })
+        assertEquals(12, s.level)
+        assertEquals(3, s.unlockedBackgrounds)
+        assertEquals(4, s.totalBackgrounds)
 
         vm.onUnlockChange()
         assertNull(vm.state.value.unlock)
@@ -188,21 +199,21 @@ class AvatarW8LogicTest {
     @Test
     fun `내 러너 - 처음이면 기록만 남기고 팝업이 없고, 닫으면 다시 뜨지 않는다`() {
         val store = FakeSeenStore()
-        val first = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
+        val first = runnerVm(store)
         assertNull(first.state.value.unlock)
         assertEquals(setOf("INCHEON", "CHUNCHEON", "DAEJEON"), store.seen?.keys)
 
         store.seen = BackgroundUnlockSeenStore.Seen(setOf("INCHEON"), SINCE)
-        val vm = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
+        val vm = runnerVm(store)
         vm.onUnlockClose()
         assertNull(vm.state.value.unlock)
-        assertNull(AvatarRunnerViewModel(repo, store, clock, headsOf(repo)).state.value.unlock)
+        assertNull(runnerVm(store).state.value.unlock)
     }
 
     @Test
     fun `내 러너를 읽지 못하면 오류다`() {
         repo.runnerResult = Outcome.Failure(AppError.Network)
-        val vm = AvatarRunnerViewModel(repo, FakeSeenStore(), clock, headsOf(repo))
+        val vm = runnerVm(FakeSeenStore())
         assertNull(vm.state.value.runner)
         assertTrue(vm.state.value.error != null)
     }
@@ -219,7 +230,7 @@ class AvatarW8LogicTest {
             isLocked = true,
             unlockLabel = "하프 완주하면 열려요"
         )
-        val vm = ShopViewModel(repo)
+        val vm = ShopViewModel(repo, headsOf(repo), storeOf(repo))
         vm.onPick(locked)
         assertNull(vm.state.value.selected)
         assertEquals(UiText.Plain("하프 완주하면 열려요"), vm.state.value.message)
@@ -232,57 +243,101 @@ class AvatarW8LogicTest {
     @Test
     fun `상점 - 사는 사이 잠겼으면(ITEM_LOCKED) 안내하고 목록을 다시 읽는다`() {
         repo.purchaseResult = Outcome.Failure(AppError.Rejected("ITEM_LOCKED"))
-        val vm = ShopViewModel(repo)
+        val vm = ShopViewModel(repo, headsOf(repo), storeOf(repo))
         vm.onSlot(ItemSlot.HAT)
         vm.onPick(items[2])
         vm.onBuyRequest()
         vm.onBuy()
         assertEquals(UiText.Res(R.string.avatar_error_item_locked), vm.state.value.message)
         assertNull(vm.state.value.selected)
-        assertEquals(2, repo.calls.count { it == "shop:HAT" })
+        assertEquals(2, repo.calls.count { it == "shop:null" })
     }
 }
 
-private val runner = AvatarRunner("STAGE3", 1, "MORNING", 7, 3, Distance(15_400), 51, 4)
+private val runner = AvatarRunner("STAGE3", 1, "MORNING", 7, 3, Distance(12_400), 51, 4)
 
-/** W8 화면: 내 러너(H-2), 꾸미기 탭·배경(H-3), 상점 구매 바(H-4), 해금 팝업(H-6). */
+/** 내 러너·꾸미기·상점에 보이면 안 되는 체형·피부톤 설명(사용자 지시 「체형 배가 블록 피부색 낮형 … 빼」, design-oo 05-30 [임시:D-성-128]). */
+private val FORBIDDEN = listOf("체형", "배가", "볼록", "피부", "낮형", "아침형", "저녁형", "새벽형", "밤형", "톤이에요", "번 달렸어요", "근육")
+
+/** W8 화면(피그마 제안): 내 러너 B안, 꾸미기 A안, 상점 A안, 해금 팝업(H-6). */
 @RunWith(RobolectricTestRunner::class)
 class AvatarW8ScreenTest {
     @get:Rule
     val compose = createComposeRule()
     private val calls = mutableListOf<String>()
 
-    @Test
-    fun `H-2 내 러너 - 체형 칩, 피부톤 칩, 안내, 근거 문구와 꾸미기, 상점 가기`() {
-        compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                AvatarRunnerScreen(
-                    AvatarRunnerUiState(isLoading = false, avatar = avatar, runner = runner),
-                    AvatarRunnerActions(onDecorate = { calls += "decorate" }, onShop = { calls += "shop" })
-                )
-            }
+    private fun assertNoBodyOrSkinText() {
+        FORBIDDEN.forEach { word -> compose.onNodeWithText(word, substring = true).assertDoesNotExist() }
+        FORBIDDEN.forEach { word ->
+            compose.onAllNodes(hasContentDescription(word, substring = true)).assertCountEquals(0)
         }
-        compose.onNodeWithText(text(R.string.avatar_runner_body_chip, 2)).assertExists()
-        compose.onNodeWithText(text(R.string.avatar_runner_skin_chip, "아침")).assertExists()
-        // 값은 오늘 포함 최근 7일 횟수라 문구도 「최근 7일」이다(DV-성-13, D-성-57)
-        compose.onNodeWithText("최근 7일 3번 달렸어요. 4일 넘게 쉬면 배가 나오기 시작해요.").assertExists()
-        compose.onNodeWithText("주로 오전 7시에 달려서 아침 톤이에요").assertExists()
-        compose.onNodeWithText(text(R.string.avatar_runner_balance, "1,240")).assertExists()
-        compose.onNodeWithContentDescription(text(R.string.avatar_runner_body_gauge, "보통", 2)).assertExists()
-        compose.onNodeWithText(text(R.string.avatar_runner_decorate)).performClick()
-        compose.onNodeWithText(text(R.string.avatar_decorate_go_shop)).performClick()
-        assertEquals(listOf("decorate", "shop"), calls)
     }
 
     @Test
-    fun `H-2 대표 시각이 없으면 일반 문구, 오후 시각은 오후로 쓴다`() {
-        var state by mutableStateOf(
-            AvatarRunnerUiState(isLoading = false, avatar = avatar, runner = runner.copy(typicalStartHour = null))
-        )
-        compose.setContent { RunkkTheme(reduceMotion = true) { AvatarRunnerScreen(state, AvatarRunnerActions()) } }
-        compose.onNodeWithText(text(R.string.avatar_runner_skin_reason_none)).assertExists()
-        state = state.copy(runner = runner.copy(typicalStartHour = 19, skinTone = "EVENING"))
-        compose.onNodeWithText("주로 오후 7시에 달려서 저녁 톤이에요").assertExists()
+    fun `내 러너 B안 - 레벨 칩, 숫자 타일 셋, 얼굴·배경 진입, 꾸미기·상점(설명 문장 없음)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarRunnerScreen(
+                    AvatarRunnerUiState(
+                        isLoading = false,
+                        avatar = avatar,
+                        runner = runner,
+                        level = 12,
+                        unlockedBackgrounds = 3,
+                        totalBackgrounds = 12
+                    ),
+                    AvatarRunnerActions(
+                        onDecorate = { calls += "decorate" },
+                        onShop = { calls += "shop" },
+                        onFace = { calls += "face" },
+                        onBackground = { calls += "background" }
+                    )
+                )
+            }
+        }
+        compose.onNodeWithContentDescription(text(R.string.avatar_runner_level_description, 12)).assertExists()
+        compose.onNodeWithContentDescription(text(R.string.avatar_runner_runs_description, 3)).assertExists()
+        compose.onNodeWithContentDescription(text(R.string.avatar_runner_distance_description, "12.4")).assertExists()
+        compose.onNodeWithContentDescription(text(R.string.avatar_runner_rest_description, 4)).assertExists()
+        compose.onNodeWithContentDescription(text(R.string.avatar_shop_balance_description, 1_240)).assertExists()
+        compose.onNodeWithText("3/12").assertExists()
+        compose.onNodeWithText(text(R.string.avatar_runner_face)).performClick()
+        compose.onNodeWithText(text(R.string.avatar_tab_background)).performClick()
+        compose.onNodeWithText(text(R.string.avatar_runner_decorate)).performClick()
+        compose.onNodeWithText(text(R.string.avatar_shop_title)).performClick()
+        assertEquals(listOf("face", "background", "decorate", "shop"), calls)
+        assertNoBodyOrSkinText()
+    }
+
+    @Test
+    fun `내 러너 - 셀카를 만드는 중이면 얼굴 줄에 진행 표시를 단다(피그마 AV-7 4)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarRunnerScreen(
+                    AvatarRunnerUiState(
+                        isLoading = false,
+                        avatar = avatar,
+                        runner = runner,
+                        selfie = SelfieProgress.Working("job-1")
+                    ),
+                    AvatarRunnerActions()
+                )
+            }
+        }
+        compose.onNode(hasStateDescription(text(R.string.avatar_selfie_badge_working))).assertExists()
+    }
+
+    @Test
+    fun `내 러너 - 읽는 동안에도 무대 자리를 먼저 그리고 못 읽으면 오류와 다시 시도`() {
+        var state by mutableStateOf(AvatarRunnerUiState(isLoading = true))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarRunnerScreen(state, AvatarRunnerActions(onRetry = { calls += "retry" }))
+            }
+        }
+        compose.onNodeWithContentDescription(text(R.string.avatar_runner_figure)).assertExists()
+        state = AvatarRunnerUiState(isLoading = false)
+        compose.onNodeWithText(text(R.string.avatar_runner_load_failed)).assertExists()
     }
 
     @Test
@@ -309,11 +364,17 @@ class AvatarW8ScreenTest {
     }
 
     @Test
-    fun `H-3 꾸미기 - 모자 탭은 악세서리, 잠긴 배경은 남은 거리, 기본 배경은 기본`() {
+    fun `꾸미기 A안 - 모자 탭은 악세서리, 잠긴 배경은 남은 거리, 체형·피부색 칩과 빈 목록 문장 없음`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
-                    AvatarUiState(isLoading = false, avatar = avatar, items = items, isBackgroundTab = true),
+                    AvatarUiState(
+                        isLoading = false,
+                        avatar = avatar,
+                        items = items,
+                        draft = avatar.equipped,
+                        isBackgroundTab = true
+                    ),
                     AvatarScreenActions(),
                     background = AvatarBackgroundUiState(
                         isLoading = false,
@@ -325,75 +386,134 @@ class AvatarW8ScreenTest {
         compose.onNodeWithText(text(R.string.avatar_slot_accessory)).assertExists()
         compose.onNode(hasStateDescription(text(R.string.avatar_background_locked, "전주", 113))).assertExists()
         compose.onNode(hasStateDescription(text(R.string.avatar_background_selected, "기본"))).assertExists()
+        assertNoBodyOrSkinText()
     }
 
     @Test
-    fun `H-4 상점 - 칸을 고르면 아래 구매 바에 남는 잔액과 n에 사기, 잠긴 칸은 해금 조건, 보유는 소지 중`() {
+    fun `꾸미기 A안 - 잠긴 칸은 자물쇠와 짧은 조건을 보이고 해금 조건을 읽는다`() {
         val locked = Shop.Item(
             6,
             ItemSlot.TOP,
-            "완주 기념 티",
+            "완주 기념 맨투맨",
             300,
             false,
             true,
+            imageKey = "top_finisher_tee",
             isLocked = true,
             unlockLabel = "하프 완주하면 열려요"
         )
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
+                AvatarScreen(
+                    AvatarUiState(isLoading = false, avatar = avatar, items = items + locked, draft = avatar.equipped),
+                    AvatarScreenActions(onToggle = { calls += "toggle:${it.itemId}" })
+                )
+            }
+        }
+        compose.onNodeWithText(text(R.string.avatar_unlock_short_half), useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription("하프 완주하면 열려요", substring = true).performClick()
+        assertEquals(listOf("toggle:6"), calls)
+    }
+
+    @Test
+    fun `상점 A안 - 고른 칸은 아래 단추에 이름과 가격, 가진 칸은 보유, 잠긴 칸은 조건`() {
+        val locked = Shop.Item(
+            6,
+            ItemSlot.TOP,
+            "완주 기념 맨투맨",
+            300,
+            false,
+            true,
+            imageKey = "top_finisher_tee",
+            isLocked = true,
+            unlockLabel = "하프 완주하면 열려요"
+        )
+        val unowned = Shop.Item(7, ItemSlot.TOP, "크루 카라티", 300, false, true, imageKey = "top_crew_tee")
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
                 ShopScreen(
-                    ShopUiState(isLoading = false, shop = Shop(items + locked, 1_240), selected = items[2]),
+                    ShopUiState(isLoading = false, shop = Shop(items + locked + unowned, 1_240), selected = unowned),
                     ShopActions(onBuyRequest = { calls += "buy" }, onPick = { calls += "pick:${it.itemId}" })
                 )
             }
         }
-        compose.onNodeWithText(text(R.string.avatar_shop_left_after, "990")).assertExists()
-        compose.onNodeWithText(text(R.string.avatar_shop_buy_for, "250")).performClick()
-        compose.onNodeWithText("하프 완주하면 열려요").assertExists()
-        compose.onNodeWithContentDescription("라임 러닝 티, 상의, 소지 중").performClick()
-        assertEquals(listOf("buy", "pick:1"), calls)
+        compose.onNodeWithContentDescription(text(R.string.avatar_shop_buy_description, "크루 카라티", 300)).performClick()
+        compose.onNodeWithContentDescription("하프 완주하면 열려요", substring = true).assertExists()
+        compose.onNodeWithContentDescription("라벤더 싱글렛, ${text(R.string.avatar_item_owned_chip)}").performClick()
+        assertEquals(listOf("buy", "pick:2"), calls)
+        assertNoBodyOrSkinText()
     }
-}
-
-/** 잔액이 모자라는 칸을 고른 구매 바(DV-성-4). */
-@RunWith(RobolectricTestRunner::class)
-@Config(qualifiers = RUNKK_PHONE)
-class ShopInsufficientTest {
-    @get:Rule
-    val compose = createComposeRule()
 
     @Test
-    fun `H-4 상점 - 잔액보다 비싼 칸은 남는 금액 대신 모자란 금액을 보이고 사기 단추를 끈다(DV-성-4)`() {
-        val item = Shop.Item(9, ItemSlot.TOP, "보라 바람막이", 300, isOwned = false, isOnSale = true)
-        var bought = 0
+    fun `상점 A안 - 가진 칸을 고르면 입기 단추, 입는 중이면 끈다`() {
+        var state by mutableStateOf(
+            ShopUiState(isLoading = false, shop = Shop(items, 1_240), avatar = avatar, selected = items[1])
+        )
         compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                ShopScreen(
-                    ShopUiState(isLoading = false, shop = Shop(listOf(item), 90), selected = item),
-                    ShopActions(onBuyRequest = { bought++ })
-                )
-            }
+            RunkkTheme(reduceMotion = true) { ShopScreen(state, ShopActions(onEquip = { calls += "equip" })) }
         }
-        compose.onNodeWithText(text(R.string.avatar_shop_short_by, "210")).assertExists()
-        compose.onNodeWithText(text(R.string.avatar_shop_left_after, "-210")).assertDoesNotExist()
-        compose.onNodeWithText(text(R.string.avatar_shop_buy_for, "300")).assertIsNotEnabled().performClick()
-        assertEquals(0, bought)
+        compose.onNodeWithText(text(R.string.avatar_item_put_on)).performClick()
+        assertEquals(listOf("equip"), calls)
+        state = state.copy(selected = items[0])
+        compose.onAllNodesWithText(text(R.string.avatar_item_wearing)).onLast().assertIsNotEnabled()
     }
 }
 
-/** W8 스크린샷(H-2 내 러너, H-4 상점 고름, H-6 해금 팝업). Rive는 네이티브라 시험에서는 앞 단계 그림으로 바뀐다. */
+/** 상점 그림 규칙(design-oo 05-30 [임시:D-성-113]): 그림 키 k의 그림은 drawable shop_k이고 V62 시드 16종이 모두 있다. */
+@RunWith(RobolectricTestRunner::class)
+class ShopArtTest {
+    private val keys = listOf(
+        "top_lime_singlet", "top_dawn_windbreaker", "top_crew_tee", "top_winter_hoodie", "top_cherry_vest",
+        "top_finisher_tee", "bottom_running_shorts", "bottom_jogger_pants", "bottom_leggings",
+        "shoes_basic_runner", "shoes_lime_runner", "shoes_carbon_racer", "hat_running_cap", "hat_headband",
+        "hat_beanie", "hat_ten_runs_cap"
+    )
+
+    @Test
+    fun `그림 키 k는 drawable shop_k로 찾고 모르는 키는 실루엣이다`() {
+        val resources = RuntimeEnvironment.getApplication().resources
+        keys.forEach { key ->
+            val res = shopArtRes(key)
+            assertTrue(res != null, key)
+            assertEquals("shop_$key", resources.getResourceEntryName(res!!))
+        }
+        assertNull(shopArtRes("unknown"))
+        assertNull(shopArtRes(null))
+    }
+
+    @Test
+    fun `잠긴 세 키만 짧은 조건을 둔다(21_1km, 100km, 10회)`() {
+        assertEquals("21.1km", text(unlockShortLabelRes("top_finisher_tee")!!))
+        assertEquals("100km", text(unlockShortLabelRes("shoes_carbon_racer")!!))
+        assertEquals("10회", text(unlockShortLabelRes("hat_ten_runs_cap")!!))
+        assertNull(unlockShortLabelRes("top_crew_tee"))
+    }
+}
+
+/** W8 스크린샷(내 러너 B안, 상점 A안, 해금 팝업). Rive는 네이티브라 시험에서는 앞 단계 그림으로 바뀐다. */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = RUNKK_PHONE)
 class AvatarW8ScreenshotTest {
     @get:Rule
     val compose = createComposeRule()
 
+    private val runnerState = AvatarRunnerUiState(
+        isLoading = false,
+        avatar = avatar,
+        runner = runner,
+        level = 12,
+        unlockedBackgrounds = 3,
+        totalBackgrounds = 12
+    )
+
     @Test
     fun runner() = compose.captureRunkkScreen("H2_avatar_runner") {
-        AvatarRunnerScreen(
-            AvatarRunnerUiState(isLoading = false, avatar = avatar, runner = runner),
-            AvatarRunnerActions()
-        )
+        AvatarRunnerScreen(runnerState, AvatarRunnerActions())
+    }
+
+    @Test
+    fun runnerLight() = compose.captureRunkkScreen("H2_avatar_runner_light", isDarkTheme = false) {
+        AvatarRunnerScreen(runnerState.copy(selfie = SelfieProgress.Working("job-1")), AvatarRunnerActions())
     }
 
     @Test
@@ -401,15 +521,24 @@ class AvatarW8ScreenshotTest {
         val locked = Shop.Item(
             6,
             ItemSlot.TOP,
-            "완주 기념 티",
+            "완주 기념 맨투맨",
             300,
             false,
             true,
+            imageKey = "top_finisher_tee",
             isLocked = true,
             unlockLabel = "하프 완주하면 열려요"
         )
+        val shopItems = listOf(
+            Shop.Item(5, ItemSlot.TOP, "코랄 집업 후드", 400, false, true, imageKey = "top_cherry_vest"),
+            Shop.Item(1, ItemSlot.TOP, "민트 싱글렛", 300, true, true, imageKey = "top_lime_singlet"),
+            Shop.Item(3, ItemSlot.TOP, "크루 카라티", 300, false, true, imageKey = "top_crew_tee"),
+            Shop.Item(4, ItemSlot.TOP, "겨울 후디", 700, false, true, imageKey = "top_winter_hoodie"),
+            Shop.Item(2, ItemSlot.TOP, "새벽 바람막이", 500, false, true, imageKey = "top_dawn_windbreaker"),
+            locked
+        )
         ShopScreen(
-            ShopUiState(isLoading = false, shop = Shop(items.take(3) + locked, 1_240), selected = items[2]),
+            ShopUiState(isLoading = false, shop = Shop(shopItems, 1_240), avatar = avatar, selected = shopItems[0]),
             ShopActions()
         )
     }
@@ -417,12 +546,7 @@ class AvatarW8ScreenshotTest {
     @Test
     fun unlockPopup() = compose.captureRunkkScreen("H6_background_unlock") {
         AvatarRunnerScreen(
-            AvatarRunnerUiState(
-                isLoading = false,
-                avatar = avatar,
-                runner = runner,
-                unlock = BackgroundUnlock(listOf(daejeon, chuncheon))
-            ),
+            runnerState.copy(unlock = BackgroundUnlock(listOf(daejeon, chuncheon))),
             AvatarRunnerActions()
         )
     }

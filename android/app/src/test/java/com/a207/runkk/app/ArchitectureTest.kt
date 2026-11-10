@@ -56,16 +56,17 @@ class ArchitectureTest {
      * 자유런 결과의 내 아바타(S15P31A207-248)가 ui.run → domain.account를 더해 176개다.
      * 얼굴 만들기 화면 안 동의(S15P31A207-248)가 ui.avatar → domain.account를 더해 177개다.
      * 아바타 화면의 Rive 렌더러(W8·W9, S15P31A207-299·300)가 ui.avatar → core.avatar를 더해 178개다.
+     * 셀카 결과 알림·얼굴 화면 표시 포트 구현(S15P31A207-300, design-oo 05-30 [임시:D-성-120])이 data.push → domain.avatar를 더해 179개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 178개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 179개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(178, phone.sumOf { it.value.size })
+        assertEquals(179, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -241,6 +242,13 @@ class ArchitectureTest {
     fun `TC-6585 data·push → domain·chat은 허용, domain·chat → data는 없다 (D-130)`() {
         assertTrue("domain.chat" in ALLOWED.getValue("data.push"))
         assertTrue(ALLOWED.getValue("domain.chat").none { it.startsWith("data.") })
+    }
+
+    @Test
+    fun `05-30 D-성-120 data·push → domain·avatar는 허용, api·avatar 워커는 data·push를 모르고 domain·avatar는 data를 모른다`() {
+        assertTrue("domain.avatar" in ALLOWED.getValue("data.push"))
+        assertTrue(ALLOWED.getValue("api.avatar").none { it == "data.push" })
+        assertTrue(ALLOWED.getValue("domain.avatar").none { it.startsWith("data.") || it.startsWith("api.") })
     }
 
     @Test
@@ -548,7 +556,8 @@ class ArchitectureTest {
                 "data.watch" to setOf("domain.run", "domain.settings", "wear.contract", "domain.account", "core.model"),
                 "data.live" to setOf("domain.live", "api.core", "api.live", "core.model"),
                 // domain.chat 추가: OpenChatRoomTracker가 OpenChatRoomRegistry를 구현한다(D-130).
-                "data.push" to setOf("domain.notification", "domain.chat"),
+                // domain.avatar 추가: 셀카 결과 알림·얼굴 화면 표시 포트 구현(SelfieNoticeTracker), 05-30 [임시:D-성-120].
+                "data.push" to setOf("domain.notification", "domain.chat", "domain.avatar"),
                 // core.model 추가: SessionRepository.save·clear가 Outcome을 돌려준다(13.2 "포트는 Outcome"). A2 결정.
                 "data.session" to setOf("domain.account", "domain.notification", "api.core", "core.model"),
                 // core.designsystem 추가: 러니멀 카드 이미지가 공용 유형 그림·이름 대응표(RunimalArt, RunimalAxisName)를 쓴다.

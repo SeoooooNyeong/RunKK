@@ -15,16 +15,19 @@ import retrofit2.create
 /** W8(S15P31A207-299, contract-W8.md 2·4·6절): 내 러너, 배경 남은 거리, 상점 그림 키·잠김, 셀카 머리 JSON. */
 class AvatarW8Test {
     private val api = ApiTestServer()
+    private val store = object : PendingSelfieStore {
+        override fun load(): String? = null
+
+        override fun save(jobId: String, submittedAtMillis: Long?) = Unit
+
+        override fun clear() = Unit
+    }
     private val repository = AvatarRepositoryImpl(
         api.retrofit.create(),
         api.faces,
-        object : PendingSelfieStore {
-            override fun load(): String? = null
-
-            override fun save(jobId: String) = Unit
-
-            override fun clear() = Unit
-        }
+        store,
+        SelfieProgressHub(store),
+        java.time.Clock.systemUTC()
     )
 
     @AfterTest
