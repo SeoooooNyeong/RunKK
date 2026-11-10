@@ -177,6 +177,7 @@ private fun MonthBar(state: CrewPastRunsUiState, actions: CrewPastRunsActions) {
     }
 }
 
+/** 달력 이동 화살표. 범위 밖(첫 달 앞, 이번 달 뒤)이면 흐리게(보조색 30%) 그리고 누를 수 없다(실기기 관찰 DV-성 9(a)). */
 @Composable
 private fun MonthArrow(glyph: String, description: String, isEnabled: Boolean, onClick: () -> Unit) {
     Box(
@@ -189,7 +190,11 @@ private fun MonthArrow(glyph: String, description: String, isEnabled: Boolean, o
         Text(
             glyph,
             style = RunkkTextStyles.text(28),
-            color = if (isEnabled) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+            color = if (isEnabled) {
+                RunkkColors.TextPrimary
+            } else {
+                RunkkColors.TextSecondary.copy(alpha = MONTH_ARROW_DISABLED_ALPHA)
+            }
         )
     }
 }
@@ -433,3 +438,6 @@ private val WEEK = listOf(
 
 /** "10.20(화) 19:00". */
 private val ROW_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("M.d(E) HH:mm", Locale.KOREAN)
+
+/** 누를 수 없는 달력 화살표의 투명도(보조색에 곱한다). 켜진 화살표와 모양으로 구분되게 흐리게 둔다. */
+internal const val MONTH_ARROW_DISABLED_ALPHA = 0.3f

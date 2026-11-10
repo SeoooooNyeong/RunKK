@@ -326,7 +326,11 @@ private fun MonthArrow(glyph: String, label: String, isEnabled: Boolean, onClick
         Text(
             glyph,
             style = RunkkTextStyles.text(28, lineHeight = 26),
-            color = if (isEnabled) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+            color = if (isEnabled) {
+                RunkkColors.TextPrimary
+            } else {
+                RunkkColors.TextSecondary.copy(alpha = MONTH_ARROW_DISABLED_ALPHA)
+            }
         )
     }
 }
