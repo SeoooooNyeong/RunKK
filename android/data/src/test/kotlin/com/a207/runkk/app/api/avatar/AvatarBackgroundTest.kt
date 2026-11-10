@@ -18,16 +18,19 @@ import retrofit2.create
 /** api.avatar 랜드마크 배경(FR-201, FR-202, D-107, D-140): 목록·선택·러닝 카드 배경 키. */
 class AvatarBackgroundTest {
     private val api = ApiTestServer()
+    private val store = object : PendingSelfieStore {
+        override fun load(): String? = null
+
+        override fun save(jobId: String, submittedAtMillis: Long?) = Unit
+
+        override fun clear() = Unit
+    }
     private val repository = AvatarRepositoryImpl(
         api.retrofit.create(),
         api.faces,
-        object : PendingSelfieStore {
-            override fun load(): String? = null
-
-            override fun save(jobId: String) = Unit
-
-            override fun clear() = Unit
-        }
+        store,
+        SelfieProgressHub(store),
+        java.time.Clock.systemUTC()
     )
 
     @AfterTest

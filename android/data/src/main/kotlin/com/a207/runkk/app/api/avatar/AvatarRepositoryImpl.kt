@@ -19,15 +19,21 @@ import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.SelfieFailure
 import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieJob
+import com.a207.runkk.app.domain.avatar.SelfieProgress
 import com.a207.runkk.app.domain.avatar.Shop
+import java.time.Clock
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.onStart
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * 아바타·상점 포트를 REST로 구현한다(6.1.14 api.avatar). 셀카 바이트는 요청 본문으로만 보내고 기기·로그에 남기지 않는다(D-23, D-59).
- * 셀카 얼굴은 서버가 비동기로 만든다(S15P31A207-276): 접수한 작업 ID만 [pending]에 남겨 이어 조회한다.
+ * 셀카 얼굴은 서버가 비동기로 만든다(S15P31A207-276): 접수한 작업 ID·접수 시각만 [pending]에 남겨 워커가 이어 조회한다. 남긴 값을 바꿀
+ * 때마다 [progress]를 다시 맞춰 같은 프로세스의 화면이 바로 받는다(design-oo 05-30 [임시:D-성-117]).
  * 앱이 모르는 착용 부위는 건너뛴다.
  */
 internal class AvatarRepositoryImpl
@@ -35,7 +41,9 @@ internal class AvatarRepositoryImpl
 constructor(
     private val api: AvatarApi,
     private val faces: FaceImageSource,
-    private val pending: PendingSelfieStore
+    private val pending: PendingSelfieStore,
+    private val progress: SelfieProgressHub,
+    private val clock: Clock
 ) : AvatarRepository {
     override suspend fun avatar(): Outcome<Avatar> = ApiErrorMapper.call { api.avatar().toDomain() }
 
@@ -58,11 +66,20 @@ constructor(
                 pending.clear()
                 pending.saveFailure(SelfieFailure(job.jobId, job.failureCode))
             } else {
-                pending.save(job.jobId)
+                pending.save(job.jobId, clock.millis())
                 if (pending.failure()?.jobId != job.jobId) pending.clearFailure()
             }
+            progress.sync()
         }
         return result
+    }
+
+    override fun selfieProgress(): Flow<SelfieProgress> =
+        progress.progress.onStart { progress.ensureLoaded() }.filterNotNull()
+
+    override fun dismissSelfieResult() {
+        pending.clearFailure()
+        progress.reset()
     }
 
     /** 실패로 끝나면 남긴 작업 대신 실패를 남긴다(DV-성-10). 서버가 작업을 잃었으면 둘 다 지운다. */
@@ -79,6 +96,7 @@ constructor(
                 forgetFailure(jobId)
             }
         }
+        progress.sync()
         return result
     }
 
@@ -91,12 +109,15 @@ constructor(
             if (done.error is AppError.Rejected) {
                 forget(jobId)
                 forgetFailure(jobId)
+                progress.sync()
             }
             return done
         }
         forget(jobId)
         forgetFailure(jobId)
-        return avatar()
+        val avatar = avatar()
+        progress.succeeded(jobId, avatar.getOrNull()?.faceKey)
+        return avatar
     }
 
     /**
@@ -109,6 +130,7 @@ constructor(
         val job = reply.body()?.takeIf { reply.isSuccessful }?.toDomain() ?: return null
         if (job.status == SelfieJob.Status.FAILED) return null
         pending.save(job.jobId)
+        progress.sync()
         return job.jobId
     }
 
@@ -121,10 +143,17 @@ constructor(
         if (pending.failure()?.jobId == jobId) pending.clearFailure()
     }
 
-    /** 기본 캐릭터를 고르면 지난 셀카 실패는 더 보이지 않는다(서버도 그 뒤 회수된 결과를 반영하지 않는다). */
+    /**
+     * 기본 캐릭터를 고르면 지난 셀카 실패와 만드는 중인 작업은 더 보이지 않는다(서버가 진행 중 요청을 지우고 그 뒤 회수된 결과를 반영하지
+     * 않는다, FR-158). 따라가기 멈춤은 화면이 [com.a207.runkk.app.domain.avatar.SelfieJobFollower]로 한다.
+     */
     override suspend fun chooseDefault(characterId: String): Outcome<Avatar> {
         val result = ApiErrorMapper.call { api.chooseDefault(DefaultCharacterRequest(characterId)).toDomain() }
-        if (result is Outcome.Success) pending.clearFailure()
+        if (result is Outcome.Success) {
+            pending.clear()
+            pending.clearFailure()
+            progress.reset()
+        }
         return result
     }
 
