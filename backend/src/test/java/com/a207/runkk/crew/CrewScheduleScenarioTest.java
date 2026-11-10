@@ -90,9 +90,9 @@ class CrewScheduleScenarioTest {
                 .postId();
     }
 
-    /** at이 든 주(월~일)의 일요일 0시 5분: 반복 작업(D-성-26)이 다음 주 회차를 만드는 시각. */
+    /** at이 든 주(월~일)의 일요일 오전 9시: 반복 작업(D-성-26, 코드 리뷰 M6)이 다음 주 회차를 만드는 시각. */
     private static LocalDateTime sundayOf(LocalDateTime at) {
-        return at.toLocalDate().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).atTime(0, 5);
+        return at.toLocalDate().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).atTime(9, 0);
     }
 
     private static ReasonCode reasonOf(Throwable e) {
@@ -184,7 +184,7 @@ class CrewScheduleScenarioTest {
     }
 
     @Test
-    @DisplayName("반복(D-성-26): 그 주 일요일 0시 5분에 +7일 회차 하나를 만들고(멱등), 바꾼 제목이 복사된다")
+    @DisplayName("반복(D-성-26): 그 주 일요일 오전 9시에 +7일 회차 하나를 만들고(멱등), 바꾼 제목이 복사된다")
     void weeklyGeneration() {
         Crew3 c = crew();
         LocalDateTime at = tomorrow();

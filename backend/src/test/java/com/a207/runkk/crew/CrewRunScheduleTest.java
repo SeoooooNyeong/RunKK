@@ -224,10 +224,10 @@ class CrewRunScheduleTest {
     }
 
     @Test
-    @DisplayName("반복(D-성-26): 일요일 0시 5분에 다음 주(월~일)에 드는 +7일 회차가 차례, 만든 뒤·끝난 뒤는 아니다, 놓친 주는 건너뛴다")
+    @DisplayName("반복(D-성-26): 일요일 오전 9시에 다음 주(월~일)에 드는 +7일 회차가 차례, 만든 뒤·끝난 뒤는 아니다, 놓친 주는 건너뛴다")
     void series() {
-        LocalDateTime sundayBefore = LocalDateTime.of(2026, 10, 18, 0, 5);
-        LocalDateTime sunday = LocalDateTime.of(2026, 10, 25, 0, 5);
+        LocalDateTime sundayBefore = LocalDateTime.of(2026, 10, 18, 9, 0);
+        LocalDateTime sunday = LocalDateTime.of(2026, 10, 25, 9, 0);
         CrewRunPost first = post(StandardDistance.KM5);
         CrewRunSeries series = CrewRunSeries.start(first, 41L, NOW);
         assertThat(series.isActive()).isTrue();

@@ -8,8 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * 매주 일요일 0시 5분(한국 시간) 크루런 매주 반복의 다음 주 회차를 만든다(W6, D-성-26). now만 넘기고 대상 반복·멱등은
- * CrewRunRepeater.generateDue가 맡는다. 실패는 운영 로그로 남긴다.
+ * 매주 일요일 오전 9시(한국 시간, 코드 리뷰 M6: 새 회차 모집 알림이 한밤에 가지 않게) 크루런 매주 반복의 다음 주 회차를 만든다(W6, D-성-26). now만
+ * 넘기고 대상 반복·멱등은 CrewRunRepeater.generateDue가 맡는다. 실패는 운영 로그로 남긴다.
  */
 @Component
 public class CrewRunRepeatJob {
