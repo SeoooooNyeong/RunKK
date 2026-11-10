@@ -429,11 +429,14 @@ public enum SettingKey {
                         .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
                         .build();
 
-        /** 왕복 랜드마크의 거리는 표의 왕복 거리다. 키는 D-107 (1)의 목록이다. */
+        /**
+         * 왕복 랜드마크의 거리는 표의 왕복 거리다. 키는 D-107 (1)의 목록이다. 개성은 빼고 춘천(서울시청–춘천시청 대권 74.8km × 2)을 넣었다
+         * (D-성-129, 운영 행은 V65).
+         */
         static final List<Landmark> LANDMARKS =
                 List.of(
                         domestic("INCHEON", "인천", 60),
-                        domestic("KAESONG", "개성", 120),
+                        domestic("CHUNCHEON", "춘천", 150),
                         domestic("DAEJEON", "대전", 280),
                         domestic("JEONJU", "전주", 400),
                         domestic("YEOSU", "여수", 650),
