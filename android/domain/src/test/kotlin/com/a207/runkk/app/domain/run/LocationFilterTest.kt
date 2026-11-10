@@ -44,7 +44,7 @@ class LocationFilterTest {
 
     @Test
     fun `저속이 확실하면 이어지는 좌표 밀림을 보류하고 실제 이동을 이어 받는다`() {
-        val freeRun = LocationFilter(stabilize = true)
+        val freeRun = LocationFilter(isStabilizationEnabled = true)
         freeRun.accept(sample(0, 0.0))
         for (second in 1L..12L) {
             assertNull(freeRun.accept(sample(second, second * 3.0).copy(speedMps = 0.1, speedAccuracyMps = 0.2)))
@@ -55,7 +55,7 @@ class LocationFilterTest {
 
     @Test
     fun `튄 점은 다음 위치의 기준이 되지 않는다`() {
-        val freeRun = LocationFilter(stabilize = true)
+        val freeRun = LocationFilter(isStabilizationEnabled = true)
         freeRun.accept(sample(0, 0.0))
         assertNull(freeRun.accept(sample(1, 45.0)))
         val next = sample(2, 6.0)
@@ -64,7 +64,7 @@ class LocationFilterTest {
 
     @Test
     fun `칼만 필터는 약한 지그재그를 줄이면서 직선 이동을 따라간다`() {
-        val filter = LocationFilter(stabilize = true)
+        val filter = LocationFilter(isStabilizationEnabled = true)
         var previous = checkNotNull(filter.accept(sample(0, 0.0))).point
         var distance = 0.0
         for (second in 1L..50L) {
@@ -80,7 +80,7 @@ class LocationFilterTest {
 
     @Test
     fun `이동 중 정확도 범위의 흔들림은 보정하고 큰 순간이동은 버린다`() {
-        val filter = LocationFilter(stabilize = true)
+        val filter = LocationFilter(isStabilizationEnabled = true)
         fun moving(second: Long, meters: Double) = sample(second, meters).copy(
             speedMps = 3.0,
             speedAccuracyMps = 0.3,
@@ -97,7 +97,7 @@ class LocationFilterTest {
 
     @Test
     fun `위치가 오래 끊기면 연속된 두 좌표를 확인하고 거리 없이 기준을 옮긴다`() {
-        val freeRun = LocationFilter(stabilize = true)
+        val freeRun = LocationFilter(isStabilizationEnabled = true)
         freeRun.accept(sample(0, 0.0))
         assertNull(freeRun.accept(sample(12, 110.0)))
         assertEquals(SignalState.UNSTABLE, freeRun.accept(sample(13, 113.0))?.state)
@@ -106,7 +106,7 @@ class LocationFilterTest {
 
     @Test
     fun `정지를 늦게 풀어도 두 이동 좌표가 맞으면 기준점을 새로 잡는다`() {
-        val filter = LocationFilter(stabilize = true)
+        val filter = LocationFilter(isStabilizationEnabled = true)
         filter.accept(sample(0, 0.0))
         for (second in 1L..4L) {
             assertNull(filter.accept(sample(second, second * 4.0).copy(inertialMotion = InertialMotion.STILL)))
@@ -124,7 +124,7 @@ class LocationFilterTest {
 
     @Test
     fun `걸음이 감지되거나 속도 정확도를 모르면 저속만으로 멈추지 않는다`() {
-        val freeRun = LocationFilter(stabilize = true)
+        val freeRun = LocationFilter(isStabilizationEnabled = true)
         freeRun.accept(sample(0, 0.0))
         val slow = sample(1, 1.0).copy(speedMps = 0.1)
         assertEquals(SignalState.NORMAL, freeRun.accept(slow)?.state)

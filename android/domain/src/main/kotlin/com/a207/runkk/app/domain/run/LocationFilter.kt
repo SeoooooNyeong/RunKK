@@ -10,7 +10,7 @@ import java.time.Instant
  * 반경 30m 초과는 버리고, 앞선 저정확도가 10초 이상이었으면 다음 포인트를 UNSTABLE로 표시한다.
  * 러닝 한 회마다 새로 만든다.
  */
-class LocationFilter(private val stabilize: Boolean = false) {
+class LocationFilter(private val isStabilizationEnabled: Boolean = false) {
     private val kalman = PositionKalmanFilter()
     private var lowAccuracySince: Instant? = null
     private var lastSeen: Instant? = null
@@ -19,7 +19,7 @@ class LocationFilter(private val stabilize: Boolean = false) {
     private var recoveryCandidate: LocationSample? = null
 
     fun accept(s: LocationSample): FilteredPoint? {
-        if (stabilize) {
+        if (isStabilizationEnabled) {
             if (lastSeen?.let { !s.at.isAfter(it) } == true) return null
             lastSeen = s.at
         }
@@ -36,7 +36,7 @@ class LocationFilter(private val stabilize: Boolean = false) {
                 SignalState.NORMAL
             }
         lowAccuracySince = null
-        return if (stabilize) acceptStable(s, state) else FilteredPoint(s.at, s.point, state)
+        return if (isStabilizationEnabled) acceptStable(s, state) else FilteredPoint(s.at, s.point, state)
     }
 
     private fun acceptStable(sample: LocationSample, signal: SignalState): FilteredPoint? {
