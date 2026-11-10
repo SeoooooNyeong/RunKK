@@ -316,8 +316,9 @@ class InboxTest {
         )
         repo.inboxResult = Outcome.Success(Inbox(listOf(crewNotice)))
         val vm = InboxViewModel(repo, clock, FakeEventRepository())
+        val state = vm.state.value
         compose.setContent {
-            RunkkTheme { InboxScreen(vm.state.value, onBack = {}, onItem = {}, onRetry = {}) }
+            RunkkTheme { InboxScreen(state, onBack = {}, onItem = {}, onRetry = {}) }
         }
         compose.onNodeWithText("크루 공지").assertExists()
         compose.onNodeWithText("토요일 한강 집합은 7시예요").assertExists()
