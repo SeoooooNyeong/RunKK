@@ -354,7 +354,10 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
     }
 }
 
-/** 닉네임과 티어 배지(아주 작게)·「Lv.n」 줄(FR-288, 불러오는 동안은 회색 막대). 진행을 못 읽었으면 배지 없이 Lv만. */
+/**
+ * 머리 알약의 이름 칸(FR-288, 불러오는 동안은 회색 막대): 위 줄 닉네임 + 「Lv.n」(사이 6dp), 아래 줄 티어 배지(아주 작게). 진행을 못
+ * 읽었으면 배지가 없다. 「Lv.n」과 배지 글자는 늘 고유 폭을 다 쓰고 닉네임만 말줄임한다(실기기 DV3-9). 읽기는 닉네임 → 레벨 → 티어다.
+ */
 @Composable
 private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
     val header = state.header
@@ -368,26 +371,29 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
             SkeletonBar(width = 96, height = 16)
             SkeletonBar(width = 72, height = 12)
         } else {
-            Text(
-                text = header.nickname ?: stringResource(R.string.home_header_default_nickname),
-                style = RunkkTextStyles.text(16, FontWeight.Black),
-                color = RunkkColors.TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.semantics { heading() }
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                // 「Lv.3」는 늘 고유 폭을 다 쓰고(쪼개지도 잘리지도 않는다, 실기기 DV3-9), 남는 폭을 티어 칩이 쓴다(모자라면 칩 글자가
-                // 말줄임). 위 닉네임은 따로 말줄임된다. Row는 무게 없는 Lv를 먼저 재고 칩에 나머지를 준다.
-                state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL, Modifier.weight(1f, fill = false)) }
+            // Row는 무게 없는 Lv를 먼저 재고 닉네임에 나머지를 준다(닉네임만 말줄임).
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = header.nickname ?: stringResource(R.string.home_header_default_nickname),
+                    style = RunkkTextStyles.text(16, FontWeight.Black),
+                    color = RunkkColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .alignByBaseline()
+                        .semantics { heading() }
+                )
                 Text(
                     text = level,
                     style = RunkkTextStyles.Caption,
                     color = RunkkColors.TextSecondary,
                     maxLines = 1,
-                    softWrap = false
+                    softWrap = false,
+                    modifier = Modifier.alignByBaseline()
                 )
             }
+            state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL) }
         }
     }
 }

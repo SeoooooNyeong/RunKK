@@ -10,10 +10,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -41,6 +43,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.PlacementStatus
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.junit.Rule
@@ -127,17 +130,41 @@ class HomeScreenTest {
 
     @Test
     @Config(qualifiers = "w384dp-h832dp-port-420dpi")
-    fun `머리 알약의 Lv는 384dp 화면·닉네임 4자·배치 중 칩에서도 고유 폭만큼 다 보인다(실기기 DV3-9 재확인)`() {
-        assertLevelNotClipped(fontScale = 1f)
+    fun `머리 알약 - 384dp·글꼴 1배에서 Lv와 티어 칩 글자를 다 보이고 닉네임만 말줄임한다(실기기 DV3-9)`() {
+        assertHeaderNotClipped(fontScale = 1f)
     }
 
     @Test
     @Config(qualifiers = "w384dp-h832dp-port-420dpi")
-    fun `글꼴을 조금 키워도(1·15) 머리 알약의 Lv는 잘리지 않고 칩이 줄어든다`() {
-        assertLevelNotClipped(fontScale = 1.15f)
+    fun `머리 알약 - 글꼴 1·15배에서도 Lv와 티어 칩 글자를 다 보인다`() {
+        assertHeaderNotClipped(fontScale = 1.15f)
     }
 
-    private fun assertLevelNotClipped(fontScale: Float) {
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 글꼴 1·3배에서도 Lv와 티어 칩 글자를 다 보인다`() {
+        assertHeaderNotClipped(fontScale = 1.3f)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - Lv는 닉네임과 같은 위 줄 오른쪽이고 칩은 아래 줄이며 읽기 순서는 닉네임·레벨·티어다`() {
+        showHeader(fontScale = 1f, nickname = "한강러너")
+        val nickname = compose.onNodeWithText("한강러너", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val level = compose.onNodeWithText("Lv.3", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val chip = compose.onNodeWithText("배치 중", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue(level.left >= nickname.right, "Lv는 닉네임 오른쪽")
+        assertTrue(level.bottom <= chip.top + 1f, "칩은 아래 줄")
+        val merged = compose.onNode(hasText("한강러너", substring = true) and hasText("Lv.3", substring = true))
+            .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" ")
+        assertTrue(merged.indexOf("한강러너") < merged.indexOf("Lv.3"), merged)
+        // 티어 배지는 스스로 합친 노드라 이름 칸 다음(아래 줄) 멈춤으로 따로 읽힌다.
+        val badge = compose.onNodeWithContentDescription("배치 중").fetchSemanticsNode()
+        assertFalse(merged.contains("배치 중"), merged)
+        assertTrue(badge.boundsInRoot.top >= level.bottom - 1f, "배지는 이름 칸 다음 차례")
+    }
+
+    private fun showHeader(fontScale: Float, nickname: String) {
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(
@@ -148,7 +175,7 @@ class HomeScreenTest {
                     Box(Modifier.fillMaxSize()) {
                         HomeScreen(
                             loaded.copy(
-                                header = HomeHeader("한강러너", null, 3, 14_414),
+                                header = HomeHeader(nickname, null, 3, 14_414),
                                 tierDisplay = TierDisplay.Placing
                             ),
                             HomeActions()
@@ -157,12 +184,24 @@ class HomeScreenTest {
                 }
             }
         }
-        val node = compose.onNodeWithText("Lv.3", useUnmergedTree = true)
+    }
+
+    /** 글자 칸이 고유 폭 이상이고 말줄임하지 않았는가. */
+    private fun assertFullyShown(text: String) {
+        val node = compose.onNodeWithText(text, useUnmergedTree = true)
         val layouts = mutableListOf<TextLayoutResult>()
         node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-        val intrinsic = layouts.single().multiParagraph.intrinsics.maxIntrinsicWidth
+        val layout = layouts.single()
+        val intrinsic = layout.multiParagraph.intrinsics.maxIntrinsicWidth
         val drawn = node.fetchSemanticsNode().size.width
-        assertTrue(drawn >= kotlin.math.ceil(intrinsic).toInt() - 1, "Lv.3 칸 $drawn px < 글자 고유 폭 $intrinsic px(잘림)")
+        assertTrue(drawn >= kotlin.math.ceil(intrinsic).toInt() - 1, "$text 칸 $drawn px < 글자 고유 폭 $intrinsic px(잘림)")
+        assertFalse(layout.isLineEllipsized(0), "$text 말줄임")
+    }
+
+    private fun assertHeaderNotClipped(fontScale: Float) {
+        showHeader(fontScale, nickname = "한강러너")
+        assertFullyShown("Lv.3")
+        assertFullyShown("배치 중")
     }
 
     @Test
