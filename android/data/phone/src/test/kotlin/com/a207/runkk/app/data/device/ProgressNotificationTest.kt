@@ -115,6 +115,13 @@ class ProgressNotificationTest {
     }
 
     @Test
+    fun `진행 알림 작은 아이콘은 런크크 단색 아이콘이다(F-15b, D-성-16)`() {
+        val running = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = false)
+        val icon = OngoingProgressStyle(context).build(running).smallIcon
+        assertEquals(com.a207.runkk.app.data.phone.R.drawable.ic_stat_runkk, icon.resId)
+    }
+
+    @Test
     fun `TC-9607 대결 알림에는 동작 버튼이 없다`() {
         for (gap in listOf(42, -118, null)) {
             assertTrue(OngoingProgressStyle(context).build(battle(gap)).actionTitles().isEmpty())

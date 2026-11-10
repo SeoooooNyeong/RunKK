@@ -209,7 +209,8 @@
     <string name="crew_run_result_load_failed">결과를 불러오지 못했어요</string>
     <string name="crew_run_result_title">크루런 결과</string>
     <!-- 크루런 합산 방식(S15P31A207-236, 피그마 F-14~F-16b) -->
-    <string name="crew_run_chip">크루런 · %1$s</string>
+    <string name="crew_run_chip">크루런 %1$s</string>
+    <string name="crew_run_distance_unlimited">제한 없음</string>
     <string name="crew_run_lobby_leave">나가기</string>
     <string name="crew_run_lobby_meet_today">오늘 %1$s</string>
     <string name="crew_run_lobby_meet_time_pattern">a h:mm</string>
@@ -223,12 +224,13 @@
     <string name="crew_run_finish_tap_label">종료 안내</string>
     <string name="crew_run_pause">일시정지</string>
     <string name="crew_run_resume">재개</string>
-    <string name="crew_run_mate_paused">%1$s · 멈춤</string>
+    <string name="crew_run_mate_paused">%1$s 멈춤</string>
     <string name="crew_run_result_total_spoken">크루가 함께 달린 거리 %1$s킬로미터</string>
     <string name="crew_run_result_swipe_detail">밀어서 상세 결과 보기 ›</string>
     <string name="crew_run_result_back">‹ 크루런 결과로</string>
     <string name="crew_run_result_detail_waiting">상세 기록을 불러오고 있어요</string>
-    <string name="crew_run_result_date_pattern">M.dd E · a h:mm</string>
+    <string name="crew_run_result_date_pattern">MM.dd E</string>
+    <string name="crew_run_result_time_pattern">a h:mm</string>
     <string name="crew_run_result_kind">크루런</string>
     <string name="crew_run_result_page_desc">%2$d쪽 중 %1$d쪽</string>
     <string name="crew_run_result_card">공유</string>

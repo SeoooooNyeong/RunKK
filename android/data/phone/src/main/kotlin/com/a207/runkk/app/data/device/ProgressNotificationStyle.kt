@@ -49,7 +49,8 @@ internal fun progressNotificationBase(context: Context, text: ProgressNoticeText
     }
     val builder = NotificationCompat
         .Builder(context, MeasurementService.CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+        // 런크크 단색 아이콘(피그마 F-15b 앱 아이콘 자리). 큰 숫자, 둥근 버튼은 승격 알림이 사용자 지정 뷰를 받지 않아 그리지 않는다.
+        .setSmallIcon(R.drawable.ic_stat_runkk)
         .setContentTitle(text.title)
         .setContentText(text.body)
         .setOngoing(true)

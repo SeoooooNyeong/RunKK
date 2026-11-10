@@ -71,8 +71,8 @@ class CrewFigmaTest {
                 )
             }
         }
-        compose.onNodeWithText("크루런 · 5km").assertExists()
-        compose.onNodeWithText("00:00", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("크루런 5km", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("0:00", useUnmergedTree = true).assertExists()
         compose.onNodeWithText(reason, useUnmergedTree = true).assertExists()
         compose.onNodeWithText("출발까지", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("준비 완료 1 / 3").assertExists()
