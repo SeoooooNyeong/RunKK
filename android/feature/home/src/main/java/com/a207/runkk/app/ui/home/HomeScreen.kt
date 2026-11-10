@@ -526,7 +526,7 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
                 RoomAvatar(
                     state,
                     isAvatarOpen,
-                    onAvatar = { actions.onNavigate(Routes.AVATAR) },
+                    onAvatar = { actions.onNavigate(Routes.AVATAR_RUNNER) },
                     Modifier.matchParentSize()
                 )
                 if (state.isSummaryExpanded) {

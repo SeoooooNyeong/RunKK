@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.SelfieJob
@@ -36,6 +37,10 @@ constructor(
     override suspend fun avatar(): Outcome<Avatar> = ApiErrorMapper.call { api.avatar().toDomain() }
 
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+
+    override suspend fun headJson(faceKey: String?): Outcome<String?> = faces.headJson(faceKey)
+
+    override suspend fun runner(): Outcome<AvatarRunner> = ApiErrorMapper.call { api.runner().toDomain() }
 
     /** 접수하면 작업 ID를 남긴다. 접수 응답이 이미 실패면 남기지 않는다. */
     override suspend fun submitSelfie(jpeg: ByteArray): Outcome<SelfieJob> {
@@ -154,16 +159,39 @@ internal fun BackgroundsResponse.toDomain(): AvatarBackgrounds = AvatarBackgroun
                 stage = it.stage,
                 distance = Distance(it.distanceMeters),
                 isUnlocked = it.unlocked,
-                unlockedAt = it.unlockedAt?.let(ServerTime::parse)
+                unlockedAt = it.unlockedAt?.let(ServerTime::parse),
+                remaining = Distance(it.remainingMeters)
             )
-        }
+        },
+    totalDistance = Distance(totalMeters)
+)
+
+internal fun RunnerResponse.toDomain(): AvatarRunner = AvatarRunner(
+    bodyShape = bodyShape,
+    bodyVariant = bodyVariant,
+    skinTone = skinTone,
+    typicalStartHour = typicalStartHour,
+    recentRunCount = recentRunCount,
+    recentDistance = Distance(recentDistanceMeters),
+    runAmount = runAmount,
+    restDaysBeforeDecline = restDaysBeforeDecline
 )
 
 internal fun ShopResponse.toDomain(): Shop = Shop(
     items =
         items.mapNotNull { item ->
             enumByName<ItemSlot>(item.slot)?.let {
-                Shop.Item(item.itemId, it, item.name, item.price, item.owned, item.onSale)
+                Shop.Item(
+                    item.itemId,
+                    it,
+                    item.name,
+                    item.price,
+                    item.owned,
+                    item.onSale,
+                    imageKey = item.assetKey,
+                    isLocked = item.locked,
+                    unlockLabel = item.unlockCondition
+                )
             }
         },
     balance = balance

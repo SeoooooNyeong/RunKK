@@ -150,19 +150,19 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `TC-9700 아바타 꾸미기가 열리면 얼굴 그림을 쓰고 아바타는 꾸미기, 잔액은 상점으로 간다`() {
+    fun `TC-9700 아바타 꾸미기가 열리면 얼굴 그림을 쓰고 아바타는 내 러너(W8 H-2), 잔액은 상점으로 간다`() {
         show(loaded, ReleaseScope.ALL_OPEN)
         compose.onNodeWithContentDescription("내 아바타").assertHasClickAction().performClick()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").performClick()
-        assertEquals(listOf(Routes.AVATAR, Routes.SHOP), routes)
+        assertEquals(listOf(Routes.AVATAR_RUNNER, Routes.SHOP), routes)
     }
 
     @Test
-    fun `S15P31A207-248 운영 빌드는 아바타를 누르면 꾸미기, 잔액을 누르면 상점으로 간다`() {
+    fun `S15P31A207-248 운영 빌드는 아바타를 누르면 내 러너, 잔액을 누르면 상점으로 간다`() {
         show(loaded, ReleaseScope.of(isLockingUnreleased = true))
         compose.onNodeWithContentDescription("내 아바타").performClick()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").performClick()
-        assertEquals(listOf(Routes.AVATAR, Routes.SHOP), routes)
+        assertEquals(listOf(Routes.AVATAR_RUNNER, Routes.SHOP), routes)
     }
 
     @Test

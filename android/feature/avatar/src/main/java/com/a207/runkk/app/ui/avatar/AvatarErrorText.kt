@@ -63,6 +63,7 @@ internal object AvatarErrorText {
         "ITEM_NOT_OWNED" to R.string.avatar_error_item_not_owned,
         "ITEM_NOT_FOUND" to R.string.avatar_error_item_not_found,
         "ITEM_NOT_ON_SALE" to R.string.avatar_error_item_not_on_sale,
+        "ITEM_LOCKED" to R.string.avatar_error_item_locked,
         "ALREADY_OWNED" to R.string.avatar_error_already_owned,
         "INSUFFICIENT_REWARD" to R.string.avatar_error_insufficient_reward,
         // 해금하지 않은 배경(FR-201)

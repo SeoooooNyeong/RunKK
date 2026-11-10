@@ -17,10 +17,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -36,6 +39,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
@@ -48,15 +52,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
-import com.a207.runkk.app.core.designsystem.RunkkBadge
-import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
-import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonSize
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkCheckRow
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
-import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
-import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -131,20 +131,33 @@ fun AvatarSetupScreen(
     onFaceConsent: () -> Unit = {}
 ) {
     Column(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
-        RunkkTopBar(title = stringResource(R.string.avatar_setup_title), onBack = onBack)
+        RunkkTopBar(
+            title = stringResource(R.string.avatar_setup_title),
+            onBack = onBack,
+            containerColor = RunkkColors.Surface,
+            hasDivider = true
+        )
         Column(
-            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
                 stringResource(R.string.avatar_setup_headline),
-                style = RunkkTextStyles.Headline,
+                style = RunkkTextStyles.text(20, FontWeight.Bold),
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.semantics { heading() }
             )
             FacePreview(state)
             SelfieCard(state, onSelfie, onAlbum, onFaceConsent)
-            RunkkSectionTitle(stringResource(R.string.avatar_setup_pick_character))
+            Text(
+                stringResource(R.string.avatar_setup_pick_character),
+                style = RunkkTextStyles.Label,
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.semantics { heading() }
+            )
             CharacterRow(state.selected, onCharacter)
             if (state.error != null) {
                 Text(
@@ -156,12 +169,15 @@ fun AvatarSetupScreen(
             }
         }
         HorizontalDivider(color = RunkkColors.Border)
-        RunkkPrimaryButton(
+        RunkkButton(
             stringResource(R.string.avatar_setup_save),
             onClick = onSave,
             isEnabled = state.selected != null,
             isLoading = state.isWorking,
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(RunkkColors.Surface)
+                .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp)
         )
     }
 }
@@ -174,24 +190,32 @@ fun AvatarSetupScreen(
 private fun FacePreview(state: AvatarSetupUiState) {
     val key =
         state.selected?.let { RunkkAvatarArt.defaultKey(it.name) } ?: state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY
+    // 피그마 H-1: 흰 카드(높이 200, 모서리 20) 가운데 146x176 세로 자리(surfaceHigh, 모서리 16)에 얼굴을 보인다.
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RunkkShapes.ExtraLarge)
+            .heightIn(min = 200.dp)
+            .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)
-            .padding(vertical = 16.dp),
+            .padding(vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterVertically)
     ) {
-        Box(contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(width = 146.dp, height = 176.dp)
+                .clip(RunkkShapes.Medium)
+                .background(RunkkColors.SurfaceHigh),
+            contentAlignment = Alignment.Center
+        ) {
             RunkkAvatarPortrait(
                 key,
                 faceLayers = emptyList(),
-                modifier = Modifier.size(112.dp).clip(CircleShape).background(RunkkColors.Border)
+                modifier = Modifier.size(112.dp).clip(CircleShape)
             )
             if (state.isMakingFace) {
                 CircularProgressIndicator(
-                    color = RunkkColors.Lime,
+                    color = RunkkColors.LimeFill,
                     trackColor = RunkkColors.Border,
                     strokeWidth = 3.dp,
                     modifier = Modifier.size(124.dp)
@@ -222,17 +246,30 @@ private fun SelfieCard(
 ) {
     val canCreateSelfie = state.canCreateSelfie
     val isWorking = state.isWorking || state.isMakingFace
-    RunkkCard(borderColor = if (canCreateSelfie) RunkkColors.Lime else RunkkColors.Border) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RunkkShapes.Large)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.avatar_setup_selfie_title),
-                style = RunkkTextStyles.CardTitle,
+                style = RunkkTextStyles.Label,
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.weight(1f)
             )
-            RunkkBadge(
+            Text(
                 stringResource(R.string.avatar_setup_selfie_daily),
-                tone = if (canCreateSelfie) RunkkBadgeTone.Lime else RunkkBadgeTone.Muted
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(RunkkColors.SurfaceHigh)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
             )
         }
         RunkkCheckRow(
@@ -240,18 +277,21 @@ private fun SelfieCard(
             isChecked = state.hasFaceConsent,
             onCheckedChange = { isChecked -> if (isChecked) onFaceConsent() }
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkSecondaryButton(
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            RunkkButton(
                 stringResource(R.string.avatar_setup_take_selfie),
                 onClick = onSelfie,
                 isEnabled = canCreateSelfie && !isWorking,
-                leadingIcon = RunkkIcons.Camera,
+                style = RunkkButtonStyle.Outline,
+                size = RunkkButtonSize.Medium,
                 modifier = Modifier.weight(1f)
             )
-            RunkkSecondaryButton(
+            RunkkButton(
                 stringResource(R.string.avatar_setup_pick_album),
                 onClick = onAlbum,
                 isEnabled = canCreateSelfie && !isWorking,
+                style = RunkkButtonStyle.Outline,
+                size = RunkkButtonSize.Medium,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -261,10 +301,11 @@ private fun SelfieCard(
 /** 기본 캐릭터 얼굴 4종을 한 줄로. */
 @Composable
 private fun CharacterRow(selected: DefaultCharacter?, onCharacter: (DefaultCharacter) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        DefaultCharacter.entries.forEach { character ->
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        DefaultCharacter.entries.forEachIndexed { index, character ->
             CharacterOption(
                 character,
+                number = index + 1,
                 isSelected = character == selected,
                 onClick = { onCharacter(character) },
                 modifier = Modifier.weight(1f)
@@ -276,20 +317,22 @@ private fun CharacterRow(selected: DefaultCharacter?, onCharacter: (DefaultChara
 @Composable
 private fun CharacterOption(
     character: DefaultCharacter,
+    number: Int,
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val name = stringResource(character.labelRes)
     val pickLabel = stringResource(R.string.avatar_setup_pick_label, name)
-    Box(
+    // 피그마 H-1: 76.5x80 칸, 그림 아래 "기본 n"(Medium 10). 고른 칸은 surfaceHigh 바탕에 primary 2 테두리다.
+    Column(
         modifier = modifier
-            .aspectRatio(1f)
+            .height(80.dp)
             .clip(RunkkShapes.Medium)
-            .background(if (isSelected) RunkkColors.LimeContainer else RunkkColors.Surface)
+            .background(if (isSelected) RunkkColors.SurfaceHigh else RunkkColors.Surface)
             .border(
                 if (isSelected) 2.dp else 1.dp,
-                if (isSelected) RunkkColors.Lime else RunkkColors.Border,
+                if (isSelected) RunkkColors.LimeFill else RunkkColors.Border,
                 RunkkShapes.Medium
             )
             .clickable(role = Role.RadioButton, onClickLabel = pickLabel, onClick = onClick)
@@ -297,16 +340,23 @@ private fun CharacterOption(
                 this.selected = isSelected
                 contentDescription = name
             }
-            .padding(8.dp),
-        contentAlignment = Alignment.Center
+            .padding(6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         RunkkAvatarPortrait(
             RunkkAvatarArt.defaultKey(character.name),
             faceLayers = emptyList(),
-            modifier = Modifier.fillMaxSize().clip(CircleShape)
+            modifier = Modifier.weight(1f).aspectRatio(1f).clip(CircleShape)
         ) {
             Text(name, style = RunkkTextStyles.text(14, FontWeight.Black), color = RunkkColors.TextPrimary)
         }
+        Text(
+            stringResource(R.string.avatar_setup_character_label, number),
+            style = RunkkTextStyles.text(10, FontWeight.Medium),
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.clearAndSetSemantics {}
+        )
     }
 }
 

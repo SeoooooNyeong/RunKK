@@ -225,13 +225,7 @@ class AvatarScreensTest {
             RunkkTheme(reduceMotion = true) {
                 ShopScreen(
                     ShopUiState(isLoading = false, shop = Shop(items, 1_240), confirming = items[2]),
-                    onBack = {},
-                    onSlot = {},
-                    onPick = {},
-                    onBuy = { calls += "buy" },
-                    onDismiss = {},
-                    onRetry = {},
-                    onMessageShown = {}
+                    ShopActions(onBuy = { calls += "buy" })
                 )
             }
         }
@@ -282,7 +276,7 @@ class AvatarScreensTest {
         }
         compose.onNodeWithText(str(R.string.avatar_background_unlocked_count, 2, 3)).assertExists()
         compose.onNode(hasContentDescription("인천") and hasStateDescription("인천, 사용 중")).assertIsSelected()
-        compose.onNode(hasContentDescription("베이징") and hasStateDescription("베이징, 누적 950km에 해금"))
+        compose.onNode(hasContentDescription("베이징") and hasStateDescription("베이징, 830km 더 달리면 해금"))
             .assertIsNotSelected()
             .performClick()
         compose.onNodeWithContentDescription(str(R.string.avatar_background_default)).performClick()
@@ -342,21 +336,12 @@ class AvatarScreenshotTest {
 
     @Test
     fun shop() = compose.captureRunkkScreen("J4_shop") {
-        ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), {}, {}, {}, {}, {}, {}, {})
+        ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240), selected = items[2]), ShopActions())
     }
 
     @Test
     fun shopConfirm() = compose.captureRunkkScreen("J5_shop_buy_confirm") {
-        ShopScreen(
-            ShopUiState(isLoading = false, shop = Shop(items, 1_240), confirming = items[2]),
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {}
-        )
+        ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240), confirming = items[2]), ShopActions())
     }
 
     @Test
