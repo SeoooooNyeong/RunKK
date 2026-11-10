@@ -31,7 +31,7 @@ class CrewFeatureEntry @Inject constructor() : FeatureEntry {
         builder.addEntryProvider(Routes.CrewRunLobby::class) { key -> CrewRunRoute(key) }
         builder.addEntryProvider(Routes.CrewRunResult::class) { key -> CrewRunResultRoute(key.postId) }
         builder.addEntryProvider(Routes.CrewGoalSet::class) { key -> CrewGoalSetRoute(key) }
-        // 알림 이동(FR-178, D-150): 내 크루 홈의 해당 탭, 채팅은 내 크루를 확인한 뒤 Routes.CrewChat(crewId)으로.
+        // 알림 이동(FR-178, D-150): 내 크루 홈의 해당 탭, 채팅은 내 크루를 확인한 뒤 크루 홈 채팅 탭(CrewHome(crewId, "CHAT"))으로.
         // 게시판을 뺀 뒤 공지·투표 알림은 크루 홈 레이스 탭으로 연다.
         builder.route(Routes.CREW_NOTICE) { CrewFindRoute(initialTab = CrewTab.RACE) }
         builder.route(Routes.CREW_POLL) { CrewFindRoute(initialTab = CrewTab.RACE) }

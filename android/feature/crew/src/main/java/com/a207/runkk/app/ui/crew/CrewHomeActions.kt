@@ -31,12 +31,14 @@ data class CrewHomeActions(
     val onResult: (PostList.Item) -> Unit = {},
     /** ⋯ 메뉴의 크루 관리(크루장·운영진, Routes.CrewManage). */
     val onManage: () -> Unit = {},
-    val onChat: () -> Unit = {},
     /** 주간 공동 목표 화면(와이어 M8, Routes.CrewGoalSet). */
     val onGoalEdit: () -> Unit = {},
     /** 다른 러너 프로필(와이어 F8, Routes.MemberProfile): 크루원 줄. */
     val onMember: (CrewMembers.Member) -> Unit = {},
     val onShareCelebration: (CelebrationCard) -> Unit = {},
+    /** 달성 띠의 「자세히 보기」로 축하 팝업을 열고(피그마 F-08), 팝업의 「확인」으로 닫는다(F-08b). */
+    val onCelebrationOpen: () -> Unit = {},
+    val onCelebrationClose: () -> Unit = {},
     val onLeaveAsk: () -> Unit = {},
     val onLeaveDismiss: () -> Unit = {},
     val onLeaveConfirm: () -> Unit = {},

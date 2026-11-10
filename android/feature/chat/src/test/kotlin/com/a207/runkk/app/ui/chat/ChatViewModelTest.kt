@@ -6,9 +6,11 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.chat.ChatMessage
+import com.a207.runkk.app.domain.chat.ChatMessageKind
 import com.a207.runkk.app.domain.chat.ChatPage
 import com.a207.runkk.app.domain.chat.ChatRoom
 import com.a207.runkk.app.domain.chat.ReactionKind
+import com.a207.runkk.app.domain.chat.Reactor
 import com.a207.runkk.app.domain.report.ReportReason
 import com.a207.runkk.app.domain.report.ReportTarget
 import com.a207.runkk.app.domain.report.ReportTargetKind
@@ -35,7 +37,7 @@ class ChatViewModelTest {
     private fun TestScope.viewModel(vararg history: ChatPage): ChatViewModel {
         history.forEach { chats.historyResults.addLast(Outcome.Success(it)) }
         val room = ChatRoom(chats, live, registry, Clock.fixed(T0, ZoneOffset.UTC), backgroundScope)
-        return ChatViewModel(room, reports)
+        return ChatViewModel(room, chats, reports)
     }
 
     private fun ChatViewModel.shown(): ChatViewModel = also { it.onShown(CREW) }
@@ -215,5 +217,58 @@ class ChatViewModelTest {
 
     private companion object {
         const val CREW = 5L
+    }
+
+    @Test
+    fun `W5 반응 알약을 길게 누르면 반응한 사람을 읽고 탭으로 거른다, 닫으면 비운다(F-09d)`() = runTest(main.dispatcher) {
+        val like = Reactor(3, "새벽곰", ReactionKind.LIKE, T0, isMe = false)
+        val check = Reactor(4, "나", ReactionKind.CHECK, T0, isMe = true)
+        chats.reactorsResult = Outcome.Success(listOf(like, check))
+        val vm = viewModel().shown()
+        val message = chatMessage(101, reactions = mapOf(ReactionKind.LIKE to 1, ReactionKind.CHECK to 1))
+
+        vm.onOpenReactors(message, ReactionKind.CHECK)
+
+        assertEquals(listOf(101L), chats.reactorCalls)
+        val opened = vm.state.value
+        assertEquals(message, opened.reactorsTarget)
+        assertEquals(ReactionKind.CHECK, opened.reactorsTab)
+        assertFalse(opened.isLoadingReactors)
+        assertEquals(listOf(check), opened.visibleReactors)
+        assertEquals(listOf(ReactionKind.LIKE, ReactionKind.CHECK), opened.reactorTabs)
+
+        vm.onReactorTab(null)
+        assertEquals(listOf(like, check), vm.state.value.visibleReactors)
+
+        vm.onCloseReactors()
+        assertNull(vm.state.value.reactorsTarget)
+        assertEquals(emptyList(), vm.state.value.reactors)
+    }
+
+    @Test
+    fun `W5 반응한 사람 읽기에 실패하면 시트에 오류를 보이고, 지운 메시지·보내는 중 메시지는 열지 않는다`() = runTest(main.dispatcher) {
+        chats.reactorsResult = Outcome.Failure(AppError.Network)
+        val vm = viewModel().shown()
+
+        vm.onOpenReactors(chatMessage(101, reactions = mapOf(ReactionKind.LIKE to 1)), null)
+        assertTrue(vm.state.value.isReactorsFailed)
+        assertFalse(vm.state.value.isLoadingReactors)
+
+        vm.onCloseReactors()
+        vm.onOpenReactors(chatMessage(102).removed(), null)
+        vm.onOpenReactors(chatMessage(null, clientMessageId = "c-1"), null)
+        assertNull(vm.state.value.reactorsTarget)
+        assertEquals(listOf(101L), chats.reactorCalls)
+    }
+
+    @Test
+    fun `W5 CHECK 반응도 달고 뗀다, 시스템 메시지는 신고하지 않는다`() = runTest(main.dispatcher) {
+        val vm = viewModel().shown()
+        vm.onReaction(chatMessage(101), ReactionKind.CHECK)
+        vm.onReaction(chatMessage(101, myReactions = setOf(ReactionKind.CHECK)), ReactionKind.CHECK)
+        assertEquals(listOf("react:101:CHECK", "unreact:101:CHECK"), chats.reactions)
+
+        vm.onReportAsk(chatMessage(103, kind = ChatMessageKind.RUN_FINISHED))
+        assertNull(vm.state.value.reportTarget)
     }
 }

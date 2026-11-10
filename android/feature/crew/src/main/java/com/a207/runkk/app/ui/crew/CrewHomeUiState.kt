@@ -43,8 +43,13 @@ data class CrewHomeUiState(
     val isInviteOpen: Boolean = false,
     val isBusy: Boolean = false,
     val message: UiText? = null,
-    val error: UiText? = null
+    val error: UiText? = null,
+    /** 띄운 공동 목표 축하 팝업(피그마 F-08b). 그 주 첫 진입 때 한 번 자동으로, 달성 띠의 「자세히 보기」로 다시 연다. 닫혀 있으면 null. */
+    val celebration: RaceStatus? = null
 ) {
+    /** 이번 주 공동 목표를 달성해 목표 카드 위에 달성 띠를 보인다(피그마 F-08). */
+    val isCelebrationBannerShown: Boolean get() = race?.achievedAt != null && race.celebration != null
+
     val crewName: String get() = detail?.name.orEmpty()
 
     /** 내 크루 역할(크루 밖·읽기 전이면 null). 버튼 노출을 정한다(3.0.3, FR-128). */

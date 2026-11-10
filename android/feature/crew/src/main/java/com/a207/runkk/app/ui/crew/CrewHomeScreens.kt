@@ -22,6 +22,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -45,14 +46,18 @@ import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
+import com.a207.runkk.app.core.designsystem.RunkkSegmented
+import com.a207.runkk.app.core.designsystem.RunkkSegmentedSelection
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
-import com.a207.runkk.app.core.designsystem.RunkkTabRow
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.LocalSlotCrewId
+import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.PostList
 import kotlinx.coroutines.launch
@@ -92,7 +97,9 @@ fun CrewHomeRoute(
         state = state,
         isAtTabRoot = isAtTabRoot,
         actions = crewHomeActions(viewModel, report::onAsk).withNavigation(state.crewId, navigator::navigate)
-            .copy(onBack = navigator::back)
+            .copy(onBack = navigator::back),
+        // 채팅 탭(피그마 F-09, [임시:D-성-21]): ui.chat이 칸 SlotKey.CREW_CHAT_TAB에 넣은 ChatTabContent를 그린다.
+        chatContent = { chatModifier -> CrewChatSlot(state.crewId, chatModifier) }
     )
     CrewReportDialog(
         reportState,
@@ -111,10 +118,19 @@ internal fun CrewHomeActions.withNavigation(crewId: Long, navigate: (NavKey) -> 
     onLobby = { post -> navigate(Routes.CrewRunLobby(post.postId)) },
     onResult = { post -> navigate(Routes.CrewRunResult(post.postId)) },
     onManage = { navigate(Routes.CrewManage(crewId)) },
-    onChat = { navigate(Routes.CrewChat(crewId)) },
     onGoalEdit = { navigate(Routes.CrewGoalSet(crewId)) },
     onMember = { member -> navigate(Routes.MemberProfile(member.memberId)) }
 )
+
+/** 채팅 탭 칸(SlotKey.CREW_CHAT_TAB): ui.chat이 넣은 내용을 이 크루 ID로 그린다. 넣은 기능이 없으면(미리보기) 빈 칸이다. */
+@Composable
+private fun CrewChatSlot(crewId: Long, modifier: Modifier) {
+    Box(modifier) {
+        CompositionLocalProvider(LocalSlotCrewId provides crewId) {
+            LocalSlots.current[SlotKey.CREW_CHAT_TAB].orEmpty().forEach { it() }
+        }
+    }
+}
 
 /** 다른 ViewModel의 안내 문구를 크루 홈 안내 줄로 넘기고 그 ViewModel에서는 지운다. */
 @Composable
@@ -141,6 +157,8 @@ private fun crewHomeActions(vm: CrewHomeViewModel, onReport: (PostList.Item) -> 
     onAttendance = vm::onAttendance,
     onAttendanceWithdraw = vm::onAttendanceWithdraw,
     onShareCelebration = vm::onShareCelebration,
+    onCelebrationOpen = vm::onCelebrationOpen,
+    onCelebrationClose = vm::onCelebrationClose,
     onLeaveAsk = vm::onLeaveAsk,
     onLeaveDismiss = vm::onLeaveDismiss,
     onLeaveConfirm = vm::onLeaveConfirm,
@@ -165,7 +183,9 @@ fun CrewHomeScreen(
     state: CrewHomeUiState,
     actions: CrewHomeActions,
     modifier: Modifier = Modifier,
-    isAtTabRoot: Boolean = false
+    isAtTabRoot: Boolean = false,
+    /** 채팅 탭 내용(ui.chat ChatTabContent). 시험·미리보기는 비워 둔다. */
+    chatContent: @Composable (Modifier) -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
     val message = state.message?.asString()
@@ -179,7 +199,7 @@ fun CrewHomeScreen(
         when (state.page) {
             CrewHomePage.INFO -> CrewInfoPage(state, actions)
             CrewHomePage.MEMBERS -> CrewMembersPage(state, actions)
-            CrewHomePage.HOME -> HomeTabs(state, actions, isAtTabRoot)
+            CrewHomePage.HOME -> HomeTabs(state, actions, isAtTabRoot, chatContent)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
     }
@@ -188,7 +208,12 @@ fun CrewHomeScreen(
 
 /** 홈 탭 화면: 머리글, 탭 줄, 지금 탭의 내용. 크루런 탭은 끝 근처까지 내리면 다음 쪽을 이어 받는다. */
 @Composable
-private fun HomeTabs(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRoot: Boolean) {
+private fun HomeTabs(
+    state: CrewHomeUiState,
+    actions: CrewHomeActions,
+    isAtTabRoot: Boolean,
+    chatContent: @Composable (Modifier) -> Unit
+) {
     val list = rememberLazyListState()
     val nearEnd by remember { derivedStateOf { list.remainingPx() <= LOAD_MORE_PX } }
     val hasMore = state.tab == CrewTab.SCHEDULE && state.crewRuns?.nextCursor != null
@@ -199,7 +224,12 @@ private fun HomeTabs(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRo
     }
     Column(Modifier.fillMaxSize()) {
         Header(state, actions, isAtTabRoot)
-        CrewTabStrip(state.tab, onTab = actions.onTab, onChat = actions.onChat)
+        CrewTabStrip(state.tab, onTab = actions.onTab)
+        // 채팅 탭은 자기 목록과 입력 줄을 가지므로 바깥 지연 목록에 넣지 않는다(스크롤 안에 스크롤을 두지 않는다).
+        if (state.tab == CrewTab.CHAT) {
+            chatContent(Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp))
+            return@Column
+        }
         LazyColumn(
             state = list,
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -221,8 +251,11 @@ private fun LazyListScope.homeTabItems(state: CrewHomeUiState, actions: CrewHome
         CrewTab.SCHEDULE -> scheduleTabItems(state, actions)
 
         CrewTab.RACE -> item(key = "tab:${state.tab}") {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { RaceTab(state, actions) }
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { RaceTab(state, actions) }
         }
+
+        // 채팅 탭은 HomeTabs가 지연 목록 밖에 그린다.
+        CrewTab.CHAT -> Unit
     }
     if (state.isLoadingMore) {
         item(key = "loading-more") {
@@ -240,23 +273,17 @@ private fun LazyListState.remainingPx(): Int {
     return last.offset + last.size - info.viewportEndOffset + unseen * average
 }
 
-/** 같은 너비 탭 세 칸(피그마 F-05): 레이스, 크루런, 채팅. 채팅 칸은 채팅방(M4)을 연다. */
+/** 같은 너비 탭 세 칸(피그마 F-05·F-09): 레이스, 크루런, 채팅. 라임 선택 세그먼트(위 14, 좌우 20). */
 @Composable
-private fun CrewTabStrip(selected: CrewTab, onTab: (CrewTab) -> Unit, onChat: () -> Unit) {
+private fun CrewTabStrip(selected: CrewTab, onTab: (CrewTab) -> Unit) {
     val items = CrewStripItem.entries
     val current = CrewStripItem.of(selected)
-    RunkkTabRow(
+    RunkkSegmented(
         options = items.map { stringResource(it.labelRes) },
         selectedIndex = items.indexOf(current),
-        onSelect = { index ->
-            val tab = items[index].tab
-            when {
-                tab == null -> onChat()
-                items[index] == current -> Unit
-                else -> onTab(tab)
-            }
-        },
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+        onSelect = { index -> if (items[index] != current) onTab(items[index].tab) },
+        selection = RunkkSegmentedSelection.Lime,
+        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 2.dp)
     )
 }
 
@@ -299,6 +326,10 @@ private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
     if (state.isEditingIntro) IntroSheet(state, actions)
     val code = state.detail?.inviteCode
     if (state.isInviteOpen && code != null) InviteCodeDialog(code, actions)
+    // 공동 목표 축하 팝업(피그마 F-08b): 그 주 첫 진입 때 한 번, 달성 띠의 「자세히 보기」로 다시.
+    val celebrated = state.celebration
+    val card = celebrated?.celebration
+    if (celebrated != null && card != null) CelebrationDialog(celebrated, card, onClose = actions.onCelebrationClose)
 }
 
 /** 크루에서 보이는 내 정보 편집 시트(와이어 E6): 한줄 소개(40자)와 저장. */

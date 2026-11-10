@@ -52,14 +52,14 @@ class CrewV011ScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("목표 설정").assertDoesNotExist()
+        compose.onNodeWithText("목표 정하기").assertDoesNotExist()
         compose.onNodeWithContentDescription("크루 메뉴").performClick()
         compose.onNodeWithText("크루원").assertExists()
         compose.onNodeWithText("크루 관리").assertDoesNotExist()
         compose.onNodeWithText("크루 정보").performClick()
         role = CrewRole.MANAGER
         compose.waitForIdle()
-        compose.onNodeWithText("목표 설정").assertExists()
+        compose.onNodeWithText("목표 정하기").assertExists()
         compose.onNodeWithContentDescription("크루 메뉴").performClick()
         compose.onNodeWithText("크루 관리").performClick()
         assertEquals(listOf("page:INFO", "manage"), calls)
@@ -76,7 +76,7 @@ class CrewV011ScreensTest {
             }
         }
         compose.onNodeWithContentDescription("공동 목표 50.0킬로미터 중 58.6킬로미터, 100퍼센트").assertExists()
-        compose.onNodeWithText("목표 설정").performClick()
+        compose.onNodeWithText("목표 정하기").performClick()
         assertEquals(listOf("goal"), calls)
     }
 
@@ -91,33 +91,34 @@ class CrewV011ScreensTest {
             }
         }
         compose.onNodeWithText("이번 주 달린 거리").assertExists()
-        compose.onNodeWithText("이번 주 공동 목표").assertDoesNotExist()
+        compose.onNodeWithText("이번 주 목표").assertDoesNotExist()
         compose.onNodeWithText("일요일 자정 마감").assertDoesNotExist()
-        compose.onNodeWithText("목표 설정").assertExists()
+        compose.onNodeWithText("목표 정하기").assertExists()
     }
 
     @Test
-    fun `레이스 - 달성한 주는 축하 카드와 공유, 기여도 막대는 순위 숫자 없이 읽는다(와이어 E9, FR-140·FR-141)`() {
+    fun `레이스 - 달성한 주는 달성 띠와 목표 카드, 러닝 보드는 이번 주만 순위 숫자 없이 읽는다(피그마 F-08, FR-140·FR-141)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
                     home(CrewRole.LEADER),
                     CrewHomeActions(
-                        onShareCelebration = { calls += "share:${it.crewName}" },
+                        onCelebrationOpen = { calls += "celebration" },
                         onGoalEdit = { calls += "goal" },
-                        onChat = { calls += "chat" }
+                        onTab = { calls += it.name }
                     )
                 )
             }
         }
-        compose.onNodeWithText("함께 목표를 넘었어요", substring = true).assertExists()
+        compose.onNodeWithText("목표 달성", substring = true).assertExists()
+        compose.onNodeWithText("달성").assertExists()
         compose.onNodeWithText("이번 주").assertExists()
         compose.onNodeWithContentDescription("달빛 27.5킬로미터").assertExists()
         compose.onNodeWithContentDescription("나 12.9킬로미터").assertExists()
-        compose.onNodeWithText("목표 설정").assertDoesNotExist()
-        compose.onNodeWithText("축하 카드 공유").performClick()
+        compose.onNodeWithText("자세히 보기").performClick()
+        compose.onNodeWithText("목표 정하기").performClick()
         compose.onNodeWithText("채팅").performClick()
-        assertEquals(listOf("share:새벽질주", "chat"), calls)
+        assertEquals(listOf("celebration", "goal", "CHAT"), calls)
     }
 
     @Test

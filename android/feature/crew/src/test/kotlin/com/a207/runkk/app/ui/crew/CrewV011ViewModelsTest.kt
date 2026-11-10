@@ -57,8 +57,9 @@ class CrewHomeV011ViewModelTest {
     }
 
     @Test
-    fun `진행률은 100에서 자르고 기여도 막대는 거리 내림차순에 순위 숫자가 없다(FR-140, TC-7497)`() {
-        assertEquals(100, goalProgressLabel(raceWithGoal.copy(goalProgressPercent = 117)))
+    fun `진행률은 100을 넘겨도 그대로이고 막대는 100%에서 꽉 차며 기여도 막대는 거리 내림차순에 순위 숫자가 없다(C2, TC-7497)`() {
+        assertEquals(117, goalProgressLabel(raceWithGoal.copy(goalProgressPercent = 117)))
+        assertEquals(1f, goalFillFraction(raceWithGoal.copy(goalProgressPercent = 117)))
         assertEquals(83, goalProgressLabel(raceWithGoal.copy(goalProgressPercent = 83)))
         assertEquals(listOf("달빛", "바람처럼", "나"), contributionBars(raceWithGoal).map { it.displayName })
         assertEquals(1f, contributionBars(raceWithGoal).first().fraction)
@@ -141,7 +142,7 @@ class CrewNoticePollMovedTest {
     fun `공동 목표 거부는 서버 사유로 알린다(FR-138)`() {
         repo.fail["goal"] = AppError.Rejected("PERMISSION_DENIED")
         val vm = CrewGoalSetViewModel(repo, MutableClock()).also { it.bind(11) }
-        vm.onQuick(30)
+        vm.onDraft("30")
         vm.onSave()
         assertEquals(UiText.Res(R.string.crew_error_permission_denied), vm.state.value.error)
         assertFalse(vm.state.value.isSaved)

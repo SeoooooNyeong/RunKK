@@ -199,7 +199,7 @@ class InboxTest {
         assertEquals(Routes.Key(Routes.CREW_SCHEDULE), inboxDestination("CREW_SCHEDULE", "3"))
         assertEquals(Routes.Key(Routes.CREW_NOTICE), inboxDestination("CREW_NOTICE", null))
         // 채팅 알림의 대상 ID는 크루 ID다(서버 ChatDeliveryListener). 없으면 내 크루를 확인하는 채팅 경로로.
-        assertEquals(Routes.CrewChat(3), inboxDestination("CREW_CHAT", "3"))
+        assertEquals(Routes.CrewHome(3, "CHAT"), inboxDestination("CREW_CHAT", "3"), "채팅은 크루 홈 채팅 탭(D-성-21)")
         assertEquals(Routes.Key(Routes.CREW_CHAT), inboxDestination("CREW_CHAT", null))
         assertEquals(Routes.Key(Routes.AVATAR_BACKGROUND), inboxDestination("AVATAR_BACKGROUND", null))
         assertEquals(Routes.CrewHome(7), inboxDestination("CREW_HOME", "7"))
@@ -331,7 +331,9 @@ class InboxTest {
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
         )
-        val V011_KEYS = setOf("CrewChat", "CrewPollWrite", "CrewBoardWrite")
+
+        // W5([임시:D-성-21]): 채팅은 크루 홈 탭이 되어 CrewChat 경로를 지웠다.
+        val V011_KEYS = setOf("CrewPollWrite", "CrewBoardWrite")
 
         /** 와이어프레임 v0.10 반영에서 더한 인자 키(F8 다른 러너 프로필, M1 공지 쓰기, M3 투표, M7 대면 모임, M8 공동 목표). */
         val WIRE_V010_KEYS = setOf("MemberProfile", "CrewNoticeWrite", "CrewPoll", "CrewMeetupDetail", "CrewGoalSet")
