@@ -92,7 +92,7 @@ class SharedToneCacheTest {
     /** 서기·달리기 텍스처가 섞인 캐시(뷰 하나가 두 동작을 다 가진 경우). */
     private fun mixed(): AvatarToneCache {
         val bytes = byteArrayOf(1)
-        val layers = BodySkinLayers.PreparedLayers(bytes, bytes, bytes, 0)
+        val layers = bytes
         fun skin() = AvatarToneCache.RenderedSkin(SkinRenderKey(40), bytes)
         return AvatarToneCache(
             skinBases = mapOf(
