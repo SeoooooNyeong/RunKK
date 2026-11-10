@@ -94,6 +94,18 @@ internal interface CrewApi {
     @PUT("posts/{id}/attendance")
     suspend fun answerAttendance(@Path("id") postId: Long, @Body body: AttendanceRequest): AttendanceResponse
 
+    /** 참석 취소(W6): 크루런 참석 응답을 거둔다. */
+    @DELETE("posts/{id}/attendance")
+    suspend fun withdrawAttendance(@Path("id") postId: Long): AttendanceResponse
+
+    /** 크루런 일정 상세(W6, 피그마 F-13). */
+    @GET("crew-runs/{id}")
+    suspend fun crewRun(@Path("id") postId: Long): CrewRunDetailResponse
+
+    /** 모집글 수정(W6, 피그마 F-13d). */
+    @PATCH("crew-runs/{id}")
+    suspend fun editCrewRun(@Path("id") postId: Long, @Body body: CrewRunEditRequest): CrewRunDetailResponse
+
     @PUT("crews/{id}/managers/{memberId}")
     suspend fun appointManager(@Path("id") crewId: Long, @Path("memberId") memberId: Long): ManagerResponse
 

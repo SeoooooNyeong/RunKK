@@ -175,6 +175,7 @@ class ServerContractTest {
             "AccountType" to names(AccountType.entries),
             "ScreenTheme" to names(ScreenTheme.entries),
             "PollMethod" to names(PollMethod.entries),
+            "CrewRunRepeat" to names(com.a207.runkk.app.domain.crew.CrewRunRepeat.entries),
             "ReactionKind" to names(ReactionKind.entries),
             "ReportTargetKind" to names(ReportTargetKind.entries),
             "ReportReason" to names(ReportReason.entries),
@@ -315,6 +316,7 @@ class ServerContractTest {
         request(JoinRequestBody.serializer(), "CrewDtos.JoinRequestBody")
         request(CrewProfileRequest.serializer(), "CrewDtos.CrewProfileRequest")
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
+        request(com.a207.runkk.app.api.crew.CrewRunEditRequest.serializer(), "CrewScheduleDtos.CrewRunEditRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
         request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
         request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
@@ -375,6 +377,10 @@ class ServerContractTest {
         response(RaceStatusResponse.serializer(), "CrewDtos.RaceStatusResponse")
         response(PostListResponse.serializer(), "CrewDtos.PostListResponse")
         response(LobbyResponse.serializer(), "CrewDtos.LobbyResponse")
+        response(
+            com.a207.runkk.app.api.crew.CrewRunDetailResponse.serializer(),
+            "CrewScheduleDtos.CrewRunDetailResponse"
+        )
         response(CrewRunResultResponse.serializer(), "CrewDtos.CrewRunResultResponse")
         response(CreatedResponse.serializer(), "CrewDtos.CreatedResponse")
         response(CreatedResponse.serializer(), "CrewDtos.PostResponse")

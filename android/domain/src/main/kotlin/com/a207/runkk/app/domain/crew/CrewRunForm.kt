@@ -1,9 +1,19 @@
 package com.a207.runkk.app.domain.crew
 
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.core.model.Outcome
 import java.time.Instant
-import java.time.LocalDate
 
-/** 크루런 모집글 입력(FR-145). */
-data class CrewRunForm(val title: String, val body: String?, val distance: Distance, val meetAt: Instant)
+/**
+ * 크루런 모집글 입력(FR-132, 피그마 F-12). [distance]가 null이면 제한 없음이다. 일시는 오늘~14일 뒤, 5분 단위만 서버가 받는다
+ * (계약 contract-W6.md R3).
+ */
+data class CrewRunForm(
+    val title: String,
+    val body: String?,
+    val distance: Distance?,
+    val meetAt: Instant,
+    val repeat: CrewRunRepeat = CrewRunRepeat.NONE
+)
+
+/** 크루런 모집글 수정(PATCH /crew-runs/{id}, 피그마 F-13d). 일시는 바꿀 수 없다. [distance]가 null이면 제한 없음이다. */
+data class CrewRunEdit(val title: String, val body: String?, val distance: Distance?, val repeat: CrewRunRepeat)

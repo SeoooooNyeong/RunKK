@@ -13,6 +13,8 @@ import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
+import com.a207.runkk.app.domain.crew.CrewRunDetail
+import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.JoinResult
@@ -108,6 +110,18 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
         api.answerAttendance(postId, AttendanceRequest(answer.name))
         Unit
     }
+
+    /** 참석 취소(DELETE /posts/{id}/attendance, W6). */
+    override suspend fun withdrawAttendance(postId: Long): Outcome<Unit> = ApiErrorMapper.call {
+        api.withdrawAttendance(postId)
+        Unit
+    }
+
+    override suspend fun crewRun(postId: Long): Outcome<CrewRunDetail> =
+        ApiErrorMapper.call { api.crewRun(postId).toDomain() }
+
+    override suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail> =
+        ApiErrorMapper.call { api.editCrewRun(postId, edit.toRequest()).toDomain() }
 
     override suspend fun appointManager(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call {
         api.appointManager(crewId, memberId)
