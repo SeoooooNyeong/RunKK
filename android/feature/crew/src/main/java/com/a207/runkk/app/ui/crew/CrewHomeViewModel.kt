@@ -10,12 +10,14 @@ import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CelebrationCard
+import com.a207.runkk.app.domain.crew.CrewCelebrationStore
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
+import com.a207.runkk.app.domain.crew.RaceStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -48,7 +50,9 @@ class CrewHomeViewModel @Inject constructor(
     private val crews: CrewRepository,
     private val serverClock: ServerClock,
     private val celebration: CelebrationSharer,
-    private val visibility: ProfileVisibilitySaver
+    private val visibility: ProfileVisibilitySaver,
+    /** 축하 팝업을 그 주에 본 기록([임시:D-성-23]). 시험은 기본 메모리 구현을 쓴다. */
+    private val celebrationStore: CrewCelebrationStore = CrewCelebrationStore.inMemory()
 ) : ViewModel() {
     private val _state = MutableStateFlow(CrewHomeUiState())
     val state: StateFlow<CrewHomeUiState> = _state.asStateFlow()
@@ -72,7 +76,7 @@ class CrewHomeViewModel @Inject constructor(
     fun bind(key: Routes.CrewHome, initialTab: CrewTab = CrewTab.RACE) {
         if (bound == key.crewId) return
         bound = key.crewId
-        _state.value = CrewHomeUiState(crewId = key.crewId, tab = initialTab)
+        _state.value = CrewHomeUiState(crewId = key.crewId, tab = CrewTab.of(key.tab, initialTab))
         loadDetail()
         refresh()
     }
@@ -109,7 +113,11 @@ class CrewHomeViewModel @Inject constructor(
         val s = _state.value
         val loaded = when (tab) {
             CrewTab.RACE -> s.race != null
+
             CrewTab.SCHEDULE -> s.crewRuns != null
+
+            // 채팅 탭은 ChatTabContent가 방을 열어 스스로 읽는다([임시:D-성-21]).
+            CrewTab.CHAT -> true
         }
         if (!loaded) refresh()
     }
@@ -138,6 +146,8 @@ class CrewHomeViewModel @Inject constructor(
 
                 s.tab == CrewTab.RACE -> loadRace(s)
 
+                s.tab == CrewTab.CHAT -> null
+
                 // 크루런 탭은 크루런 일정만 보인다(피그마 F-11).
                 else -> {
                     _state.update { it.copy(scheduleNow = serverClock.now()) }
@@ -158,8 +168,23 @@ class CrewHomeViewModel @Inject constructor(
                 ranking = (ranking as? Outcome.Success)?.value ?: it.ranking
             )
         }
+        (race as? Outcome.Success)?.value?.let { celebrateOnce(s.crewId, it) }
         return (race as? Outcome.Failure)?.error ?: (ranking as? Outcome.Failure)?.error
     }
+
+    /** 이번 주 공동 목표를 달성했고 이 기기에서 그 주에 아직 팝업을 보지 않았으면 한 번 띄운다(피그마 F-08b, [임시:D-성-23]). */
+    private fun celebrateOnce(crewId: Long, race: RaceStatus) {
+        if (race.achievedAt == null || race.celebration == null) return
+        val weekStart = raceWeekStart(race)
+        if (celebrationStore.isSeen(crewId, weekStart)) return
+        celebrationStore.markSeen(crewId, weekStart)
+        _state.update { it.copy(celebration = race) }
+    }
+
+    /** 달성 띠의 「자세히 보기」(피그마 F-08). */
+    fun onCelebrationOpen() = _state.update { s -> s.copy(celebration = s.race?.takeIf { it.celebration != null }) }
+
+    fun onCelebrationClose() = _state.update { it.copy(celebration = null) }
 
     /** 크루원 목록. 줄마다 서버가 준 이 크루 누적 거리를 보인다(피그마 F-22, contract-W7 2장). */
     private suspend fun loadMembers(s: CrewHomeUiState): AppError? {

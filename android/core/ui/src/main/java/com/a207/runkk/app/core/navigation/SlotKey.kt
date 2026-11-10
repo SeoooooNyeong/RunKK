@@ -6,5 +6,11 @@ enum class SlotKey {
     RECORD_BATTLES,
 
     /** 홈 상단 알림함 단추 오른쪽 위 점. ui.notification이 안 본 진행 중 이벤트가 있을 때 라임 점을 넣는다(이벤트 계약 7절). */
-    HOME_INBOX_DOT
+    HOME_INBOX_DOT,
+
+    /**
+     * 크루 홈(ui.crew)의 세 번째 「채팅」 탭 내용([임시:D-성-21]). ui.chat이 채팅 탭(ChatTabContent)을 넣는다. 크루 ID는
+     * [LocalSlotCrewId]로 받는다. 화면 모듈끼리 import하지 않아 :feature:crew → :feature:chat 의존과 Fan-Out 증가가 없다.
+     */
+    CREW_CHAT_TAB
 }

@@ -14,6 +14,8 @@ import java.time.ZoneId
 import java.time.temporal.TemporalAdjusters
 import javax.inject.Inject
 import kotlin.math.roundToLong
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,8 +23,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 주간 공동 목표 정하기(FR-138, 와이어프레임 M8). 크루장·운영진만 이 화면에 온다. 이번 주 목표가 있으면 입력칸에 채우고, 지난 주 레이스
- * (GET /crews/{id}/race?weekStart=지난 월요일)로 지난 주 결과를 보인다. 1km 미만은 보내지 않고, 최종 판정은 서버(GOAL_INVALID)다.
+ * 주간 목표 정하기(FR-138, 피그마 F-07). 크루장만 이 화면에 온다. 이번 주 목표가 있으면 입력칸에 채우고, 지난 3주 레이스
+ * (GET /crews/{id}/race?weekStart=그 주 월요일 세 번)로 지난 목표 카드를 보인다. 1km 미만은 보내지 않고, 최종 판정은 서버(GOAL_INVALID)다.
  */
 @HiltViewModel
 class CrewGoalSetViewModel internal constructor(
@@ -49,17 +51,19 @@ class CrewGoalSetViewModel internal constructor(
             val goal = (crews.race(crewId, null) as? Outcome.Success)?.value?.goal ?: return@launch
             _state.update { if (it.draft.isEmpty()) it.copy(draft = kmText(goal)) else it }
         }
+        // 지난 목표 3주(피그마 F-07): 새 API 없이 race(weekStart)를 지난 1·2·3주에 대해 함께 부른다([임시:D-성-32]).
         viewModelScope.launch {
-            val last = (crews.race(crewId, monday.minusWeeks(1)) as? Outcome.Success)?.value ?: return@launch
-            _state.update { it.copy(lastWeek = last) }
+            val past = (1..CrewGoalSetUiState.PAST_WEEKS)
+                .map { weeks -> async { crews.race(crewId, monday.minusWeeks(weeks.toLong())) } }
+                .awaitAll()
+                .mapNotNull { (it as? Outcome.Success)?.value }
+            _state.update { it.copy(pastWeeks = past) }
         }
     }
 
     fun onDraft(text: String) = _state.update {
         it.copy(draft = text.filter { c -> c.isDigit() || c == '.' }.take(DRAFT_MAX), error = null)
     }
-
-    fun onQuick(km: Int) = _state.update { it.copy(draft = km.toString(), error = null) }
 
     fun onSave() {
         val s = _state.value

@@ -2,6 +2,8 @@ package com.a207.runkk.app.ui.chat
 
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.domain.chat.ChatMessage
+import com.a207.runkk.app.domain.chat.ReactionKind
+import com.a207.runkk.app.domain.chat.Reactor
 import com.a207.runkk.app.domain.report.ReportReason
 
 /**
@@ -21,8 +23,34 @@ data class ChatUiState(
     val reportReason: ReportReason? = null,
     val reportDetail: String = "",
     val isReporting: Boolean = false,
-    val message: UiText? = null
+    val message: UiText? = null,
+    /** 반응한 사람 시트를 연 메시지(피그마 F-09d). null이면 닫힘. */
+    val reactorsTarget: ChatMessage? = null,
+    /** 시트에서 고른 종류 탭. null = 전체. */
+    val reactorsTab: ReactionKind? = null,
+    /** 그 메시지의 반응한 사람 전체(먼저 단 순서). 탭은 [visibleReactors]가 거른다. */
+    val reactors: List<Reactor> = emptyList(),
+    val isLoadingReactors: Boolean = false,
+    val isReactorsFailed: Boolean = false
 ) {
+    /** 고른 탭의 반응한 사람. */
+    val visibleReactors: List<Reactor> get() = reactorsTab?.let { tab -> reactors.filter { it.kind == tab } }
+        ?: reactors
+
+    /**
+     * 시트 탭의 종류별 수. 읽은 목록이 있으면 그 목록으로 세고(시트를 연 뒤 실시간으로 바뀐 수와 목록이 어긋나지 않게), 읽기 전이면 메시지의
+     * 종류별 수다.
+     */
+    val reactorCounts: Map<ReactionKind, Int>
+        get() = if (reactors.isNotEmpty()) {
+            reactors.groupingBy { it.kind }.eachCount()
+        } else {
+            reactorsTarget?.reactions.orEmpty()
+        }
+
+    /** 시트 탭 줄의 종류(수가 있는 종류, 선언 순서). 「전체」 탭은 화면이 앞에 붙인다. */
+    val reactorTabs: List<ReactionKind> get() = ReactionKind.entries.filter { (reactorCounts[it] ?: 0) > 0 }
+
     /** 앞뒤 공백을 뺀 보낼 내용의 글자 수(코드 포인트). */
     val draftLength: Int get() = draft.trim().let { it.codePointCount(0, it.length) }
 

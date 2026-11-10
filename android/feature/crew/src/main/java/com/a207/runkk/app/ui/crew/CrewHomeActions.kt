@@ -58,10 +58,12 @@ data class CrewHomeActions(
     /** 내 정보 시트(F-23)의 나이·성별 공개 토글. */
     val onAgePublic: (Boolean) -> Unit = {},
     val onGenderPublic: (Boolean) -> Unit = {},
-    val onChat: () -> Unit = {},
     /** 주간 공동 목표 화면(와이어 M8, Routes.CrewGoalSet). */
     val onGoalEdit: () -> Unit = {},
     val onShareCelebration: (CelebrationCard) -> Unit = {},
+    /** 달성 띠의 「자세히 보기」로 축하 팝업을 열고(피그마 F-08), 팝업의 「확인」으로 닫는다(F-08b). */
+    val onCelebrationOpen: () -> Unit = {},
+    val onCelebrationClose: () -> Unit = {},
     val onLeaveAsk: () -> Unit = {},
     val onLeaveDismiss: () -> Unit = {},
     val onLeaveConfirm: () -> Unit = {},

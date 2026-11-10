@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +30,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 
@@ -41,19 +40,18 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
  */
 @Composable
 internal fun ChatComposer(state: ChatUiState, actions: ChatActions) {
-    val colors = MaterialTheme.colorScheme
     val overLimit = if (state.isOverLimit) stringResource(R.string.chat_over_limit, ChatUiState.CONTENT_MAX) else null
     val inputLabel = stringResource(R.string.chat_input_label)
     Column(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 16.dp),
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             BasicTextField(
                 value = state.draft,
                 onValueChange = actions.onDraft,
-                textStyle = RunkkTextStyles.text(15).copy(color = colors.onSurface),
-                cursorBrush = SolidColor(colors.primary),
+                textStyle = RunkkTextStyles.text(13, lineHeight = 16).copy(color = RunkkColors.TextPrimary),
+                cursorBrush = SolidColor(RunkkColors.TextPrimary),
                 maxLines = MAX_LINES,
                 modifier = Modifier
                     .weight(1f)
@@ -65,28 +63,27 @@ internal fun ChatComposer(state: ChatUiState, actions: ChatActions) {
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .heightIn(min = 44.dp)
+                            .heightIn(min = 48.dp)
                             .clip(RunkkShapes.Small)
-                            .background(colors.surface)
                             .border(
                                 1.dp,
                                 if (overLimit !=
                                     null
                                 ) {
-                                    colors.secondary
+                                    RunkkColors.Violet
                                 } else {
-                                    colors.outline
+                                    RunkkColors.Border
                                 },
                                 RunkkShapes.Small
                             )
-                            .padding(horizontal = 12.dp, vertical = 11.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
                         if (state.draft.isEmpty()) {
                             Text(
                                 stringResource(R.string.chat_input_placeholder),
-                                style = RunkkTextStyles.text(15),
-                                color = colors.onSurfaceVariant
+                                style = RunkkTextStyles.text(13, lineHeight = 16),
+                                color = RunkkColors.TextSecondary
                             )
                         }
                         inner()
@@ -98,7 +95,7 @@ internal fun ChatComposer(state: ChatUiState, actions: ChatActions) {
         Text(
             overLimit ?: stringResource(R.string.chat_count, state.draftLength, ChatUiState.CONTENT_MAX),
             style = RunkkTextStyles.Caption,
-            color = if (overLimit != null) colors.secondary else colors.onSurfaceVariant,
+            color = if (overLimit != null) RunkkColors.Violet else RunkkColors.TextSecondary,
             textAlign = TextAlign.End,
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,7 +108,6 @@ internal fun ChatComposer(state: ChatUiState, actions: ChatActions) {
 /** 둥근 보내기 단추(보이는 크기 44dp, 터치 영역 48dp). 보낼 수 없으면 흐리게 하고 누름을 막는다. */
 @Composable
 private fun SendButton(isEnabled: Boolean, onSend: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
     val label = stringResource(R.string.chat_send)
     Box(
         Modifier
@@ -125,13 +121,13 @@ private fun SendButton(isEnabled: Boolean, onSend: () -> Unit) {
                 .size(44.dp)
                 .graphicsLayer { alpha = if (isEnabled) 1f else DISABLED_ALPHA }
                 .clip(CircleShape)
-                .background(colors.primary),
+                .background(RunkkColors.TextPrimary),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                RunkkIcons.ArrowRight,
+                ChatIcons.ArrowUp,
                 contentDescription = null,
-                tint = colors.onPrimary,
+                tint = RunkkColors.Surface,
                 modifier = Modifier.size(20.dp)
             )
         }

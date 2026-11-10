@@ -152,6 +152,10 @@ V54·V55는 쓰지 않았다.
 | W5-D9 | 시스템 메시지 알림 | 방 안 실시간 전송만, 방 밖 푸시 없음 | 러닝마다 푸시가 가면 시끄럽다 |
 | W5-D11 | 반응한 사람 아바타 | `faceKey`를 싣지 않는다. 앱은 채팅 줄과 같은 이름 첫 글자 아바타를 쓴다 | 지금 채팅 줄도 얼굴 키 없이 첫 글자 아바타다. web.chat → avatar 의존을 새로 만들지 않는다 |
 | W5-D12 | 시스템 메시지 경로(설계 05-29와 다름) | `RunRecordSaved` → crew `WeeklyRaceService.onRunSaved`가 합산에 처음 더할 때 `RaceContributionAdded` 발행 → crew.chat `ChatRunFinishedListener`(AFTER_COMMIT, @Async) → `CrewChatService.postRunFinished` → `ChatMessagePosted` → `ChatDeliveryListener`(방 안만). 설계안의 "RunRecordSaved를 crew.chat이 직접 받기"는 쓰지 않았다 | crew.chat은 running에 의존할 수 없다(ArchitectureTest 허용표). 합산 경로를 타면 "기록 시작 시각에 소속이던 크루"·유효 기록·기록당 1회가 레이스 합산과 똑같이 맞는다 |
+| W5-D13 | 채팅 탭 연결(B단계, 설계 05-29 [임시:D-성-21]과 다름) | `:feature:crew → :feature:chat` 모듈 의존을 두지 않고, 기존 칸 장치(SlotKey·LocalSlots)에 `SlotKey.CREW_CHAT_TAB`과 `LocalSlotCrewId`를 더했다. ui.chat `ChatFeatureEntry`가 칸에 `ChatTabContent(crewId, isVisible, modifier)`를 넣고 크루 홈은 칸만 그린다 | ui.crew → ui.chat을 더하면 앱 Konsist 구조 시험의 Fan-Out이 8이 되어 상한 7을 넘는다. 대결 이력 탭(RECORD_BATTLES)과 같은 방식이다 |
+| W5-D14 | 시스템 메시지 메뉴 | 러닝 완료 메시지는 길게 누름 메뉴·신고가 없다(앱). 서버는 막지 않는다 | 피그마 시스템 메시지에 메뉴가 없다 |
+| W5-D15 | 반응 알약 선택색 | 화면 인스턴스 값(textSecondary 채움, surfaceHigh 숫자)을 따른다 | 피그마 화면이 컴포넌트 기본값(보라)을 덮어 썼다 |
+| W5-D16 | 축하 팝업 | 그 주 첫 진입 때 한 번 자동, 달성 띠 「자세히 보기」로 다시. 단추는 「확인」(닫기)만이고 공유 단추는 뺐다. 가운데 정렬 카드라 RunkkDialog 대신 같은 딤·모양의 Dialog로 그린다 | 피그마 F-08b. 축하 카드 공유는 1차 배포 숨김 목록 |
 | W5-D10 | 반응 CHECK 저장 | DB CHECK 제약을 V53에서 바꾼다. kind 열 길이(10)는 그대로 | CHECK는 5자 |
 
 ## 9. 앱(B단계) 할 일
@@ -186,4 +190,4 @@ fun onCloseReactors()
 - 크루장 배지: `messageKind == TEXT && authorRole == LEADER`.
 - 레이스 카드: 참여 인원 = `contributors.count { it.distanceMeters > 0 }`, 진행률 글자 = `"${goalProgressPercent}%"`(자르지 않음), 막대 채움 = `min(1f, goalProgressPercent / 100f)`.
 - 목표 화면: `lastWeek: RaceStatus?` → `pastWeeks: List<RaceStatus>`(지난 1·2·3주, `race(crewId, weekStart)` 세 번).
-- 채팅 탭 이동(C6)은 서버 변경이 없다(설계 05-29 이름: `CrewTab.CHAT`, `Routes.CrewHome(crewId, tab: String? = null)`, `Routes.CrewChat` 삭제, `ChatTabContent(crewId, isVisible, modifier)`). 방 입장 `ChatPresence`는 탭이 보일 때만 보낸다(기존 D-103 규칙).
+- 채팅 탭 이동(C6)은 서버 변경이 없다(설계 05-29 이름: `CrewTab.CHAT`, `Routes.CrewHome(crewId, tab: String? = null)`, `Routes.CrewChat` 삭제, `ChatTabContent(crewId, isVisible, modifier)`). 연결은 W5-D13(칸 SlotKey.CREW_CHAT_TAB)이다. 방 입장 `ChatPresence`는 탭이 보일 때만 보낸다(기존 D-103 규칙).

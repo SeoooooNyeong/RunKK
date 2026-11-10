@@ -208,9 +208,12 @@ object Routes {
     /** 크루 검색(피그마 F-01d·F-01e, S15P31A207-295): 크루명으로 공개 크루를 찾는다. 하단 내비 없음. */
     const val CREW_SEARCH = "crew/search"
 
-    /** 내 크루 홈(레이스·크루런·응원보드·크루원 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. */
+    /**
+     * 내 크루 홈(레이스·크루런·채팅 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. [tab]은 먼저 보일 탭 이름(ui.crew CrewTab.name,
+     * 채팅 알림은 "CHAT", [임시:D-성-21])이고 없으면 레이스다.
+     */
     @Serializable
-    data class CrewHome(val crewId: Long) : NavKey
+    data class CrewHome(val crewId: Long, val tab: String? = null) : NavKey
 
     /** 지난 공동 목표(피그마 F-21, W7). 크루 정보의 「지난 목표 ›」에서 연다. 크루 관리 화면(CrewManage)은 지웠다(W7 결정 C5). */
     @Serializable
@@ -264,14 +267,10 @@ object Routes {
     @Serializable
     data class CrewGoalSet(val crewId: Long) : NavKey
 
-    // 크루 채팅(ui.chat, :feature:chat) 화면(A3b)
-
-    /** 크루 채팅방(FR-208~FR-210, FR-213, FR-214). ui.chat의 ChatFeatureEntry가 등록한다(6.1.14). */
-    @Serializable
-    data class CrewChat(val crewId: Long) : NavKey
+    // 크루 채팅은 크루 홈의 세 번째 탭이다(CrewHome(crewId, tab = "CHAT"), [임시:D-성-21]). 따로 뜨는 채팅방 경로는 없다.
 
     // 알림 이동 화면(FR-178, D-150): 서버 notification.Screen 이름과 같은 v0.11 크루 화면 4종. 알림은 크루 ID를 경로로 넘기지 않으므로
-    // 내 크루(GET /crews/me)의 해당 탭이나 채팅방을 연다. ui.crew가 등록한다(채팅은 내 크루를 확인한 뒤 CrewChat(crewId)으로 넘긴다).
+    // 내 크루(GET /crews/me)의 해당 탭을 연다. ui.crew가 등록한다(채팅은 내 크루를 확인한 뒤 CrewHome(crewId, "CHAT")으로 넘긴다).
 
     /** 내 크루 홈의 공지 탭(Screen CREW_NOTICE). */
     const val CREW_NOTICE = "crew/notice"
@@ -282,6 +281,6 @@ object Routes {
     /** 내 크루 홈의 일정 탭(Screen CREW_SCHEDULE). */
     const val CREW_SCHEDULE = "crew/schedule"
 
-    /** 내 크루 채팅방(Screen CREW_CHAT). */
+    /** 내 크루 홈의 채팅 탭(Screen CREW_CHAT). */
     const val CREW_CHAT = "crew/chat"
 }
