@@ -232,7 +232,7 @@ class AvatarScreensTest {
                 )
             }
         }
-        compose.onNodeWithText(str(R.string.avatar_shop_confirm_title, "런 캡")).assertExists()
+        compose.onNodeWithText(str(R.string.avatar_shop_confirm_title, "런 캡", "을")).assertExists()
         compose.onNodeWithText(
             str(R.string.avatar_shop_confirm_message, "${items[2].price}", "${1_240 - items[2].price}")
         ).assertExists()

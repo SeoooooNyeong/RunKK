@@ -73,6 +73,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -86,6 +87,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -113,13 +115,25 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
             }
         }
     }
-    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap: Bitmap? ->
-        if (bitmap == null) viewModel.onSelfieUnavailable() else viewModel.onSelfieCaptured(bitmap)
+    // 카메라는 원본(EXIF 방향 포함)을 앱 전용 임시 파일에 받아 앨범과 같이 바로 세우고 줄인 뒤 지운다(실기기 DV3-3, FR-156).
+    val capture = remember(context) { captureFileOf(context) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { isTaken ->
+        if (!isTaken) {
+            capture.delete()
+            viewModel.onSelfieUnavailable()
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            val bitmap = withContext(Dispatchers.IO) {
+                SelfieImage.decode(context, captureUriOf(context, capture)).also { capture.delete() }
+            }
+            if (bitmap == null) viewModel.onSelfieUnavailable() else viewModel.onSelfieCaptured(bitmap)
+        }
     }
     val album = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
-            val bitmap = withContext(Dispatchers.IO) { runCatching { decodeSampled(context, uri) }.getOrNull() }
+            val bitmap = withContext(Dispatchers.IO) { SelfieImage.decode(context, uri) }
             if (bitmap == null) viewModel.onSelfieUnavailable() else viewModel.onSelfieCaptured(bitmap)
         }
     }
@@ -148,7 +162,7 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
         state = state,
         actions = AvatarSetupActions(
             onBack = navigator::back,
-            onSelfie = { if (viewModel.onSelfieRequested()) camera.launch(null) },
+            onSelfie = { if (viewModel.onSelfieRequested()) camera.launch(captureUriOf(context, capture)) },
             onAlbum = openAlbum,
             onFaceConsent = viewModel::onFaceConsent,
             onCharacter = viewModel::onCharacterSelected,
@@ -166,15 +180,15 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
     )
 }
 
-/** 앨범 사진을 긴 변이 셀카 한도(1024px) 근처가 되게 줄여 읽는다(큰 사진을 통째로 메모리에 올리지 않는다). */
-private fun decodeSampled(context: Context, uri: Uri): Bitmap? {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-    var sample = 1
-    while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= SelfieEncoder.MAX_SIDE) sample *= 2
-    val options = BitmapFactory.Options().apply { inSampleSize = sample }
-    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-}
+/** 카메라가 원본을 쓸 앱 전용 임시 파일(캐시 selfie_capture/). */
+private fun captureFileOf(context: Context): File =
+    File(File(context.cacheDir, CAPTURE_DIR).apply { mkdirs() }, CAPTURE_FILE)
+
+private fun captureUriOf(context: Context, file: File): Uri =
+    FileProvider.getUriForFile(context, SelfieFileProvider.authority(context.packageName), file)
+
+private const val CAPTURE_DIR = "selfie_capture"
+private const val CAPTURE_FILE = "capture.jpg"
 
 @Composable
 fun AvatarSetupScreen(state: AvatarSetupUiState, actions: AvatarSetupActions, modifier: Modifier = Modifier) {

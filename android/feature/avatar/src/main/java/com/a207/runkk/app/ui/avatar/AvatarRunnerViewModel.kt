@@ -58,7 +58,12 @@ class AvatarRunnerViewModel internal constructor(
         level = { accounts.mySummary().getOrNull()?.level },
         stats = {
             records.dashboard(LocalDate.now(clock.withZone(RUNNER_ZONE))).getOrNull()?.let {
-                RunnerStats(it.weekly?.actualRuns, it.weekly?.actualDistance, it.streakDays)
+                // 주간 목표가 없어도 이번 주 값을 쓴다(실기기 DV3-4). 옛 서버면 목표 실적이다.
+                RunnerStats(
+                    it.weekRuns ?: it.weekly?.actualRuns,
+                    it.weekDistance ?: it.weekly?.actualDistance,
+                    it.streakDays
+                )
             }
         }
     )

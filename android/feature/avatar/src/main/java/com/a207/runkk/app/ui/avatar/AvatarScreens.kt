@@ -168,7 +168,8 @@ fun AvatarScreen(
                 AvatarPillButton(
                     stringResource(R.string.avatar_decorate_save),
                     onClick = actions.onSave,
-                    isEnabled = avatar != null && !state.isSaving,
+                    // 바뀐 것이 없으면 비활성 단추(피그마 A 62337:1814, 실기기 DV3-7). 닫기는 뒤로.
+                    isEnabled = avatar != null && state.isDirty && !state.isSaving,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -193,7 +194,6 @@ private fun DecorateBody(
     ) {
         // 배경을 읽었으면 지금 고른 배경으로 그린다(배경 탭에서 고르면 바로 바뀐다, FR-202).
         val backgroundKey = if (background.backgrounds != null) background.selectedKey else avatar?.backgroundKey
-        val description = avatar?.let { figureDescription(it, state) }
         AvatarLookStage(
             look = if (avatar == null) null else state.look,
             backgroundKey = backgroundKey,
@@ -204,10 +204,8 @@ private fun DecorateBody(
                 .height(STAGE_HEIGHT)
                 .clip(RoundedCornerShape(STAGE_RADIUS))
                 .background(RunkkColors.SurfaceHigh)
-                .semantics {
-                    description?.let { contentDescription = it }
-                    role = Role.Image
-                }
+                .semantics { role = Role.Image },
+            description = avatar?.let { shown -> { isFallback -> figureDescription(shown, state, isFallback) } }
         ) {
             UndoButton(state.isDirty, actions.onUndo, Modifier.align(Alignment.TopEnd).padding(12.dp))
         }
@@ -333,10 +331,17 @@ private fun ItemGrid(state: AvatarUiState, actions: AvatarScreenActions) {
     }
 }
 
-/** 그림 하나로 읽어 주는 설명: 얼굴과 입어 보는 아이템(체형 이름은 넣지 않는다, [임시:D-성-128]). */
+/**
+ * 그림 하나로 읽어 주는 설명: 입어 보는 아이템(체형 이름은 넣지 않는다, [임시:D-성-128]). 얼굴 이름(기본 캐릭터·셀카)은 Rive를 그리지 못해
+ * 기본 그림을 보일 때([isFallback])만 넣는다. Rive 아바타는 「내 아바타」다(실기기 DV3-10).
+ */
 @Composable
-private fun figureDescription(avatar: Avatar, state: AvatarUiState): String {
-    val base = stringResource(R.string.avatar_figure_description, faceLabel(avatar))
+internal fun figureDescription(avatar: Avatar, state: AvatarUiState, isFallback: Boolean): String {
+    val base = if (isFallback) {
+        stringResource(R.string.avatar_figure_description, faceLabel(avatar))
+    } else {
+        stringResource(R.string.avatar_figure_rive)
+    }
     val slotLabels = ItemSlot.entries.associateWith { stringResource(it.decorateLabelRes) }
     val equipped = stringResource(R.string.avatar_figure_equipped_format)
     return buildString {

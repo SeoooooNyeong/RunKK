@@ -29,7 +29,7 @@
     <string name="avatar_slot_hat">모자</string>
     <string name="avatar_setup_selfie_unavailable">사진을 받지 못했어요. 다시 찍거나 기본 캐릭터를 골라 주세요</string>
     <string name="avatar_equip_rejected">%1$s: %2$s</string>
-    <string name="avatar_shop_bought">%1$s을(를) 샀어요. 바로 입어 볼 수 있어요</string>
+    <string name="avatar_shop_bought">%1$s%2$s 샀어요. 바로 입어 볼 수 있어요</string>
     <string name="avatar_setup_title">얼굴 만들기</string>
     <string name="avatar_setup_take_selfie">셀카 찍기</string>
     <string name="avatar_setup_pick_character">기본 얼굴</string>
@@ -42,12 +42,13 @@
     <string name="avatar_item_wearing">입는 중</string>
     <string name="avatar_item_put_on">입기</string>
     <string name="avatar_figure_description">아바타, %1$s</string>
+    <string name="avatar_figure_rive">내 아바타</string>
     <string name="avatar_figure_equipped_format">, %1$s %2$s</string>
     <string name="avatar_shop_title">상점</string>
     <string name="avatar_shop_balance_description">리워드 잔액 %1$d</string>
     <string name="avatar_shop_load_failed">상점을 불러오지 못했어요</string>
     <string name="avatar_shop_empty">판매 중인 아이템이 없어요</string>
-    <string name="avatar_shop_confirm_title">%1$s을(를) 살까요?</string>
+    <string name="avatar_shop_confirm_title">%1$s%2$s 살까요?</string>
     <string name="avatar_shop_confirm_message">%1$s P,
 구매 후 잔액 %2$s P</string>
     <string name="avatar_shop_buy">구매</string>
@@ -107,7 +108,7 @@
     <string name="avatar_shop_take_off_try">입어 보기 벗기기</string>
     <string name="avatar_shop_price_description">%1$,d 리워드</string>
     <string name="avatar_shop_buy_description">%1$s, %2$,d 리워드에 사기</string>
-    <string name="avatar_shop_equipped">%1$s을(를) 입었어요</string>
+    <string name="avatar_shop_equipped">%1$s%2$s 입었어요</string>
     <string name="avatar_error_selfie_timeout">얼굴을 만드는 데 너무 오래 걸렸어요. 다시 시도하거나 기본 캐릭터를 골라 주세요</string>
     <string name="avatar_setup_selfie_used">내일 다시</string>
     <string name="avatar_setup_confirm_title">사진 확인</string>

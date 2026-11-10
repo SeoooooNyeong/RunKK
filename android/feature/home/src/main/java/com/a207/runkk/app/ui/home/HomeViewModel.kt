@@ -213,7 +213,8 @@ private fun HomeUiState.withSummary(summary: Dashboard?, today: LocalDate): Home
     this
 } else {
     copy(
-        weeklyDistance = summary.weekly?.actualDistance ?: Distance.ZERO,
+        // 주간 목표가 없어도 이번 주 달린 거리를 보인다(실기기 DV3-4). 옛 서버면 목표 실적, 그것도 없으면 0이다.
+        weeklyDistance = summary.weekDistance ?: summary.weekly?.actualDistance ?: Distance.ZERO,
         weeklyGoal = summary.weekly?.goalDistance?.takeIf { it.meters > 0 },
         streakWeeks = summary.streakWeeks,
         summary = HomeSummary.of(summary, today)

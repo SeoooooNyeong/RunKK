@@ -2765,6 +2765,12 @@
       "name" : "latestRun",
       "kind" : "record",
       "ref" : "RecordDtos.RunSummaryDto"
+    }, {
+      "name" : "weekRuns",
+      "kind" : "leaf"
+    }, {
+      "name" : "weekMeters",
+      "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
