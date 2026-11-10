@@ -131,7 +131,7 @@ class ShopViewModel @Inject constructor(
                         isBuying = false,
                         // 산 칸은 그대로 입어 보는 채 두어 바로 「입기」를 누를 수 있게 한다.
                         selected = owned,
-                        message = uiText(R.string.avatar_shop_bought, item.name),
+                        message = uiText(R.string.avatar_shop_bought, item.name, objectParticle(item.name)),
                         shop = s.shop?.copy(
                             balance = result.value,
                             items = s.shop.items.map { if (it.itemId == item.itemId) owned else it }
@@ -169,7 +169,7 @@ class ShopViewModel @Inject constructor(
                             avatar = result.value,
                             selected = null,
                             message = if (reason == null) {
-                                uiText(R.string.avatar_shop_equipped, item.name)
+                                uiText(R.string.avatar_shop_equipped, item.name, objectParticle(item.name))
                             } else {
                                 uiText(
                                     R.string.avatar_equip_rejected,

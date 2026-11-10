@@ -182,7 +182,7 @@ private fun ShopStage(state: ShopUiState, actions: ShopActions) {
     }
 }
 
-/** 부위 칩(알약, 좌우 14·위아래 8, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 상점은 「모자」 그대로다. */
+/** 부위 칩(알약, 좌우 14·위아래 8, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 모자 부위는 꾸미기와 같이 「악세서리」다(사용자 결정, 실기기 DV3-5). */
 @Composable
 private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {
     Row(
@@ -198,7 +198,7 @@ private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    stringResource(entry.labelRes),
+                    stringResource(entry.decorateLabelRes),
                     style = RunkkTextStyles.text(14, FontWeight.Bold),
                     color = if (isSelected) RunkkColors.Surface else RunkkColors.TextSecondary,
                     modifier = Modifier
@@ -214,7 +214,10 @@ private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {
 /** 구매 확인(피그마 H-5): 제목, 112 그림, 가운데 두 줄 "n P," / "구매 후 잔액 m P", 취소(흰)·구매(보라). */
 @Composable
 private fun BuyConfirmDialog(item: Shop.Item, balance: Int, onBuy: () -> Unit, onDismiss: () -> Unit) {
-    RunkkDialog(title = stringResource(R.string.avatar_shop_confirm_title, item.name), onDismissRequest = onDismiss) {
+    RunkkDialog(
+        title = stringResource(R.string.avatar_shop_confirm_title, item.name, objectParticle(item.name)),
+        onDismissRequest = onDismiss
+    ) {
         ItemPicture(item, Modifier.align(Alignment.CenterHorizontally).size(112.dp))
         Text(
             stringResource(

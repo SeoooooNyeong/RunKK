@@ -10,6 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.a207.runkk.app.core.avatar.AvatarStageFrame
 import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.RiveAvatarStage
@@ -33,18 +35,22 @@ internal fun AvatarLookStage(
     faceKey: String?,
     faceLayers: List<FaceLayer>,
     modifier: Modifier = Modifier,
+    /** 그림 하나로 읽어 줄 설명. 기본 그림(Rive 실패)이면 참을 받는다(기본 얼굴 이름은 그때만 읽는다, 실기기 DV3-10). */
+    description: (@Composable (isFallback: Boolean) -> String)? = null,
     overlay: @Composable BoxScope.() -> Unit = {}
 ) {
     val isDark = LocalRunkkColors.current.isDark
     val backdrop = painterResource(avatarStageBackdropRes(backgroundKey, isDark = isDark))
     val gender = myAvatarGender()
     var isFailed by remember(gender, look?.headLayers) { mutableStateOf(false) }
+    val spoken = description?.invoke(isFailed)
+    val described = if (spoken == null) modifier else modifier.semantics { contentDescription = spoken }
     if (isFailed) {
-        AvatarStageFrame(modifier = modifier, backdrop = backdrop, darkTheme = isDark, overlay = overlay) {
+        AvatarStageFrame(modifier = described, backdrop = backdrop, darkTheme = isDark, overlay = overlay) {
             LegacyStandingAvatar(faceKey, faceLayers)
         }
     } else {
-        Box(modifier) {
+        Box(described) {
             RiveAvatarStage(
                 look = look?.let {
                     RiveAvatarLook(gender, it.outfit, it.bodyShape, it.runAmount, it.headLayers)

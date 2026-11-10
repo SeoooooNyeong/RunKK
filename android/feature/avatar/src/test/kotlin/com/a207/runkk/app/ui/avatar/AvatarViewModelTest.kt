@@ -644,7 +644,10 @@ class ShopViewModelTest {
         assertEquals(listOf("equip:{TOP=2}"), repo.calls.filter { it.startsWith("equip") })
         assertEquals(2L, model.state.value.avatar?.equipped?.get(ItemSlot.TOP))
         assertNull(model.state.value.selected)
-        assertEquals(uiText(R.string.avatar_shop_equipped, items[1].name), model.state.value.message)
+        assertEquals(
+            uiText(R.string.avatar_shop_equipped, items[1].name, objectParticle(items[1].name)),
+            model.state.value.message
+        )
     }
 
     @Test

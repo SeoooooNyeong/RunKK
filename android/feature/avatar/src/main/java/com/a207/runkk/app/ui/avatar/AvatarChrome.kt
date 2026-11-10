@@ -80,14 +80,22 @@ internal fun AvatarPillButton(
     isEnabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null
 ) {
-    val background = if (isPrimary) RunkkColors.LimeFill else RunkkColors.SurfaceHigh
-    val content = if (isPrimary) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
+    // 비활성은 공용 단추와 같이 회색 바탕(surfaceHigh)에 보조색 글자다(바탕이 사라져 글자만 남지 않게, 실기기 DV3-7).
+    val background = when {
+        !isEnabled -> RunkkColors.SurfaceHigh
+        isPrimary -> RunkkColors.LimeFill
+        else -> RunkkColors.SurfaceHigh
+    }
+    val content = when {
+        !isEnabled -> RunkkColors.TextSecondary
+        isPrimary -> RunkkColors.OnLimeFill
+        else -> RunkkColors.TextPrimary
+    }
     Row(
         modifier = modifier
             .heightIn(min = BUTTON_HEIGHT)
             .clip(RoundedCornerShape(BUTTON_HEIGHT / 2))
             .background(background)
-            .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
             .clickable(enabled = isEnabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
@@ -310,4 +318,3 @@ private val DASH = 6.dp
 private val DASH_GAP = 4.dp
 private const val LOCKED_ALPHA = 0.35f
 private const val LOCK_CHIP_ALPHA = 0.85f
-private const val DISABLED_ALPHA = 0.4f
