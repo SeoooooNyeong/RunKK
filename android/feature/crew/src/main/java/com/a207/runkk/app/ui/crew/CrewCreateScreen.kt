@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.crew
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.exifinterface.media.ExifInterface
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkButton
@@ -66,6 +68,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import java.io.ByteArrayOutputStream
+import java.io.IOException
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -273,13 +276,20 @@ private fun FormSegment(label: String, options: List<String>, selectedIndex: Int
     }
 }
 
-/** 크루 로고를 올리기 전에 줄인다: 긴 변 512px, JPEG, 1MB 이하(서버 PhotoUpload 상한). 화질을 낮춰도 넘으면 서버가 거부한다. */
+/**
+ * 크루 로고를 올리기 전에 줄인다: 긴 변 512px, JPEG, 1MB 이하(서버 PhotoUpload 상한). 화질을 낮춰도 넘으면 서버가 거부한다.
+ * 휴대폰 사진은 픽셀을 눕힌 채 EXIF 방향 태그만 붙이고 BitmapFactory는 태그를 보지 않으므로, 태그대로 돌리고 뒤집은 뒤 인코딩한다
+ * (JPEG로 다시 쓰면 태그가 사라진다).
+ */
 internal object CrewLogoEncoder {
     private const val MAX_SIDE = 512
     private const val MAX_BYTES = 1_000_000
     private const val START_QUALITY = 90
     private const val QUALITY_STEP = 10
     private const val MIN_QUALITY = 40
+    private const val DEGREES_90 = 90
+    private const val DEGREES_180 = 180
+    private const val DEGREES_270 = 270
 
     fun fromUri(context: Context, uri: Uri): ByteArray? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -287,9 +297,45 @@ internal object CrewLogoEncoder {
         var sample = 1
         while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_SIDE) sample *= 2
         val options = BitmapFactory.Options().apply { inSampleSize = sample }
-        val bitmap = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
-            ?: return null
+        val decoded =
+            context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+                ?: return null
+        val bitmap = upright(decoded, turnOf(orientationOf(context, uri)))
+        if (bitmap !== decoded) decoded.recycle()
         return encode(bitmap).also { bitmap.recycle() }
+    }
+
+    /** EXIF 방향을 바로 세우는 변환: 시계 방향 [degrees]만큼 돌린 뒤 [isMirrored]면 좌우로 뒤집는다. */
+    data class Turn(val degrees: Int, val isMirrored: Boolean)
+
+    /** EXIF 방향 태그 값 → 변환. 모르는 값(0 UNDEFINED 포함)은 그대로 둔다. */
+    fun turnOf(orientation: Int): Turn = when (orientation) {
+        ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> Turn(0, true)
+        ExifInterface.ORIENTATION_ROTATE_180 -> Turn(DEGREES_180, false)
+        ExifInterface.ORIENTATION_FLIP_VERTICAL -> Turn(DEGREES_180, true)
+        ExifInterface.ORIENTATION_TRANSPOSE -> Turn(DEGREES_90, true)
+        ExifInterface.ORIENTATION_ROTATE_90 -> Turn(DEGREES_90, false)
+        ExifInterface.ORIENTATION_TRANSVERSE -> Turn(DEGREES_270, true)
+        ExifInterface.ORIENTATION_ROTATE_270 -> Turn(DEGREES_270, false)
+        else -> Turn(0, false)
+    }
+
+    /** 사진의 EXIF 방향. 읽지 못하면(태그 없음, PNG, 읽기 실패) 그대로(NORMAL)다. */
+    private fun orientationOf(context: Context, uri: Uri): Int = try {
+        context.contentResolver.openInputStream(uri)?.use {
+            ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        } ?: ExifInterface.ORIENTATION_NORMAL
+    } catch (e: IOException) {
+        ExifInterface.ORIENTATION_NORMAL
+    }
+
+    private fun upright(source: Bitmap, turn: Turn): Bitmap {
+        if (turn.degrees == 0 && !turn.isMirrored) return source
+        val matrix = Matrix().apply {
+            setRotate(turn.degrees.toFloat())
+            if (turn.isMirrored) postScale(-1f, 1f)
+        }
+        return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
     }
 
     fun encode(source: Bitmap): ByteArray {

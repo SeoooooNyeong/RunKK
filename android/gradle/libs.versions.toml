@@ -7,6 +7,7 @@ hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
 coreKtx = "1.19.1"
 activityCompose = "1.13.0"
+exifinterface = "1.4.2"
 composeBom = "2026.09.00"
 lifecycle = "2.11.0"
 navigation3 = "1.2.0"
@@ -56,6 +57,7 @@ rive = "11.16.0"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
