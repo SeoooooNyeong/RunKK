@@ -131,3 +131,43 @@
 ### 다른 담당에게 요청 (추가)
 - 박재영: 기록 화면 문자열 11개에 가운뎃점이 남아 있다(`record_coach_title`, `record_coach_goal_saved`, `record_day_row_pattern`, `record_row_stats`, `record_list_row_caption`, `record_tag_battle_win`·`_lose`·`_draw`, `record_tag_friend_win`·`_lose`·`_draw`). [임시:NFR-성-3]에 맞춰 쉼표·띄어쓰기 또는 `MetaRow`로 바꿀지 결정 요청(test/피그마맞춤-성 [임시:TC-성-69]).
 - 박재영: W3 런바디(-294) 7커밋과 「다시 확인」 단추 유지([임시:D-성-73]), 「구간과 피드백 자세히 보기」([임시:D-성-74]) 리뷰. 대결 결과 2쪽을 포함한 battle 스냅샷 56장 변경 확인.
+
+## 코드 리뷰 뒤 추가 (2026-11-10, 통합 브랜치 ff9bdc3b 기준)
+
+스킬: sw-code-review, sw-test, sw-implement(8. 기록), sw-design-oo(결정 보완). 코드는 고치지 않았다(문서만).
+
+### 고친 조각
+- code-review/24-피그마맞춤-통합-성.md: 새 조각. 범위 cfe23f10..3313274c, 리뷰어 둘(서버 java-reviewer + 보안, 앱 kotlin-reviewer), 결함 [임시:FG-성-1]~[임시:FG-성-23], 1차 서버 조건부(C0/H0/M8)·앱 조건부(C0/H1/M7) → 고친 뒤 합격
+- design-oo/05-29-설계-피그마맞춤-성.md: [임시:D-성-26] 정정(일요일 오전 9시, `CrewRunRepeatSchedulingConfig`), [임시:D-성-50] 보완(잠금 순서 반복 → 글), 새 결정 [임시:D-성-78]~[임시:D-성-85], 1.1 대응표, 5.3·5.4·5.5·5.6·7·8절
+- srs/03-05-크루-관리.md: [임시:FR-성-7] 생성 시각 일요일 오전 9시(다음 판 보정)
+- srs/07-25-변경-요청-CR-피그마맞춤-성.md: S-FG-3 시각 정정, 7.13.28.5 표에 [임시:FR-성-7]·FR-132 행, 가운뎃점 확인 결과(합격, 서버가 준 문구 제외). FR-132 요구 문안은 이미 새 거리 선택지라 고치지 않았다(오류 문구는 요구에 없다)
+- test/피그마맞춤-성.md: TC-성-38·39·48·67·68·69·73 결과·기대 갱신, 6절 최종 집계, 새 7절 [임시:TC-성-82]~[임시:TC-성-98]
+- implementation/18-피그마맞춤-성.md: 18.5 fe0982ff·3313274c 행, 18.6 최종 게이트, 18.9 리뷰 행, 새 18.11(W7 앱 통합)·18.12(리뷰 반복)·18.13(최종 남은 일)
+
+### 새 임시 번호 (추가)
+| 임시 번호 | 종류 | 한 줄 설명 | 위치 |
+|-----------|------|------------|------|
+| [임시:FG-성-1]~[임시:FG-성-9] | 결함(서버) | 반복 잠금 순서, 로고 남용, N+1, 신고 미리보기 제목, V59 백업, 반복 9시, avatar-ai 이벤트 루프, 숨김 글 집계, V56 주석(참고) | code-review/24 2.1 |
+| [임시:FG-성-10]~[임시:FG-성-17] | 결함(앱) | 셀카 머리 IO(HIGH), 머리 한 번 받기·LRU 3, Rive 자산 IO, 크루 홈 1초 갱신, 가운뎃점, 로고 EXIF, 가입 신청 알림 쪽, APK 용량 | code-review/24 2.2 |
+| [임시:FG-성-18]~[임시:FG-성-23] | 결함(통합 중) | CrewQueryService 병합 충돌, InboxTest COACH_CHAT, CelebritySeedTest, D-112 한 파일, 스케줄러 풀 27·거리 enum 시험, EventControllerTest 0초 | code-review/24 2.3 |
+| [임시:D-성-78]~[임시:D-성-85] | 설계 결정 | 반복 9시, 미연결 로고 3장·남의 로고 400, V59 백업 표, 가운뎃점 정리 기준, `CrewHome(page)`, 머리 캐시 LRU 3, Rive.init 첫 render·자산만 IO, APK 용량 유지 | design-oo/05-29 1.3 |
+| [임시:TC-성-82]~[임시:TC-성-98] | 시험 케이스 | 결함 수정 시험 17개 | test/피그마맞춤-성 7절 |
+
+정식 번호 요청: 결함 [임시:FG-성-n]은 기존 관례(PL6·PL7 계열, B는 서버·인프라, A는 앱)대로 다음 PL 번호 계열로 바꾼다. 번호 계열은 서버시간대 [임시:TZ-성-n](병합 대기 fix-S15P31A207-275-server-timezone.md)을 먼저 매긴 다음 계열(PLn)로 한다. 제안: 서버·avatar-ai 1~9와 통합 중 서버 18·20·22·23 → PLn-B1~PLn-B13(순서대로), 앱 10~17과 통합 중 앱 19·21 → PLn-A1~PLn-A10. code-review/24 본문과 design-oo 05-29·test 피그마맞춤-성·implementation 18의 [임시:FG-성-n]도 함께 바꾼다. D·TC는 앞 절의 규칙(마지막 번호 다음)대로.
+
+### 공용 파일 반영 (추가)
+| 파일 | 넣을 내용 |
+|------|-----------|
+| code-review.md | 끝에 절 「## 리뷰 2026-11-10 (피그마 맞춤 통합, S15P31A207-289)」과 목차 표 행: `| [24-피그마맞춤-통합-성](code-review/24-피그마맞춤-통합-성.md) | cfe23f10..3313274c 88커밋(병합 22, 835파일), 수정 3313274c..ff9bdc3b 20커밋 | 1차 서버 0 / 8 / 0(참고 1), 앱 0 / 8 / 0(HIGH 1 포함), 통합 중 경 6 | 고친 뒤 합격. 남은 것 [임시:FG-성-2] 로고 정리 배치, [임시:FG-성-17] APK 용량(후속 이슈) | design-oo 05-29 D-성-78~85 반영, test 피그마맞춤-성 7절 TC-성-82~98 |`. 머리 헤더 입력란과 (v0.29 다음 판) 요약 문단. code-review/23-2차배포-통합-확인 첫 줄 「다음」 링크를 24로 |
+| implementation.md | 목차 표 18장 행 문구를 「… W7 앱 통합(3313274c), 코드 리뷰(조건부 → 고친 뒤 합격), 최종 게이트(서버 2,334 실패 0, 앱 1,980 실패 0, avatar-ai 41)」로. 0절 문서 상태 「현재 단계」 칸: 「2026-11-10: 피그마 맞춤 통합 브랜치 ff9bdc3b 최종 게이트 통과, 에뮬레이터·실기기 확인 남음」(앞 절의 363f0992 문구를 바꿈) |
+| test.md | 목차 표 피그마맞춤-성 행: [임시:TC-성-18]~[임시:TC-성-98] (81), 상태 「자동·정적 합격, 수동 12 미실행(2026-11-10, ff9bdc3b)」 |
+| test/06-추적표.md, srs/07-01b-추적표-FR-130-이후.md | [임시:FR-성-7] → TC-성-82·88, FR-132 → TC-성-96, [임시:FR-성-4] → TC-성-83·94, FR-110·FR-117 → TC-성-84·86, [임시:FR-성-12]·FR-123 → TC-성-95, [임시:FR-성-13] → TC-성-90~92, FR-204 → TC-성-87, [임시:NFR-성-3] → TC-성-96(69 합격) |
+| design-oo/06-04-클래스-crew.md | (이성현 담당, 다음 병합 때) batch.crew `CrewRunRepeatSchedulingConfig`(cron `0 0 9 * * SUN`), crew `CrewLogoService.MAX_UNLINKED = 3`과 `CrewLogoRepository.findUnlinkedIds`, `CrewRunRepeater` 잠금 순서, running `RunQueryService.summariesOf(Collection)` |
+| design-oo/06-06d-클래스-앱-데이터-표현.md | ui.avatar `SelfieHeads`(LRU 3)·`FaceLook`, domain.avatar `SelfieHead`, api.core `HeadBody`, `AvatarRepository.selfieHead`(← `headJson`), core.avatar `RiveAvatarAssets`·`PreparedRiveAssets`, ui.crew `CrewLogoEncoder.turnOf`, `Routes.CrewHome(crewId, tab, page)` |
+| srs/06-07-ERD-상태전이도.md | 임시 표 `crew_manager_backup_v59`(membership_id, crew_id, member_id, 다음 마이그레이션에서 삭제)는 ERD에 넣지 않고 주석으로만 |
+| infra/README.md 또는 배포 체크리스트(공용) | **운영 `.env`의 `SCHEDULER_POOL_SIZE`를 27 이상으로**(fe0982ff, 주기 작업 27개, BR-4와 같은 종류). 다음 운영 배포 전 확인 |
+| README.md | 1절 code-review 조각 수 하나 더(24-피그마맞춤-통합-성) |
+
+### 다른 담당에게 요청 (추가)
+- 박재영: 기록 화면 문자열 가운뎃점은 a153f4f6에서 정리했다(목록 메타 줄 `MetaRow`, `record_list_row_caption` 삭제, 날짜·기록 줄·배틀런·친구 대결 태그, 코치 제목 「목표와 러닝 코치」). 앞 절의 결정 요청 대신 변경 확인을 부탁한다(스냅샷 `G7_record_calendar`, `G8_record_list`, `record_coach`). 대결 결과·이력 문구(c6570511, `D4_battle_result_detail`, `G10_record_battles_tab`)도 함께.
+
