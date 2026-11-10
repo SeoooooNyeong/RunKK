@@ -42,34 +42,27 @@ class SkinToneLayeringTest {
     }
 
     @Test
-    fun `몸 텍스처는 피부만 어둡게 하고 옷은 원래 색으로 위에 얹는다`() {
-        val source = png(256, 768) { bitmap ->
-            fill(bitmap, 0..255, 0..765, SHIRT)
-            fill(bitmap, 100..150, 300..400, SKIN)
-        }
-        val prepared = BodySkinLayers.prepare("side_leg_skin", source)
-        assertTrue(prepared.skinPixels > 0)
-        val rendered = decode(BodySkinLayers.render(prepared, amount = 100))
+    fun `몸 텍스처는 맨몸 바탕에만 톤을 주고 의상 레이어는 원래 색으로 위에 얹는다`() {
+        val body = png(256, 768) { bitmap -> fill(bitmap, 0..255, 0..765, SKIN) }
+        val shorts = png(256, 768) { bitmap -> fill(bitmap, 0..255, 0..200, SHIRT) }
+        val rendered =
+            decode(OutfitLayerComposer.compose(body, listOf(shorts), amount = 100, width = 256, height = 768))
 
         assertEquals(SHIRT, rendered.getPixel(10, 10), "옷")
         assertNear(Color.rgb(170, 90, 51), rendered.getPixel(120, 350), "피부")
         rendered.recycle()
-        assertSame(source, BodySkinLayers.render(prepared, amount = 0), "러닝량 0·기본 의상은 원본 그대로")
     }
 
     @Test
-    fun `생성 얼굴 피부색에 몸 피부만 맞추고 옷은 그대로 둔다`() {
+    fun `생성 얼굴 피부색에 맨몸 피부만 맞추고 속옷 회색은 중앙값에 넣지 않는다`() {
         val source = png(256, 768) { bitmap ->
-            fill(bitmap, 0..255, 0..765, SHIRT)
-            fill(bitmap, 100..150, 300..400, SKIN)
+            fill(bitmap, 0..255, 0..300, Color.rgb(205, 208, 214))
+            fill(bitmap, 0..255, 301..765, SKIN)
         }
-        val prepared = BodySkinLayers.prepare("side_leg_skin", source)
-        val matched = GeneratedAvatarLayers.matchBody(prepared, Color.rgb(200, 150, 120))
-        val original = decode(matched.original)
+        val matched = decode(GeneratedAvatarLayers.matchBody(source, Color.rgb(200, 150, 120)))
 
-        assertNear(Color.rgb(200, 150, 120), original.getPixel(120, 350), "피부는 생성 얼굴 피부색")
-        assertEquals(SHIRT, original.getPixel(10, 10), "옷")
-        original.recycle()
+        assertNear(Color.rgb(200, 150, 120), matched.getPixel(120, 500), "피부는 생성 얼굴 피부색")
+        matched.recycle()
     }
 
     @Test

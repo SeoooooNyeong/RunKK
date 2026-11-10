@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "outfits": [
+    {
+      "assetKey": "base_top",
+      "part": "TOP",
+      "maleTopSurface": 1,
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "top_lime_singlet",
+      "part": "TOP",
+      "maleTopSurface": 1,
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "top_crew_tee",
+      "part": "TOP",
+      "maleTopSurface": 1,
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "top_finisher_tee",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "top_winter_hoodie",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "top_dawn_windbreaker",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "top_cherry_vest",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "base_bottom",
+      "part": "BOTTOM",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "bottom_running_shorts",
+      "part": "BOTTOM",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "bottom_leggings",
+      "part": "BOTTOM",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "bottom_jogger_pants",
+      "part": "BOTTOM",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "bottom_wide_pants",
+      "part": "BOTTOM",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "bottom_cargo_shorts",
+      "part": "BOTTOM",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "bottom_line_shorts",
+      "part": "BOTTOM",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "base_shoes",
+      "part": "SHOES",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "shoes_basic_runner",
+      "part": "SHOES",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "shoes_high_top",
+      "part": "SHOES",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "shoes_carbon_racer",
+      "part": "SHOES",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "shoes_slip_on",
+      "part": "SHOES",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "shoes_ankle_boots",
+      "part": "SHOES",
+      "bodyOverrides": []
+    },
+    {
+      "assetKey": "shoes_lime_runner",
+      "part": "SHOES",
+      "bodyOverrides": []
+    }
+  ]
+}

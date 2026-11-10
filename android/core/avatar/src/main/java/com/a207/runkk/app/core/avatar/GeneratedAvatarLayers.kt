@@ -23,6 +23,7 @@ internal object GeneratedAvatarLayers {
     private const val OPAQUE = 128
     private const val EYE_ALPHA = 48
     private const val BACKED_ALPHA = 230
+    private const val SKIN_RED_OVER_BLUE = 20
     private val filter get() = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
     fun prepare(input: GeneratedHeadInput): GeneratedHeadLayers {
@@ -101,10 +102,12 @@ internal object GeneratedAvatarLayers {
         }
     }
 
-    /** 몸 피부 바탕을 생성 얼굴 피부색에 맞춘다(채널별 중앙값 비율). 옷은 그대로 다시 얹는다. */
-    fun matchBody(layers: BodySkinLayers.PreparedLayers, color: Int): BodySkinLayers.PreparedLayers {
-        if (layers.skinPixels == 0) return layers
-        val decoded = decodeLayer(layers.skin, requireCanvas = false)
+    /**
+     * 맨몸 바탕(assets/outfits/body)의 피부를 생성 얼굴 피부색에 맞춘다(채널별 중앙값 비율). 중앙값은 피부색 픽셀(붉은 기가 파란 기보다
+     * 20 넘게 큰 불투명 픽셀)로만 재서 속옷 회색이 섞이지 않게 한다. 의상은 바탕 위에 따로 얹으므로 바뀌지 않는다.
+     */
+    fun matchBody(body: ByteArray, color: Int): ByteArray {
+        val decoded = decodeLayer(body, requireCanvas = false)
         val skin = try {
             decoded.copy(Bitmap.Config.ARGB_8888, true) ?: throw IllegalStateException("skin layer copy failed")
         } finally {
@@ -116,13 +119,13 @@ internal object GeneratedAvatarLayers {
             val channels = Array(3) { ArrayList<Int>() }
             for (index in pixels.indices step 7) {
                 val pixel = pixels[index]
-                if (Color.alpha(pixel) > 220) {
+                if (Color.alpha(pixel) > 220 && Color.red(pixel) - Color.blue(pixel) > SKIN_RED_OVER_BLUE) {
                     channels[0].add(Color.red(pixel))
                     channels[1].add(Color.green(pixel))
                     channels[2].add(Color.blue(pixel))
                 }
             }
-            if (channels[0].isEmpty()) return layers
+            if (channels[0].isEmpty()) return body
             val target = intArrayOf(Color.red(color), Color.green(color), Color.blue(color))
             val ratios = channels.mapIndexed { index, values ->
                 values.sort()
@@ -140,21 +143,7 @@ internal object GeneratedAvatarLayers {
                 }
             }
             skin.setPixels(pixels, 0, skin.width, 0, 0, skin.width, skin.height)
-            val clothes = decodeLayer(layers.clothing, requireCanvas = false)
-            try {
-                val original = Bitmap.createBitmap(skin.width, skin.height, Bitmap.Config.ARGB_8888)
-                try {
-                    Canvas(original).apply {
-                        drawBitmap(skin, 0f, 0f, null)
-                        drawBitmap(clothes, 0f, 0f, null)
-                    }
-                    return layers.copy(original = AvatarImages.encode(original), skin = AvatarImages.encode(skin))
-                } finally {
-                    original.recycle()
-                }
-            } finally {
-                clothes.recycle()
-            }
+            return AvatarImages.encode(skin)
         } finally {
             skin.recycle()
         }
