@@ -36,6 +36,18 @@ class DeviceRound3Test {
     }
 
     @Test
+    fun `RC-5 을·를은 끝의 괄호·공백·기호를 건너뛴 마지막 한글로, 숫자로 끝나면 숫자 읽는 소리로 고른다`() {
+        assertEquals("을", objectParticle("러닝 캡 (한정)"))
+        assertEquals("를", objectParticle("바람막이 (블루) "))
+        assertEquals("을", objectParticle("러닝 캡!"))
+        assertEquals("를", objectParticle("헤어밴드…"))
+        listOf('0', '1', '3', '6', '7', '8').forEach { assertEquals("을", objectParticle("러닝화 $it"), "$it 받침 있음") }
+        listOf('2', '4', '5', '9').forEach { assertEquals("를", objectParticle("러닝화 $it"), "$it 받침 없음") }
+        assertEquals("을", objectParticle("시즌 3 (한정판)"))
+        assertEquals("를", objectParticle("Cap (L)"), "마지막 글자가 영문이면 받침 없음")
+    }
+
+    @Test
     fun `DV3-6 구매 확인 제목은 받침에 맞는 조사다`() {
         val item = Shop.Item(2, ItemSlot.TOP, "새벽 바람막이", 500, false, true)
         compose.setContent {

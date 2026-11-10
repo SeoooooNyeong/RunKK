@@ -116,16 +116,17 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
         }
     }
     // 카메라는 원본(EXIF 방향 포함)을 앱 전용 임시 파일에 받아 앨범과 같이 바로 세우고 줄인 뒤 지운다(실기기 DV3-3, FR-156).
-    val capture = remember(context) { captureFileOf(context) }
+    // 원본은 읽기가 실패하거나 화면을 떠나 취소돼도 지운다(리뷰 RC-2). 사용자가 촬영을 취소하면 문구 없이 고르기에 남는다(RC-3).
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { isTaken ->
+        val capture = SelfieCapture.fileOf(context)
         if (!isTaken) {
             capture.delete()
-            viewModel.onSelfieUnavailable()
+            viewModel.onSelfieCancelled()
             return@rememberLauncherForActivityResult
         }
         scope.launch {
             val bitmap = withContext(Dispatchers.IO) {
-                SelfieImage.decode(context, captureUriOf(context, capture)).also { capture.delete() }
+                SelfieCapture.readThenDelete(capture) { SelfieImage.decode(context, captureUriOf(context, capture)) }
             }
             if (bitmap == null) viewModel.onSelfieUnavailable() else viewModel.onSelfieCaptured(bitmap)
         }
@@ -155,6 +156,7 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
     }
     val openAlbum = {
         if (viewModel.onSelfieRequested()) {
+            SelfieCapture.clear(context)
             album.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
         }
     }
@@ -162,7 +164,9 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
         state = state,
         actions = AvatarSetupActions(
             onBack = navigator::back,
-            onSelfie = { if (viewModel.onSelfieRequested()) camera.launch(captureUriOf(context, capture)) },
+            onSelfie = {
+                if (viewModel.onSelfieRequested()) camera.launch(captureUriOf(context, SelfieCapture.prepare(context)))
+            },
             onAlbum = openAlbum,
             onFaceConsent = viewModel::onFaceConsent,
             onCharacter = viewModel::onCharacterSelected,
@@ -180,15 +184,8 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
     )
 }
 
-/** 카메라가 원본을 쓸 앱 전용 임시 파일(캐시 selfie_capture/). */
-private fun captureFileOf(context: Context): File =
-    File(File(context.cacheDir, CAPTURE_DIR).apply { mkdirs() }, CAPTURE_FILE)
-
 private fun captureUriOf(context: Context, file: File): Uri =
     FileProvider.getUriForFile(context, SelfieFileProvider.authority(context.packageName), file)
-
-private const val CAPTURE_DIR = "selfie_capture"
-private const val CAPTURE_FILE = "capture.jpg"
 
 @Composable
 fun AvatarSetupScreen(state: AvatarSetupUiState, actions: AvatarSetupActions, modifier: Modifier = Modifier) {

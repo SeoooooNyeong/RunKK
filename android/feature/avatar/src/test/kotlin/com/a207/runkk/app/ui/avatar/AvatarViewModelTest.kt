@@ -297,6 +297,16 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
+    fun `RC-3 카메라를 사용자가 취소하면 오류 문구 없이 고르기 단계에 남는다`() {
+        val model = vm()
+        model.onSelfieUnavailable()
+        assertTrue(model.onSelfieRequested())
+        model.onSelfieCancelled()
+        assertNull(model.state.value.error, "취소는 조용히")
+        assertEquals(SetupPhase.CHOOSE, model.state.value.phase)
+    }
+
+    @Test
     fun `사진을 고르면 보내지 않고 사진 확인에 크게 보인다`() {
         val model = vm()
         val jpeg = byteArrayOf(1, 2, 3)
