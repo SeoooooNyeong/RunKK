@@ -47,6 +47,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.MetaItem
+import com.a207.runkk.app.core.designsystem.MetaRow
 import com.a207.runkk.app.core.designsystem.RouteThumbnail
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -319,7 +321,7 @@ private fun DayCell(
     }
 }
 
-/** 고른 날 기록 줄: 경로 썸네일, "10월 16일 (목) · 오전 7:12", "5.21km · 32:04 · 6'09"". */
+/** 고른 날 기록 줄: 경로 썸네일, "10월 16일 (목) 오전 7:12", "5.21km, 32:04, 6'09"". */
 @Composable
 private fun DayRunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
     val dateFormat = rememberDateFormatter(R.string.record_day_row_pattern)
@@ -396,7 +398,7 @@ private fun LazyListScope.runGroup(
     items(runs, key = { "$key-" + it.recordId }) { run -> ListRunRow(run, zone, onClick = { onRun(run.recordId) }) }
 }
 
-/** 목록 행: 경로 썸네일, 거리와 태그, "10/16 목 · 32:04 · 6'09"". */
+/** 목록 행: 경로 썸네일, 거리와 태그, 메타 줄(날짜·시간·페이스 아이콘, 가운뎃점 없이 MetaRow). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ListRunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
@@ -414,15 +416,20 @@ private fun ListRunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
             )
             tags.forEach { RecordTagChip(it.asString()) }
         }
-        Text(
-            stringResource(
-                R.string.record_list_row_caption,
-                dateFormat.format(run.startedAt.atZone(zone)),
-                RunkkFormat.duration(run.elapsed),
-                paceMarks(run.averagePace)
-            ),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
+        MetaRow(
+            listOf(
+                MetaItem(RunkkIcons.CalendarToday, dateFormat.format(run.startedAt.atZone(zone))),
+                MetaItem(
+                    RunkkIcons.Schedule,
+                    RunkkFormat.duration(run.elapsed),
+                    spoken = RunkkFormat.durationSpoken(run.elapsed)
+                ),
+                MetaItem(
+                    RunkkIcons.DirectionsRun,
+                    paceMarks(run.averagePace),
+                    spoken = RunkkFormat.paceSpoken(run.averagePace)
+                )
+            )
         )
     }
 }

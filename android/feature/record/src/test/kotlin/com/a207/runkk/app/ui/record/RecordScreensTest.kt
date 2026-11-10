@@ -95,7 +95,7 @@ class RecordScreensTest {
         compose.onNodeWithContentDescription("14일", substring = true).performClick()
         assertEquals(listOf(LocalDate.of(2026, 10, 14)), picked)
         compose.onNodeWithText("집계 제외", substring = true).assertDoesNotExist()
-        compose.onNodeWithText("10월 20일 (화) · 오전 7:00").performScrollTo().performClick()
+        compose.onNodeWithText("10월 20일 (화) 오전 7:00").performScrollTo().performClick()
         assertEquals(listOf("r3"), opened)
     }
 
@@ -122,15 +122,16 @@ class RecordScreensTest {
         }
         compose.onNodeWithText("이번 주").assertExists()
         compose.onNodeWithText("최장 거리").assertExists()
-        compose.onNodeWithText("배틀런 · 승리").assertExists()
+        compose.onNodeWithText("배틀런 승리").assertExists()
         compose.onNodeWithText("이전").performScrollTo()
-        compose.onNodeWithText("친구 대결 · 패배").performScrollTo().assertExists()
+        compose.onNodeWithText("친구 대결 패배").performScrollTo().assertExists()
         compose.onNodeWithText("배틀런").performScrollTo().assertExists()
         compose.onNodeWithText("셀프런").performScrollTo().assertExists()
         compose.onNodeWithText("자유런").assertDoesNotExist()
         // 집계 제외 기록은 행에 "집계 제외"를 붙인다(D29 번복, 2026-10-30)
         compose.onNodeWithText("집계 제외").performScrollTo().assertExists()
-        compose.onNodeWithText("10/20 화 · 28:49 · 5'32\"").assertExists()
+        // 메타 줄은 MetaRow(날짜·시간·페이스 아이콘)라 보조 기술은 항목을 쉼표로 이어 한 번에 읽는다.
+        compose.onNodeWithContentDescription("10/20 화, ", substring = true).assertExists()
     }
 
     @Test
