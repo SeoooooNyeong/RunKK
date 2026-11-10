@@ -107,4 +107,42 @@ class CrewManagerV59MigrationIntegrationTest {
         assertThat(kept.get("crew_intro")).isEqualTo("소개");
         assertThat(((Timestamp) kept.get("joined_at")).toLocalDateTime()).isEqualTo(T0);
     }
+
+    @Test
+    @DisplayName("되돌림 근거(코드 리뷰 M5): 바꾸기 전 운영진 소속 행이 crew_manager_backup_v59에 남는다, 운영진이 없으면 빈 표")
+    void managersAreBackedUp() {
+        long crewId =
+                jdbc.queryForObject(
+                        "INSERT INTO crew (name, tags, visibility, join_policy, invite_code,"
+                                + " invite_code_expires_at, created_at, version)"
+                                + " VALUES ('백업크루', '', 'PUBLIC', 'FREE', 'BAK059', ?, ?, 0)"
+                                + " RETURNING id",
+                        Long.class,
+                        Timestamp.valueOf(T0),
+                        Timestamp.valueOf(T0));
+        membership(crewId, 1, "LEADER", null);
+        long manager = membership(crewId, 2, "MANAGER", null);
+        long leftManager = membership(crewId, 4, "MANAGER", T0.plusDays(1));
+
+        migrateTo("59");
+
+        assertThat(
+                        jdbc.queryForList(
+                                "SELECT membership_id, crew_id, member_id FROM"
+                                        + " crew_manager_backup_v59 ORDER BY membership_id"))
+                .containsExactly(
+                        Map.of("membership_id", manager, "crew_id", crewId, "member_id", 2L),
+                        Map.of("membership_id", leftManager, "crew_id", crewId, "member_id", 4L));
+    }
+
+    @Test
+    @DisplayName("M5: 운영진이 이미 없는 DB에서도 V59가 돌고 백업 표는 비어 있다")
+    void noManagers_emptyBackup() {
+        migrateTo("59");
+
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT count(*) FROM crew_manager_backup_v59", Integer.class))
+                .isZero();
+    }
 }
