@@ -205,6 +205,9 @@ object Routes {
     /** 크루 만들기(FR-110). */
     const val CREW_CREATE = "crew/create"
 
+    /** 크루 검색(피그마 F-01d·F-01e, S15P31A207-295): 크루명으로 공개 크루를 찾는다. 하단 내비 없음. */
+    const val CREW_SEARCH = "crew/search"
+
     /** 내 크루 홈(레이스·크루런·응원보드·크루원 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. */
     @Serializable
     data class CrewHome(val crewId: Long) : NavKey

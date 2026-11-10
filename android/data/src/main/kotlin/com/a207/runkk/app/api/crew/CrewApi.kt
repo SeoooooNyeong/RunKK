@@ -1,11 +1,15 @@
 package com.a207.runkk.app.api.crew
 
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -40,6 +44,19 @@ internal interface CrewApi {
 
     @GET("crews/me")
     suspend fun myCrew(): MyCrewResponse
+
+    /** 초대 코드 미리보기(contract-W4 4절). 가입시키지 않는다. */
+    @POST("crews/invite-preview")
+    suspend fun invitePreview(@Body body: InvitePreviewRequest): InvitePreviewResponse
+
+    /** 크루 로고 올리기(multipart 파트 logo, JPEG 1MB 이하, contract-W4 6절). */
+    @Multipart
+    @POST("crew-logos")
+    suspend fun uploadLogo(@Part logo: MultipartBody.Part): CrewLogoResponse
+
+    /** 크루 로고 바이트(image/jpeg, contract-W4 7절). */
+    @GET("crew-logos/{id}")
+    suspend fun logo(@Path("id") logoId: Long): ResponseBody
 
     @GET("crews/{id}")
     suspend fun detail(@Path("id") crewId: Long): CrewDetailResponse

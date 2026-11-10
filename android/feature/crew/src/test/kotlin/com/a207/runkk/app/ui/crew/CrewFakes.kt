@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewForm
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewMembers
+import com.a207.runkk.app.domain.crew.CrewPreview
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRole
@@ -34,6 +35,7 @@ import com.a207.runkk.app.domain.crew.Poll
 import com.a207.runkk.app.domain.crew.PollMethod
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
+import com.a207.runkk.app.domain.crew.RecentCrewRun
 import com.a207.runkk.app.domain.live.ClientMessage
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
@@ -123,6 +125,19 @@ class MutableClock(var now: Instant = start, private val zone: ZoneId = seoul) :
 
     override fun instant(): Instant = now
 }
+
+/** 초대 코드 미리보기 표본(contract-W4 표본과 같은 값). */
+val invitePreview = CrewPreview(
+    crewId = 12,
+    name = "새벽러너스",
+    intro = "새벽에 함께 달려요",
+    tags = setOf("WEEKDAY_DAWN", "WEEKEND_MORNING"),
+    logoUrl = null,
+    visibility = CrewVisibility.PRIVATE,
+    joinPolicy = JoinPolicy.APPROVAL,
+    headcount = 7,
+    createdAt = Instant.parse("2026-10-01T00:00:00Z")
+)
 
 val crewA = CrewList.Item(
     11,
@@ -385,6 +400,20 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
     inviteCodeExpiresAt = null
 )
 
+/** 크루 밖에서 연 크루 13의 정보(피그마 F-02): 개설일·지난 주 거리·누적 크루런 5회·최근 크루런 2건. */
+val crewCInfo = crewDetail(13, null).copy(
+    name = "길게 천천히",
+    headcount = 4,
+    lastWeekDistance = Distance(64_270),
+    createdAt = Instant.parse("2026-10-01T00:00:00Z"),
+    totalDistance = Distance(1_284_670),
+    crewRunCount = 5,
+    recentCrewRuns = listOf(
+        RecentCrewRun(88, Instant.parse("2026-10-21T10:30:00Z"), 4, Distance(20_150)),
+        RecentCrewRun(80, Instant.parse("2026-10-17T22:00:00Z"), 3, Distance(15_000))
+    )
+)
+
 val crewRunResult = CrewRunResult(
     postId = 31,
     participants = listOf(
@@ -488,6 +517,14 @@ class FakeCrewRepository : CrewRepository {
         }
         return answer("apply:$crewId", result).also { if (it is Outcome.Success) reflect(it.value) }
     }
+
+    /** 초대 코드 미리보기(contract-W4 4절): "AB12CD"류 코드는 크루 12(비공개)를 보이고, fail["preview"]로 거부를 흉내 낸다. */
+    override suspend fun previewByInviteCode(code: String) = answer("preview:$code", invitePreview)
+
+    /** 크루 로고 업로드는 로고 7 주소를 준다. */
+    override suspend fun uploadLogo(jpeg: ByteArray) = answer("uploadLogo:${jpeg.size}", "/api/v1/crew-logos/7")
+
+    override suspend fun logo(url: String) = answer("logo:$url", byteArrayOf())
 
     /** 초대 코드는 크루 12에 바로 가입된다. */
     override suspend fun applyWithInviteCode(code: String) =
