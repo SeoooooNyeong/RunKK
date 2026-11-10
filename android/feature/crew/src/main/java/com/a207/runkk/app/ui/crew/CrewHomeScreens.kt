@@ -387,7 +387,8 @@ private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRoot
                 onClick = actions.onBack
             )
         }
-        CrewLogo(state.crewName, size = 48, isAccent = true)
+        // 올린 로고가 있으면 그 로고, 없으면 groups 기본 그림(DV-성-8, 결정: 로고는 어디서나 같은 그림).
+        CrewImage(state.detail?.logoUrl, size = 48.dp, corner = 16.dp)
         Text(
             state.crewName,
             style = RunkkTextStyles.TopBarTitle,

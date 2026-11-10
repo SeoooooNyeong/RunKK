@@ -105,7 +105,7 @@ internal fun CrewInfoPage(state: CrewHomeUiState, actions: CrewHomeActions) {
 @Composable
 private fun CrewHeadline(detail: CrewDetail, isLeader: Boolean, onEdit: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        CrewDefaultImage(74.dp)
+        CrewImage(detail.logoUrl, size = 74.dp, corner = 24.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 detail.name,

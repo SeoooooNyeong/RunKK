@@ -35,27 +35,6 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 
-/** 크루 로고 자리(이니셜). 로고 이미지는 크루 정보 응답에 아직 없다. */
-@Composable
-internal fun CrewLogo(name: String, size: Int = 48, isAccent: Boolean = false, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .size(size.dp)
-            .clip(RoundedCornerShape((size / 4).dp))
-            .background(
-                if (isAccent) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.outlineVariant
-            )
-            .clearAndSetSemantics {},
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            name.trim().take(1).ifEmpty { "C" },
-            style = RunkkTextStyles.text(size / 2 - 4, FontWeight.Black),
-            color = if (isAccent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
 /** 크루 만들기·정보 수정 공통 입력(FR-110·FR-113, 피그마 F-04·F-26): 이름·소개·태그(평일·주말 시간대, 1~3개)·공개 범위·가입 방식. */
 @Composable
 internal fun CrewFormFields(form: CrewFormState, onForm: (CrewFormState) -> Unit, modifier: Modifier = Modifier) {

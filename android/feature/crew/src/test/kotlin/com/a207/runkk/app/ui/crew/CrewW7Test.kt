@@ -402,6 +402,44 @@ class CrewW7ScreensTest {
     )
 
     @Test
+    fun `정보 수정의 로고 연필 덮개를 누르면 사진 고르기를 연다(F-26, DV-성-6)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    info(CrewRole.LEADER).copy(page = CrewHomePage.EDIT, editForm = crewDetail().toFormState()),
+                    CrewHomeActions(onEditLogoPick = { calls += "pickLogo" })
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("크루 이미지").performClick()
+        assertEquals(listOf("pickLogo"), calls)
+    }
+
+    @Test
+    fun `올린 로고가 있으면 크루 홈 머리와 크루 정보가 그 로고를 읽는다(DV-성-8)`() {
+        val asked = mutableListOf<String>()
+        val loader: suspend (String) -> Outcome<ByteArray> = { url ->
+            asked += url
+            Outcome.Failure(AppError.Network)
+        }
+        val withLogo = crewDetail(role = CrewRole.LEADER).copy(logoUrl = "/api/v1/crew-logos/1")
+        var page by mutableStateOf(CrewHomePage.HOME)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                androidx.compose.runtime.CompositionLocalProvider(LocalCrewLogoLoader provides loader) {
+                    CrewHomeScreen(info(CrewRole.LEADER).copy(detail = withLogo, page = page), CrewHomeActions())
+                }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(listOf("/api/v1/crew-logos/1"), asked.distinct(), "크루 홈 머리")
+        asked.clear()
+        page = CrewHomePage.INFO
+        compose.waitForIdle()
+        assertTrue("/api/v1/crew-logos/1" in asked, "크루 정보")
+    }
+
+    @Test
     fun `크루원 크루 정보는 누적 통계·지난 기록 메뉴·탈퇴만 보이고 크루장 영역은 없다(F-18)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {

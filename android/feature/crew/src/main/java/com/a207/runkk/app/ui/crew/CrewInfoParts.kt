@@ -53,33 +53,6 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/**
- * 크루 기본 이미지(피그마 `RunKK / Avatar / 크루 기본 이미지`): surfaceHigh 바탕 + groups 아이콘(보조 글자색). 크루 로고 사진은 아직
- * 받지 않는다(로고 올리기는 W4 API). [size] 74 → 모서리 24·아이콘 40, 66 → 모서리 24·아이콘 36, 50 → 모서리 15·아이콘 28.
- */
-@Composable
-internal fun CrewDefaultImage(size: Dp, modifier: Modifier = Modifier) {
-    val corner = if (size >= 66.dp) 24.dp else (size.value * 0.3f).dp
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(corner))
-            .background(RunkkColors.SurfaceHigh)
-            .clearAndSetSemantics {},
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            RunkkIcons.Group,
-            contentDescription = null,
-            tint = RunkkColors.TextSecondary,
-            modifier = Modifier.size(size * GROUPS_ICON_RATIO)
-        )
-    }
-}
-
-/** 크루 기본 이미지에서 아이콘이 차지하는 비율(74 → 40). */
-private const val GROUPS_ICON_RATIO = 0.54f
-
 /** 크루원 아바타 자리(피그마 F-22 목록 36, 팝업 80): surfaceHigh 원. 팝업은 divider 점선 대신 실선 테두리로 근사한다. */
 @Composable
 internal fun MemberAvatar(size: Dp, modifier: Modifier = Modifier, isBordered: Boolean = false) {
