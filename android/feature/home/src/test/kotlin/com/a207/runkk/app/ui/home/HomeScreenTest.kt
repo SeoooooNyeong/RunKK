@@ -133,7 +133,7 @@ class HomeScreenTest {
     @Test
     fun `음성·진동이 꺼져 있으면 off로 보인다`() {
         show(loaded.copy(isRunVoiceOn = false, isRunVibrationOn = true))
-        compose.onNodeWithText("음성 off · 진동 on", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("음성 off, 진동 on", useUnmergedTree = true).assertExists()
     }
 
     @Test

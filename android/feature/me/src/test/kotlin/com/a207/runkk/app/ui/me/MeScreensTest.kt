@@ -136,7 +136,7 @@ class MeScreensTest {
         compose.onNodeWithText("42회").assertExists()
         compose.onNodeWithText("30대, 여성").assertDoesNotExist()
         compose.onNodeWithText("퇴근 뒤 한강").assertDoesNotExist()
-        listOf("러닝 기록", "성장 분석", "런바디", "목표·러닝 코치").forEach { compose.onNodeWithText(it).performClick() }
+        listOf("러닝 기록", "성장 분석", "런바디", "목표와 러닝 코치").forEach { compose.onNodeWithText(it).performClick() }
         compose.onNodeWithText("랭킹").assertDoesNotExist()
         compose.onNodeWithText("아바타 꾸미기").assertDoesNotExist()
         compose.onNodeWithContentDescription("프로필 편집").performClick()
@@ -211,9 +211,9 @@ class MeScreensTest {
             }
         }
         compose.onNodeWithText("2~20자").assertExists()
-        compose.onNodeWithText("20대 · 공개").assertExists()
-        compose.onNodeWithText("여성 · 비공개").performClick()
-        compose.onNodeWithText("20대 · 공개").performClick()
+        compose.onNodeWithText("20대, 공개").assertExists()
+        compose.onNodeWithText("여성, 비공개").performClick()
+        compose.onNodeWithText("20대, 공개").performClick()
         compose.onNodeWithText("사진").assertDoesNotExist()
         assertEquals(listOf("gender:true", "age:false"), toggled)
     }
@@ -253,7 +253,7 @@ class MeScreensTest {
         compose.onNode(hasScrollAction()).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
         compose.waitForIdle()
         val screen = compose.onRoot().getUnclippedBoundsInRoot()
-        val last = compose.onNodeWithText("목표·러닝 코치").getUnclippedBoundsInRoot()
+        val last = compose.onNodeWithText("목표와 러닝 코치").getUnclippedBoundsInRoot()
         assertTrue(screen.bottom - last.bottom >= 16.dp + RUNKK_BOTTOM_BAR_RISE, "끝 여백 16 + 솟은 원 20")
     }
 

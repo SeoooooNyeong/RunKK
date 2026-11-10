@@ -261,7 +261,7 @@ fun RunScreen(state: RunUiState, actions: RunActions, modifier: Modifier = Modif
 
 /**
  * 카운트다운 설정 요약 한 줄(D-264): 목표 거리, 음성·진동 안내가 켜져 있으면 "음성"·"진동", 오늘 코치 계획을 따르면 "코치보이스".
- * 꺼진 항목은 빼고 " · "로 잇는다. 모두 빠지면 빈 줄이다.
+ * 꺼진 항목은 빼고 쉼표로 잇는다. 모두 빠지면 빈 줄이다.
  */
 @Composable
 internal fun countdownSummary(state: RunUiState): String = listOfNotNull(
@@ -583,7 +583,7 @@ private fun RoundButton(
 private const val RING_MILLIS = 1_000
 private const val OCTAGON_CUT = 30
 private const val PAUSE_SCRIM_ALPHA = 0.45f
-private const val SUMMARY_SEPARATOR = " · "
+private const val SUMMARY_SEPARATOR = ", "
 private const val NO_HEART_RATE = "--"
 private val BIG_BUTTON = 88.dp
 private val SMALL_BUTTON = 48.dp

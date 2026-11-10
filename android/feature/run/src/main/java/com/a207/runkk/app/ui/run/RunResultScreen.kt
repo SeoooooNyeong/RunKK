@@ -182,11 +182,9 @@ internal fun kindLabelRes(kind: CardKind): Int = when (kind) {
     CardKind.CREW_RUN -> R.string.run_kind_crew
 }
 
-/** [pattern](예: "M.dd E · a h:mm")으로 시작 시각을 쓴다. */
+/** [pattern](예: "M월 d일 (E) a h:mm")으로 시작 시각을 쓴다. */
 internal fun dateLabel(at: Instant, pattern: String): String =
     DateTimeFormatter.ofPattern(pattern, Locale.KOREAN).format(at.atZone(ZoneId.systemDefault()))
-
-private const val DATE_SEPARATOR = " · "
 
 /** 결과 하단 고정 바의 시험 표지. */
 internal const val RESULT_BOTTOM_BAR_TAG = "run-result-bottom-bar"

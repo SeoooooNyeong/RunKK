@@ -383,7 +383,7 @@ private fun RecordDetail.toDetailState(verdict: Verdict?, result: BattleResult):
         expression = detailExpression(verdict)
     )
 
-/** "10.16 목 · 오전 7:12 · 배틀런". */
+/** "10.16 목 오전 7:12, 배틀런". */
 @Composable
 private fun dateLine(startedAt: java.time.Instant, kind: CardKind): String {
     val pattern = stringResource(R.string.battle_result_date_pattern)
@@ -395,7 +395,7 @@ private fun dateLine(startedAt: java.time.Instant, kind: CardKind): String {
             else -> R.string.battle_header_battle_name
         }
     )
-    return "$date · $label"
+    return "$date, $label"
 }
 
 /** 쪽 점 두 개(디자인 시스템 RunkkPageDots, 결과 화면은 간격 6과 강한 테두리색). */

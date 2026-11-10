@@ -204,7 +204,7 @@ private fun LazyListScope.historyRows(state: BattleHistoryUiState, onEntry: (Lon
     }
 }
 
-/** 행: "10월 20일 · 배틀런 · 5km", 상대(닉네임·"10월 2일의 나"·셀럽 이름), 승·패 배지. 판정 전이면 배지 없음. */
+/** 행: "10월 20일, 배틀런, 5km", 상대(닉네임·"10월 2일의 나"·셀럽 이름), 승·패 배지. 판정 전이면 배지 없음. */
 @Composable
 private fun HistoryRow(entry: BattleHistory.Entry, onClick: () -> Unit) {
     val pattern = stringResource(R.string.battle_history_date_pattern)

@@ -139,15 +139,8 @@ private fun Traits(traits: List<String>) {
             color = RunkkColors.TextPrimary,
             modifier = Modifier.semantics { heading() }
         )
-        // 앞의 "·"는 보이기만 하고 보조 기술은 특성 문구만 읽는다(AN8-17).
-        traits.forEach {
-            Text(
-                stringResource(R.string.runimal_type_trait, it),
-                style = RunkkTextStyles.Body,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.semantics { contentDescription = it }
-            )
-        }
+        // 특징은 한 줄에 하나씩 문구만 보인다(앱 전체 규칙: 구분용 가운뎃점을 쓰지 않는다).
+        traits.forEach { Text(it, style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary) }
     }
 }
 

@@ -9,7 +9,7 @@
     <string name="me_menu_records">러닝 기록</string>
     <string name="me_menu_growth">성장 분석</string>
     <string name="me_menu_report">런바디</string>
-    <string name="me_menu_coach">목표·러닝 코치</string>
+    <string name="me_menu_coach">목표와 러닝 코치</string>
     <string name="me_menu_logout">로그아웃</string>
     <string name="me_menu_withdraw">회원 탈퇴</string>
     <string name="me_logout_title">로그아웃할까요?</string>
@@ -193,7 +193,7 @@
     <string name="me_profile_birth_year_label">출생연도</string>
     <string name="me_profile_birth_year_option">%1$d년</string>
     <string name="me_profile_gender_title">성별</string>
-    <string name="me_profile_visibility_value">%1$s · %2$s</string>
+    <string name="me_profile_visibility_value">%1$s, %2$s</string>
     <string name="me_profile_public">공개</string>
     <string name="me_profile_private">비공개</string>
     <string name="me_withdraw_notice_deleted">프로필, 러닝 기록, 위치 경로는 7일 안에 모두 지워져요</string>
