@@ -225,6 +225,40 @@ public class JpaCrewPostRepository implements CrewPostRepository {
                 .getResultList();
     }
 
+    /** 지난 크루런 상태(W6). */
+    private static final List<CrewRunStatus> PAST =
+            List.of(CrewRunStatus.FINISHED, CrewRunStatus.CANCELLED);
+
+    private static final String PAST_RUNS =
+            "from CrewRunPost p where p.crewId = :crew and p.deleted = false and p.hidden = false"
+                    + " and p.status in :past";
+
+    @Override
+    public List<CrewRunPost> findPastCrewRuns(long crewId, LocalDateTime from, LocalDateTime to) {
+        return entityManager
+                .createQuery(
+                        "select p "
+                                + PAST_RUNS
+                                + " and p.scheduledAt >= :from and p.scheduledAt < :to"
+                                + " order by p.scheduledAt desc, p.id desc",
+                        CrewRunPost.class)
+                .setParameter("crew", crewId)
+                .setParameter("past", PAST)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList();
+    }
+
+    @Override
+    public Optional<LocalDateTime> findEarliestPastCrewRun(long crewId) {
+        return Optional.ofNullable(
+                entityManager
+                        .createQuery("select min(p.scheduledAt) " + PAST_RUNS, LocalDateTime.class)
+                        .setParameter("crew", crewId)
+                        .setParameter("past", PAST)
+                        .getSingleResult());
+    }
+
     @Override
     public List<CrewPost> findByAuthor(long memberId) {
         return entityManager
@@ -331,6 +365,11 @@ public class JpaCrewPostRepository implements CrewPostRepository {
         }
         entityManager
                 .createNativeQuery("delete from crew_post where crew_id = :crew")
+                .setParameter("crew", crewId)
+                .executeUpdate();
+        // 글이 series_id로 반복을 가리키므로 글을 지운 뒤 반복을 지운다(W6)
+        entityManager
+                .createNativeQuery("delete from crew_run_series where crew_id = :crew")
                 .setParameter("crew", crewId)
                 .executeUpdate();
     }

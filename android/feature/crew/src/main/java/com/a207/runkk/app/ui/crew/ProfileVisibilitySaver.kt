@@ -12,11 +12,3 @@ import javax.inject.Inject
 fun interface ProfileVisibilitySaver {
     suspend fun save(isAgePublic: Boolean, isGenderPublic: Boolean): Outcome<Unit>
 }
-
-/** PATCH /me/profile에 두 공개 값만 싣는다(닉네임·소개는 null이라 서버가 그대로 둔다). */
-internal class AccountProfileVisibilitySaver @Inject constructor(private val accounts: AccountRepository) :
-    ProfileVisibilitySaver {
-    override suspend fun save(isAgePublic: Boolean, isGenderPublic: Boolean): Outcome<Unit> = accounts.editProfile(
-        ProfileEdit(nickname = null, intro = null, isAgePublic = isAgePublic, isGenderPublic = isGenderPublic)
-    )
-}

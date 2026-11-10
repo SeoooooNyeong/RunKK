@@ -2022,6 +2022,10 @@
    {
     "kind": "leaf",
     "name": "undecidedCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "title"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -2222,6 +2226,14 @@
    {
     "kind": "leaf",
     "name": "closesAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "title"
+   },
+   {
+    "kind": "leaf",
+    "name": "repeat"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -2500,6 +2512,195 @@
    }
   ],
   "file": "web/crew/CrewMembersAssembler.java"
+ },
+ "CrewScheduleDtos.CrewRunDetailResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "postId"
+   },
+   {
+    "kind": "leaf",
+    "name": "crewId"
+   },
+   {
+    "kind": "leaf",
+    "name": "title"
+   },
+   {
+    "kind": "leaf",
+    "name": "body"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorId"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorName"
+   },
+   {
+    "kind": "leaf",
+    "name": "mine"
+   },
+   {
+    "kind": "leaf",
+    "name": "writtenAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "scheduledAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "voteDeadline"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "goingCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "myAnswer"
+   },
+   {
+    "kind": "leaf",
+    "name": "canEdit"
+   },
+   {
+    "kind": "leaf",
+    "name": "canDelete"
+   },
+   {
+    "kind": "leaf",
+    "name": "repeat"
+   },
+   {
+    "kind": "leaf",
+    "name": "repeatDayOfWeek"
+   },
+   {
+    "kind": "list",
+    "name": "attendees",
+    "ref": "CrewScheduleDtos.CrewRunDetailResponse.Attendee"
+   }
+  ],
+  "file": "web/crew/CrewScheduleDtos.java"
+ },
+ "CrewScheduleDtos.CrewRunDetailResponse.Attendee": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "memberId"
+   },
+   {
+    "kind": "leaf",
+    "name": "displayName"
+   },
+   {
+    "kind": "leaf",
+    "name": "author"
+   },
+   {
+    "kind": "leaf",
+    "name": "me"
+   },
+   {
+    "kind": "leaf",
+    "name": "faceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "shownGender"
+   }
+  ],
+  "file": "web/crew/CrewScheduleDtos.java"
+ },
+ "CrewScheduleDtos.CrewRunEditRequest": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "title",
+    "required": true
+   },
+   {
+    "kind": "leaf",
+    "name": "body"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "repeat",
+    "required": true
+   }
+  ],
+  "file": "web/crew/CrewScheduleDtos.java"
+ },
+ "CrewScheduleDtos.PastCrewRunsResponse": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "month"
+   },
+   {
+    "kind": "list-leaf",
+    "name": "dates"
+   },
+   {
+    "kind": "list",
+    "name": "runs",
+    "ref": "CrewScheduleDtos.PastCrewRunsResponse.PastRun"
+   },
+   {
+    "kind": "leaf",
+    "name": "earliestMonth"
+   }
+  ],
+  "file": "web/crew/CrewScheduleDtos.java"
+ },
+ "CrewScheduleDtos.PastCrewRunsResponse.PastRun": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "postId"
+   },
+   {
+    "kind": "leaf",
+    "name": "title"
+   },
+   {
+    "kind": "leaf",
+    "name": "scheduledAt"
+   },
+   {
+    "kind": "leaf",
+    "name": "distanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "status"
+   },
+   {
+    "kind": "leaf",
+    "name": "goingCount"
+   },
+   {
+    "kind": "leaf",
+    "name": "runnerCount"
+   }
+  ],
+  "file": "web/crew/CrewScheduleDtos.java"
  },
  "DisposalOrderView": {
   "components": [

@@ -22,10 +22,6 @@ import java.util.Locale
 /** 크루 태그 두 줄(평일, 주말) × 시간대 넷(피그마 F-01b·F-04). */
 internal val CREW_TAG_CATEGORIES: List<RunkkTagCategory> = RunkkTags.categories
 
-/** 크루런 거리(FR-132): 1·3·5·10km. */
-internal val CREW_RUN_DISTANCES: List<Distance> =
-    listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
-
 internal val JoinPolicy.labelRes: Int
     @StringRes get() = when (this) {
         JoinPolicy.APPROVAL -> R.string.crew_join_policy_approval
@@ -99,7 +95,7 @@ internal fun crewRunSummary(
     info: PostList.CrewRunInfo,
     zone: ZoneId = ZoneId.systemDefault()
 ): String = listOfNotNull(
-    RunkkFormat.targetLabel(info.distance),
+    crewRunDistanceLabel(resources, info.distance),
     meetLabel(resources, info.scheduledAt, zone),
     resources.getString(R.string.crew_run_going_count, info.goingCount),
     info.takeIf { it.status == CrewRunStatus.FINISHED }

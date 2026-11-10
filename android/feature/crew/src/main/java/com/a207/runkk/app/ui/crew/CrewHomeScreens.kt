@@ -106,11 +106,12 @@ fun CrewHomeRoute(
  */
 internal fun CrewHomeActions.withNavigation(crewId: Long, navigate: (NavKey) -> Unit): CrewHomeActions = copy(
     onWriteSchedule = { navigate(Routes.CrewRunWrite(crewId)) },
+    onRunOpen = { post -> navigate(Routes.CrewRunDetail(post.postId)) },
+    onPastRuns = { navigate(Routes.CrewPastRuns(crewId)) },
     onLobby = { post -> navigate(Routes.CrewRunLobby(post.postId)) },
     onResult = { post -> navigate(Routes.CrewRunResult(post.postId)) },
     onChat = { navigate(Routes.CrewChat(crewId)) },
     onGoalEdit = { navigate(Routes.CrewGoalSet(crewId)) },
-    onPastRuns = { navigate(Routes.CrewPastRuns(crewId)) },
     onPastGoals = { navigate(Routes.CrewPastGoals(crewId)) }
 )
 
@@ -137,8 +138,7 @@ private fun crewHomeActions(vm: CrewHomeViewModel, onReport: (PostList.Item) -> 
     onDeleteConfirm = vm::onDeleteConfirm,
     onReport = onReport,
     onAttendance = vm::onAttendance,
-    onRunOpen = vm::onRunOpen,
-    onRunClose = vm::onRunClose,
+    onAttendanceWithdraw = vm::onAttendanceWithdraw,
     onShareCelebration = vm::onShareCelebration,
     onLeaveAsk = vm::onLeaveAsk,
     onLeaveDismiss = vm::onLeaveDismiss,
@@ -223,11 +223,6 @@ private fun HomeTabs(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRo
     LaunchedEffect(nearEnd, hasMore, state.tab) {
         if (nearEnd && hasMore) actions.onLoadMore()
     }
-    val scope = rememberCoroutineScope()
-    // "지난 크루런 ›": 목록을 지난 크루런 머리글까지 내린다.
-    val onPast: () -> Unit = {
-        schedulePastIndex(state)?.let { index -> scope.launch { list.animateScrollToItem(index) } }
-    }
     Column(Modifier.fillMaxSize()) {
         Header(state, actions, isAtTabRoot)
         CrewTabStrip(state.tab, onTab = actions.onTab, onChat = actions.onChat)
@@ -237,19 +232,19 @@ private fun HomeTabs(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRo
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            homeTabItems(state, actions, onPast)
+            homeTabItems(state, actions)
         }
     }
 }
 
 /** 고른 탭의 내용(읽기 실패면 오류 상태). 크루런은 글마다 항목을 더하고(보이는 것만 그린다, AN5-D-6), 레이스는 한 항목으로 그린다. */
-private fun LazyListScope.homeTabItems(state: CrewHomeUiState, actions: CrewHomeActions, onPast: () -> Unit) {
+private fun LazyListScope.homeTabItems(state: CrewHomeUiState, actions: CrewHomeActions) {
     if (state.error != null && !state.isLoading) {
         item(key = "error") { RunkkErrorState(state.error.asString(), onRetry = actions.onRetry) }
         return
     }
     when (state.tab) {
-        CrewTab.SCHEDULE -> scheduleTabItems(state, actions, onPast)
+        CrewTab.SCHEDULE -> scheduleTabItems(state, actions)
 
         CrewTab.RACE -> item(key = "tab:${state.tab}") {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { RaceTab(state, actions) }
@@ -291,7 +286,7 @@ private fun CrewTabStrip(selected: CrewTab, onTab: (CrewTab) -> Unit, onChat: ()
     )
 }
 
-/** 크루 홈의 대화상자: 글 삭제, 크루 정보·크루원 쪽 대화상자(CrewInfoDialogs), 내 정보 시트(F-23), 크루런 응답 시트. */
+/** 크루 홈의 대화상자: 글 삭제, 크루 정보·크루원 쪽 대화상자(CrewInfoDialogs), 내 정보 시트(F-23). */
 @Composable
 private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
     if (state.confirmDelete != null) {
@@ -306,24 +301,6 @@ private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
     }
     CrewInfoDialogs(state, actions)
     if (state.isEditingIntro) MyInfoSheet(state, actions)
-    state.openedRun?.let { post ->
-        // 시트에서 다른 화면·대화상자로 가면 시트를 닫는다(돌아왔을 때 시트가 남지 않게).
-        val closing = actions.copy(
-            onLobby = {
-                actions.onRunClose()
-                actions.onLobby(it)
-            },
-            onDeleteAsk = {
-                actions.onRunClose()
-                actions.onDeleteAsk(it)
-            },
-            onReport = {
-                actions.onRunClose()
-                actions.onReport(it)
-            }
-        )
-        CrewRunSheet(post, state.lobbyEntries[post.postId], closing)
-    }
 }
 
 /** 끝에서 이 픽셀 안쪽까지 내리면 다음 쪽을 읽는다. */

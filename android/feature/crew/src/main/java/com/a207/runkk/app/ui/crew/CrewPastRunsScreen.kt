@@ -85,8 +85,8 @@ fun CrewPastRunsRoute(key: Routes.CrewPastRuns, viewModel: CrewPastRunsViewModel
             onPeriodOpen = viewModel::onPeriodOpen,
             onPeriodClose = viewModel::onPeriodClose,
             onPeriodApply = viewModel::onPeriodApply,
-            // 일정 상세(W6 Routes.CrewRunDetail)가 들어오기 전까지 마친 크루런은 결과 화면으로 간다.
-            onRun = { run -> navigator.navigate(Routes.CrewRunResult(run.postId)) }
+            // 지난 줄도 W6 일정 상세(종료된 일정 모양)로 간다(설계 05-29 [임시:D-성-32]).
+            onRun = { run -> navigator.navigate(Routes.CrewRunDetail(run.postId)) }
         )
     )
 }
@@ -297,7 +297,7 @@ private fun ListHeader(state: CrewPastRunsUiState) {
     )
 }
 
-/** 크루런 한 줄(높이 58, 아래 divider): 제목 16, 아래 일시·거리·인원(취소면 "취소됨"). 마친 크루런만 누를 수 있다. */
+/** 크루런 한 줄(높이 58, 아래 divider): 제목 16, 아래 일시·거리·인원(취소면 "취소됨"). 누르면 일정 상세(W6). */
 @Composable
 private fun PastRunRow(run: PastCrewRun, onRun: (PastCrewRun) -> Unit) {
     val isFinished = run.status == CrewRunStatus.FINISHED
@@ -316,7 +316,7 @@ private fun PastRunRow(run: PastCrewRun, onRun: (PastCrewRun) -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 58.dp)
-                .clickable(enabled = isFinished, role = Role.Button) { onRun(run) }
+                .clickable(role = Role.Button) { onRun(run) }
                 .padding(bottom = 6.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)
         ) {
@@ -336,7 +336,7 @@ private fun PastRunRow(run: PastCrewRun, onRun: (PastCrewRun) -> Unit) {
 @Composable
 private fun distanceLabel(distance: Distance?): String = when {
     distance == null -> stringResource(R.string.crew_past_runs_unlimited)
-    distance.meters in HALF_METERS -> stringResource(R.string.crew_past_runs_half)
+    distance.meters in HALF_RANGE -> stringResource(R.string.crew_past_runs_half)
     else -> stringResource(R.string.crew_contribution_km, targetKm(distance))
 }
 
@@ -418,7 +418,7 @@ private const val MONTHS = 12
 private const val DIM_ALPHA = 0.45f
 
 /** 하프 마라톤 거리(21,097.5m)를 서버가 반올림해 줄 수 있는 범위. */
-private val HALF_METERS = 21_097L..21_098L
+private val HALF_RANGE = HALF_METERS..HALF_METERS + 1
 
 /** 일요일부터(피그마 "일 월 화 수 목 금 토"). */
 private val WEEK = listOf(

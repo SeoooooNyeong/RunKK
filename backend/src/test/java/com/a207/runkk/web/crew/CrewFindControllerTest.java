@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -115,7 +116,8 @@ class CrewFindControllerTest extends WebTestSupport {
         assertThat(fresh.get("rejoinAvailableAt").isNull()).isTrue();
         assertThat(fresh.get("lastWeekDistanceMeters").asLong()).isZero();
 
-        LocalDateTime scheduledAt = LocalDateTime.now().plusMinutes(20).withNano(0);
+        LocalDateTime soon = LocalDateTime.now().plusMinutes(20).truncatedTo(ChronoUnit.MINUTES);
+        LocalDateTime scheduledAt = soon.withMinute(soon.getMinute() / 5 * 5); // 5분 단위(W6)
         long run = departedCrewRun(leader, a, crewId, scheduledAt);
         LocalDateTime start = scheduledAt.plusSeconds(3);
         call(

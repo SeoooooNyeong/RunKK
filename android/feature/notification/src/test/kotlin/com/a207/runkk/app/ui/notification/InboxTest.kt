@@ -230,7 +230,10 @@ class InboxTest {
                 "CREW_SEARCH",
             constants
         )
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W7_KEYS, keys)
+        assertEquals(
+            V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS + W7_KEYS,
+            keys
+        )
     }
 
     @Test
@@ -324,13 +327,16 @@ class InboxTest {
         /** 0.11.4 이벤트(S15P31A207-275): 이벤트 목록, 셀럽런 분절로 여는 기록런, 이벤트 상세 웹 페이지. */
         val V0114_CONSTANTS = setOf("EVENTS", "RECORD_RUN_CELEB")
         val V0114_KEYS = setOf("EventDetail")
+
+        /** 피그마 맞춤 W6(S15P31A207-297): 크루런 일정 상세·수정, 지난 크루런(화면은 W7). */
+        val W6_KEYS = setOf("CrewRunDetail", "CrewRunEdit", "CrewPastRuns")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
             "CrewHome", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
         )
 
-        /** 피그마 맞춤 W7: 크루 관리(CrewManage)를 지우고 지난 크루런·지난 목표를 더했다. */
-        val W7_KEYS = setOf("CrewPastRuns", "CrewPastGoals")
+        /** 피그마 맞춤 W7: 크루 관리(CrewManage)를 지우고 지난 목표를 더했다(지난 크루런 경로는 W6). */
+        val W7_KEYS = setOf("CrewPastGoals")
         val V011_KEYS = setOf("CrewChat", "CrewPollWrite", "CrewBoardWrite")
 
         /** 와이어프레임 v0.10 반영에서 더한 인자 키(F8 다른 러너 프로필, M1 공지 쓰기, M3 투표, M7 대면 모임, M8 공동 목표). */

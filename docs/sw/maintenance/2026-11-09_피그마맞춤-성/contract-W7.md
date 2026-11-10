@@ -240,8 +240,8 @@ Flyway: **`V59__crew_manager_to_member.sql`** — 기존 운영진(`crew_members
 
 | # | 내용 |
 |---|---|
-| B-1 | 크루 관리 화면(`CrewManage*`, `ManageAction`, `CrewStaffConfirmDialog`, `CrewMoreButton`)과 `Routes.CrewManage`를 지웠다. `CREW_MANAGE` 알림은 `Routes.CrewHome(crewId)`로 연다. 앱 `CrewRepository`에서 `reissueInviteCode`·`appointManager`·`dismissManager`를 지웠다(서버 API·`CrewApi` 메소드는 남김) |
-| B-2 | 새 경로 `Routes.CrewPastRuns(crewId)`·`Routes.CrewPastGoals(crewId)`. 지난 크루런 줄은 W6 `Routes.CrewRunDetail`이 들어오기 전까지 마친 크루런만 `Routes.CrewRunResult(postId)`로 연다(취소된 줄은 누를 수 없다). W6 병합 때 `CrewPastRunsRoute`의 `onRun` 한 줄을 상세 경로로 바꾼다 |
+| B-1 | 크루 관리 화면(`CrewManage*`, `ManageAction`, `CrewStaffConfirmDialog`)과 `Routes.CrewManage`를 지웠다. `CREW_MANAGE` 알림은 `Routes.CrewHome(crewId)`로 연다. 앱 `CrewRepository`에서 `reissueInviteCode`·`appointManager`·`dismissManager`를 지웠다(서버 API·`CrewApi` 메소드는 남김). `CrewMoreButton`은 W6 일정 상세가 써서 남겼다 |
+| B-2 | 새 경로 `Routes.CrewPastGoals(crewId)`와 화면 등록. `Routes.CrewPastRuns(crewId)` 경로 정의와 일정 탭 「지난 크루런 ›」은 W6 것을 쓰고 W7은 화면 등록·Repository·DTO만 둔다. 지난 크루런 줄(마친·취소 모두)은 W6 `Routes.CrewRunDetail(postId)`로 연다 |
 | B-3 | 상태는 `CrewHomeUiState`에 `isMenuOpen`·`requests`·`openedMember`·`confirmTransfer`·`confirmKick`·`isConfirmingCrewDelete`·`isAgePublic`·`isGenderPublic`·`editForm`, 쪽은 `CrewHomePage.EDIT`(F-26)을 더했다. `canManage`는 크루장만, `canSetGoal`은 크루장·운영진 그대로 |
 | B-4 | 지난 목표 상태는 설계 05-29의 `weeks: List<RaceStatus>, nextCursor: String?` 대신 이 계약 4장 응답을 그대로 쓴 `CrewPastGoalsUiState(goals: List<PastGoals.Goal>, nextBefore: LocalDate?)`다 |
 | B-5 | F-23 공개 토글은 `ProfileVisibilitySaver`(→ `AccountRepository.editProfile`, `ProfileEdit(nickname = null, intro = null, …)`)로 저장한다. 이를 위해 `ProfileEdit.nickname`·`ProfileEditRequest.nickname`을 nullable로 바꿨다(null이면 서버가 그대로 둔다) |

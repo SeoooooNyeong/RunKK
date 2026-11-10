@@ -9,7 +9,10 @@ import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewRole
+import com.a207.runkk.app.domain.crew.CrewRunDetail
+import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
@@ -57,7 +60,7 @@ class CrewRepositoryImplTest {
     }
 
     @Test
-    fun `크루런 모집글은 거리·모임 시각을 실어 게시판으로 보낸다`() = runTest {
+    fun `크루런 모집글은 제목·내용·거리·모임 시각·반복을 따로 실어 게시판으로 보낸다(W6)`() = runTest {
         api.reply("""{"id":77}""")
 
         val id =
@@ -70,9 +73,56 @@ class CrewRepositoryImplTest {
         val request = api.take()
         assertEquals("/api/v1/crews/5/posts", request.url.encodedPath)
         assertEquals(
-            """{"kind":"CREW_RUN","body":"토요 한강런","distanceMeters":10000,"scheduledAt":"2026-10-25T06:00:00+09:00"}""",
+            """{"kind":"CREW_RUN","body":"","distanceMeters":10000,"scheduledAt":"2026-10-25T06:00:00+09:00",""" +
+                """"title":"토요 한강런","repeat":"NONE"}""",
             request.body!!.utf8()
         )
+    }
+
+    @Test
+    fun `제한 없음 반복 모집글은 거리를 싣지 않고 WEEKLY를 보낸다(W6)`() = runTest {
+        api.reply("""{"id":78}""")
+        repository.writeCrewRun(
+            5,
+            CrewRunForm("멀리", "8번 출구", null, Instant.parse("2026-10-24T21:00:00Z"), CrewRunRepeat.WEEKLY)
+        )
+        assertEquals(
+            """{"kind":"CREW_RUN","body":"8번 출구","scheduledAt":"2026-10-25T06:00:00+09:00",""" +
+                """"title":"멀리","repeat":"WEEKLY"}""",
+            api.take().body!!.utf8()
+        )
+    }
+
+    @Test
+    fun `일정 상세·수정·참석 취소는 crew-runs와 attendance 경로를 쓰고 상세를 읽는다(W6)`() = runTest {
+        val detailJson =
+            """{"postId":42,"crewId":7,"title":"토요일 한강","body":"","authorId":3,"authorName":"곰","mine":true,
+               |"writtenAt":"2026-10-21T10:12:00+09:00","scheduledAt":"2026-10-24T07:00:00+09:00",
+               |"voteDeadline":"2026-10-24T07:00:00+09:00","status":"VOTING","goingCount":1,"myAnswer":"GOING",
+               |"canEdit":true,"canDelete":true,"repeat":"WEEKLY","repeatDayOfWeek":"SATURDAY",
+               |"attendees":[{"memberId":3,"displayName":"곰","author":true,"me":true,"faceKey":null,"shownGender":"MALE"}]}
+            """.trimMargin()
+        api.reply(detailJson)
+        val detail = repository.crewRun(42).value()
+        assertEquals("GET /api/v1/crew-runs/42", api.take().let { "${it.method} ${it.url.encodedPath}" })
+        assertEquals(null, detail.distance)
+        assertEquals(CrewRunRepeat.WEEKLY, detail.repeat)
+        assertEquals(java.time.DayOfWeek.SATURDAY, detail.repeatDay)
+        assertEquals(true, detail.isGoing)
+        assertEquals(
+            CrewRunDetail.Attendee(3, "곰", isAuthor = true, isMe = true, shownGender = Gender.MALE),
+            detail.attendees[0]
+        )
+
+        api.reply(detailJson)
+        repository.editCrewRun(42, CrewRunEdit("하프", null, Distance(21_097), CrewRunRepeat.NONE))
+        val edit = api.take()
+        assertEquals("PATCH /api/v1/crew-runs/42", "${edit.method} ${edit.url.encodedPath}")
+        assertEquals("""{"title":"하프","body":"","distanceMeters":21097,"repeat":"NONE"}""", edit.body!!.utf8())
+
+        api.reply("""{"postId":42,"myAnswer":null,"goingCount":0,"notGoingCount":0,"undecidedCount":0}""")
+        assertEquals(Outcome.Success(Unit), repository.withdrawAttendance(42))
+        assertEquals("DELETE /api/v1/posts/42/attendance", api.take().let { "${it.method} ${it.url.encodedPath}" })
     }
 
     @Test

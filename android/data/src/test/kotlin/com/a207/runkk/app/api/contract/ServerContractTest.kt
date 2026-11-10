@@ -63,6 +63,7 @@ import com.a207.runkk.app.api.crew.LeaderRequest
 import com.a207.runkk.app.api.crew.LobbyResponse
 import com.a207.runkk.app.api.crew.ManagerResponse
 import com.a207.runkk.app.api.crew.MyCrewResponse
+import com.a207.runkk.app.api.crew.PastCrewRunsResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
@@ -179,6 +180,7 @@ class ServerContractTest {
             "AccountType" to names(AccountType.entries),
             "ScreenTheme" to names(ScreenTheme.entries),
             "PollMethod" to names(PollMethod.entries),
+            "CrewRunRepeat" to names(com.a207.runkk.app.domain.crew.CrewRunRepeat.entries),
             "ReactionKind" to names(ReactionKind.entries),
             "ReportTargetKind" to names(ReportTargetKind.entries),
             "ReportReason" to names(ReportReason.entries),
@@ -320,6 +322,7 @@ class ServerContractTest {
         request(InvitePreviewRequest.serializer(), "CrewDtos.InvitePreviewRequest")
         request(CrewProfileRequest.serializer(), "CrewDtos.CrewProfileRequest")
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
+        request(com.a207.runkk.app.api.crew.CrewRunEditRequest.serializer(), "CrewScheduleDtos.CrewRunEditRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
         request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
         request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
@@ -377,10 +380,15 @@ class ServerContractTest {
         response(CrewMembersResponse.serializer(), "CrewMembersAssembler.CrewMembersResponse")
         response(PendingRequestsResponse.serializer(), "CrewMembersAssembler.PendingRequestsResponse")
         response(GoalHistoryResponse.serializer(), "CrewGoalHistoryController.GoalHistoryResponse")
+        response(PastCrewRunsResponse.serializer(), "CrewScheduleDtos.PastCrewRunsResponse")
         response(CrewRankingResponse.serializer(), "CrewController.RankingResponse")
         response(RaceStatusResponse.serializer(), "CrewDtos.RaceStatusResponse")
         response(PostListResponse.serializer(), "CrewDtos.PostListResponse")
         response(LobbyResponse.serializer(), "CrewDtos.LobbyResponse")
+        response(
+            com.a207.runkk.app.api.crew.CrewRunDetailResponse.serializer(),
+            "CrewScheduleDtos.CrewRunDetailResponse"
+        )
         response(CrewRunResultResponse.serializer(), "CrewDtos.CrewRunResultResponse")
         response(CreatedResponse.serializer(), "CrewDtos.CreatedResponse")
         response(CreatedResponse.serializer(), "CrewDtos.PostResponse")

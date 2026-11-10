@@ -28,8 +28,6 @@ data class CrewHomeUiState(
     val scheduleNow: Instant? = null,
     /** 축하 카드를 공유하는 중(FR-141). */
     val isSharing: Boolean = false,
-    /** 응답 시트를 연 크루런 모집글(피그마 F-11: 강조 카드 제목·날짜 줄을 누름). 닫혀 있으면 null. */
-    val openedRunId: Long? = null,
     /** 크루런 모집글별 대기실 단추 상태(postId → LobbyAvailability). 서버 시각 추정으로 1초마다 다시 판단한다. */
     val lobbyEntries: Map<Long, LobbyAvailability> = emptyMap(),
     val members: CrewMembers? = null,
@@ -67,9 +65,6 @@ data class CrewHomeUiState(
     val error: UiText? = null
 ) {
     val crewName: String get() = detail?.name.orEmpty()
-
-    /** 응답 시트를 연 크루런 모집글(목록을 다시 읽어도 새 값). 목록에서 사라졌으면 null. */
-    val openedRun: PostList.Item? get() = openedRunId?.let { id -> crewRuns?.posts?.firstOrNull { it.postId == id } }
 
     /** 내 크루 역할(크루 밖·읽기 전이면 null). 버튼 노출을 정한다(3.0.3, FR-128). */
     val myRole: CrewRole? get() = detail?.myRole

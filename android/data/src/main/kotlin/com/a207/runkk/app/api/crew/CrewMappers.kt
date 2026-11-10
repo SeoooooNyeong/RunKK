@@ -14,7 +14,10 @@ import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewPreview
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
+import com.a207.runkk.app.domain.crew.CrewRunDetail
+import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
@@ -33,6 +36,7 @@ import com.a207.runkk.app.domain.crew.PollMethod
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import com.a207.runkk.app.domain.crew.RecentCrewRun
+import java.time.DayOfWeek
 import java.time.YearMonth
 
 // 도메인 ↔ DTO 매퍼(13.2 toRequest·toDomain). 앱이 모르는 글 종류는 건너뛰고, 모르는 가입 방식은 승인제로 읽는다.
@@ -40,12 +44,47 @@ import java.time.YearMonth
 internal fun CrewForm.toRequest(): CrewFormDto =
     CrewFormDto(name, intro, tags, visibility.name, joinPolicy.name, logoUrl)
 
-/** 서버 모집글에는 제목이 없어 제목과 본문을 줄바꿈으로 이어 body에 싣는다. 모집 일시는 오프셋 시각이다. */
+/** 제목과 내용을 따로 싣는다(W6). 거리가 null이면 제한 없음, 모집 일시는 오프셋 시각이다. */
 internal fun CrewRunForm.toRequest(): PostWriteRequest = PostWriteRequest(
     kind = PostList.Kind.CREW_RUN.name,
-    body = listOfNotNull(title.takeIf { it.isNotBlank() }, body?.takeIf { it.isNotBlank() }).joinToString(NEWLINE),
-    distanceMeters = distance.meters,
-    scheduledAt = ServerTime.formatWithOffset(meetAt)
+    title = title,
+    body = body.orEmpty(),
+    distanceMeters = distance?.meters,
+    scheduledAt = ServerTime.formatWithOffset(meetAt),
+    repeat = repeat.name
+)
+
+internal fun CrewRunEdit.toRequest(): CrewRunEditRequest =
+    CrewRunEditRequest(title = title, body = body.orEmpty(), distanceMeters = distance?.meters, repeat = repeat.name)
+
+/** 모르는 상태와 요일은 null, 모르는 반복은 반복 안 함으로 읽는다. */
+internal fun CrewRunDetailResponse.toDomain(): CrewRunDetail = CrewRunDetail(
+    postId = postId,
+    crewId = crewId,
+    title = title,
+    body = body,
+    authorName = authorName.orEmpty(),
+    isMine = mine,
+    writtenAt = ServerTime.parse(writtenAt),
+    scheduledAt = ServerTime.parse(scheduledAt),
+    distance = distanceMeters?.let(::Distance),
+    status = status?.let { enumByName<CrewRunStatus>(it) },
+    goingCount = goingCount,
+    myAnswer = myAnswer?.let { enumByName<AttendanceAnswer>(it) },
+    canEdit = canEdit,
+    canDelete = canDelete,
+    repeat = repeat?.let { enumByName<CrewRunRepeat>(it) } ?: CrewRunRepeat.NONE,
+    repeatDay = repeatDayOfWeek?.let { enumByName<DayOfWeek>(it) },
+    attendees = attendees.map {
+        CrewRunDetail.Attendee(
+            memberId = it.memberId,
+            displayName = it.displayName.orEmpty(),
+            isAuthor = it.author,
+            isMe = it.me,
+            faceKey = it.faceKey,
+            shownGender = enumByName<Gender>(it.shownGender)
+        )
+    }
 )
 
 /** 모르는 공개 범위는 비공개로, 가입 방식은 승인제로, 역할은 크루 밖(null)으로 읽는다(넓게 허용하지 않는 쪽). */
@@ -268,7 +307,7 @@ private fun PostListResponse.Item.Poll.toDomain(): Poll? = enumByName<PollMethod
 }
 
 private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = PostList.CrewRunInfo(
-    distance = Distance(distanceMeters),
+    distance = distanceMeters?.let(::Distance),
     scheduledAt = ServerTime.parse(scheduledAt),
     voteDeadline = voteDeadline?.let(ServerTime::parse),
     status = status?.let { enumByName<CrewRunStatus>(it) },
@@ -277,7 +316,8 @@ private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = Pos
     finisherCount = finisherCount,
     raceContribution = raceContributionMeters?.let(::Distance),
     notGoingCount = notGoingCount,
-    undecidedCount = undecidedCount
+    undecidedCount = undecidedCount,
+    title = title.orEmpty()
 )
 
 internal fun LobbyResponse.toDomain(): Lobby = Lobby(
@@ -294,7 +334,7 @@ internal fun LobbyResponse.toDomain(): Lobby = Lobby(
         )
     },
     ServerTime.parse(scheduledAt),
-    Distance(distanceMeters)
+    distanceMeters?.let(::Distance)
 )
 
 internal fun CrewRunResultResponse.toDomain(): CrewRunResult {
@@ -324,8 +364,6 @@ internal fun CrewRunResultResponse.toDomain(): CrewRunResult {
         myRecordId = myRecordId
     )
 }
-
-private const val NEWLINE = "\n"
 
 /** 서버 crew.Readiness의 대기실에 들어오지 않은 값. */
 private const val NOT_ENTERED = "NOT_ENTERED"

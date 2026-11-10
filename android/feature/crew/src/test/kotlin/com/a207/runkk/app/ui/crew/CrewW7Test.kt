@@ -530,7 +530,7 @@ class CrewW7ScreensTest {
     )
 
     @Test
-    fun `지난 크루런 - 마친 크루런을 누르면 열고 취소된 크루런은 취소됨이다(F-20)`() {
+    fun `지난 크루런 - 줄을 누르면 일정 상세로 열고 취소된 크루런은 취소됨이다(F-20)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewPastRunsScreen(
@@ -543,7 +543,8 @@ class CrewW7ScreensTest {
         compose.onNodeWithText("화요일 인터벌").performClick()
         compose.onNodeWithText("토요일 하프").performClick()
         compose.onNodeWithContentDescription("기간 선택, 지금 2026년 10월").performClick()
-        assertEquals(listOf("run:40", "period"), calls)
+        compose.onNodeWithText("취소됨", useUnmergedTree = true).assertExists()
+        assertEquals(listOf("run:40", "run:35", "period"), calls)
     }
 
     @Test

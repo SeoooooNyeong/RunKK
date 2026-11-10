@@ -73,7 +73,7 @@ constructor(
     private var run: CrewRun? = null
 
     /** 크루런 대기실 진입(ui.crew가 CrewRepository.enterLobby 성공 뒤 부른다). 채널을 열고 중계를 받는다. */
-    fun onLobbyEntered(postId: Long, distance: Distance) {
+    fun onLobbyEntered(postId: Long, distance: Distance?) {
         val run = openRun(postId, distance)
         run.round.scope.launch {
             _state.value = CrewRunState.Lobby(postId)
@@ -296,7 +296,7 @@ constructor(
     }
 
     /** 이전 회가 남아 있으면 정리(측정 중이면 endRun, 채널 닫기, 범위 취소)하고 새 회를 연다. */
-    private fun openRun(postId: Long, distance: Distance): CrewRun {
+    private fun openRun(postId: Long, distance: Distance?): CrewRun {
         run?.let { previous ->
             run = null
             previous.round.endMeasuring()
@@ -308,7 +308,7 @@ constructor(
     }
 
     /** 크루런 한 회. 범위·측정 여부는 CoordinatedRound가 맡는다(S-2, O-3). 범위 안 예외는 연결 실패로 닫는다. */
-    private inner class CrewRun(val postId: Long, val distance: Distance) {
+    private inner class CrewRun(val postId: Long, val distance: Distance?) {
         val round = CoordinatedRound(applicationScope, runTracker) { fail(this, AppError.Network) }
 
         @Volatile

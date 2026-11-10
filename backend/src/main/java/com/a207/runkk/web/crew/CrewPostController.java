@@ -75,7 +75,10 @@ public class CrewPostController {
                 switch (body.kind()) {
                     case CHEER -> crewPostService.writeCheer(memberId, crewId, body.body());
                     case CREW_RUN ->
-                            crewPostService.writeCrewRun(memberId, crewId, body.toCrewRunDraft());
+                            crewPostService.writeCrewRun(
+                                    memberId,
+                                    crewId,
+                                    body.toCrewRunDraft(LocalDateTime.now(clock)));
                     case MEETUP ->
                             crewPostService.writeMeetup(memberId, crewId, body.toMeetupDraft());
                     case NOTICE ->

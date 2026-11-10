@@ -21,17 +21,19 @@ data class CrewHomeActions(
     /** 신고 대화상자를 연다(남의 글, FR-214). */
     val onReport: (PostList.Item) -> Unit = {},
     val onAttendance: (PostList.Item, AttendanceAnswer) -> Unit = { _, _ -> },
+    /** 참석 취소(참석 칩을 끔, W6): 응답을 거둔다. */
+    val onAttendanceWithdraw: (PostList.Item) -> Unit = {},
     val onWriteSchedule: () -> Unit = {},
     val onLobby: (PostList.Item) -> Unit = {},
-    /** 크루런 응답 시트 열기(강조 카드 제목·날짜 줄)·닫기(피그마 F-11). */
+    /** 크루런 일정 상세 열기(강조 카드 제목·날짜 줄, 피그마 F-11 → F-13). */
     val onRunOpen: (PostList.Item) -> Unit = {},
-    val onRunClose: () -> Unit = {},
+    /** "지난 크루런 ›"(피그마 F-11b, Routes.CrewPastRuns). */
+    val onPastRuns: () -> Unit = {},
     val onResult: (PostList.Item) -> Unit = {},
     /** ⋯ 메뉴(F-17·F-24) 열기·닫기. */
     val onMenuOpen: () -> Unit = {},
     val onMenuClose: () -> Unit = {},
-    /** 크루 정보의 「지난 크루런 ›」(Routes.CrewPastRuns)·「지난 목표 ›」(Routes.CrewPastGoals). */
-    val onPastRuns: () -> Unit = {},
+    /** 크루 정보의 「지난 목표 ›」(Routes.CrewPastGoals). 「지난 크루런 ›」은 위 onPastRuns를 같이 쓴다. */
     val onPastGoals: () -> Unit = {},
     /** 가입 신청 승인·거절(F-25, 크루장). */
     val onApprove: (PendingRequests.Request) -> Unit = {},
