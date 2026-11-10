@@ -19,6 +19,7 @@ import java.util.concurrent.Executors
  * 네이티브 Rive 아바타 뷰(PoC MainActivity의 Rive 파일 선택·FileAssetLoader·비동기 합성·캐시 버전 관리를 화면과 떼어 낸 것).
  *
  * - 동작마다 Rive 뷰 하나를 처음 필요할 때 만든다(서기 Idle, 달리기 Runner). 남녀나 머리가 바뀌면 같은 뷰에 새 파일을 다시 읽는다.
+ * - Rive 파일·내장 머리·앞 단계 몸 바이트는 [RiveAvatarAssets]가 IO에서 미리 읽은 것만 쓴다(주 스레드에서 자산을 읽지 않는다).
  * - 피부톤·의상·체형 텍스처는 단일 합성 스레드에서 만든다. 계산은 한 번에 하나, 대기는 가장 최근 요청 하나만 둔다.
  *   요청 버전([toneVersion])과 정체 버전([identity])이 지금과 다르면 결과를 버린다.
  * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다.
@@ -29,15 +30,12 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
 
     private val io: ExecutorService = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
-    private val legacyStandingBody: ByteArray by lazy {
-        resources.openRawResource(R.raw.avatar_legacy_standing_body).use { it.readBytes() }
-    }
-    private val builtIn = EnumMap<AvatarGender, AvatarVariantAssets>(AvatarGender::class.java)
     private val players = EnumMap<AvatarMotion, RiveAnimationView>(AvatarMotion::class.java)
     private val applied = EnumSet.noneOf(AvatarMotion::class.java)
     private var frontLoader: FrontAvatarAssetLoader? = null
     private var runLoader: RunAvatarAssetLoader? = null
     private var state: AvatarRenderState? = null
+    private var assets: PreparedRiveAssets? = null
     private var sources: AvatarVariantAssets? = null
     private var identity = 0
     private var toneVersion = 0
@@ -57,10 +55,13 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         }
     }
 
-    fun render(next: AvatarRenderState) {
+    /**
+     * [next]를 그린다. [prepared]는 IO에서 미리 읽은 [next] 몸체의 바이트([RiveAvatarAssets])이고, 아직 읽는 중이면 null이라
+     * 그리지 않고 기다린다(준비되면 다시 부른다). 네이티브 런타임 초기화는 프로세스에서 한 번이고, 실패를 바로 알려 화면이 앞 단계
+     * 그림으로 바꾸게 한다.
+     */
+    fun render(next: AvatarRenderState, prepared: PreparedRiveAssets?) {
         if (isReleased) return
-        val previous = state
-        state = next
         try {
             RiveRuntime.ensureInitialized(context)
         } catch (error: LinkageError) {
@@ -69,11 +70,16 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             fail(error)
             return
         }
+        if (prepared == null || prepared.gender != next.gender) return
+        val previous = state
+        val previousAssets = assets
+        state = next
+        assets = prepared
         try {
-            val isNewIdentity =
-                previous == null || previous.gender != next.gender || previous.headLayers !== next.headLayers
-            if (isNewIdentity) changeIdentity(next)
-            val isNewPlayer = ensurePlayer(next.motion, next.gender)
+            val isNewIdentity = previous == null || previousAssets !== prepared ||
+                previous.gender != next.gender || previous.headLayers !== next.headLayers
+            if (isNewIdentity) changeIdentity(next, prepared)
+            val isNewPlayer = ensurePlayer(next.motion, prepared)
             val isNewLook = previous != null &&
                 (
                     previous.runningAmount != next.runningAmount ||
@@ -127,9 +133,8 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     }
 
     /** 남녀나 머리가 바뀌었다. 전체 머리 원본을 먼저 읽어 남녀 자산이 섞인 채 남지 않게 한 뒤 열린 뷰에 새 파일을 읽는다. */
-    private fun changeIdentity(next: AvatarRenderState) {
-        val nextSources = next.headLayers?.variants?.getValue(next.gender)
-            ?: builtIn.getOrPut(next.gender) { AvatarVariantAssets.loadBuiltIn(context.assets, next.gender) }
+    private fun changeIdentity(next: AvatarRenderState, prepared: PreparedRiveAssets) {
+        val nextSources = next.headLayers?.variants?.getValue(next.gender) ?: prepared.builtIn
         identity++
         invalidateTone()
         cache = AvatarToneCache()
@@ -143,7 +148,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
                 AvatarMotion.RUN -> checkNotNull(runLoader).clearHandles()
             }
             // setRiveResource는 컨트롤러의 파일을 바꾸고 앞 장면을 SDK가 놓는다. Builder로 넣은 로더는 그대로 쓴다.
-            loadResource(view, motion, next.gender)
+            loadResource(view, motion, prepared)
             checkLoaded(motion)
         }
         playing = null
@@ -151,14 +156,14 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     }
 
     /** [motion]의 뷰가 없으면 만든다. 새로 만들었으면 true. */
-    private fun ensurePlayer(motion: AvatarMotion, gender: AvatarGender): Boolean {
+    private fun ensurePlayer(motion: AvatarMotion, prepared: PreparedRiveAssets): Boolean {
         if (motion in players) return false
         val loader = when (motion) {
-            AvatarMotion.STAND -> FrontAvatarAssetLoader(legacyStandingBody).also { frontLoader = it }
+            AvatarMotion.STAND -> FrontAvatarAssetLoader(prepared.legacyStandingBody).also { frontLoader = it }
             AvatarMotion.RUN -> RunAvatarAssetLoader().also { runLoader = it }
         }
         val view = RiveAnimationView.Builder(context)
-            .setResource(RiveAvatarScene.rawResource(gender, motion))
+            .setResource(prepared.riv(motion))
             .setArtboardName(RiveAvatarScene.artboard(motion))
             .setStateMachineName(RiveAvatarScene.stateMachine(motion))
             .setShouldLoadCDNAssets(false)
@@ -170,7 +175,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         view.visibility = INVISIBLE
         // Builder는 창에 붙을 때 읽는다. 지금 한 번 읽어 자산 자리와 상태 입력을 바로 쓸 수 있게 한다
         // (onAttachedToWindow는 이미 파일이 있으면 다시 읽지 않는다).
-        loadResource(view, motion, gender)
+        loadResource(view, motion, prepared)
         players[motion] = view
         addView(view, 0, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         checkLoaded(motion)
@@ -178,10 +183,11 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         return true
     }
 
-    private fun loadResource(view: RiveAnimationView, motion: AvatarMotion, gender: AvatarGender) {
+    /** 미리 읽은 Rive 파일 바이트를 넣는다(주 스레드에서 res/raw를 읽지 않는다). */
+    private fun loadResource(view: RiveAnimationView, motion: AvatarMotion, prepared: PreparedRiveAssets) {
         val machine = RiveAvatarScene.stateMachine(motion)
-        view.setRiveResource(
-            RiveAvatarScene.rawResource(gender, motion),
+        view.setRiveBytes(
+            prepared.riv(motion),
             artboardName = RiveAvatarScene.artboard(motion),
             stateMachineName = machine,
             autoplay = false,
@@ -207,6 +213,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private fun requestTone() {
         val current = state ?: return
         val variant = sources ?: return
+        val legacyStandingBody = assets?.legacyStandingBody ?: return
         val front = frontLoader?.takeIf { AvatarMotion.STAND in players }
         val run = runLoader?.takeIf { AvatarMotion.RUN in players }
         if (front == null && run == null) return
