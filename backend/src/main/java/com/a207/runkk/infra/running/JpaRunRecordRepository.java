@@ -259,6 +259,20 @@ public class JpaRunRecordRepository implements RunRecordRepository {
     }
 
     @Override
+    public List<RunSummary> findSummaries(Collection<String> recordIds) {
+        if (recordIds.isEmpty()) {
+            return List.of();
+        }
+        return entityManager
+                .createQuery(SUMMARY_COLUMNS + " where r.recordId in :ids", Object[].class)
+                .setParameter("ids", recordIds)
+                .getResultList()
+                .stream()
+                .map(JpaRunRecordRepository::summary)
+                .toList();
+    }
+
+    @Override
     public List<RunSummary> summariesBetween(long memberId, DateRange range) {
         return range(
                         entityManager.createQuery(

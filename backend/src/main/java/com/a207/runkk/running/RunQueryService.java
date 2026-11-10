@@ -69,6 +69,21 @@ public class RunQueryService {
         return runRecordRepository.findSummary(recordId);
     }
 
+    /**
+     * 여러 기록의 요약을 한 번에(기록 ID → 요약). 없는 ID는 빠진다. 글·참가자마다 findSummary를 부르는 N+1을 피한다(crew 최근 크루런, 코드 리뷰
+     * M3).
+     */
+    public Map<String, RunSummary> summariesOf(Collection<String> recordIds) {
+        if (recordIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, RunSummary> byId = new HashMap<>();
+        runRecordRepository
+                .findSummaries(new LinkedHashSet<>(recordIds))
+                .forEach(s -> byId.put(s.recordId(), s));
+        return byId;
+    }
+
     /** 최근 유효 기록 limit개, 최신순(analysis.ReportService). */
     public List<RunSummary> recentSummaries(long memberId, int limit) {
         return runRecordRepository.recentValidSummaries(memberId, limit);
