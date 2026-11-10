@@ -77,6 +77,9 @@ class MyAvatarStore internal constructor(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     )
 
+    /** 셀카 작업 진행(홈 칸의 진행 배지가 듣는다, 피그마 AV-7 4). */
+    val selfieProgress: Flow<SelfieProgress> get() = avatars.selfieProgress()
+
     private val _state = MutableStateFlow<MyAvatarState>(MyAvatarState.Idle)
     val state: StateFlow<MyAvatarState> = _state.asStateFlow()
 

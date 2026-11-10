@@ -89,9 +89,9 @@
     <string name="avatar_runner_unit_runs">회</string>
     <string name="avatar_runner_unit_km">km</string>
     <string name="avatar_runner_unit_days">일</string>
-    <string name="avatar_runner_runs_description">최근 7일 %1$d회 달림</string>
-    <string name="avatar_runner_distance_description">최근 7일 %1$skm 달림</string>
-    <string name="avatar_runner_rest_description">쉬어도 되는 날 %1$d일</string>
+    <string name="avatar_runner_runs_description">이번 주 %1$d회 달림</string>
+    <string name="avatar_runner_distance_description">이번 주 %1$skm 달림</string>
+    <string name="avatar_runner_streak_description">%1$d일 연속 달림</string>
     <string name="avatar_runner_face">얼굴</string>
     <string name="avatar_runner_background_count">%1$d/%2$d</string>
     <string name="avatar_runner_background_description">배경 %2$d개 중 %1$d개 열림</string>
@@ -132,4 +132,6 @@
     <string name="avatar_setup_selfie_count">1회</string>
     <string name="avatar_setup_use_default">기본 얼굴 쓰기</string>
     <string name="avatar_setup_other_photo">다른 사진 고르기</string>
+    <string name="avatar_selfie_home_badge">얼굴 만드는 중</string>
+    <string name="avatar_selfie_home_badge_action">얼굴 만들기 화면 열기</string>
 </resources>

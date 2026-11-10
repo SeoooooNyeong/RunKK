@@ -1,11 +1,18 @@
 package com.a207.runkk.app.ui.avatar
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.avatar.SelfieProgress
 
 /**
  * 홈 아바타 칸 내용(SlotKey.HOME_AVATAR, design-oo 05-30 2절): 칸(390×420, 홈이 고정)을 채워 내 아바타를 서 있게 그린다. 배경 사진은
@@ -13,6 +20,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  *
  * 칸이 처음 그려질 때 저장소를 데우고(스플래시 아래에서 홈이 먼저 그려지면 Overlay보다 빠르다), 준비가 끝난 뒤 다시 들어오면(꾸미기·
  * 상점에서 돌아옴) 입력을 다시 읽는다. 다시 읽는 동안에는 앞 그림을 그대로 둔다.
+ *
+ * 셀카 얼굴을 만드는 중이면 칸 위에 「얼굴 만드는 중」 배지를 띄우고, 누르면 얼굴 만들기로 간다(피그마 AV-7 4, [임시:D-성-147]).
  */
 @Composable
 internal fun HomeAvatarSlotContent(store: MyAvatarStore) {
@@ -21,5 +30,15 @@ internal fun HomeAvatarSlotContent(store: MyAvatarStore) {
         store.revalidate()
     }
     val state by store.state.collectAsStateWithLifecycle()
-    AvatarStage(state, Modifier.fillMaxSize(), backdrop = StageFloorPainter.BACKDROP_SPEC)
+    val selfie by store.selfieProgress.collectAsStateWithLifecycle(SelfieProgress.None)
+    val navigator = LocalRunkkNavigator.current
+    Box(Modifier.fillMaxSize()) {
+        AvatarStage(state, Modifier.fillMaxSize(), backdrop = StageFloorPainter.BACKDROP_SPEC)
+        if (selfie is SelfieProgress.Working) {
+            SelfieWorkingBadge(
+                onClick = { navigator.navigate(Routes.AVATAR_SETUP) },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
+            )
+        }
+    }
 }
