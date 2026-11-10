@@ -2,14 +2,12 @@ package com.a207.runkk.app.ui.avatar
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.a207.runkk.app.core.designsystem.UiText
-import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
-import com.a207.runkk.app.domain.avatar.Avatar
+import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
-import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundUnlockSeenStore
+import com.a207.runkk.app.domain.avatar.SelfieProgress
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import javax.inject.Inject
@@ -22,22 +20,49 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 내 러너(피그마 H-2, W8): 아바타(GET /avatar)·내 러너(GET /avatar/runner)·착용 이름용 상점 목록을 함께 읽고, 셀카 머리면 렌더러 머리
- * 레이어를 얼굴마다 한 번 만든다([SelfieHeads]). 들어올 때마다 새로 연 배경이 있으면 해금 팝업(H-6)을 띄운다(기기 기록 [BackgroundUnlockSeenStore]).
+ * 내 러너(피그마 제안 B안, W8): 아바타(GET /avatar)·내 러너(GET /avatar/runner)·착용 이름용 상점 목록을 함께 읽고, 셀카 머리면 렌더러 머리
+ * 레이어를 얼굴마다 한 번 만든다([SelfieHeads]). 레벨은 본인 요약, 배경 수는 배경 목록에서 읽는다. 들어올 때마다 새로 연 배경이 있으면
+ * 해금 팝업(H-6)을 띄운다(기기 기록 [BackgroundUnlockSeenStore]). 셀카 작업 진행을 들어 얼굴 줄에 보이고, 셀카가 끝나 얼굴이 바뀌면
+ * 다시 읽는다(design-oo 05-30 [임시:D-성-118]).
  */
 @HiltViewModel
-class AvatarRunnerViewModel @Inject constructor(
+class AvatarRunnerViewModel internal constructor(
     private val avatars: AvatarRepository,
     private val seenStore: BackgroundUnlockSeenStore,
     private val clock: Clock,
-    private val heads: SelfieHeads
+    private val heads: SelfieHeads,
+    private val myAvatar: MyAvatarStore,
+    /** 본인 레벨(본인 요약). 모르면 null. */
+    private val level: suspend () -> Int?
 ) : ViewModel() {
+    @Inject
+    constructor(
+        avatars: AvatarRepository,
+        seenStore: BackgroundUnlockSeenStore,
+        clock: Clock,
+        heads: SelfieHeads,
+        accounts: AccountRepository,
+        myAvatar: MyAvatarStore
+    ) : this(avatars, seenStore, clock, heads, myAvatar, { accounts.mySummary().getOrNull()?.level })
+
     private val _state = MutableStateFlow(AvatarRunnerUiState())
     val state: StateFlow<AvatarRunnerUiState> = _state.asStateFlow()
     private var job: Job? = null
 
     init {
         load()
+        // 러닝 저장 뒤 체형·러닝량이 바뀌었을 수 있으므로 들어올 때 홈·러닝 칸도 다시 준비한다(design-oo 05-30 [임시:D-성-104]).
+        myAvatar.revalidate()
+        viewModelScope.launch {
+            var isFirst = true
+            avatars.selfieProgress().collect { progress ->
+                val before = _state.value.selfie
+                _state.update { it.copy(selfie = progress) }
+                // 처음 받은 값은 init의 읽기가 이미 반영한다.
+                if (!isFirst && progress is SelfieProgress.Succeeded && before != progress) load()
+                isFirst = false
+            }
+        }
     }
 
     fun load() {
@@ -46,10 +71,12 @@ class AvatarRunnerViewModel @Inject constructor(
         job = viewModelScope.launch {
             val runnerCall = async { avatars.runner() }
             val shopCall = async { avatars.shop(null) }
+            val levelCall = async { level() }
             val avatar = avatars.avatar()
             val runner = runnerCall.await()
             if (avatar !is Outcome.Success || runner !is Outcome.Success) {
                 shopCall.cancel()
+                levelCall.cancel()
                 val failure = (avatar as? Outcome.Failure) ?: (runner as Outcome.Failure)
                 _state.update { it.copy(isLoading = false, error = AvatarErrorText.of(failure.error)) }
                 return@launch
@@ -68,6 +95,7 @@ class AvatarRunnerViewModel @Inject constructor(
                 )
             }
             loadHead(avatar.value.faceKey)
+            _state.update { it.copy(level = levelCall.await()) }
             checkUnlocks()
         }
     }
@@ -80,6 +108,12 @@ class AvatarRunnerViewModel @Inject constructor(
 
     private suspend fun checkUnlocks() {
         val backgrounds = avatars.backgrounds().getOrNull() ?: return
+        _state.update {
+            it.copy(
+                unlockedBackgrounds = backgrounds.items.count { item -> item.isUnlocked },
+                totalBackgrounds = backgrounds.items.size
+            )
+        }
         val (unlock, seen) = findNewUnlocks(backgrounds, seenStore.load(), clock.instant())
         seenStore.save(seen)
         _state.update { it.copy(unlock = unlock) }
@@ -96,6 +130,7 @@ class AvatarRunnerViewModel @Inject constructor(
         val unlock = _state.value.unlock ?: return
         viewModelScope.launch {
             if (avatars.chooseBackground(unlock.title.key) is Outcome.Success) {
+                myAvatar.refresh()
                 markSeen(unlock)
                 _state.update { s -> s.copy(avatar = s.avatar?.copy(backgroundKey = unlock.title.key)) }
             }
@@ -110,7 +145,7 @@ class AvatarRunnerViewModel @Inject constructor(
 
     private var resumedOnce = false
 
-    /** 꾸미기·상점에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다). */
+    /** 꾸미기·상점·얼굴 만들기에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다). */
     fun onResumed() {
         if (resumedOnce) load()
         resumedOnce = true

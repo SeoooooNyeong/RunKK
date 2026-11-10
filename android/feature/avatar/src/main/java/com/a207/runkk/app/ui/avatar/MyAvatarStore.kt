@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.SelfieProgress
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -79,6 +82,7 @@ class MyAvatarStore internal constructor(
 
     private var generation = 0
     private var genderJob: Job? = null
+    private var selfieJob: Job? = null
     private var work: Job? = null
     private var gender: AvatarGender? = null
 
@@ -88,6 +92,15 @@ class MyAvatarStore internal constructor(
         _state.value = MyAvatarState.Loading
         genderJob = scope.launch {
             myGender.map { it?.let(::avatarGenderOf) }.distinctUntilChanged().collect(::onGender)
+        }
+        // 셀카 결과는 화면이 없어도 워커가 적용한다. 성공을 받으면 바뀐 머리로 다시 준비한다([임시:DR-성-13]).
+        selfieJob = scope.launch {
+            // 첫 값은 지금 상태라 버린다(앞에서 이미 적용한 성공이면 준비가 이미 반영한다).
+            avatars.selfieProgress()
+                .drop(1)
+                .filterIsInstance<SelfieProgress.Succeeded>()
+                .distinctUntilChanged()
+                .collect { refresh() }
         }
     }
 
@@ -116,8 +129,10 @@ class MyAvatarStore internal constructor(
     fun clear() {
         generation++
         genderJob?.cancel()
+        selfieJob?.cancel()
         work?.cancel()
         genderJob = null
+        selfieJob = null
         work = null
         gender = null
         _state.value = MyAvatarState.Idle

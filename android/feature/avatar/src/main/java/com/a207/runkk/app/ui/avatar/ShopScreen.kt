@@ -1,13 +1,11 @@
 package com.a207.runkk.app.ui.avatar
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,8 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,27 +30,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunkkButton
-import com.a207.runkk.app.core.designsystem.RunkkButtonSize
-import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkDialog
 import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
-import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -59,7 +56,7 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.Shop
 
-/** 상점(피그마 H-4, FR-160): 부위 칩, 아이템 2열, 칸을 골라 아래 구매 바에서 산다. 구매는 확인(H-5)을 거친다. */
+/** 상점(피그마 제안 A안 입어보기 무대 + 3열 격자, FR-160): 칸을 골라 위 무대에 입혀 보고, 아래 단추로 사거나(확인 H-5) 입는다. */
 @Composable
 fun ShopRoute(viewModel: ShopViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -70,8 +67,10 @@ fun ShopRoute(viewModel: ShopViewModel = hiltViewModel()) {
             onBack = navigator::back,
             onSlot = viewModel::onSlot,
             onPick = viewModel::onPick,
+            onClearTryOn = viewModel::onClearTryOn,
             onBuyRequest = viewModel::onBuyRequest,
             onBuy = viewModel::onBuy,
+            onEquip = viewModel::onEquip,
             onDismiss = viewModel::onDismiss,
             onRetry = viewModel::load,
             onMessageShown = viewModel::onMessageShown
@@ -79,46 +78,47 @@ fun ShopRoute(viewModel: ShopViewModel = hiltViewModel()) {
     )
 }
 
-/** 상점 사용자 행동: 부위, 칸 고르기, 구매 바의 사기(확인 열기), 확인의 구매·취소. */
+/** 상점 사용자 행동: 부위, 칸 고르기(입어 보기), 벗기기, 구매 단추(확인 열기), 확인의 구매·취소, 입기. */
 data class ShopActions(
     val onBack: () -> Unit = {},
-    val onSlot: (ItemSlot?) -> Unit = {},
+    val onSlot: (ItemSlot) -> Unit = {},
     val onPick: (Shop.Item) -> Unit = {},
+    val onClearTryOn: () -> Unit = {},
     val onBuyRequest: () -> Unit = {},
     val onBuy: () -> Unit = {},
+    val onEquip: () -> Unit = {},
     val onDismiss: () -> Unit = {},
     val onRetry: () -> Unit = {},
     val onMessageShown: () -> Unit = {}
 )
 
+/**
+ * 상점 A안(62338:1907): 상단 바(제목, 리워드 칩), 무대 카드 358×300(모서리 28, 오른쪽 위 벗기기), 부위 칩 4개, 3열 격자(칸 112: 입어 봄
+ * 보라 테두리·체크, 입는 중 라임, 보유 칩, 잠김 흐림·조건), 아래 고정 단추(사기: 이름 + 코인 가격, 가진 것: 입기).
+ */
 @Composable
 fun ShopScreen(state: ShopUiState, actions: ShopActions, modifier: Modifier = Modifier) {
     val snackbar = remember { SnackbarHostState() }
     AvatarMessageEffect(state.message, snackbar, actions.onMessageShown)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
-            RunkkTopBar(
-                title = stringResource(R.string.avatar_shop_title),
-                onBack = actions.onBack,
-                containerColor = RunkkColors.Surface,
-                hasDivider = true
-            ) {
-                state.shop?.let { shop ->
-                    val description = stringResource(R.string.avatar_shop_balance_description, shop.balance)
-                    BalancePill(formatReward(shop.balance), Modifier.semantics { contentDescription = description })
-                }
+            RunkkTopBar(title = stringResource(R.string.avatar_shop_title), onBack = actions.onBack) {
+                BalanceChip(state.shop?.balance ?: state.avatar?.balance)
             }
-            SlotChips(state.slot, actions.onSlot)
-            ShopContent(state, actions, Modifier.weight(1f))
-        }
-        val selected = state.selected
-        if (selected != null) {
-            BuyBar(
-                selected,
-                state.shop?.balance,
-                actions.onBuyRequest,
-                Modifier.align(Alignment.BottomCenter).padding(14.dp)
-            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 8.dp, bottom = 16.dp)
+            ) {
+                ShopStage(state, actions)
+                Spacer(Modifier.height(16.dp))
+                SlotChips(state.slot, actions.onSlot)
+                Spacer(Modifier.height(12.dp))
+                ShopContent(state, actions)
+            }
+            BottomAction(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 96.dp))
     }
@@ -127,39 +127,85 @@ fun ShopScreen(state: ShopUiState, actions: ShopActions, modifier: Modifier = Mo
     }
 }
 
-/** 부위 필터 칩 줄(피그마 H-4: 높이 40, 모서리 10, 좌우 16, 간격 8, 고른 칩 primary 채움). 상점은 "모자" 그대로다. */
+/** 입어보기 무대(358×300): 지금 착용 위에 고른 칸을 입혀 본다. 오른쪽 위 벗기기는 입어 보는 칸이 있을 때만 누른다. */
 @Composable
-private fun SlotChips(slot: ItemSlot?, onSlot: (ItemSlot?) -> Unit) {
-    Row(
+private fun ShopStage(state: ShopUiState, actions: ShopActions) {
+    val avatar = state.avatar
+    val figure = stringResource(R.string.avatar_shop_try_on_figure)
+    AvatarLookStage(
+        look = if (avatar == null) null else state.look,
+        backgroundKey = avatar?.backgroundKey,
+        faceKey = avatar?.renderKey,
+        faceLayers = state.faceLayers,
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(start = 20.dp, end = 20.dp, top = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+            .height(STAGE_HEIGHT)
+            .clip(RoundedCornerShape(STAGE_RADIUS))
+            .background(RunkkColors.SurfaceHigh)
+            .semantics {
+                contentDescription = figure
+                role = Role.Image
+            }
+    ) {
+        val label = stringResource(R.string.avatar_shop_take_off_try)
+        val isEnabled = state.selected != null
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(12.dp)
+                .size(48.dp)
+                .clickable(
+                    enabled = isEnabled,
+                    role = Role.Button,
+                    onClickLabel = label,
+                    onClick = actions.onClearTryOn
+                )
+                .semantics { contentDescription = label },
+            contentAlignment = Alignment.TopEnd
+        ) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(RunkkColors.Surface.copy(alpha = OVERLAY_ALPHA))
+                    .alpha(if (isEnabled) 1f else DISABLED_ALPHA),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    painterResource(R.drawable.avatar_ic_undo),
+                    null,
+                    Modifier.size(20.dp),
+                    tint = RunkkColors.TextPrimary
+                )
+            }
+        }
+    }
+}
+
+/** 부위 칩(알약, 좌우 14·위아래 8, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 상점은 「모자」 그대로다. */
+@Composable
+private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         ItemSlot.entries.forEach { entry ->
             val isSelected = entry == slot
-            val shape = RoundedCornerShape(10.dp)
             Box(
                 Modifier
                     .heightIn(min = 48.dp)
                     .selectable(selected = isSelected, role = Role.Tab, onClick = { onSlot(entry) }),
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    Modifier
-                        .height(40.dp)
-                        .clip(shape)
-                        .background(if (isSelected) RunkkColors.LimeFill else RunkkColors.Surface)
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        stringResource(entry.labelRes),
-                        style = RunkkTextStyles.Body,
-                        color = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
-                    )
-                }
+                Text(
+                    stringResource(entry.labelRes),
+                    style = RunkkTextStyles.text(14, FontWeight.Bold),
+                    color = if (isSelected) RunkkColors.Surface else RunkkColors.TextSecondary,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(if (isSelected) RunkkColors.TextPrimary else RunkkColors.SurfaceHigh)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                )
             }
         }
     }
@@ -169,7 +215,7 @@ private fun SlotChips(slot: ItemSlot?, onSlot: (ItemSlot?) -> Unit) {
 @Composable
 private fun BuyConfirmDialog(item: Shop.Item, balance: Int, onBuy: () -> Unit, onDismiss: () -> Unit) {
     RunkkDialog(title = stringResource(R.string.avatar_shop_confirm_title, item.name), onDismissRequest = onDismiss) {
-        ItemArt(item, isSelected = true, modifier = Modifier.align(Alignment.CenterHorizontally).size(112.dp))
+        ItemPicture(item, Modifier.align(Alignment.CenterHorizontally).size(112.dp))
         Text(
             stringResource(
                 R.string.avatar_shop_confirm_message,
@@ -190,138 +236,146 @@ private fun BuyConfirmDialog(item: Shop.Item, balance: Int, onBuy: () -> Unit, o
     }
 }
 
-/** 상점 본문: 불러오는 중·오류·빈 목록·아이템 2열(아래 구매 바 자리를 비운다). */
-@OptIn(ExperimentalLayoutApi::class)
+/** 상점 본문: 불러오는 중(무대 아래 빈 자리)·오류·빈 목록·3열 격자(간격 11·12). */
 @Composable
-private fun ShopContent(state: ShopUiState, actions: ShopActions, modifier: Modifier = Modifier) {
+private fun ShopContent(state: ShopUiState, actions: ShopActions) {
     val shop = state.shop
     when {
-        shop == null && state.isLoading -> RunkkLoading(modifier)
+        shop == null && state.isLoading -> Spacer(Modifier.height(THUMB_ROW))
 
         shop == null -> RunkkErrorState(
             state.error?.asString() ?: stringResource(R.string.avatar_shop_load_failed),
-            onRetry = actions.onRetry,
-            modifier = modifier
+            onRetry = actions.onRetry
         )
 
-        shop.items.isEmpty() -> RunkkEmptyState(stringResource(R.string.avatar_shop_empty), modifier = modifier)
+        state.itemsInSlot.isEmpty() -> RunkkEmptyState(stringResource(R.string.avatar_shop_empty))
 
-        else -> FlowRow(
-            modifier = modifier
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            maxItemsInEachRow = 2
-        ) {
-            shop.items.forEach { item ->
-                ShopTile(
-                    item,
-                    isSelected = state.selected?.itemId == item.itemId,
-                    onClick = { actions.onPick(item) },
-                    modifier = Modifier.weight(1f)
-                )
+        else -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            state.itemsInSlot.chunked(COLUMNS).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(GRID_GAP)) {
+                    row.forEach { item -> ShopCell(state, item, actions, Modifier.weight(1f)) }
+                    repeat(COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
+                }
             }
-            if (shop.items.size % 2 == 1) Spacer(Modifier.weight(1f))
         }
     }
 }
 
+@Composable
+private fun ShopCell(state: ShopUiState, item: Shop.Item, actions: ShopActions, modifier: Modifier = Modifier) {
+    val isLocked = item.isLocked && !item.isOwned
+    val isEquipped = state.isEquipped(item)
+    val isTrying = state.selected?.itemId == item.itemId
+    val wearing = stringResource(R.string.avatar_item_wearing)
+    val owned = stringResource(R.string.avatar_item_owned_chip)
+    val ended = stringResource(R.string.avatar_shop_ended)
+    val price = stringResource(R.string.avatar_shop_price_description, item.price)
+    val trying = stringResource(R.string.avatar_shop_selected)
+    val lockedText = stringResource(R.string.avatar_shop_locked)
+    val status = when {
+        isLocked -> listOfNotNull(lockedText, item.unlockLabel).joinToString(", ")
+        isEquipped -> wearing
+        item.isOwned -> owned
+        !item.isOnSale -> ended
+        else -> price
+    }
+    ItemCell(
+        item,
+        look = when {
+            isLocked -> ItemCellLook.LOCKED
+            isTrying -> ItemCellLook.TRYING
+            isEquipped -> ItemCellLook.WEARING
+            item.isOwned -> ItemCellLook.OWNED
+            else -> ItemCellLook.PLAIN
+        },
+        onClick = { actions.onPick(item) },
+        modifier = modifier,
+        stateText = if (isTrying) "$status, $trying" else status,
+        priceLine = when {
+            isLocked -> null
+            isEquipped -> ({ PriceNote(wearing) })
+            item.isOwned -> ({ PriceNote(owned) })
+            !item.isOnSale -> ({ PriceNote(ended) })
+            else -> ({ PriceLine(item.price) })
+        }
+    )
+}
+
 /**
- * 아이템 칸(피그마 H-4, 169x176): 그림 96, 이름, 가격 "300". 보유면 "소지 중", 잠겼으면 흐리게(0.45) 해금 조건, 판매 종료면 그 표시.
- * 고른 칸은 primary 2 테두리다.
+ * 아래 고정 단추(높이 52, 라임): 가지지 않은 칸이면 가방 + 이름 + 코인 가격(누르면 구매 확인), 가진 칸이면 「입기」(입는 중이면 끔).
+ * 고른 칸이 없으면 자리를 비워 둔다.
  */
 @Composable
-private fun ShopTile(item: Shop.Item, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val slotLabel = stringResource(item.slot.labelRes)
-    val statusText = when {
-        item.isOwned -> stringResource(R.string.avatar_shop_owned)
-        item.isLocked -> item.unlockLabel ?: stringResource(R.string.avatar_shop_locked)
-        !item.isOnSale -> stringResource(R.string.avatar_shop_ended)
-        else -> formatReward(item.price)
-    }
-    val selectedText = stringResource(R.string.avatar_shop_selected)
-    Column(
-        modifier = modifier
-            .height(TILE_HEIGHT)
-            .clip(RunkkShapes.Large)
-            .background(RunkkColors.Surface)
-            .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) RunkkColors.LimeFill else RunkkColors.Border,
-                shape = RunkkShapes.Large
+private fun BottomAction(state: ShopUiState, actions: ShopActions) {
+    val item = state.selected
+    Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp).heightIn(min = 52.dp)) {
+        when {
+            item == null -> Unit
+
+            item.isOwned -> AvatarPillButton(
+                stringResource(
+                    if (state.isEquipped(item)) R.string.avatar_item_wearing else R.string.avatar_item_put_on
+                ),
+                onClick = actions.onEquip,
+                icon = R.drawable.avatar_ic_hanger,
+                isEnabled = !state.isEquipped(item) && !state.isEquipping,
+                modifier = Modifier.fillMaxWidth()
             )
-            .selectable(selected = isSelected, role = Role.RadioButton, onClick = onClick)
-            .semantics(mergeDescendants = true) {
-                contentDescription = listOf(item.name, slotLabel, statusText).joinToString(", ")
-                if (isSelected) stateDescription = selectedText
-            }
-            .alpha(if (item.isLocked) LOCKED_ALPHA else 1f)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        ItemArt(item, isSelected, Modifier.fillMaxWidth().height(96.dp))
-        Text(item.name, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary, maxLines = 1)
-        Text(
-            statusText,
-            style = RunkkTextStyles.text(14, FontWeight.Medium),
-            color = RunkkColors.TextPrimary,
-            maxLines = 2
-        )
-    }
-}
 
-/**
- * 아래 떠 있는 구매 바(피그마 H-4): 이름과 "사면 n 남아요", 보라 "300에 사기". 잔액이 값보다 적으면 "n 부족해요"를 보이고 사기 단추를
- * 끈다(DV-성-4). 잔액을 모르면(null) 남는 금액을 보이지 않고 단추는 켠다(서버가 판정).
- */
-@Composable
-private fun BuyBar(item: Shop.Item, balance: Int?, onBuyRequest: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.Large)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
-            .padding(start = 18.dp, end = 10.dp, top = 10.dp, bottom = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(item.name, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary, maxLines = 1)
-            balance?.let {
-                val left = it - item.price
-                Text(
-                    if (left >= 0) {
-                        stringResource(R.string.avatar_shop_left_after, formatReward(left))
-                    } else {
-                        stringResource(R.string.avatar_shop_short_by, formatReward(-left))
-                    },
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary
-                )
+            else -> {
+                val label = stringResource(R.string.avatar_shop_buy_description, item.name, item.price)
+                AvatarPillButton(
+                    item.name,
+                    onClick = actions.onBuyRequest,
+                    icon = R.drawable.avatar_ic_bag,
+                    isEnabled = !state.isBuying,
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = label }
+                ) {
+                    Spacer(Modifier.size(2.dp))
+                    Icon(
+                        painterResource(R.drawable.avatar_ic_coin),
+                        null,
+                        Modifier.size(16.dp),
+                        tint = RunkkColors.OnLimeFill
+                    )
+                    Text(
+                        formatReward(item.price),
+                        style = RunkkTextStyles.text(16, FontWeight.Bold),
+                        color = RunkkColors.OnLimeFill
+                    )
+                }
             }
         }
-        RunkkButton(
-            stringResource(R.string.avatar_shop_buy_for, formatReward(item.price)),
-            onClick = onBuyRequest,
-            style = RunkkButtonStyle.Purple,
-            size = RunkkButtonSize.Medium,
-            isEnabled = balance == null || balance >= item.price
-        )
     }
 }
 
-private val TILE_HEIGHT = 176.dp
-private const val LOCKED_ALPHA = 0.45f
+private const val COLUMNS = 3
+private const val OVERLAY_ALPHA = 0.92f
+private const val DISABLED_ALPHA = 0.4f
+private val STAGE_HEIGHT = 300.dp
+private val STAGE_RADIUS = 28.dp
+private val THUMB_ROW = 160.dp
 
 private val PREVIEW_ITEMS = listOf(
-    Shop.Item(1, ItemSlot.TOP, "라임 싱글렛", 300, isOwned = false, isOnSale = true),
-    Shop.Item(2, ItemSlot.TOP, "새벽 바람막이", 500, isOwned = true, isOnSale = true),
-    Shop.Item(6, ItemSlot.TOP, "완주 기념 티", 300, false, true, isLocked = true, unlockLabel = "하프 완주하면 열려요")
+    Shop.Item(5, ItemSlot.TOP, "코랄 집업 후드", 400, false, true, imageKey = "top_cherry_vest"),
+    Shop.Item(1, ItemSlot.TOP, "민트 싱글렛", 300, isOwned = true, isOnSale = true, imageKey = "top_lime_singlet"),
+    Shop.Item(3, ItemSlot.TOP, "크루 카라티", 300, false, true, imageKey = "top_crew_tee"),
+    Shop.Item(4, ItemSlot.TOP, "겨울 후디", 700, false, true, imageKey = "top_winter_hoodie"),
+    Shop.Item(2, ItemSlot.TOP, "새벽 바람막이", 500, false, true, imageKey = "top_dawn_windbreaker"),
+    Shop.Item(
+        6,
+        ItemSlot.TOP,
+        "완주 기념 맨투맨",
+        300,
+        false,
+        true,
+        imageKey = "top_finisher_tee",
+        isLocked = true,
+        unlockLabel = "하프 완주하면 열려요"
+    )
 )
 
-@Preview(name = "H-4 상점", widthDp = 390, heightDp = 844)
+@Preview(name = "H-4 상점 A안", widthDp = 390, heightDp = 844)
 @Composable
 private fun ShopPreview() {
     RunkkTheme(reduceMotion = true) {

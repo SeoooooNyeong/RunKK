@@ -1,11 +1,9 @@
 package com.a207.runkk.app.ui.avatar
 
-import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.ContractEnums
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -27,13 +25,6 @@ class ServerContractTest {
             assertNotNull(bodyStage(name), "서버 체형 $name 을 앱이 읽지 못한다")
         }
         assertEquals(ContractEnums.names("BodyShape").size, BODY_STAGES)
-    }
-
-    @Test
-    fun `피부톤은 서버 SkinTone 모두에 문구가 있다`() {
-        ContractEnums.names("SkinTone").forEach { name ->
-            assertNotEquals(UiText.Plain(name), skinLabel(name), "서버 피부톤 $name 의 문구가 없다")
-        }
     }
 
     @Test

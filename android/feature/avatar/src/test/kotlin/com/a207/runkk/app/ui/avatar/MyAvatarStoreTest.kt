@@ -11,6 +11,7 @@ import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieProgress
 import com.a207.runkk.app.domain.avatar.Shop
 import java.io.IOException
 import kotlin.test.assertEquals
@@ -48,6 +49,29 @@ class MyAvatarStoreTest {
         },
         scope = backgroundScope
     )
+
+    @Test
+    fun `셀카 결과를 워커가 적용하면 화면이 없어도 다시 준비하고, 앞서 끝난 성공으로는 다시 읽지 않는다(DR-성-13)`() = runTest {
+        repo.base.progress.value = SelfieProgress.Succeeded("old", "head:7:old")
+        val store = store()
+        store.warm()
+        gender.value = Gender.MALE
+        runCurrent()
+        val before = repo.avatarCalls
+
+        repo.base.progress.value = SelfieProgress.Working("job-1")
+        runCurrent()
+        assertEquals(before, repo.avatarCalls, "만드는 중은 다시 읽지 않는다")
+
+        repo.base.progress.value = SelfieProgress.Succeeded("job-1", "head:7:job-1")
+        runCurrent()
+        assertEquals(before + 1, repo.avatarCalls)
+
+        store.clear()
+        repo.base.progress.value = SelfieProgress.Succeeded("job-2", "head:7:job-2")
+        runCurrent()
+        assertEquals(before + 1, repo.avatarCalls, "로그아웃 뒤에는 듣지 않는다")
+    }
 
     @Test
     fun `처음은 Idle이고 warm 뒤 성별을 모르면 Loading에 머물며 아무것도 읽지 않는다`() = runTest {

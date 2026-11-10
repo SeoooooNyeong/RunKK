@@ -6,10 +6,8 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
-import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.ItemSlot
-import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -22,12 +20,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 아바타 꾸미기(FR-161~FR-164): 얼굴·체형·피부톤·착용 아이템·잔액을 보이고 보유 아이템을 부위마다 입히거나 벗긴다.
- * 거부된 착용은 Avatar.rejected 사유로 보인다.
+ * 아바타 꾸미기(피그마 제안 A안, FR-161): 착용 아이템·잔액을 보이고 가진 아이템을 부위마다 입혀 본다. 칸을 누르면 무대에 바로 입혀 보이고
+ * (저장 전), 「저장」이 바뀐 부위만 한 번에 보낸다. 거부된 착용은 Avatar.rejected 사유로 보인다. 셀카 결과 적용은 워커가 한다
+ * (design-oo 05-30 [임시:D-성-118]).
  */
 @HiltViewModel
-class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository, private val heads: SelfieHeads) :
-    ViewModel() {
+class AvatarViewModel @Inject constructor(
+    private val avatars: AvatarRepository,
+    private val heads: SelfieHeads,
+    private val myAvatar: MyAvatarStore
+) : ViewModel() {
     private val _state = MutableStateFlow(AvatarUiState())
     val state: StateFlow<AvatarUiState> = _state.asStateFlow()
     private var job: Job? = null
@@ -42,17 +44,19 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository,
         job = viewModelScope.launch {
             val shop = async { avatars.shop(null) }
             val runner = async { avatars.runner() }
-            finishPendingSelfie()
             when (val avatar = avatars.avatar()) {
                 is Outcome.Success -> {
                     val items = shop.await().getOrNull()?.items.orEmpty()
                     val runAmount = runner.await().getOrNull()?.runAmount ?: 0
                     _state.update {
+                        // 저장하지 않은 입어 보기는 다시 읽어도 둔다(상점에서 돌아옴).
+                        val draft = if (it.isDirty) it.draft else avatar.value.equipped
                         it.copy(
                             isLoading = false,
                             avatar = avatar.value,
                             items = items,
-                            look = it.look.withAvatar(avatar.value, items, runAmount)
+                            draft = draft,
+                            look = it.look.withAvatar(avatar.value.copy(equipped = draft), items, runAmount)
                         )
                     }
                     loadFace(avatar.value.faceKey)
@@ -68,15 +72,6 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository,
     }
 
     /**
-     * 얼굴 만들기 화면을 떠난 뒤 서버가 셀카 얼굴을 다 만들었으면 결과를 받아 내 얼굴을 바꾼다(S15P31A207-248). 아직 만드는 중이면
-     * 얼굴 만들기 화면에 다시 들어올 때 이어 조회한다.
-     */
-    private suspend fun finishPendingSelfie() {
-        val jobId = avatars.pendingSelfieJobId() ?: return
-        if (avatars.selfieJob(jobId).getOrNull()?.status == SelfieJob.Status.SUCCEEDED) avatars.finishSelfie(jobId)
-    }
-
-    /**
      * 셀카 얼굴 그림과 렌더러 머리 레이어. [SelfieHeads]가 얼굴 키마다 한 번 받아 두므로 같은 얼굴이면 다시 받지 않는다. 받지 못하면
      * 비워 두어 자리 그림을 그린다.
      */
@@ -87,7 +82,7 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository,
 
     private var resumedOnce = false
 
-    /** 상점·얼굴 바꾸기에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다). */
+    /** 상점에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다). */
     fun onResumed() {
         if (resumedOnce) load()
         resumedOnce = true
@@ -100,27 +95,72 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository,
 
     fun onMessageShown() = _state.update { it.copy(message = null) }
 
-    /** 같은 부위는 하나만 입는다(FR-161): 입은 것을 누르면 벗기고, 아니면 바꿔 입힌다. */
+    /**
+     * 칸 누름. 같은 부위는 하나만 입는다(FR-161): 입어 보는 것을 누르면 벗기고, 아니면 바꿔 입힌다. 무대에 바로 입혀 보이고 저장은 하지
+     * 않는다. 잠긴 칸은 해금 조건을 안내한다.
+     */
     fun onToggle(item: Shop.Item) {
         val s = _state.value
-        if (s.isSaving || s.avatar == null || !item.isOwned) return
-        val next = if (s.isEquipped(item)) null else item.itemId
+        if (s.isSaving || s.avatar == null) return
+        if (item.isLocked && !item.isOwned) {
+            _state.update {
+                it.copy(
+                    message =
+                        item.unlockLabel?.let(UiText::Plain) ?: UiText.Res(R.string.avatar_shop_locked)
+                )
+            }
+            return
+        }
+        if (!item.isOwned) return
+        val draft = if (s.isEquipped(item)) s.draft - item.slot else s.draft + (item.slot to item.itemId)
+        setDraft(draft)
+    }
+
+    /** 되돌리기: 들어올 때(마지막 저장)의 착용으로 돌린다. */
+    fun onUndo() {
+        val avatar = _state.value.avatar ?: return
+        setDraft(avatar.equipped)
+    }
+
+    private fun setDraft(draft: Map<ItemSlot, Long>) = _state.update {
+        it.copy(draft = draft, look = it.look.copy(outfit = outfitOf(draft, it.items)))
+    }
+
+    /** 저장: 바뀐 부위만 보낸다(벗긴 부위는 null). 바뀐 것이 없으면 바로 닫는다. 거부된 부위는 사유를 안내하고 화면을 둔다. */
+    fun onSave() {
+        val s = _state.value
+        val avatar = s.avatar ?: return
+        if (s.isSaving) return
+        val changes = ItemSlot.entries
+            .filter { s.draft[it] != avatar.equipped[it] }
+            .associateWith { s.draft[it] }
+        if (changes.isEmpty()) {
+            _state.update { it.copy(isDone = true) }
+            return
+        }
         _state.update { it.copy(isSaving = true) }
         viewModelScope.launch {
-            when (val result = avatars.equip(mapOf(item.slot to next))) {
-                is Outcome.Success -> _state.update {
-                    it.copy(
-                        isSaving = false,
-                        avatar = result.value,
-                        look = it.look.copy(outfit = outfitOf(result.value.equipped, it.items)),
-                        message = result.value.rejected[item.slot]?.let { reason ->
-                            uiText(
-                                R.string.avatar_equip_rejected,
-                                UiText.Res(item.slot.labelRes),
-                                AvatarErrorText.ofCode(reason)
-                            )
-                        }
-                    )
+            when (val result = avatars.equip(changes)) {
+                is Outcome.Success -> {
+                    // 홈·러닝 칸도 새 착용으로 다시 준비한다(design-oo 05-30 3절 6단계).
+                    myAvatar.refresh()
+                    val rejected = result.value.rejected.entries.firstOrNull()
+                    _state.update {
+                        it.copy(
+                            isSaving = false,
+                            avatar = result.value,
+                            draft = result.value.equipped,
+                            look = it.look.copy(outfit = outfitOf(result.value.equipped, it.items)),
+                            isDone = rejected == null,
+                            message = rejected?.let { (slot, reason) ->
+                                uiText(
+                                    R.string.avatar_equip_rejected,
+                                    UiText.Res(slot.labelRes),
+                                    AvatarErrorText.ofCode(reason)
+                                )
+                            }
+                        )
+                    }
                 }
 
                 is Outcome.Failure -> _state.update {
