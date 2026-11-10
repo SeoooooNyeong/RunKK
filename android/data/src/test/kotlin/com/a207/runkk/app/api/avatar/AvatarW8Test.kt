@@ -100,11 +100,11 @@ class AvatarW8Test {
                 """"rightFaceImage":"data:image/png;base64,AA"}"""
         api.reply(body)
 
-        val json = repository.headJson("head:7:job-1").value()
+        val json = repository.selfieHead("head:7:job-1").value()?.json
 
         assertEquals("/api/v1/avatar/heads/7/job-1", api.take().url.encodedPath)
         assertEquals(body, json)
-        assertNull(repository.headJson("default:FOX").value())
-        assertNull(repository.headJson(null).value())
+        assertNull(repository.selfieHead("default:FOX").value())
+        assertNull(repository.selfieHead(null).value())
     }
 }

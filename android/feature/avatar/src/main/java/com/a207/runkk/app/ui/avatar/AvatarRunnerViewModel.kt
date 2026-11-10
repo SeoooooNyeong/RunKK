@@ -23,20 +23,18 @@ import kotlinx.coroutines.launch
 
 /**
  * 내 러너(피그마 H-2, W8): 아바타(GET /avatar)·내 러너(GET /avatar/runner)·착용 이름용 상점 목록을 함께 읽고, 셀카 머리면 렌더러 머리
- * 레이어를 한 번 만든다. 들어올 때마다 새로 연 배경이 있으면 해금 팝업(H-6)을 띄운다(기기 기록 [BackgroundUnlockSeenStore]).
+ * 레이어를 얼굴마다 한 번 만든다([SelfieHeads]). 들어올 때마다 새로 연 배경이 있으면 해금 팝업(H-6)을 띄운다(기기 기록 [BackgroundUnlockSeenStore]).
  */
 @HiltViewModel
 class AvatarRunnerViewModel @Inject constructor(
     private val avatars: AvatarRepository,
     private val seenStore: BackgroundUnlockSeenStore,
-    private val clock: Clock
+    private val clock: Clock,
+    private val heads: SelfieHeads
 ) : ViewModel() {
     private val _state = MutableStateFlow(AvatarRunnerUiState())
     val state: StateFlow<AvatarRunnerUiState> = _state.asStateFlow()
     private var job: Job? = null
-
-    /** 머리 레이어를 만든 얼굴 키. 같은 얼굴이면 다시 만들지 않는다(렌더러는 참조로 비교한다). */
-    private var headFor: String? = null
 
     init {
         load()
@@ -74,13 +72,10 @@ class AvatarRunnerViewModel @Inject constructor(
         }
     }
 
+    /** 얼굴은 [SelfieHeads]가 얼굴 키마다 한 번 만들어 둔다(같은 얼굴이면 같은 값이라 렌더러가 다시 그리지 않는다). */
     private suspend fun loadHead(faceKey: String?) {
-        if (faceKey == headFor && headFor != null) return
-        val face = avatars.faceLayers(faceKey).getOrNull().orEmpty()
-        val head = loadHeadLayers(avatars, faceKey)
-        _state.update { it.copy(faceLayers = face, look = it.look.copy(headLayers = head)) }
-        // 셀카 머리를 만들지 못했으면(받기 실패·취소) 다음 읽기에서 다시 만든다.
-        headFor = faceKey.takeIf { head != null || !isSelfieHead(it) }
+        val face = heads.look(faceKey)
+        _state.update { it.copy(faceLayers = face.faceLayers, look = it.look.copy(headLayers = face.headLayers)) }
     }
 
     private suspend fun checkUnlocks() {

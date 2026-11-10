@@ -4,21 +4,25 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.avatar.SelfieHead
 import java.io.IOException
 import java.util.Base64
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
@@ -49,7 +53,8 @@ class FaceImageSource internal constructor(
     private val client: OkHttpClient,
     private val baseUrl: HttpUrl,
     private val selfId: () -> Long?,
-    private val now: () -> Long = System::currentTimeMillis
+    private val now: () -> Long = System::currentTimeMillis,
+    private val io: CoroutineDispatcher = Dispatchers.IO
 ) {
     private val lock = Any()
     private val memory = object : LinkedHashMap<String, Cached>(MEMORY_ENTRIES, LOAD_FACTOR, true) {
@@ -72,23 +77,28 @@ class FaceImageSource internal constructor(
         return loadLayers(segments)
     }
 
-    /** 셀카 머리 얼굴("{회원ID}:{작업ID}") 하나를 받아 세 층으로 바꾼다. */
-    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> = when (val body = headBody(location)) {
-        is Outcome.Success -> headOf(body.value)
-        is Outcome.Failure -> body
+    /** 셀카 머리 얼굴("{회원ID}:{작업ID}") 하나를 받아 세 층으로 바꾼다. 층 하나라도 틀리면 실패다. */
+    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> = headBody(location) { body ->
+        headOf(body)?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Server(MALFORMED))
     }
 
     /**
-     * 셀카 머리 결과 JSON 그대로(W9 Rive 렌더러 입력, contract-W8.md 6.2: 정면 3층 + 옆모습 3층 + 원본 2장 + mobile). 셀카 머리
-     * 얼굴("head:…")이 아니면 null이다. 서버가 no-store로 주므로 메모리에 두지 않는다.
+     * 셀카 머리 결과(W9 Rive 렌더러 입력, contract-W8.md 6.2: 정면 3층 + 옆모습 3층 + 원본 2장 + mobile)를 한 번 받아 원문 JSON과
+     * 대체 그림(정면 세 층)을 함께 준다. 층 형식이 틀리면 대체 그림만 빈 목록이다(받기는 성공). 셀카 머리 얼굴("head:…")이 아니면
+     * null이다. 서버가 no-store로 주므로 메모리에 두지 않는다.
      */
-    suspend fun headJson(faceKey: String?): Outcome<String?> {
+    suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> {
         if (faceKey == null || !faceKey.startsWith(HEAD_PREFIX)) return Outcome.Success(null)
-        return headBody(faceKey.removePrefix(HEAD_PREFIX))
+        return headBody(faceKey.removePrefix(HEAD_PREFIX)) { body ->
+            Outcome.Success(SelfieHead(body, headOf(body).orEmpty()))
+        }
     }
 
-    /** GET /avatar/heads/{회원ID}/{작업ID} 본문. 키 형식이 틀리면 FACE_IMAGE_NOT_FOUND, [MAX_HEAD_BYTES]를 넘으면 실패다. */
-    private suspend fun headBody(location: String): Outcome<String> {
+    /**
+     * GET /avatar/heads/{회원ID}/{작업ID} 본문을 받아 [parse]로 바꾼다. 키 형식이 틀리면 FACE_IMAGE_NOT_FOUND, [MAX_HEAD_BYTES]를
+     * 넘으면 실패다. 본문 읽기(최대 32MiB)와 [parse](Base64·JSON)는 [io]에서 한다(부른 쪽이 주 스레드여도 막지 않는다).
+     */
+    private suspend fun <T> headBody(location: String, parse: (String) -> Outcome<T>): Outcome<T> {
         val segments = location.split(':')
         if (segments.size != 2 || segments[0].toLongOrNull() == null ||
             segments.any { it.isBlank() || it.contains('/') }
@@ -101,31 +111,36 @@ class FaceImageSource internal constructor(
         val request = Request.Builder().url(url).header(ACCEPT, JSON).build()
         return try {
             client.newCall(request).await().use { response ->
-                if (!response.isSuccessful) {
-                    return Outcome.Failure(ApiErrorMapper.fromHttp(response.code, response.body.string()))
+                withContext(io) {
+                    when {
+                        !response.isSuccessful ->
+                            Outcome.Failure(ApiErrorMapper.fromHttp(response.code, response.body.string()))
+
+                        response.body.source().request(
+                            MAX_HEAD_BYTES + 1
+                        ) -> Outcome.Failure(AppError.Server(TOO_LARGE))
+
+                        else -> parse(response.body.source().readUtf8())
+                    }
                 }
-                val source = response.body.source()
-                if (source.request(MAX_HEAD_BYTES + 1)) return Outcome.Failure(AppError.Server(TOO_LARGE))
-                Outcome.Success(source.readUtf8())
             }
         } catch (e: IOException) {
             Outcome.Failure(AppError.Network)
         }
     }
 
-    /** 머리 응답 JSON의 세 Data URL을 층으로 바꾼다. */
-    private fun headOf(body: String): Outcome<List<FaceLayer>> {
+    /** 머리 응답 JSON의 세 Data URL을 층으로 바꾼다. JSON이 아니거나 층 하나라도 틀리면 null. */
+    private fun headOf(body: String): List<FaceLayer>? {
         val head = try {
-            HEAD_JSON.parseToJsonElement(body).jsonObject
+            HEAD_JSON.parseToJsonElement(body) as? JsonObject
         } catch (e: IllegalArgumentException) {
-            return Outcome.Failure(AppError.Server(MALFORMED))
-        }
+            null
+        } ?: return null
         val layers = HEAD_LAYERS.map { (field, part) ->
-            val png = head[field]?.jsonPrimitive?.contentOrNull?.let(::pngOf)
-                ?: return Outcome.Failure(AppError.Server(MALFORMED))
+            val png = (head[field] as? JsonPrimitive)?.contentOrNull?.let(::pngOf) ?: return null
             FaceLayer(part, png)
         }
-        return Outcome.Success(layers)
+        return layers
     }
 
     /** "data:image/png;base64,…"의 PNG 바이트. 형식이 다르거나 비었으면 null. */
@@ -204,14 +219,8 @@ class FaceImageSource internal constructor(
         }
         val request = Request.Builder().url(url).header(ACCEPT, PNG).build()
         return client.newCall(request).await().use { response ->
-            if (!response.isSuccessful) {
-                return Outcome.Failure(ApiErrorMapper.fromHttp(response.code, response.body.string()))
-            }
-            if (response.body.contentLength() > MAX_PART_BYTES) return Outcome.Failure(AppError.Server(TOO_LARGE))
-            val png = response.body.source().use { source ->
-                if (source.request(MAX_PART_BYTES + 1)) return Outcome.Failure(AppError.Server(TOO_LARGE))
-                source.readByteArray()
-            }
+            val read = withContext(io) { pngBody(response) }
+            val png = (read as? Outcome.Success)?.value ?: return read
             val control = response.cacheControl
             val age = response.header(AGE)?.toLongOrNull()?.coerceAtLeast(0) ?: 0
             val fresh = control.maxAgeSeconds - age
@@ -222,7 +231,20 @@ class FaceImageSource internal constructor(
         }
     }
 
-    /** 호출을 비동기로 보내고, 코루틴이 취소되면 호출도 끊는다. */
+    /** 부위 응답 본문(상한 [MAX_PART_BYTES]). [io]에서 부른다. */
+    private fun pngBody(response: Response): Outcome<ByteArray> {
+        if (!response.isSuccessful) {
+            return Outcome.Failure(
+                ApiErrorMapper.fromHttp(response.code, response.body.string())
+            )
+        }
+        if (response.body.contentLength() > MAX_PART_BYTES) return Outcome.Failure(AppError.Server(TOO_LARGE))
+        val source = response.body.source()
+        if (source.request(MAX_PART_BYTES + 1)) return Outcome.Failure(AppError.Server(TOO_LARGE))
+        return Outcome.Success(source.readByteArray())
+    }
+
+    /** 호출을 비동기로 보내고, 코루틴이 취소되면 호출도 끊는다. 결과는 부른 쪽 디스패처로 돌아오므로 본문은 [io]에서 읽는다. */
     private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
         continuation.invokeOnCancellation { cancel() }
         enqueue(

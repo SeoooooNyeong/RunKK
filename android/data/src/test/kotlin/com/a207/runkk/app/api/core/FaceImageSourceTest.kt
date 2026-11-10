@@ -5,10 +5,13 @@ import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.CoroutineContext
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import mockwebserver3.Dispatcher
@@ -27,6 +30,9 @@ class FaceImageSourceTest {
     private val paths = ConcurrentLinkedQueue<String>()
     private val auth = ConcurrentLinkedQueue<String>()
     private val clock = AtomicLong(1_000_000L)
+
+    /** 주입한 IO 디스패처. 응답 본문을 읽고 푸는 일이 여기로 넘어왔는지 센다(주 스레드에서 읽지 않는다). */
+    private val io = CountingDispatcher()
 
     /** 로그인한 회원(접근 토큰 sub). null이면 로그아웃. */
     @Volatile
@@ -56,7 +62,7 @@ class FaceImageSourceTest {
             server.url("/api/v1/auth/refresh"),
             Json { ignoreUnknownKeys = true }
         )
-        FaceImageSource(client, server.url("/api/v1/"), selfId = { member }, now = clock::get)
+        FaceImageSource(client, server.url("/api/v1/"), selfId = { member }, now = clock::get, io = io)
     }
 
     @AfterTest
@@ -179,6 +185,69 @@ class FaceImageSourceTest {
         assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("head:x:job"))
         assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("head:12:a/b"))
         assertEquals(sent, paths.size, "이상한 키는 보내지 않는다")
+    }
+
+    @Test
+    fun `응답 본문 읽기와 머리 JSON 풀기는 주입한 IO 디스패처에서 한다`() = runTest {
+        source.faceLayers("selfie:face/7/s1")
+        val afterParts = io.dispatches.get()
+        assertTrue(afterParts >= FacePart.entries.size, "부위 다섯 장 본문을 IO에서 읽는다: $afterParts")
+
+        reply = { headReply() }
+        source.faceLayers("head:12:job-1")
+        assertTrue(io.dispatches.get() > afterParts, "머리 JSON 본문을 IO에서 읽고 푼다")
+        val afterHead = io.dispatches.get()
+        source.selfieHead("head:12:job-1")
+        assertTrue(io.dispatches.get() > afterHead, "selfieHead도 IO에서 읽는다")
+    }
+
+    @Test
+    fun `selfieHead는 머리 JSON을 한 번 받아 원문과 대체 그림 세 층을 함께 준다`() = runTest {
+        reply = { headReply() }
+        val head = (source.selfieHead("head:12:job-1") as Outcome.Success).value!!
+
+        assertEquals(listOf("/api/v1/avatar/heads/12/job-1"), paths.toList(), "한 번만 받는다")
+        assertTrue(head.json.contains("\"headId\":\"h1\""))
+        assertEquals(listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR), head.faceLayers.map { it.part })
+        assertEquals(listOf<Byte>(1, 2, 3), head.faceLayers.map { it.png.single() })
+    }
+
+    @Test
+    fun `selfieHead - 층이 비면 대체 그림만 비우고, 받지 못하면 실패, 셀카 머리가 아니면 null`() = runTest {
+        reply = { MockResponse.Builder().body("""{"faceImage":"data:image/png;base64,AQ==","eyesImage":""}""").build() }
+        val malformed = (source.selfieHead("head:12:job-1") as Outcome.Success).value!!
+        assertEquals(emptyList(), malformed.faceLayers, "형식 실패는 받은 것으로 친다(다시 받지 않게)")
+
+        reply = { MockResponse.Builder().code(404).body("""{"reason":"HEAD_NOT_FOUND"}""").build() }
+        assertTrue(source.selfieHead("head:12:job-1") is Outcome.Failure)
+
+        val sent = paths.size
+        assertEquals(Outcome.Success(null), source.selfieHead("selfie:face/7/s1"))
+        assertEquals(Outcome.Success(null), source.selfieHead(null))
+        assertEquals(sent, paths.size)
+    }
+
+    private fun headReply(): MockResponse {
+        fun data(byte: Int) =
+            "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(byteArrayOf(byte.toByte()))
+        return MockResponse.Builder()
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Cache-Control", "no-store")
+            .body(
+                """{"headId":"h1","userId":"12","faceImage":"${data(1)}","eyesImage":"${data(2)}",""" +
+                    """"hairImage":"${data(3)}"}"""
+            )
+            .build()
+    }
+
+    /** 일을 실제 IO로 넘기면서 넘겨받은 횟수를 센다. */
+    private class CountingDispatcher : CoroutineDispatcher() {
+        val dispatches = AtomicLong()
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatches.incrementAndGet()
+            Dispatchers.IO.dispatch(context, block)
+        }
     }
 
     private class Tokens(private val access: String) : TokenProvider {

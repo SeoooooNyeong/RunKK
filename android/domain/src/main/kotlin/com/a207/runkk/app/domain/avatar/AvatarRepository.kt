@@ -60,10 +60,11 @@ interface AvatarRepository {
     suspend fun runner(): Outcome<AvatarRunner> = Outcome.Failure(AppError.Server(HTTP_NOT_IMPLEMENTED))
 
     /**
-     * 셀카 머리 결과 JSON(GET /avatar/heads/{회원ID}/{작업ID}, W9 Rive 렌더러 입력, contract-W8.md 6.2). [faceKey]가 셀카 머리
-     * ("head:…")가 아니면 null이다. 화면은 이 JSON으로 렌더러 머리 레이어를 결과마다 한 번 만든다. 구현이 없으면 null이다.
+     * 셀카 머리 결과(GET /avatar/heads/{회원ID}/{작업ID}, W9 Rive 렌더러 입력, contract-W8.md 6.2). 본문을 한 번 받아 원문 JSON과
+     * 대체 그림(정면 세 층)을 함께 준다. [faceKey]가 셀카 머리("head:…")가 아니면 null이다. 받지 못하면 실패이고, 받았지만 층 형식이
+     * 틀렸으면 대체 그림이 빈 성공이다. 구현이 없으면 null이다.
      */
-    suspend fun headJson(faceKey: String?): Outcome<String?> = Outcome.Success(null)
+    suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> = Outcome.Success(null)
 }
 
 /** 구현이 없는 기본 메소드의 실패 상태(HTTP 501과 같은 뜻). */

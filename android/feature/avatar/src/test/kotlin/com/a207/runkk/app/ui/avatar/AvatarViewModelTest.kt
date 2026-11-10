@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
 import kotlin.test.assertEquals
@@ -161,7 +162,18 @@ class FakeAvatars : AvatarRepository {
         calls += "face:$faceKey"
         return faceResult
     }
+
+    /** 셀카 머리 응답(기본: 셀카 머리가 아님). */
+    var headResult: Outcome<SelfieHead?> = Outcome.Success(null)
+
+    override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> {
+        calls += "head:$faceKey"
+        return headResult
+    }
 }
+
+/** 시험용 셀카 머리 캐시: 머리 레이어를 바로(같은 스레드에서) 만든다. 화면마다 새로 두면 시험끼리 섞이지 않는다. */
+internal fun headsOf(repo: AvatarRepository): SelfieHeads = SelfieHeads(repo, Dispatchers.Unconfined)
 
 /** 얼굴 변환 전송 동의(셀카 카드의 체크). */
 internal class FakeConsent(private var given: Boolean?, private val result: Outcome<Unit> = Outcome.Success(Unit)) :
@@ -394,7 +406,7 @@ class AvatarDecorateViewModelTest {
 
     @Test
     fun `아바타·잔액·보유 아이템을 부위별로 보인다(FR-162)`() {
-        val vm = AvatarViewModel(repo)
+        val vm = AvatarViewModel(repo, headsOf(repo))
         val s = vm.state.value
         assertEquals(1_240, s.avatar?.balance)
         assertEquals(listOf(1L, 2L), s.ownedInSlot.map { it.itemId })
@@ -405,7 +417,7 @@ class AvatarDecorateViewModelTest {
 
     @Test
     fun `입은 아이템을 누르면 벗기고 다른 아이템은 바꿔 입힌다(FR-161)`() {
-        val vm = AvatarViewModel(repo)
+        val vm = AvatarViewModel(repo, headsOf(repo))
         vm.onToggle(items[1])
         assertEquals(2L, vm.state.value.avatar?.equipped?.get(ItemSlot.TOP))
         vm.onToggle(items[1])
@@ -416,7 +428,7 @@ class AvatarDecorateViewModelTest {
     @Test
     fun `거부된 착용은 사유를 안내한다`() {
         repo.equipResult = { Outcome.Success(avatar.copy(rejected = mapOf(ItemSlot.TOP to "ITEM_NOT_OWNED"))) }
-        val vm = AvatarViewModel(repo)
+        val vm = AvatarViewModel(repo, headsOf(repo))
         vm.onToggle(items[1])
         assertEquals(
             uiText(
@@ -432,7 +444,7 @@ class AvatarDecorateViewModelTest {
     fun `얼굴 만들기를 떠난 사이 셀카 얼굴이 다 만들어졌으면 결과를 받아 새 얼굴을 보인다`() {
         repo.pendingJob = "job-1"
         repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "head:7:job-1"))
-        val vm = AvatarViewModel(repo)
+        val vm = AvatarViewModel(repo, headsOf(repo))
         assertTrue("finish:job-1" in repo.calls)
         assertEquals("head:7:job-1", vm.state.value.avatar?.faceKey)
     }
@@ -441,7 +453,7 @@ class AvatarDecorateViewModelTest {
     fun `아직 만드는 중이면 결과를 받지 않는다`() {
         repo.pendingJob = "job-1"
         repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)))
-        AvatarViewModel(repo)
+        AvatarViewModel(repo, headsOf(repo))
         assertTrue("job:job-1" in repo.calls)
         assertTrue(repo.calls.none { it.startsWith("finish:") })
     }
@@ -449,14 +461,14 @@ class AvatarDecorateViewModelTest {
     @Test
     fun `불러오지 못하면 오류`() {
         repo.avatarResult = Outcome.Failure(AppError.Network)
-        val vm = AvatarViewModel(repo)
+        val vm = AvatarViewModel(repo, headsOf(repo))
         assertNotNull(vm.state.value.error)
     }
 
     @Test
     fun `셀카 얼굴이면 부위 그림을 받고 같은 얼굴은 다시 받지 않는다(FR-155)`() {
         repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "selfie:face/7/s1"))
-        val vm = AvatarViewModel(repo)
+        val vm = AvatarViewModel(repo, headsOf(repo))
         assertEquals(faceLayers, vm.state.value.faceLayers)
         vm.onResumed()
         vm.onResumed()
@@ -465,12 +477,12 @@ class AvatarDecorateViewModelTest {
 
     @Test
     fun `기본 캐릭터면 받지 않고, 받지 못하면 비워 자리 그림을 그린다`() {
-        val plain = AvatarViewModel(repo)
+        val plain = AvatarViewModel(repo, headsOf(repo))
         assertEquals(emptyList(), plain.state.value.faceLayers)
         assertTrue(repo.calls.none { it.startsWith("face:") })
         repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "selfie:face/7/s1"))
         repo.faceResult = Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND"))
-        val failed = AvatarViewModel(repo)
+        val failed = AvatarViewModel(repo, headsOf(repo))
         assertEquals(emptyList(), failed.state.value.faceLayers)
         assertNull(failed.state.value.error, "얼굴 그림 실패는 화면 오류가 아니다")
     }

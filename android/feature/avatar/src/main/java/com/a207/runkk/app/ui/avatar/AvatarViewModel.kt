@@ -26,7 +26,8 @@ import kotlinx.coroutines.launch
  * 거부된 착용은 Avatar.rejected 사유로 보인다.
  */
 @HiltViewModel
-class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository) : ViewModel() {
+class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository, private val heads: SelfieHeads) :
+    ViewModel() {
     private val _state = MutableStateFlow(AvatarUiState())
     val state: StateFlow<AvatarUiState> = _state.asStateFlow()
     private var job: Job? = null
@@ -75,18 +76,13 @@ class AvatarViewModel @Inject constructor(private val avatars: AvatarRepository)
         if (avatars.selfieJob(jobId).getOrNull()?.status == SelfieJob.Status.SUCCEEDED) avatars.finishSelfie(jobId)
     }
 
-    /** 마지막으로 그림을 받은 얼굴 키. 같은 얼굴이면 다시 받지 않는다(묶음 키가 바뀌면 새 얼굴이다). */
-    private var faceKeyShown: String? = null
-
-    /** 셀카 얼굴 부위 그림을 받는다. 받지 못하면 비워 두어 자리 그림을 그린다. */
+    /**
+     * 셀카 얼굴 그림과 렌더러 머리 레이어. [SelfieHeads]가 얼굴 키마다 한 번 받아 두므로 같은 얼굴이면 다시 받지 않는다. 받지 못하면
+     * 비워 두어 자리 그림을 그린다.
+     */
     private suspend fun loadFace(faceKey: String?) {
-        val shown = _state.value
-        val isHeadMissing = isSelfieHead(faceKey) && shown.look.headLayers == null
-        if (faceKey == faceKeyShown && (faceKey == null || shown.faceLayers.isNotEmpty()) && !isHeadMissing) return
-        faceKeyShown = faceKey
-        val layers = if (faceKey == null) emptyList() else avatars.faceLayers(faceKey).getOrNull().orEmpty()
-        val head = loadHeadLayers(avatars, faceKey)
-        _state.update { it.copy(faceLayers = layers, look = it.look.copy(headLayers = head)) }
+        val face = heads.look(faceKey)
+        _state.update { it.copy(faceLayers = face.faceLayers, look = it.look.copy(headLayers = face.headLayers)) }
     }
 
     private var resumedOnce = false

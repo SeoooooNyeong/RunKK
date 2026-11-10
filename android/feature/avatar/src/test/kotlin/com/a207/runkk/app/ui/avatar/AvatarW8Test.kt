@@ -125,7 +125,7 @@ class AvatarW8LogicTest {
     @Test
     fun `내 러너는 아바타와 내 러너를 읽어 렌더러 체형·러닝량을 정하고, 새 해금이 있으면 팝업을 띄운다`() {
         val store = FakeSeenStore(BackgroundUnlockSeenStore.Seen(setOf("INCHEON"), SINCE))
-        val vm = AvatarRunnerViewModel(repo, store, clock)
+        val vm = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
 
         val s = vm.state.value
         assertEquals(3, s.runner?.recentRunCount)
@@ -144,21 +144,21 @@ class AvatarW8LogicTest {
     @Test
     fun `내 러너 - 처음이면 기록만 남기고 팝업이 없고, 닫으면 다시 뜨지 않는다`() {
         val store = FakeSeenStore()
-        val first = AvatarRunnerViewModel(repo, store, clock)
+        val first = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
         assertNull(first.state.value.unlock)
         assertEquals(setOf("INCHEON", "KAESONG", "DAEJEON"), store.seen?.keys)
 
         store.seen = BackgroundUnlockSeenStore.Seen(setOf("INCHEON"), SINCE)
-        val vm = AvatarRunnerViewModel(repo, store, clock)
+        val vm = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
         vm.onUnlockClose()
         assertNull(vm.state.value.unlock)
-        assertNull(AvatarRunnerViewModel(repo, store, clock).state.value.unlock)
+        assertNull(AvatarRunnerViewModel(repo, store, clock, headsOf(repo)).state.value.unlock)
     }
 
     @Test
     fun `내 러너를 읽지 못하면 오류다`() {
         repo.runnerResult = Outcome.Failure(AppError.Network)
-        val vm = AvatarRunnerViewModel(repo, FakeSeenStore(), clock)
+        val vm = AvatarRunnerViewModel(repo, FakeSeenStore(), clock, headsOf(repo))
         assertNull(vm.state.value.runner)
         assertTrue(vm.state.value.error != null)
     }

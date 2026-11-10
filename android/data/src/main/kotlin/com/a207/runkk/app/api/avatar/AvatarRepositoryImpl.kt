@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
 import javax.inject.Inject
@@ -38,7 +39,7 @@ constructor(
 
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
-    override suspend fun headJson(faceKey: String?): Outcome<String?> = faces.headJson(faceKey)
+    override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> = faces.selfieHead(faceKey)
 
     override suspend fun runner(): Outcome<AvatarRunner> = ApiErrorMapper.call { api.runner().toDomain() }
 
