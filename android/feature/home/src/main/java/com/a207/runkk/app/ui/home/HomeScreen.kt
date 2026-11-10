@@ -760,8 +760,8 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
 /**
  * 아바타 칸(SlotKey.HOME_AVATAR, design-oo 05-30 2절, [임시:D-성-100], [임시:D-성-134], 피그마 62341:1878): 390×420 칸에 ui.avatar가
  * 바닥선·그림자·Rive 서기·로딩 표시를 그린다. 배경 사진은 홈이 화면 전체에 깔아 두므로 칸은 배경을 다시 그리지 않고 같은 바닥 규칙
- * (칸 위에서 342dp, 아래에서 [HOME_AVATAR_FLOOR_FROM_BOTTOM])만 쓴다. 칸 바닥선이 지금 아바타 발 자리(남은 자리 아래 +
- * [AVATAR_GROUND_SINK])에 오게 칸을 아래로 내리고, 남은 자리가 좁으면 칸 높이를 줄인다(바닥선은 칸 아래에서 같은 거리다).
+ * (칸 위에서 342dp, 아래에서 [HOME_AVATAR_FLOOR_FROM_BOTTOM])만 쓴다. 칸 바닥선이 남은 자리 아래보다
+ * [HOME_AVATAR_FLOOR_ABOVE_ROOM] 위에 오게 칸을 내리고, 남은 자리가 좁으면 칸 높이를 줄인다(바닥선은 칸 아래에서 같은 거리다).
  * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다. 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
  */
 @Composable
@@ -770,7 +770,7 @@ private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier
     val editLabel = stringResource(R.string.home_house_edit_avatar)
     val slot = LocalSlots.current[SlotKey.HOME_AVATAR].orEmpty()
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-        val drop = HOME_AVATAR_FLOOR_FROM_BOTTOM + AVATAR_GROUND_SINK
+        val drop = HOME_AVATAR_FLOOR_FROM_BOTTOM - HOME_AVATAR_FLOOR_ABOVE_ROOM
         val height = (maxHeight + drop).coerceIn(HOME_AVATAR_SLOT_MIN_HEIGHT, HOME_AVATAR_SLOT_HEIGHT)
         val press = if (isAvatarOpen) {
             Modifier.clickable(role = Role.Button, onClickLabel = editLabel, onClick = onAvatar)
@@ -822,6 +822,12 @@ private val HOME_AVATAR_SLOT_MIN_HEIGHT = 240.dp
  * 칸 높이 433dp 이하에서 같다). ui.avatar 홈 칸 내용이 같은 규격으로 바닥선을 잡는다.
  */
 internal val HOME_AVATAR_FLOOR_FROM_BOTTOM = 78.dp
+
+/**
+ * Rive 칸 바닥선을 방 아래 끝보다 올리는 거리. 신발이 솟은 홈 탭 원(방 아래 끝에서 약 18dp 위까지 솟음)과 8dp쯤만 겹친다
+ * (사용자 요청 2026-10-30 「조금 겹친다」, 2026-11-11 실기기 3차에서 방 아래 + 8dp는 신발 대부분이 가려짐, [임시:D-성-173]).
+ */
+internal val HOME_AVATAR_FLOOR_ABOVE_ROOM = 10.dp
 
 /** 홈 아바타 칸의 시험 표지. */
 internal const val HOME_AVATAR_SLOT_TAG = "home-avatar-slot"

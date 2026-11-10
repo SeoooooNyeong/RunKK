@@ -3,6 +3,7 @@ package com.a207.runkk.app.core.avatar
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.view.MotionEvent
 import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -30,6 +31,12 @@ import java.util.concurrent.Executors
  */
 internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     var onError: (Throwable) -> Unit = {}
+
+    /**
+     * 아바타는 누르기에 반응하지 않는다. Rive 플레이어가 상태 기계 입력으로 누르기를 소비하면 칸을 감싼 Compose 클릭(홈 아바타 → 내 러너)이
+     * 받지 못한다(2026-11-11 실기기 3차). 누르기를 넘겨 부모가 받게 한다.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean = false
 
     /** 지금 동작의 플레이어가 첫 텍스처를 받아 보이게 된 때(주 스레드, 다음 메시지에서). 정체·동작이 바뀌면 다시 온다. */
     var onReady: () -> Unit = {}

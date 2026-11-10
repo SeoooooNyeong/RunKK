@@ -95,7 +95,7 @@ class HomeAvatarSlotTest {
     }
 
     @Test
-    fun `칸 바닥선은 지금 아바타 발 자리(방 아래 칸 끝 + 8dp)에 온다`() {
+    fun `칸 바닥선은 방 아래 끝보다 10dp 위에 온다(신발이 솟은 홈 탭 원과 조금만 겹친다)`() {
         show(emptyMap())
         val legacy = compose.onNodeWithContentDescription("내 아바타").getUnclippedBoundsInRoot()
 
@@ -103,7 +103,14 @@ class HomeAvatarSlotTest {
         compose.waitForIdle()
         val slot = compose.onNodeWithTag("home-avatar-probe", useUnmergedTree = true).getUnclippedBoundsInRoot()
 
-        assertEquals(legacy.bottom.value, slot.bottom.value - HOME_AVATAR_FLOOR_FROM_BOTTOM.value, 1f)
+        // 정적 그림은 방 아래 끝 + 8dp(AVATAR_GROUND_SINK)에 발을 둔다. Rive 칸은 그보다 18dp 위(방 아래 끝 − 10dp)다(2026-11-11 실기기 3차:
+        // 같은 자리에 두면 신발 대부분이 솟은 홈 탭 원에 가려졌다).
+        val room = legacy.bottom.value - 8f
+        assertEquals(
+            room - HOME_AVATAR_FLOOR_ABOVE_ROOM.value,
+            slot.bottom.value - HOME_AVATAR_FLOOR_FROM_BOTTOM.value,
+            1f
+        )
     }
 
     @Test
