@@ -105,12 +105,8 @@ RUN_SLOT_PART = {"run_body": "TOP", "run_arm": "TOP", "run_leg": "BOTTOM", "run_
 BODY_SLOTS = ("stand", "run_body", "run_arm", "run_leg")
 CUT_SLOTS = ("stand", "run_body", "run_arm")  # 상의 자르기 칸이 있는 슬롯([임시:D-성-156])
 NECK_CHEST = (196, 0, 317, 110)  # 서기 아틀라스에서 자르지 않는 목·가슴 위(x0, y0, x1, y1)
-NECK_TOP = (
-    176,
-    0,
-    337,
-    14,
-)  # 맨 위 줄 목 둘레(머리 아래라 보이지 않고, 깃 옆 조각을 자르면 머리와 몸 사이가 비어 보인다)
+# 맨 위 줄 목 둘레(머리 아래라 보이지 않고, 깃 옆 조각을 자르면 머리와 몸 사이가 비어 보인다)
+NECK_TOP = (176, 0, 337, 14)
 RUN_NECK = (100, 0, 200, 40)  # 달리기 몸통의 목 조각
 # 자르기 칸의 팔 띠(알파 값). 상의가 그 팔 띠 맨몸을 60% 넘게 덮을 때(긴소매)만 띠 안을 자른다. 나머지 칸(몸통·어깨)은 255.
 CUT_TORSO, CUT_LEFT_ARM, CUT_RIGHT_ARM = 255, 200, 160

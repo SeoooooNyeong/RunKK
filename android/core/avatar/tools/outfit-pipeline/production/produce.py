@@ -172,6 +172,11 @@ def fill_base_gaps(work: Path) -> None:
         covered |= array[..., 3] > 0
     differs = np.abs(body_stand[..., :3].astype(int) - ref[..., :3].astype(int)).sum(axis=2) > 12
     gap = (ref[..., 3] > 0) & ~covered & (differs | (body_stand[..., 3] == 0))
+    # 하의 칸의 승인 피부(허벅지)는 옷 레이어에 넣지 않는다(넣으면 러닝량 톤을 받지 않는 밝은 띠가 된다, DV-성-11).
+    # 상의 칸의 피부색 픽셀은 흰 반팔티 소매 안 분홍 그늘이라 옷이다.
+    from outfit_pipeline.build import _skin_like
+
+    gap &= ~(_skin_like(ref[..., :3]) & (np.array(zones["TOP"]) == 0))
     yy, xx = np.mgrid[0 : ref.shape[0], 0 : ref.shape[1]]
     gap &= ~(
         (yy >= 185) & ((xx < 112) | (xx >= 404))
@@ -196,6 +201,9 @@ def fill_run_gaps(work: Path) -> None:
         array = np.array(Image.open(path).convert("RGBA"))
         differs = np.abs(body_slot[..., :3].astype(int) - ref[..., :3].astype(int)).sum(axis=2) > 12
         gap = (ref[..., 3] > 0) & (array[..., 3] == 0) & (differs | (body_slot[..., 3] == 0))
+        from outfit_pipeline.build import _skin_like
+
+        gap &= ~_skin_like(ref[..., :3])
         part = spec.RUN_SLOT_PART[slot]
         allowed = np.array(load_mask(MASKS, f"female_{slot}", part)) > 0
         take = drop_specks(gap & allowed, 6)

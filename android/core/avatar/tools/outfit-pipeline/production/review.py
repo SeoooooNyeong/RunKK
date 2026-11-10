@@ -104,8 +104,7 @@ def render(
     if amount:
         if scene.endswith("stand"):
             tone(Image.open(work / "faceImage.png"), amount).save(work / "faceImage.png")
-        else:
-            tone(Image.open(work / "side_head.png"), amount, only_skin=True).save(work / "side_head.png")
+        # 달리기 측면 머리는 Rive 원본에 얼굴·헤어가 합쳐진 한 장이라 얼굴만 골라 톤을 줄 수 없어 원본 그대로 둔다(앱은 얼굴 레이어에만 준다)
     text = (work / "scene.rml").read_text(encoding="utf-8")
 
     def number(name: str, value: int) -> None:
@@ -165,7 +164,8 @@ def main() -> None:
         tile = Image.new("RGB", (1000, 410), (255, 255, 255))
         for i, path in enumerate(shots):
             tile.paste(Image.open(path).convert("RGB").crop((150, 120, 650, 900)).resize((250, 390)), (i * 250, 0))
-        ImageDraw.Draw(tile).text((4, 394), f"{key}  amount={args.amount} shape={args.shape}", fill=(0, 0, 0))
+        label = f"{key}  amount={args.amount} shape={args.shape}" + ("  (run head not toned)" if args.amount else "")
+        ImageDraw.Draw(tile).text((4, 394), label, fill=(0, 0, 0))
         tiles.append(tile)
     sheet = Image.new("RGB", (1000, 410 * len(tiles)), (255, 255, 255))
     for i, tile in enumerate(tiles):
