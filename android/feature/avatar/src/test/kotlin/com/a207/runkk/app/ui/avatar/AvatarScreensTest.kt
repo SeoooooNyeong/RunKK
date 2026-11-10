@@ -165,7 +165,7 @@ class AvatarScreensTest {
             str(
                 R.string.avatar_figure_description,
                 str(R.string.avatar_face_default, str(R.string.avatar_character_fox)),
-                str(R.string.avatar_body_3)
+                str(R.string.avatar_body_mid)
             ) + str(R.string.avatar_figure_equipped_format, str(R.string.avatar_slot_top), "라임 러닝 티")
         ).assertExists()
         compose.onNodeWithText("라벤더 싱글렛").performClick()
@@ -191,7 +191,7 @@ class AvatarScreensTest {
             str(
                 R.string.avatar_figure_description,
                 str(R.string.avatar_face_default, str(R.string.avatar_character_bear)),
-                str(R.string.avatar_body_3)
+                str(R.string.avatar_body_mid)
             )
         ).assertExists()
     }
@@ -223,7 +223,7 @@ class AvatarScreensTest {
         compose.onNodeWithTag(FACE_TAG, useUnmergedTree = true).assertExists()
         compose.onNodeWithText("SD", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithContentDescription(
-            str(R.string.avatar_figure_description, str(R.string.avatar_face_selfie), str(R.string.avatar_body_3))
+            str(R.string.avatar_figure_description, str(R.string.avatar_face_selfie), str(R.string.avatar_body_mid))
         ).assertExists()
     }
 
@@ -275,9 +275,22 @@ class AvatarScreensTest {
     }
 
     @Test
+    fun `체형 이름은 꾸미기와 내 러너가 서버 4단계를 3단계로 접은 같은 표를 쓴다(DV-성-12, D-성-58)`() {
+        assertEquals(R.string.avatar_body_low, bodyLabelRes("STAGE1"))
+        assertEquals(R.string.avatar_body_mid, bodyLabelRes("STAGE2"))
+        assertEquals(R.string.avatar_body_mid, bodyLabelRes("STAGE3"))
+        assertEquals(R.string.avatar_body_high, bodyLabelRes("STAGE4"))
+        assertEquals(R.string.avatar_body_unknown, bodyLabelRes("ODD"))
+        for (shape in listOf("STAGE1", "STAGE2", "STAGE3", "STAGE4")) {
+            assertEquals(bodyVariantLabelRes(bodyVariantOf(shape)), bodyLabelRes(shape), shape)
+        }
+        assertEquals("보통", str(bodyVariantLabelRes(1)))
+    }
+
+    @Test
     fun `체형, 피부톤 문구`() {
         assertEquals(3, bodyStage("STAGE3"))
-        assertEquals(R.string.avatar_body_4, bodyLabelRes(4))
+        assertEquals(R.string.avatar_body_high, bodyLabelRes("STAGE4"))
         assertEquals(UiText.Res(R.string.avatar_skin_morning), skinLabel("MORNING"))
         assertEquals(R.string.avatar_slot_hat, ItemSlot.HAT.labelRes)
     }

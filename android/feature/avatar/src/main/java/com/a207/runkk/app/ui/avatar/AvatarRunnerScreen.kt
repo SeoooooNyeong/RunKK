@@ -221,7 +221,7 @@ private fun BodyCard(runner: AvatarRunner) {
 @Composable
 private fun BodyGauge(variant: Int) {
     val step = variant.coerceIn(0, MAX_VARIANT)
-    val label = stringResource(VARIANT_LABELS[step])
+    val label = stringResource(bodyVariantLabelRes(step))
     val description = stringResource(R.string.avatar_runner_body_gauge, label, step + 1)
     Row(
         modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
@@ -229,7 +229,7 @@ private fun BodyGauge(variant: Int) {
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
-            stringResource(R.string.avatar_runner_body_low),
+            stringResource(R.string.avatar_body_low),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary
         )
@@ -252,7 +252,7 @@ private fun BodyGauge(variant: Int) {
             )
         }
         Text(
-            stringResource(R.string.avatar_runner_body_high),
+            stringResource(R.string.avatar_body_high),
             style = RunkkTextStyles.Caption,
             color = RunkkColors.TextSecondary
         )
@@ -330,8 +330,6 @@ internal fun BalancePill(text: String, modifier: Modifier = Modifier) {
     }
 }
 
-private val VARIANT_LABELS =
-    listOf(R.string.avatar_runner_body_low, R.string.avatar_runner_body_mid, R.string.avatar_runner_body_high)
 private const val MAX_VARIANT = 2
 private const val NOON = 12
 private val CARD_HEIGHT = 390.dp

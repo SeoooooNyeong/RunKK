@@ -52,14 +52,20 @@ internal fun bodyStage(bodyShape: String): Int? = bodyShape.filter(Char::isDigit
         1..BODY_STAGES
 }
 
+/**
+ * 체형 이름(DV-성-12): 꾸미기와 내 러너가 같은 3단계 표를 쓴다. 서버 4단계를 [bodyVariantOf]로 접은 단계(D-성-58)의 이름이다.
+ * 모르는 체형 값이면 「체형 확인 중」.
+ */
 @StringRes
-internal fun bodyLabelRes(stage: Int?): Int = when (stage) {
-    1 -> R.string.avatar_body_1
-    2 -> R.string.avatar_body_2
-    3 -> R.string.avatar_body_3
-    4 -> R.string.avatar_body_4
-    else -> R.string.avatar_body_unknown
-}
+internal fun bodyLabelRes(bodyShape: String): Int =
+    if (bodyStage(bodyShape) == null) R.string.avatar_body_unknown else bodyVariantLabelRes(bodyVariantOf(bodyShape))
+
+/** 3단계 체형(0 기본, 1 변화 1, 2 변화 2)의 이름. 범위 밖은 가까운 끝으로. */
+@StringRes
+internal fun bodyVariantLabelRes(variant: Int): Int =
+    BODY_VARIANT_LABELS[variant.coerceIn(0, BODY_VARIANT_LABELS.lastIndex)]
+
+private val BODY_VARIANT_LABELS = listOf(R.string.avatar_body_low, R.string.avatar_body_mid, R.string.avatar_body_high)
 
 internal const val BODY_STAGES = 4
 

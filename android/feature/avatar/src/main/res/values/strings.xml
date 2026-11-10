@@ -27,10 +27,10 @@
     <string name="avatar_slot_bottom">하의</string>
     <string name="avatar_slot_shoes">신발</string>
     <string name="avatar_slot_hat">모자</string>
-    <string name="avatar_body_1">배가 볼록</string>
-    <string name="avatar_body_2">조금 말랑</string>
-    <string name="avatar_body_3">탄탄해지는 중</string>
-    <string name="avatar_body_4">근육 탄탄</string>
+    <!-- 체형 3단계 이름(서버 4단계를 접은 단계, D-성-58). 꾸미기와 내 러너가 같이 쓴다(DV-성-12) -->
+    <string name="avatar_body_low">배가 볼록</string>
+    <string name="avatar_body_mid">보통</string>
+    <string name="avatar_body_high">근육 탄탄</string>
     <string name="avatar_body_unknown">체형 확인 중</string>
     <string name="avatar_skin_dawn">새벽형</string>
     <string name="avatar_skin_morning">아침형</string>
@@ -106,9 +106,6 @@
     <string name="avatar_runner_body_title">체형 변화</string>
     <string name="avatar_runner_body_guide">최근 7일 %1$d번 달렸어요. %2$d일 넘게 쉬면 배가 나오기 시작해요.</string>
     <string name="avatar_runner_body_gauge">체형 %1$s, 3단계 중 %2$d단계</string>
-    <string name="avatar_runner_body_low">배가 볼록</string>
-    <string name="avatar_runner_body_mid">보통</string>
-    <string name="avatar_runner_body_high">근육 탄탄</string>
     <string name="avatar_runner_skin_title">피부톤은 달리는 시간을 따라가요</string>
     <string name="avatar_runner_skin_reason">주로 %1$s에 달려서 %2$s 톤이에요</string>
     <string name="avatar_runner_skin_reason_none">달리는 시간대에 따라 피부톤이 바뀌어요</string>

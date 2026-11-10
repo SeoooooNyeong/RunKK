@@ -260,7 +260,7 @@ private fun AvatarTraits(avatar: Avatar, onFace: () -> Unit) {
         itemVerticalAlignment = Alignment.CenterVertically
     ) {
         DecorateChip(
-            stringResource(R.string.avatar_trait_body, stringResource(bodyLabelRes(bodyStage(avatar.bodyShape)))),
+            stringResource(R.string.avatar_trait_body, stringResource(bodyLabelRes(avatar.bodyShape))),
             RoundedCornerShape(16.dp)
         )
         DecorateChip(
@@ -384,7 +384,7 @@ internal fun AvatarFigure(
     look: AvatarLook = AvatarLook()
 ) {
     val stage = bodyStage(avatar.bodyShape) ?: 1
-    val description = figureDescription(avatar, equippedNames, stage)
+    val description = figureDescription(avatar, equippedNames)
     // 고른 랜드마크 배경 위에 아바타를 그린다(FR-202). 배경은 장식이라 설명에 넣지 않는다.
     // 피그마 H-3 "내 러너" 자리 152x200(모서리 16). Rive 렌더러로 그리고, 그리지 못하면 앞 단계 도형 그림이다(W9).
     Box(
@@ -435,9 +435,13 @@ private fun AvatarFigureBody(
 
 /** 그림 하나로 읽어 주는 설명: 얼굴·체형·입은 아이템. */
 @Composable
-private fun figureDescription(avatar: Avatar, equippedNames: Map<ItemSlot, String?>, stage: Int): String {
+private fun figureDescription(avatar: Avatar, equippedNames: Map<ItemSlot, String?>): String {
     val base =
-        stringResource(R.string.avatar_figure_description, faceLabel(avatar), stringResource(bodyLabelRes(stage)))
+        stringResource(
+            R.string.avatar_figure_description,
+            faceLabel(avatar),
+            stringResource(bodyLabelRes(avatar.bodyShape))
+        )
     val slotLabels = ItemSlot.entries.associateWith { stringResource(it.labelRes) }
     val equipped = stringResource(R.string.avatar_figure_equipped_format)
     return buildString {
