@@ -7,36 +7,45 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * 런크크 색 토큰 한 벌(FR-203, NFR-041). 값은 피그마 변수 컬렉션 "Runkk · Theme"(Light 472:0 / Dark 472:1)와
- * "RunKK · Accent"를 따른다(S15P31A207-292, 2026-11-09). RunkkTheme(darkTheme)이 벌을 골라 [LocalRunkkColors]로 내려 주고,
+ * 런크크 색 토큰 한 벌(FR-203, NFR-041). 브랜드 색(라임·보라·연보라와 그 틴트)은 피그마 변수 컬렉션
+ * "Runkk · Theme"(Light 472:0 / Dark 472:1)와 "RunKK · Accent"를 따르고(S15P31A207-292, 2026-11-09), 배경·표면·구분선·
+ * 보조 글자 같은 중립색은 원래 앱 무채색(zinc 단계)을 유지한다(사용자 결정 2026-11-10, D-성-93). 피그마 중립색은 회녹색이라
+ * 앱 전체가 녹색으로 보였기 때문이다. RunkkTheme(darkTheme)이 벌을 골라 [LocalRunkkColors]로 내려 주고,
  * 화면은 `RunkkColors.TextPrimary`처럼 지금 벌의 토큰을 읽는다.
  * 본문 글자/배경 짝은 두 벌 모두 명도 대비 4.5:1 이상이다(ColorContrastTest가 짝 목록으로 지킨다).
  * Compose 밖(공유 카드 비트맵 등)에서는 [dark]·[light]의 소문자 속성을 직접 읽는다.
  *
- * 피그마 변수 → 토큰 대응(라이트 / 다크):
- * - color/background → [background] #F7F8F2 / #171B12, color/surface → [surface] #FFFFFF / #292F25
- * - color/surfaceHigh → [surfaceHigh] #E9EDE0 / #343D2D (Runimal 바탕 [runimalTile]도 같은 값)
- * - color/divider → [border] #E9EDE0 / #444B3E
- * - color/textPrimary → [textPrimary] #171B12 / #FFFFFF, color/textSecondary → [textSecondary] #67705B / #A8AEA0
+ * 피그마 변수 → 토큰 대응(라이트 / 다크). "무채색 유지"는 원래 앱 무채색 유지(사용자 결정 2026-11-10)이고, 피그마 값과 밝기
+ * 단계가 같은 zinc 값을 골랐다.
+ * - color/background → [background] #FAFAFA / #09090B (무채색 유지, 피그마 #F7F8F2 / #171B12)
+ * - color/surface → [surface] #FFFFFF / #18181B (무채색 유지, 피그마 다크 #292F25)
+ * - color/surfaceHigh → [surfaceHigh] #E4E4E7 / #27272A (무채색 유지, 피그마 #E9EDE0 / #343D2D). Runimal 바탕
+ *   [runimalTile]도 같은 값이다.
+ * - color/divider → [border] #E4E4E7 / #27272A (무채색 유지, 피그마 #E9EDE0 / #444B3E)
+ * - color/textPrimary → [textPrimary] #18181B / #FAFAFA, color/textSecondary → [textSecondary] #52525B / #A1A1AA
+ *   (무채색 유지, 피그마 #171B12 / #FFFFFF, #67705B / #A8AEA0)
  * - color/primary → [limeFill]·[selectedFill]·[tabSelected] #CAEB2E, color/onPrimary·tabSelected/text·runEnd/icon·
  *   dateSelected/text → [onLimeFill]·[onSelectedFill]·[onTabSelected] #171B12
  * - color/secondary → [violet] #5C4BDB, color/onSecondary → [onSecondary] #FFFFFF
  * - color/accent → [accent]·다크 [lavender] #9B8DEE, color/onAccent → [onAccent] #171B12
  * - color/accentContainer → [accentContainer], color/secondaryContainer → [secondaryContainer]
- * - color/brandDark → [ink] #171B12, color/imageScrim → [imageScrim]
- * - color/tagPurple/bg·text → [tagPurple]·[onTagPurple], color/segmentSelected/bg → [segmentSelected]
- * - color/chatMine/bg·stroke → [chatMine]·[chatMineStroke], color/radio/stroke·selectedOuter·dot → [radioStroke]·
- *   [radioSelectedOuter]·[radioDot]
- * - color/todayMark/bg → [todayMark], color/inputHigh/bg → [inputHigh], color/menuDivider → [menuDivider],
- *   color/toggleOff/bg → [toggleOff], color/lockShortcut/icon → [lockShortcutIcon]
- * - color/respChip/bg·text → [chipSelected]·[onChipSelected], color/dropdown/stroke → [outline]
+ * - color/brandDark → [ink] #171B12, color/lockShortcut/icon → [lockShortcutIcon]
+ * - color/tagPurple/bg·text → [tagPurple]·[onTagPurple], color/radio/selectedOuter(다크) → [radioSelectedOuter]
+ * - RunKK · Accent: color/accentMuted → [accentMuted]
+ * - 피그마 원시값: 라임 틴트 태그 #F2F9D0·#3D4A00 → [tagLime]·[onTagLime](두 벌 같음), 라임 틴트 바탕은 라이트
+ *   [limeContainer]에도 쓴다.
+ * - 무채색 유지(피그마 회녹색 → zinc): color/segmentSelected/bg → [segmentSelected] #FFFFFF / #52525B,
+ *   color/respChip/bg·text → [chipSelected]·[onChipSelected] #52525B·#FFFFFF / #E4E4E7·#18181B,
+ *   color/dropdown/stroke → [outline] #D4D4D8 / #71717A, color/chatMine/bg·stroke → [chatMine]·[chatMineStroke],
+ *   color/radio/stroke·dot → [radioStroke]·[radioDot], color/todayMark/bg → [todayMark],
+ *   color/inputHigh/bg → [inputHigh], color/menuDivider → [menuDivider], color/toggleOff/bg → [toggleOff],
+ *   RunKK · Accent color/barCrew → [barCrew] #D4D4D8 / #A1A1AA
+ * - 무채색 유지: 대화상자·시트 딤(피그마 rgba(23,27,18,0.45)) → [scrim] 검정 0.45,
+ *   color/imageScrim(피그마 #171B12 0.58) → [imageScrim] 검정 0.58(라이트는 투명)
  * - color/mapFade/0·50·100 → [background]에 알파 0·0.5·1(토큰 없이 `Background.copy(alpha = …)`)
- * - RunKK · Accent: color/barCrew → [barCrew], color/accentMuted → [accentMuted]
- * - 변수가 아닌 피그마 원시값: 대화상자·시트 딤 rgba(23,27,18,0.45) → [scrim], 라임 틴트 태그 #F2F9D0·#3D4A00 → [tagLime]·
- *   [onTagLime](두 벌 같음), 라임 틴트 바탕은 라이트 [limeContainer]에도 쓴다.
- * 피그마에 없는 토큰([backgroundLocked]·[backgroundDecor]·[surfacePressed]·[borderStrong]·[inputBorder]·[borderHover]·[lime]·
- * [limePressed]·[limeDim]·[onLime]·다크 [limeContainer]·[runimalTileBorder])은 피그마 팔레트 값 가운데 대비 규칙(글자 4.5:1,
- * 컨트롤 경계 3:1)을 지키는 값으로 두었다.
+ * 피그마에 없는 토큰([backgroundLocked]·[backgroundDecor]·[surfacePressed]·[borderStrong]·[inputBorder]·[borderHover]·
+ * [runimalTileBorder])은 원래 앱 무채색 값이고, [lime]·[limePressed]·[limeDim]·[onLime]·다크 [limeContainer]는 대비 규칙(글자
+ * 4.5:1, 컨트롤 경계 3:1)을 지키는 브랜드 값이다.
  */
 @Immutable
 class RunkkColors(
@@ -148,9 +157,9 @@ class RunkkColors(
     val toggleOff: Color,
     /** 잠금 화면 바로가기 아이콘(color/lockShortcut/icon). */
     val lockShortcutIcon: Color,
-    /** 대화상자·바텀시트 딤(피그마 rgba(23,27,18,0.45), 두 벌 같음). */
+    /** 대화상자·바텀시트 딤(검정 0.45, 두 벌 같음). */
     val scrim: Color,
-    /** 사진 위 덮개(color/imageScrim, 라이트는 투명). */
+    /** 사진 위 덮개(검정 0.58, 라이트는 투명). */
     val imageScrim: Color,
     /** 브랜드 잉크(color/brandDark). */
     val ink: Color,
@@ -158,22 +167,22 @@ class RunkkColors(
     val isDark: Boolean
 ) {
     companion object {
-        /** 피그마 Runkk · Theme Dark. */
+        /** 다크 벌: 중립색은 원래 앱 무채색(zinc), 브랜드 색은 피그마 Runkk · Theme Dark. */
         val dark =
             RunkkColors(
-                background = Color(0xFF171B12),
+                background = Color(0xFF09090B),
                 backgroundLocked = Color(0xFF000000),
-                backgroundDecor = Color(0xFF292F25),
-                surface = Color(0xFF292F25),
-                surfacePressed = Color(0xFF343D2D),
-                surfaceHigh = Color(0xFF343D2D),
-                border = Color(0xFF444B3E),
-                borderStrong = Color(0xFF737A6B),
-                inputBorder = Color(0xFF737A6B),
-                borderHover = Color(0xFF616959),
-                outline = Color(0xFF737A6B),
-                textPrimary = Color(0xFFFFFFFF),
-                textSecondary = Color(0xFFA8AEA0),
+                backgroundDecor = Color(0xFF141416),
+                surface = Color(0xFF18181B),
+                surfacePressed = Color(0xFF1F1F23),
+                surfaceHigh = Color(0xFF27272A),
+                border = Color(0xFF27272A),
+                borderStrong = Color(0xFF3F3F46),
+                inputBorder = Color(0xFF71717A),
+                borderHover = Color(0xFF52525B),
+                outline = Color(0xFF71717A),
+                textPrimary = Color(0xFFFAFAFA),
+                textSecondary = Color(0xFFA1A1AA),
                 lime = Color(0xFFCAEB2E),
                 limePressed = Color(0xFFD6F04F),
                 limeDim = Color(0xFFA3BD22),
@@ -187,8 +196,8 @@ class RunkkColors(
                 selectedBorder = Color(0xFFCAEB2E),
                 tabSelected = Color(0xFFCAEB2E),
                 onTabSelected = Color(0xFF171B12),
-                runimalTile = Color(0xFF343D2D),
-                runimalTileBorder = Color(0xFF444B3E),
+                runimalTile = Color(0xFF27272A),
+                runimalTileBorder = Color(0xFF3F3F46),
                 lavender = Color(0xFF9B8DEE),
                 violet = Color(0xFF5C4BDB),
                 onSecondary = Color(0xFFFFFFFF),
@@ -197,49 +206,50 @@ class RunkkColors(
                 onAccent = Color(0xFF171B12),
                 accentContainer = Color(0xFF3A3452),
                 accentMuted = Color(0xFF9E94D4),
-                barCrew = Color(0xFF949C87),
+                barCrew = Color(0xFFA1A1AA),
                 tagPurple = Color(0xFFCFC4FF),
                 onTagPurple = Color(0xFF2B1F6B),
                 tagLime = Color(0xFFF2F9D0),
                 onTagLime = Color(0xFF3D4A00),
-                segmentSelected = Color(0xFF616959),
-                chipSelected = Color(0xFFDBE0D4),
-                onChipSelected = Color(0xFF171B12),
-                chatMine = Color(0x00545C4F),
-                chatMineStroke = Color(0xFF737A6B),
-                radioStroke = Color(0xFF737A6B),
+                segmentSelected = Color(0xFF52525B),
+                chipSelected = Color(0xFFE4E4E7),
+                onChipSelected = Color(0xFF18181B),
+                chatMine = Color(0x0052525B),
+                chatMineStroke = Color(0xFF71717A),
+                radioStroke = Color(0xFF71717A),
                 radioSelectedOuter = Color(0xFF5C4ADB),
                 radioDot = Color(0xFFFFFFFF),
-                todayMark = Color(0xFF404A38),
-                inputHigh = Color(0xFF40453B),
-                menuDivider = Color(0xFF737A6B),
-                toggleOff = Color(0xFF525C4A),
+                todayMark = Color(0xFF3F3F46),
+                inputHigh = Color(0xFF3F3F46),
+                menuDivider = Color(0xFF71717A),
+                toggleOff = Color(0xFF52525B),
                 lockShortcutIcon = Color(0xFF171B12),
                 scrim = SCRIM,
-                imageScrim = Color(0xFF171B12).copy(alpha = 0.58f),
+                imageScrim = Color.Black.copy(alpha = 0.58f),
                 ink = Color(0xFF171B12),
                 isDark = true
             )
 
         /**
-         * 피그마 Runkk · Theme Light. 라임(#CAEB2E)은 흰 바탕 위 글자 대비가 1.4:1이라 글자·선에 쓰는 포인트 색([lime])은 짙은 올리브로 둔다.
+         * 라이트 벌: 중립색은 원래 앱 무채색(zinc), 브랜드 색은 피그마 Runkk · Theme Light.
+         * 라임(#CAEB2E)은 흰 바탕 위 글자 대비가 1.4:1이라 글자·선에 쓰는 포인트 색([lime])은 짙은 올리브로 둔다.
          * 채움(주 버튼·고른 칸·켜진 스위치)은 라임에 검은 글자다([limeFill]).
          */
         val light =
             RunkkColors(
-                background = Color(0xFFF7F8F2),
-                backgroundLocked = Color(0xFFF7F8F2),
-                backgroundDecor = Color(0xFFE9EDE0),
+                background = Color(0xFFFAFAFA),
+                backgroundLocked = Color(0xFFE4E4E7),
+                backgroundDecor = Color(0xFFEFEFF1),
                 surface = Color(0xFFFFFFFF),
                 surfacePressed = Color(0xFFF0F0F2),
-                surfaceHigh = Color(0xFFE9EDE0),
-                border = Color(0xFFE9EDE0),
-                borderStrong = Color(0xFF737A6B),
-                inputBorder = Color(0xFF67705B),
-                borderHover = Color(0xFFC7CCBF),
-                outline = Color(0xFFC7CCBF),
-                textPrimary = Color(0xFF171B12),
-                textSecondary = Color(0xFF67705B),
+                surfaceHigh = Color(0xFFE4E4E7),
+                border = Color(0xFFE4E4E7),
+                borderStrong = Color(0xFF8A8A93),
+                inputBorder = Color(0xFF71717A),
+                borderHover = Color(0xFFA1A1AA),
+                outline = Color(0xFFD4D4D8),
+                textPrimary = Color(0xFF18181B),
+                textSecondary = Color(0xFF52525B),
                 lime = Color(0xFF3F6212),
                 limePressed = Color(0xFF4D7C0F),
                 limeDim = Color(0xFF5F8A1C),
@@ -253,8 +263,8 @@ class RunkkColors(
                 selectedBorder = Color(0xFFCAEB2E),
                 tabSelected = Color(0xFFCAEB2E),
                 onTabSelected = Color(0xFF171B12),
-                runimalTile = Color(0xFFE9EDE0),
-                runimalTileBorder = Color(0xFFD3D9C6),
+                runimalTile = Color(0xFFE4E4E7),
+                runimalTileBorder = Color(0xFFD4D4D8),
                 lavender = Color(0xFF5C4BDB),
                 violet = Color(0xFF5C4BDB),
                 onSecondary = Color(0xFFFFFFFF),
@@ -263,26 +273,26 @@ class RunkkColors(
                 onAccent = Color(0xFF171B12),
                 accentContainer = Color(0xFFEBE7FC),
                 accentMuted = Color(0xFF7569BF),
-                barCrew = Color(0xFFBFC6B3),
+                barCrew = Color(0xFFD4D4D8),
                 tagPurple = Color(0xFFEBE7FC),
                 onTagPurple = Color(0xFF5C4BDB),
                 tagLime = Color(0xFFF2F9D0),
                 onTagLime = Color(0xFF3D4A00),
                 segmentSelected = Color(0xFFFFFFFF),
-                chipSelected = Color(0xFF67705B),
+                chipSelected = Color(0xFF52525B),
                 onChipSelected = Color(0xFFFFFFFF),
                 chatMine = Color(0xFFFFFFFF),
-                chatMineStroke = Color(0x00454A3D),
-                radioStroke = Color(0xFFE9EDE0),
-                radioSelectedOuter = Color(0xFFE9EDE0),
-                radioDot = Color(0xFF171B12),
-                todayMark = Color(0xFFE9EDE0),
-                inputHigh = Color(0xFFE9EDE0),
-                menuDivider = Color(0xFFE9EDE0),
-                toggleOff = Color(0xFFE9EDE0),
+                chatMineStroke = Color(0x003F3F46),
+                radioStroke = Color(0xFFE4E4E7),
+                radioSelectedOuter = Color(0xFFE4E4E7),
+                radioDot = Color(0xFF18181B),
+                todayMark = Color(0xFFE4E4E7),
+                inputHigh = Color(0xFFE4E4E7),
+                menuDivider = Color(0xFFE4E4E7),
+                toggleOff = Color(0xFFE4E4E7),
                 lockShortcutIcon = Color(0xFFFFFFFF),
                 scrim = SCRIM,
-                imageScrim = Color(0x00171B12),
+                imageScrim = Color(0x00000000),
                 ink = Color(0xFF171B12),
                 isDark = false
             )
@@ -519,8 +529,8 @@ class RunkkColors(
     }
 }
 
-/** 대화상자·시트 딤(피그마 rgba(23,27,18,0.45)). */
-private val SCRIM = Color(0xFF171B12).copy(alpha = 0.45f)
+/** 대화상자·시트 딤(검정 0.45). 피그마 rgba(23,27,18,0.45) 대신 무채색이다(D-성-93). */
+private val SCRIM = Color.Black.copy(alpha = 0.45f)
 
 /** 지금 테마의 색 벌. RunkkTheme이 넣는다. 넣지 않으면 다크 벌이다. */
 val LocalRunkkColors = staticCompositionLocalOf { RunkkColors.dark }

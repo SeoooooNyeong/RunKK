@@ -83,15 +83,15 @@ class ColorContrastTest {
     }
 
     @Test
-    fun `S15P31A207-292 라이트 벌은 피그마 Runkk · Theme Light 값이다`() {
+    fun `S15P31A207-292 라이트 벌은 중립색이 원래 무채색이고 브랜드 색이 피그마 Runkk · Theme Light 값이다`() {
         val light = RunkkColors.light
         val expected = mapOf(
-            "background" to 0xFFF7F8F2,
+            "background" to 0xFFFAFAFA,
             "surface" to 0xFFFFFFFF,
-            "surfaceHigh" to 0xFFE9EDE0,
-            "border" to 0xFFE9EDE0,
-            "textPrimary" to 0xFF171B12,
-            "textSecondary" to 0xFF67705B,
+            "surfaceHigh" to 0xFFE4E4E7,
+            "border" to 0xFFE4E4E7,
+            "textPrimary" to 0xFF18181B,
+            "textSecondary" to 0xFF52525B,
             "limeFill" to 0xFFCAEB2E,
             "onLimeFill" to 0xFF171B12,
             "violet" to 0xFF5C4BDB,
@@ -101,22 +101,22 @@ class ColorContrastTest {
             "accentContainer" to 0xFFEBE7FC,
             "secondaryContainer" to 0xFFE3DFF9,
             "accentMuted" to 0xFF7569BF,
-            "barCrew" to 0xFFBFC6B3,
+            "barCrew" to 0xFFD4D4D8,
             "tagPurple" to 0xFFEBE7FC,
             "onTagPurple" to 0xFF5C4BDB,
             "tagLime" to 0xFFF2F9D0,
             "onTagLime" to 0xFF3D4A00,
             "segmentSelected" to 0xFFFFFFFF,
-            "chipSelected" to 0xFF67705B,
+            "chipSelected" to 0xFF52525B,
             "onChipSelected" to 0xFFFFFFFF,
-            "outline" to 0xFFC7CCBF,
-            "radioStroke" to 0xFFE9EDE0,
-            "radioSelectedOuter" to 0xFFE9EDE0,
-            "radioDot" to 0xFF171B12,
-            "todayMark" to 0xFFE9EDE0,
-            "inputHigh" to 0xFFE9EDE0,
-            "menuDivider" to 0xFFE9EDE0,
-            "toggleOff" to 0xFFE9EDE0,
+            "outline" to 0xFFD4D4D8,
+            "radioStroke" to 0xFFE4E4E7,
+            "radioSelectedOuter" to 0xFFE4E4E7,
+            "radioDot" to 0xFF18181B,
+            "todayMark" to 0xFFE4E4E7,
+            "inputHigh" to 0xFFE4E4E7,
+            "menuDivider" to 0xFFE4E4E7,
+            "toggleOff" to 0xFFE4E4E7,
             "lockShortcutIcon" to 0xFFFFFFFF,
             "chatMine" to 0xFFFFFFFF,
             "ink" to 0xFF171B12
@@ -127,19 +127,20 @@ class ColorContrastTest {
             },
             expected.keys.associateWith { tokensOf(light).getValue(it) }
         )
-        assertEquals(Color(0xFF171B12).copy(alpha = 0.45f), light.scrim)
+        assertEquals(Color.Black.copy(alpha = 0.45f), light.scrim)
+        assertEquals(Color(0x00000000), light.imageScrim)
     }
 
     @Test
-    fun `S15P31A207-292 다크 벌은 피그마 Runkk · Theme Dark 값이다`() {
+    fun `S15P31A207-292 다크 벌은 중립색이 원래 무채색이고 브랜드 색이 피그마 Runkk · Theme Dark 값이다`() {
         val dark = RunkkColors.dark
         val expected = mapOf(
-            "background" to 0xFF171B12,
-            "surface" to 0xFF292F25,
-            "surfaceHigh" to 0xFF343D2D,
-            "border" to 0xFF444B3E,
-            "textPrimary" to 0xFFFFFFFF,
-            "textSecondary" to 0xFFA8AEA0,
+            "background" to 0xFF09090B,
+            "surface" to 0xFF18181B,
+            "surfaceHigh" to 0xFF27272A,
+            "border" to 0xFF27272A,
+            "textPrimary" to 0xFFFAFAFA,
+            "textSecondary" to 0xFFA1A1AA,
             "limeFill" to 0xFFCAEB2E,
             "onLimeFill" to 0xFF171B12,
             "violet" to 0xFF5C4BDB,
@@ -149,22 +150,22 @@ class ColorContrastTest {
             "accentContainer" to 0xFF3A3452,
             "secondaryContainer" to 0xFF302856,
             "accentMuted" to 0xFF9E94D4,
-            "barCrew" to 0xFF949C87,
+            "barCrew" to 0xFFA1A1AA,
             "tagPurple" to 0xFFCFC4FF,
             "onTagPurple" to 0xFF2B1F6B,
             "tagLime" to 0xFFF2F9D0,
             "onTagLime" to 0xFF3D4A00,
-            "segmentSelected" to 0xFF616959,
-            "chipSelected" to 0xFFDBE0D4,
-            "onChipSelected" to 0xFF171B12,
-            "outline" to 0xFF737A6B,
-            "radioStroke" to 0xFF737A6B,
+            "segmentSelected" to 0xFF52525B,
+            "chipSelected" to 0xFFE4E4E7,
+            "onChipSelected" to 0xFF18181B,
+            "outline" to 0xFF71717A,
+            "radioStroke" to 0xFF71717A,
             "radioSelectedOuter" to 0xFF5C4ADB,
             "radioDot" to 0xFFFFFFFF,
-            "todayMark" to 0xFF404A38,
-            "inputHigh" to 0xFF40453B,
-            "menuDivider" to 0xFF737A6B,
-            "toggleOff" to 0xFF525C4A,
+            "todayMark" to 0xFF3F3F46,
+            "inputHigh" to 0xFF3F3F46,
+            "menuDivider" to 0xFF71717A,
+            "toggleOff" to 0xFF52525B,
             "lockShortcutIcon" to 0xFF171B12,
             "ink" to 0xFF171B12
         )
@@ -174,8 +175,22 @@ class ColorContrastTest {
             },
             expected.keys.associateWith { tokensOf(dark).getValue(it) }
         )
-        assertEquals(Color(0xFF171B12).copy(alpha = 0.45f), dark.scrim)
-        assertEquals(Color(0xFF171B12).copy(alpha = 0.58f), dark.imageScrim)
+        assertEquals(Color.Black.copy(alpha = 0.45f), dark.scrim)
+        assertEquals(Color.Black.copy(alpha = 0.58f), dark.imageScrim)
+    }
+
+    @Test
+    fun `S15P31A207-292 중립색 토큰은 두 벌 모두 녹색 기운이 없는 무채색이다 (D-성-93)`() {
+        val greenish =
+            listOf("light" to RunkkColors.light, "dark" to RunkkColors.dark).flatMap { (name, colors) ->
+                val tokens = tokensOf(colors) + ("scrim" to colors.scrim) + ("imageScrim" to colors.imageScrim)
+                NEUTRAL_TOKENS.mapNotNull { token ->
+                    val color = tokens.getValue(token)
+                    // zinc 계열은 R = G ≤ B다. 초록이 빨강·파랑보다 크면 피그마 회녹색이 남은 것이다.
+                    if (color.green > maxOf(color.red, color.blue)) "$name $token" else null
+                }
+            }
+        assertEquals(emptyList(), greenish)
     }
 
     @Test
@@ -257,6 +272,38 @@ class ColorContrastTest {
         val ON_PREFIX = Regex("on[A-Z].*")
         val ACCENT_TEXT = setOf("lime", "lavender")
 
+        /** 원래 앱 무채색을 유지하는 중립 토큰(사용자 결정 2026-11-10). */
+        val NEUTRAL_TOKENS =
+            listOf(
+                "background",
+                "backgroundLocked",
+                "backgroundDecor",
+                "surface",
+                "surfacePressed",
+                "surfaceHigh",
+                "border",
+                "borderStrong",
+                "inputBorder",
+                "borderHover",
+                "outline",
+                "textPrimary",
+                "textSecondary",
+                "runimalTile",
+                "runimalTileBorder",
+                "barCrew",
+                "segmentSelected",
+                "chipSelected",
+                "onChipSelected",
+                "chatMineStroke",
+                "radioStroke",
+                "todayMark",
+                "inputHigh",
+                "menuDivider",
+                "toggleOff",
+                "scrim",
+                "imageScrim"
+            )
+
         /** 화면에서 글자를 그 배경 위에 그리는 짝(글자 토큰, 배경 토큰). */
         val TEXT_PAIRS: List<Pair<String, String>> =
             listOf(
@@ -270,6 +317,7 @@ class ColorContrastTest {
                 "textSecondary" to "backgroundLocked",
                 "textSecondary" to "limeContainer",
                 "textSecondary" to "surfacePressed",
+                "textSecondary" to "surfaceHigh",
                 "textPrimary" to "border",
                 "lime" to "background",
                 "lime" to "surface",
