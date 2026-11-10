@@ -18,7 +18,12 @@ ZONE_COLORS = {"TOP": (40, 110, 255), "BOTTOM": (20, 170, 80), "SHOES": (150, 70
 
 def _base(outfits_dir: Path, raw_dir: Path, template: spec.Template) -> Image.Image:
     slot = spec.SLOTS[template.slot]
-    path = outfits_dir / spec.BODY_FOLDER / f"{template.gender}_{template.slot}.png"
+    import json
+
+    name = f"{template.gender}_{template.slot}"
+    index = outfits_dir / "index.json"
+    shared = json.loads(index.read_text(encoding="utf-8")).get("body", {}).get("shared", {}) if index.is_file() else {}
+    path = outfits_dir / spec.BODY_FOLDER / f"{shared.get(name, name)}{spec.EXTENSION}"
     if path.is_file():
         return Image.open(path).convert("RGBA")
     embedded = scene(raw_dir, template.riv).asset_bytes.get(slot.asset)

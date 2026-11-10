@@ -67,10 +67,10 @@ def _shift(mask: Image.Image, dy: int) -> Image.Image:
     return shifted
 
 
-def _grow_into(own: Image.Image, other: Image.Image, dy_sign: int) -> Image.Image:
-    """[own]을 세로로 OVERLAP px 늘린 띠 가운데 [other] 칸에 들어가는 부분."""
+def _grow_into(own: Image.Image, other: Image.Image, dy_sign: int, size: int = spec.OVERLAP) -> Image.Image:
+    """[own]을 세로로 [size] px 늘린 띠 가운데 [other] 칸에 들어가는 부분."""
     grown = own
-    for step in range(1, spec.OVERLAP + 1):
+    for step in range(1, size + 1):
         grown = ImageChops.lighter(grown, _shift(own, step * dy_sign))
     return ImageChops.multiply(grown, other)
 
@@ -87,7 +87,8 @@ def allowed(raw_dir: Path, template: spec.Template, part: str) -> Image.Image:
     for other in spec.OVERLAP_DOWN[part]:
         area = ImageChops.lighter(area, _grow_into(zones[part], zones[other], 1))
     for other in spec.OVERLAP_UP[part]:
-        area = ImageChops.lighter(area, _grow_into(zones[part], zones[other], -1))
+        size = spec.WAIST_OVERLAP if (part, other) == ("BOTTOM", "TOP") else spec.OVERLAP
+        area = ImageChops.lighter(area, _grow_into(zones[part], zones[other], -1, size))
     return ImageChops.multiply(area, uv)
 
 

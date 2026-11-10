@@ -1,6 +1,6 @@
-"""원본 → 정렬·잘라내기 → assets/outfits/<assetKey>/ + shop.png + index.json (5.2, D-성-113, D-성-114).
+"""원본 → 정렬·잘라내기 → assets/outfits/<assetKey>/ + shop.webp + index.json (5.2, D-성-113, D-성-114).
 
-원본 폴더 하나 = 묶음 하나: `<원본>/<assetKey>/{g}_{slot}{b}.png`. 크기가 슬롯의 정수배(예: 2배로 그린 그림)면 줄인다.
+원본 폴더 하나 = 묶음 하나: `<원본>/<assetKey>/{g}_{slot}{b}.png`(또는 .webp). 결과는 무손실 WebP. 크기가 슬롯의 정수배(예: 2배로 그린 그림)면 줄인다.
 `extract`는 몸 전체로 그린 그림(맨몸 위에 옷을 입힌 아틀라스)에서 맨몸과 다른 픽셀만 의상 레이어로 뽑는다.
 """
 
@@ -110,6 +110,78 @@ def _fill_holes(mask: Image.Image) -> Image.Image:
     return Image.fromarray(np.where(outside, 0, 255).astype(np.uint8), "L")
 
 
+MIN_PIECE = 40  # 이보다 작은 옷 조각(떨어진 점·외곽선 부스러기)은 버린다
+
+
+def _components(mask: np.ndarray) -> list[list[int]]:
+    """4방향으로 이은 덩어리(평탄화한 픽셀 번호 목록)."""
+    from collections import deque
+
+    _, width = mask.shape
+    flat = mask.reshape(-1)
+    seen = np.zeros_like(flat)
+    pieces = []
+    for start in np.flatnonzero(flat):
+        if seen[start]:
+            continue
+        piece = [int(start)]
+        seen[start] = True
+        queue = deque([int(start)])
+        while queue:
+            i = queue.popleft()
+            x = i % width
+            for n in (i - 1 if x > 0 else -1, i + 1 if x < width - 1 else -1, i - width, i + width):
+                if 0 <= n < flat.size and flat[n] and not seen[n]:
+                    seen[n] = True
+                    piece.append(n)
+                    queue.append(n)
+        pieces.append(piece)
+    return pieces
+
+
+def drop_specks(mask: np.ndarray, minimum: int = MIN_PIECE) -> np.ndarray:
+    """4방향으로 이은 덩어리 가운데 [minimum]픽셀 미만을 지운다."""
+    from collections import deque
+
+    height, width = mask.shape
+    flat = mask.reshape(-1).copy()
+    seen = np.zeros_like(flat)
+    for start in np.flatnonzero(flat):
+        if seen[start]:
+            continue
+        piece = [start]
+        seen[start] = True
+        queue = deque([start])
+        while queue:
+            i = queue.popleft()
+            x = i % width
+            for n in (i - 1 if x > 0 else -1, i + 1 if x < width - 1 else -1, i - width, i + width):
+                if 0 <= n < flat.size and flat[n] and not seen[n]:
+                    seen[n] = True
+                    piece.append(n)
+                    queue.append(n)
+        if len(piece) < minimum:
+            flat[piece] = False
+    return flat.reshape(height, width)
+
+
+SHIFT_TOLERANCE = (
+    2  # 맨몸과 비교할 때 허용하는 어긋남(px). 그림 도구가 1~2px 옮겨 그린 맨몸 외곽선이 옷으로 딸려 오지 않게
+)
+
+
+def _shift_tolerant_diff(a: np.ndarray, b: np.ndarray, radius: int) -> np.ndarray:
+    """픽셀마다 [b]를 ±[radius]px 옮긴 것 가운데 가장 가까운 색과의 차이(RGB 합)."""
+    height, width = a.shape[:2]
+    best = np.full((height, width), 10**6, dtype=np.int64)
+    padded = np.pad(b[..., :3], ((radius, radius), (radius, radius), (0, 0)), mode="edge")
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            shifted = padded[radius + dy : radius + dy + height, radius + dx : radius + dx + width]
+            best = np.minimum(best, np.abs(a[..., :3] - shifted).sum(axis=2))
+    return best
+
+
 def extract(
     dressed: Image.Image,
     body: Image.Image | None,
@@ -119,10 +191,12 @@ def extract(
     own: Image.Image | None = None,
     skin_area: Image.Image | None = None,
     foreign: Image.Image | None = None,
+    exact_body: bool = False,
+    shift: int = SHIFT_TOLERANCE,
 ) -> Image.Image:
     """맨몸 위에 옷을 그린 그림([dressed])에서 옷 픽셀만 남긴다. 허용 영역 밖은 버린다.
 
-    옷 = 불투명하고, 맨몸 피부색이 아니고, 맨몸([body])과 색이 다르거나 맨몸이 비어 있거나 맨몸이 속옷(피부색 아님)인 곳.
+    옷 = 불투명하고, 맨몸 피부색이 아니고, 맨몸([body])과 색이 다르거나(±2px 어긋남 허용) 맨몸이 비어 있거나 맨몸이 속옷(연회색)인 곳.
     [reference](그림 도구에 준 원래 아틀라스)와 [own](이 부위 칸)을 주면, 겹침 띠(허용 영역 중 이 부위 칸 밖)에서는 원래 그림과 달라진
     픽셀만 옷으로 본다(다른 부위 옷이 겹침 띠로 딸려 오지 않게). [skin_area]를 주면 피부 판정은 그 안(맨몸이 보일 수 있는 곳, 예: 긴소매의
     목·손)에서만 하고 밖의 불투명 픽셀은 모두 옷이다(크림·회색처럼 피부와 비슷한 옷 색). [foreign]은 원래 그림에서 다른 부위 옷이
@@ -134,8 +208,20 @@ def extract(
     raw = inside & ~_skin_like(a[..., :3])
     if body is not None:
         b = np.array(body.convert("RGBA")).astype(np.int32)
-        diff = np.abs(a[..., :3] - b[..., :3]).sum(axis=2)
-        raw &= (diff > threshold) | (b[..., 3] == 0) | ~_skin_like(b[..., :3])
+        diff = _shift_tolerant_diff(a, b, shift)
+        if exact_body:
+            # 기본 의상(승인 텍스처 그대로): 맨몸 바탕이 승인 피부를 그대로 옮겨 와 같은 자리 비교가 맞다
+            exact = np.abs(a[..., :3] - b[..., :3]).sum(axis=2)
+            # 맨몸 바탕에 승인 피부·팔 외곽선을 그대로 옮겨 두었으므로 같은 픽셀(외곽선 포함)은 옷이 아니다
+            raw &= (exact > threshold) | (b[..., 3] == 0)
+        else:
+            near_body = (
+                np.array(Image.fromarray(((b[..., 3] > 0) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5))) > 0
+            )
+            rgb = b[..., :3]
+            underwear = (b[..., 3] > 0) & ((rgb.max(axis=2) - rgb.min(axis=2)) < 28) & (rgb.min(axis=2) > 150)
+            # 옷 = 맨몸과 색이 다르거나(±2px 어긋남 허용), 맨몸이 없거나, 맨몸이 속옷(연회색)인 곳
+            raw &= (diff > threshold) | ~near_body | underwear
     if skin_area is not None:
         raw |= inside & ~(np.array(skin_area) > 0)
     if reference is not None and foreign is not None:
@@ -152,6 +238,15 @@ def extract(
     near = np.array(core.filter(ImageFilter.MaxFilter(9))) > 0
     keep = (np.array(core) > 0) | (raw & near)
     keep &= inside
+    if exact_body:
+        # 승인 기본 텍스처의 팔 외곽선(맨몸 바탕과 같은 그림)이 옷 레이어에 가는 선으로 딸려 오지 않게: 굵은 옷 덩어리에서 4px 밖의 가는 선을 뺀다
+        solid = (
+            Image.fromarray((keep * 255).astype(np.uint8))
+            .filter(ImageFilter.MinFilter(9))
+            .filter(ImageFilter.MaxFilter(9))
+        )
+        keep &= np.array(solid.filter(ImageFilter.MaxFilter(9))) > 0
+    keep = drop_specks(keep)
     out = dressed.convert("RGBA").copy()
     alpha = np.where(keep, np.array(out.getchannel("A")), 0).astype(np.uint8)
     out.putalpha(Image.fromarray(alpha, "L"))
@@ -173,6 +268,24 @@ def make_shop(stand: Image.Image) -> Image.Image:
     return canvas
 
 
+def _same_pixels(a: Path, b: Path) -> bool:
+    return a.is_file() and b.is_file() and np.array_equal(np.array(Image.open(a)), np.array(Image.open(b)))
+
+
+def share_genders(folder: Path, names: list[str]) -> dict[str, str]:
+    """남녀 같은 내용의 파일은 남자 쪽을 지우고 여자 파일을 함께 쓴다(이름 → 실제 파일 이름)."""
+    shared = {}
+    for name in names:
+        if not name.startswith("male_"):
+            continue
+        female = "female_" + name.removeprefix("male_")
+        male_path, female_path = folder / f"{name}{spec.EXTENSION}", folder / f"{female}{spec.EXTENSION}"
+        if _same_pixels(male_path, female_path):
+            male_path.unlink()
+            shared[name] = female
+    return shared
+
+
 def build_bundle(
     source: Path,
     outfits_dir: Path,
@@ -180,39 +293,100 @@ def build_bundle(
     asset_key: str,
     male_top_surface: int | None = None,
 ) -> tuple[dict, list[Problem]]:
-    """원본 폴더 [source]의 레이어를 규격에 맞춰 [outfits_dir]/<assetKey>/에 쓴다. index 항목과 검사 결과를 돌려준다."""
+    """원본 폴더 [source]의 레이어를 규격에 맞춰 [outfits_dir]/<assetKey>/에 무손실 WebP로 쓴다. index 항목과 검사 결과를 돌려준다."""
     part = spec.part_of_key(asset_key)
     surface = male_top_surface or spec.default_male_top_surface(asset_key)
     target = outfits_dir / asset_key
     target.mkdir(parents=True, exist_ok=True)
-    for old in target.glob("*.png"):
+    for old in list(target.glob("*.png")) + list(target.glob("*.webp")):
         old.unlink()
     overrides = []
-    for path in sorted(source.glob("*.png")):
-        match = spec.FILE_PATTERN.match(path.name)
+    names = []
+    for path in sorted(source.iterdir()):
+        match = spec.SOURCE_PATTERN.match(path.name)
         if not match or match.group(2) not in spec.PART_SLOTS[part]:
             continue
+        name = path.name.rsplit(".", 1)[0]
         template = template_for(path.name, part, surface)
         slot = spec.SLOTS[spec.TEMPLATES[template].slot]
-        layer = to_slot(Image.open(path), slot)
-        allowed = load_mask(masks_dir, template, part)
-        layer = clip(layer, allowed)
-        layer.save(target / path.name, optimize=True)
+        layer = clip(to_slot(Image.open(path), slot), load_mask(masks_dir, template, part))
+        spec.save_webp(layer, target / f"{name}{spec.EXTENSION}")
+        names.append(name)
         if match.group(3):
-            overrides.append(path.name.removesuffix(".png"))
-    stand = target / "female_stand.png"
+            overrides.append(name)
+    stand = target / f"female_stand{spec.EXTENSION}"
     if stand.is_file():
-        make_shop(Image.open(stand)).save(target / spec.SHOP_FILE, optimize=True)
+        spec.save_webp(make_shop(Image.open(stand).convert("RGBA")), target / spec.SHOP_FILE)
     entry: dict = {"assetKey": asset_key, "part": part}
     if part == "TOP":
         entry["maleTopSurface"] = surface
     entry["bodyOverrides"] = overrides
+    shared = share_genders(target, names)
+    if shared:
+        entry["shared"] = shared
     return entry, check_bundle(outfits_dir, entry, masks_dir)
 
 
-def update_index(outfits_dir: Path, entry: dict) -> None:
+def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
+    """상의 자르기 칸([임시:D-성-156], 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위를 뺀 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
+    조각을 뺀 전체, 달리기 팔은 전체(소매 끝 아래는 팔 띠)."""
+    from outfit_pipeline.masks import stand_zones
+
+    slot = spec.SLOTS[slot_name]
+    if slot_name == "stand":
+        zones = stand_zones(raw_dir)
+        area = ImageChops.subtract(zones["TOP"], zones["HANDS"])
+        area.paste(0, spec.NECK_CHEST)
+        area.paste(0, spec.NECK_TOP)
+        array = np.array(area)
+        for box, value in ((spec.STAND_LEFT_ARM, spec.CUT_LEFT_ARM), (spec.STAND_RIGHT_ARM, spec.CUT_RIGHT_ARM)):
+            x0, y0, x1, y1 = box
+            region = array[y0:y1, x0:x1]
+            region[region > 0] = value
+        return Image.fromarray(array, "L")
+    area = Image.new("L", (slot.width, slot.height), spec.CUT_ALL if slot_name == "run_body" else spec.CUT_TORSO)
+    if slot_name == "run_body":
+        area.paste(0, spec.RUN_NECK)
+    if slot_name == "run_arm":
+        area.paste(spec.CUT_LEFT_ARM, spec.RUN_ARM_FOREARM)
+    return area
+
+
+def build_body(source: Path, outfits_dir: Path, raw_dir: Path) -> dict:
+    """맨몸 바탕(원본 `<source>/{g}_{slot}.png|webp`)과 상의 자르기 칸을 assets/outfits/body/에 쓰고, 남녀 같은 파일은 함께 쓴다."""
+    folder = outfits_dir / spec.BODY_FOLDER
+    folder.mkdir(parents=True, exist_ok=True)
+    for old in list(folder.glob("*.png")) + list(folder.glob("*.webp")):
+        old.unlink()
+    names = []
+    for gender in spec.GENDERS:
+        for slot_name in spec.BODY_SLOTS:
+            src = next(
+                p for p in (source / f"{gender}_{slot_name}.png", source / f"{gender}_{slot_name}.webp") if p.is_file()
+            )
+            image = to_slot(Image.open(src), spec.SLOTS[slot_name])
+            array = np.array(image)
+            array[array[..., 3] == 0] = 0
+            spec.save_webp(Image.fromarray(array, "RGBA"), folder / f"{gender}_{slot_name}{spec.EXTENSION}")
+            names.append(f"{gender}_{slot_name}")
+        for slot_name in spec.CUT_SLOTS:
+            area = cut_area(raw_dir, slot_name)
+            mask = Image.new("RGBA", area.size, (0, 0, 0, 0))
+            mask.putalpha(area)
+            spec.save_webp(mask, folder / f"{gender}_{slot_name}_cut{spec.EXTENSION}")
+            names.append(f"{gender}_{slot_name}_cut")
+    return share_genders(folder, names)
+
+
+def update_index(outfits_dir: Path, entry: dict | None = None, body_shared: dict[str, str] | None = None) -> None:
     path = outfits_dir / "index.json"
-    index = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"version": 1, "outfits": []}
+    index = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"version": 2, "outfits": []}
+    index["version"] = 2
+    if body_shared is not None:
+        index["body"] = {"shared": body_shared}
+    if entry is None:
+        path.write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        return
     outfits = [e for e in index["outfits"] if e["assetKey"] != entry["assetKey"]] + [entry]
     order = {key: i for i, key in enumerate(k for part in spec.PARTS for k in spec.LEGACY_KEYS[part])}
     outfits.sort(key=lambda e: (order.get(e["assetKey"], len(order)), e["assetKey"]))

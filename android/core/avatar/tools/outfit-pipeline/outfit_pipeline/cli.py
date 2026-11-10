@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from outfit_pipeline import spec
-from outfit_pipeline.build import build_bundle, update_index
+from outfit_pipeline.build import build_body, build_bundle, update_index
 from outfit_pipeline.check import check_all
 from outfit_pipeline.masks import write_masks
 from outfit_pipeline.templates import write_templates
@@ -29,8 +29,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("uv-mask", help="riv 메시 UV로 허용 영역 마스크를 만든다")
     sub.add_parser("templates", help="슬롯 템플릿 11장을 만든다")
     build = sub.add_parser("build", help="원본 폴더를 규격 묶음으로 옮긴다")
-    build.add_argument("source", type=Path, help="원본 폴더(<source>/<assetKey>/*.png)")
+    build.add_argument("source", type=Path, help="원본 폴더(<source>/<assetKey>/*.png|webp)")
     build.add_argument("keys", nargs="*", help="옮길 assetKey(없으면 전부)")
+    body = sub.add_parser("body", help="맨몸 바탕 원본 폴더를 body/(무손실 WebP)와 상의 자르기 칸으로 옮긴다")
+    body.add_argument("source", type=Path, help="원본 폴더(<source>/{g}_{stand|run_body|run_arm|run_leg}.png)")
     sub.add_parser("check", help="assets/outfits 전체 규격 검사(5.5)")
     args = parser.parse_args(argv)
 
@@ -41,6 +43,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "templates":
         for path in write_templates(args.outfits, args.raw, TEMPLATES):
             print(path.name)
+        return 0
+    if args.command == "body":
+        shared = build_body(args.source, args.outfits, args.raw)
+        update_index(args.outfits, body_shared=shared)
+        print(f"body: {len(shared)} shared")
         return 0
     if args.command == "build":
         keys = args.keys or sorted(p.name for p in args.source.iterdir() if p.is_dir())

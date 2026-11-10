@@ -35,8 +35,11 @@ PART_SLOTS: dict[str, tuple[str, ...]] = {
 }
 
 BODY_SUFFIXES = ("", "_b1", "_b2")
-FILE_PATTERN = re.compile(r"^(female|male)_(stand|run_body|run_arm|run_leg|run_shoe)(_b1|_b2)?\.png$")
-SHOP_FILE = "shop.png"
+# 자산 파일은 무손실 WebP다(APK 크기, 조정자 결정 2026-11-10). 원본(build 입력)은 PNG도 받는다.
+EXTENSION = ".webp"
+FILE_PATTERN = re.compile(r"^(female|male)_(stand|run_body|run_arm|run_leg|run_shoe)(_b1|_b2)?\.webp$")
+SOURCE_PATTERN = re.compile(r"^(female|male)_(stand|run_body|run_arm|run_leg|run_shoe)(_b1|_b2)?\.(png|webp)$")
+SHOP_FILE = "shop.webp"
 SHOP_SIZE = 512
 SHOP_LONG_SIDE = 440  # 파이프라인이 맞추는 값
 SHOP_LONG_SIDE_RANGE = (420, 460)  # 검사 허용(5.5 5번)
@@ -44,6 +47,8 @@ SHOP_CENTER_TOLERANCE = 8
 MIN_COVERAGE = 0.01  # 빈 그림 거부(5.5 4번)
 MAX_BUNDLE_BYTES = 1_572_864  # 1.5MB(5.5 7번)
 OVERLAP = 8  # 겹침 띠(512 기준, 5.3)
+# 하의 허리는 상의 밑단 아래로 들어가야 한다. 서기 아틀라스의 실제 허리선(y 약 300)이 상의 칸 경계(y 319)보다 높아 하의는 위로 24px([임시:D-성-158])
+WAIST_OVERLAP = 24
 
 
 @dataclass(frozen=True)
@@ -98,6 +103,21 @@ RUN_SLOT_PART = {"run_body": "TOP", "run_arm": "TOP", "run_leg": "BOTTOM", "run_
 
 # 맨몸 바탕(5.3): 신발 슬롯을 뺀 서기 1 + 달리기 3, 남녀 각각.
 BODY_SLOTS = ("stand", "run_body", "run_arm", "run_leg")
+CUT_SLOTS = ("stand", "run_body", "run_arm")  # 상의 자르기 칸이 있는 슬롯([임시:D-성-156])
+NECK_CHEST = (196, 0, 317, 110)  # 서기 아틀라스에서 자르지 않는 목·가슴 위(x0, y0, x1, y1)
+NECK_TOP = (
+    176,
+    0,
+    337,
+    14,
+)  # 맨 위 줄 목 둘레(머리 아래라 보이지 않고, 깃 옆 조각을 자르면 머리와 몸 사이가 비어 보인다)
+RUN_NECK = (100, 0, 200, 40)  # 달리기 몸통의 목 조각
+# 자르기 칸의 팔 띠(알파 값). 상의가 그 팔 띠 맨몸을 60% 넘게 덮을 때(긴소매)만 띠 안을 자른다. 나머지 칸(몸통·어깨)은 255.
+CUT_TORSO, CUT_LEFT_ARM, CUT_RIGHT_ARM = 255, 200, 160
+CUT_ALL = 240  # 띠 판정 없이 상의 밖을 모두 지우는 칸(달리기 몸통: 맨몸이 보일 곳이 목 조각뿐)
+STAND_LEFT_ARM = (0, 185, 145, 302)  # 서기 아틀라스 왼팔(가장 긴 반팔 소매 끝 아래, x0, y0, x1, y1)
+STAND_RIGHT_ARM = (367, 185, 512, 302)
+RUN_ARM_FOREARM = (0, 300, 256, 1024)  # 달리기 팔의 기본 반팔 소매 끝(y 약 301) 아래
 BODY_FOLDER = "body"  # aapt는 _로 시작하는 assets 폴더를 APK에서 뺀다(<dir>_*). 설계의 _body 대신 body
 
 # 기존 21가지(5.7): 부위별 번호 0..6 → 묶음 폴더. 상의 maleTopSurface는 0·1·2 → 1, 3..6 → 2.
@@ -147,3 +167,8 @@ def default_male_top_surface(asset_key: str) -> int:
 
 def stand_template(gender: str, male_top_surface: int) -> str:
     return "female_stand" if gender == "female" else f"male_stand_s{male_top_surface}"
+
+
+def save_webp(image, path) -> None:
+    """무손실 WebP로 쓴다(알파 0 픽셀의 색은 0으로 비운 뒤)."""
+    image.save(path, "WEBP", lossless=True, quality=100, method=6, exact=False)
