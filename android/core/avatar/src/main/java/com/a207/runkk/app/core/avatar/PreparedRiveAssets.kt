@@ -39,6 +39,8 @@ internal class PreparedRiveAssets(
         /** 막는 읽기다. IO 스레드에서 부른다. */
         fun read(context: Context, gender: AvatarGender): PreparedRiveAssets {
             val resources = context.resources
+            // 의상 묶음 목록·PNG(assets/outfits)를 합성 스레드가 읽게 한 번 연다(D-성-110).
+            OutfitLibrary.install(context.applicationContext.assets)
             fun raw(id: Int): ByteArray = resources.openRawResource(id).use { it.readBytes() }
             val scenes = EnumMap<AvatarMotion, ByteArray>(AvatarMotion::class.java)
             // 검수용 베이지 바탕 도형은 투명하게 해 카드 배경이 보이게 하고, 바닥 그림자는 앱이 그린다(DV-성-3, D-성-107,
