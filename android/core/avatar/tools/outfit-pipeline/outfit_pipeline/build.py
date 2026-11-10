@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -297,9 +298,31 @@ def build_bundle(
     part = spec.part_of_key(asset_key)
     surface = male_top_surface or spec.default_male_top_surface(asset_key)
     target = outfits_dir / asset_key
-    target.mkdir(parents=True, exist_ok=True)
-    for old in list(target.glob("*.png")) + list(target.glob("*.webp")):
-        old.unlink()
+    # 새 결과는 임시 폴더에 다 쓴 뒤에 바꿔 넣는다(중간에 실패하면 이전 묶음이 그대로 남는다).
+    staging = outfits_dir / f".{asset_key}.building"
+    if staging.exists():
+        shutil.rmtree(staging)
+    staging.mkdir(parents=True)
+    try:
+        entry = _write_bundle(source, staging, masks_dir, asset_key, part, surface)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    _swap(staging, target)
+    return entry, check_bundle(outfits_dir, entry, masks_dir)
+
+
+def _swap(staging: Path, target: Path) -> None:
+    """[staging]을 [target]으로 바꿔 넣는다. 그림이 아닌 이전 파일(메모 등)은 옮겨 남긴다."""
+    if target.exists():
+        for old in target.iterdir():
+            if old.suffix not in (".png", spec.EXTENSION) and not (staging / old.name).exists():
+                shutil.move(str(old), staging / old.name)
+        shutil.rmtree(target)
+    staging.rename(target)
+
+
+def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, part: str, surface: int) -> dict:
     overrides = []
     names = []
     for path in sorted(source.iterdir()):
@@ -324,7 +347,7 @@ def build_bundle(
     shared = share_genders(target, names)
     if shared:
         entry["shared"] = shared
-    return entry, check_bundle(outfits_dir, entry, masks_dir)
+    return entry
 
 
 def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:

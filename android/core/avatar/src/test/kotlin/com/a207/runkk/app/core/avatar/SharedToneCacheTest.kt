@@ -33,8 +33,8 @@ class SharedToneCacheTest {
         cache.put(AvatarGender.MALE, AvatarMotion.RUN, null, look, mixed())
 
         val stand = checkNotNull(cache.entry(AvatarGender.MALE, AvatarMotion.STAND)).cache
-        assertEquals(setOf(BodySkinLayers.STANDING_BODY, MaleSelectedBody.ASSET), stand.skinRenders.keys)
-        assertEquals(setOf(BodySkinLayers.STANDING_BODY, BodySkinLayers.STANDING_BODY_LEGACY), stand.skinBases.keys)
+        assertEquals(setOf(BodySkinLayers.STANDING_BODY), stand.skinRenders.keys)
+        assertEquals(setOf(BodySkinLayers.STANDING_BODY), stand.skinBases.keys)
         assertNotNull(stand.face)
         assertNotNull(stand.frontOverlay)
         assertNull(stand.runOverlay)
@@ -73,7 +73,7 @@ class SharedToneCacheTest {
 
         val seed = cache.seed(AvatarGender.FEMALE, head)
         assertEquals(
-            setOf(BodySkinLayers.STANDING_BODY, BodySkinLayers.STANDING_BODY_LEGACY, "side_leg_skin"),
+            setOf(BodySkinLayers.STANDING_BODY, "side_leg_skin"),
             seed.skinBases.keys
         )
         assertEquals(emptyMap(), cache.seed(AvatarGender.FEMALE, head()).skinBases, "다른 머리")
@@ -81,10 +81,35 @@ class SharedToneCacheTest {
     }
 
     @Test
+    fun `캐시는 생성 머리를 붙잡지 않고, 머리가 사라진 자리는 내장 머리(null)와도 맞지 않는다`() {
+        val probe = putWithDroppedHead()
+        repeat(GC_TRIES) {
+            if (probe.get() == null) return@repeat
+            System.gc()
+            Thread.sleep(10)
+        }
+        assertNull(probe.get(), "캐시가 머리를 강하게 잡고 있다")
+        assertNull(checkNotNull(cache.entry(AvatarGender.FEMALE, AvatarMotion.STAND)).head)
+        assertNull(cache.hit(AvatarGender.FEMALE, setOf(AvatarMotion.STAND), null, look), "사라진 머리 ≠ 내장 머리")
+        assertEquals(emptyMap(), cache.seed(AvatarGender.FEMALE, null).skinBases)
+    }
+
+    /** 머리를 넣고 그 머리의 약한 참조만 돌려준다(이 함수 밖에서는 머리를 붙잡지 않는다). */
+    private fun putWithDroppedHead(): java.lang.ref.WeakReference<GeneratedHeadLayers> {
+        val head = head()
+        cache.put(AvatarGender.FEMALE, AvatarMotion.STAND, head, look, mixed())
+        return java.lang.ref.WeakReference(head)
+    }
+
+    @Test
     fun `비우면 모두 지운다`() {
         cache.put(AvatarGender.FEMALE, AvatarMotion.STAND, null, look, mixed())
         cache.clear()
         assertEquals(0, cache.size)
+    }
+
+    private companion object {
+        const val GC_TRIES = 20
     }
 
     private fun head() = GeneratedHeadLayers(emptyMap(), skinColor = 0)
@@ -97,12 +122,10 @@ class SharedToneCacheTest {
         return AvatarToneCache(
             skinBases = mapOf(
                 BodySkinLayers.STANDING_BODY to layers,
-                BodySkinLayers.STANDING_BODY_LEGACY to layers,
                 "side_leg_skin" to layers
             ),
             skinRenders = mapOf(
                 BodySkinLayers.STANDING_BODY to skin(),
-                MaleSelectedBody.ASSET to skin(),
                 "side_head" to skin(),
                 "side_leg_skin" to skin()
             ),

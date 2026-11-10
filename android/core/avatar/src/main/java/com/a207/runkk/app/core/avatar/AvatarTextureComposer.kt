@@ -13,54 +13,14 @@ internal object AvatarTextureComposer {
     private const val SIDE_HEAD = "side_head"
 
     fun compose(request: AvatarToneRequest, cache: AvatarToneCache): PreparedAvatarTone {
-        // 의상 자리가 있을 때만 목록이 필요하다(정면 얼굴만 합성하는 요청은 목록 없이 돈다).
-        val catalog by lazy { checkNotNull(OutfitLibrary.catalog) { "outfit index missing" } }
         val skinBases = mutableMapOf<String, ByteArray>()
-        val skinRenders = request.skinAssets.keys.mapNotNull { name ->
-            val slot = OutfitSlot.of(name) ?: return@mapNotNull null
-            val key = SkinRenderKey.of(name, request.amount, request.outfit, request.shape)
-            val rendered = cache.skinRenders[name]?.takeIf { it.key == key } ?: run {
-                // 캐시 키는 riv 자리 이름(정면·달리기 캐시 나눔 [SharedToneCache]과 같은 이름).
-                val body = catalog.bodyFile(request.gender, slot)?.let { path ->
-                    cache.skinBases[name] ?: skinBases.getOrPut(name) { bodyBase(path, request.generatedSkinColor) }
-                }
-                val layers = OutfitLayerComposer.layers(
-                    catalog,
-                    slot,
-                    request.gender,
-                    request.shape,
-                    request.outfit
-                ) { OutfitLibrary.read(it) != null }
-                AvatarToneCache.RenderedSkin(
-                    key,
-                    OutfitLayerComposer.compose(
-                        body,
-                        layers.map {
-                            it.part to
-                                checkNotNull(OutfitLibrary.read(it.path)) { "outfit layer missing: ${it.path}" }
-                        },
-                        request.amount,
-                        slot.width,
-                        slot.height,
-                        cut = catalog.cutFile(request.gender, slot)?.let(OutfitLibrary::read)
-                    )
-                )
-            }
-            name to rendered
-        }.toMap().toMutableMap()
+        val skinRenders = renderSlots(request, cache, skinBases)
         request.sideLayers?.let { layers ->
             val key = SkinRenderKey(request.amount)
             skinRenders[SIDE_HEAD] = cache.skinRenders[SIDE_HEAD]?.takeIf { it.key == key }
                 ?: AvatarToneCache.RenderedSkin(key, AvatarImages.composeSideHead(layers, request.amount))
         }
-        val face = request.face?.let { original ->
-            cache.face?.takeIf { it.amount == request.amount }
-                ?: AvatarToneCache.RenderedFace(
-                    request.amount,
-                    AvatarImages.faceForRunningAmount(original, request.amount),
-                    request.hair?.let { AvatarImages.hairForRunningAmount(it, original, request.amount) }
-                )
-        }
+        val face = request.face?.let { original -> face(original, request, cache) }
         return PreparedAvatarTone(
             request = request,
             face = face,
@@ -72,6 +32,72 @@ internal object AvatarTextureComposer {
             runOverlay = request.runFullness?.let { overlay(it, cache.runOverlay, request) }
         )
     }
+
+    /**
+     * 의상 자리마다 합성한 몸 텍스처(riv 자리 이름 → 결과). 같은 슬롯·같은 키(달리기 몸통 세 자리)는 한 번만 합성해 같은 결과를
+     * 나눠 쓴다. 캐시 키는 riv 자리 이름이다(정면·달리기 캐시 나눔 [SharedToneCache]과 같은 이름).
+     */
+    private fun renderSlots(
+        request: AvatarToneRequest,
+        cache: AvatarToneCache,
+        skinBases: MutableMap<String, ByteArray>
+    ): MutableMap<String, AvatarToneCache.RenderedSkin> {
+        // 의상 자리가 있을 때만 목록이 필요하다(정면 얼굴만 합성하는 요청은 목록 없이 돈다).
+        val catalog by lazy { checkNotNull(OutfitLibrary.catalog) { "outfit index missing" } }
+        val bySlot = mutableMapOf<Pair<OutfitSlot, SkinRenderKey>, Pair<ByteArray?, AvatarToneCache.RenderedSkin>>()
+        val renders = mutableMapOf<String, AvatarToneCache.RenderedSkin>()
+        for (name in request.skinAssets.keys) {
+            val slot = OutfitSlot.of(name) ?: continue
+            val key = SkinRenderKey.of(name, request.amount, request.outfit, request.shape)
+            val (base, rendered) = bySlot.getOrPut(slot to key) {
+                cache.skinRenders[name]?.takeIf { it.key == key }?.let { null to it } ?: run {
+                    val base = catalog.bodyFile(request.gender, slot)?.let { path ->
+                        cache.skinBases[name] ?: bodyBase(path, request.generatedSkinColor)
+                    }
+                    base to renderSlot(catalog, slot, key, base, request)
+                }
+            }
+            base?.let { skinBases[name] = it }
+            renders[name] = rendered
+        }
+        return renders
+    }
+
+    private fun renderSlot(
+        catalog: OutfitCatalog,
+        slot: OutfitSlot,
+        key: SkinRenderKey,
+        body: ByteArray?,
+        request: AvatarToneRequest
+    ): AvatarToneCache.RenderedSkin {
+        val layers = OutfitLayerComposer.layers(catalog, slot, request.gender, request.shape, request.outfit) {
+            OutfitLibrary.exists(it)
+        }
+        val bytes = OutfitLayerComposer.compose(
+            body,
+            layers.map { it.part to checkNotNull(OutfitLibrary.read(it.path)) { "outfit layer missing: ${it.path}" } },
+            request.amount,
+            slot.width,
+            slot.height,
+            cut = catalog.cutFile(request.gender, slot)?.let(OutfitLibrary::read)
+        ) { part ->
+            catalog.bundle(part, OutfitCatalog.baseKey(part))
+                ?.file(request.gender, slot, request.shape)
+                ?.let(OutfitLibrary::read)
+        }
+        return AvatarToneCache.RenderedSkin(key, bytes)
+    }
+
+    private fun face(
+        original: ByteArray,
+        request: AvatarToneRequest,
+        cache: AvatarToneCache
+    ): AvatarToneCache.RenderedFace = cache.face?.takeIf { it.amount == request.amount }
+        ?: AvatarToneCache.RenderedFace(
+            request.amount,
+            AvatarImages.faceForRunningAmount(original, request.amount),
+            request.hair?.let { AvatarImages.hairForRunningAmount(it, original, request.amount) }
+        )
 
     /** 맨몸 바탕. 생성 머리면 몸 피부를 얼굴 피부색에 맞춘다. */
     private fun bodyBase(path: String, generatedSkinColor: Int?): ByteArray {

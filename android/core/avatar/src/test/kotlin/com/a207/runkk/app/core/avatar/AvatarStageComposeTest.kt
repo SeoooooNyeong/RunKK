@@ -1,5 +1,6 @@
 package com.a207.runkk.app.core.avatar
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -64,6 +65,27 @@ class AvatarStageComposeTest {
         compose.mainClock.advanceTimeBy(100)
         compose.onNodeWithTag(AVATAR_LOADING_TAG).assertExists()
         compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag(AVATAR_LOADING_TAG).assertDoesNotExist()
+    }
+
+    @Test
+    fun `페이드 중에 다시 준비 전으로 돌아가면 기다리지 않고 바로 불투명하게 보인다`() {
+        compose.mainClock.autoAdvance = false
+        var isReady by mutableStateOf(false)
+        val alpha = Animatable(1f)
+        compose.setContent { AvatarLoadingPlaceholder(isReady = isReady, color = Color.Gray, alpha = alpha) }
+
+        compose.mainClock.advanceTimeBy(150)
+        changeState { isReady = true }
+        compose.mainClock.advanceTimeBy(100)
+        assertTrue(alpha.value in 0.01f..0.99f, "페이드 중간: ${alpha.value}")
+        changeState { isReady = false }
+        compose.mainClock.advanceTimeBy(32)
+        compose.onNodeWithTag(AVATAR_LOADING_TAG).assertExists()
+        assertEquals(1f, alpha.value, "보이던 표시는 지연 없이 되돌린다")
+
+        changeState { isReady = true }
+        compose.mainClock.advanceTimeBy(300)
         compose.onNodeWithTag(AVATAR_LOADING_TAG).assertDoesNotExist()
     }
 

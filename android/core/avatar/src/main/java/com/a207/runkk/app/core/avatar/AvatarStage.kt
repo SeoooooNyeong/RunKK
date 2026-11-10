@@ -2,6 +2,7 @@ package com.a207.runkk.app.core.avatar
 
 import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -162,6 +163,7 @@ fun RiveAvatarStage(
                 mirrored = flip,
                 onReady = {
                     isReady = true
+                    isFailed = false // 앞서 실패했어도 그림이 보이면 로딩 표시 규칙으로 돌아온다
                     Timber.d("AvatarStage shown=%d ready=%d", shownAt, SystemClock.uptimeMillis())
                     currentOnReady()
                 }
@@ -176,16 +178,37 @@ fun RiveAvatarStage(
  */
 @Composable
 fun AvatarLoadingPlaceholder(isReady: Boolean, color: Color, modifier: Modifier = Modifier) {
+    AvatarLoadingPlaceholder(isReady, color, modifier, remember { Animatable(1f) })
+}
+
+/** [alpha]를 밖에서 받는 형태(시험이 페이드 값을 본다). */
+@Composable
+internal fun AvatarLoadingPlaceholder(
+    isReady: Boolean,
+    color: Color,
+    modifier: Modifier = Modifier,
+    alpha: Animatable<Float, AnimationVector1D>
+) {
     var isShown by remember { mutableStateOf(false) }
-    val alpha = remember { Animatable(1f) }
     LaunchedEffect(isReady) {
-        if (isReady) {
-            if (isShown) alpha.animateTo(0f, tween(LOADING_FADE_MILLIS))
-            isShown = false
-        } else {
-            delay(LOADING_SHOW_DELAY_MILLIS)
-            alpha.snapTo(1f)
-            isShown = true
+        when {
+            isReady && isShown -> try {
+                alpha.animateTo(0f, tween(LOADING_FADE_MILLIS))
+            } finally {
+                // 페이드가 끝났을 때만 거둔다. 중간에 취소되면(다시 준비 전) 다음 효과가 이어받는다.
+                if (alpha.value == 0f) isShown = false
+            }
+
+            isReady -> Unit
+
+            // 이미 보이던 표시(페이드가 취소됐다)는 기다리지 않고 바로 불투명하게 되돌린다.
+            isShown -> alpha.snapTo(1f)
+
+            else -> {
+                delay(LOADING_SHOW_DELAY_MILLIS)
+                alpha.snapTo(1f)
+                isShown = true
+            }
         }
     }
     if (isShown) {

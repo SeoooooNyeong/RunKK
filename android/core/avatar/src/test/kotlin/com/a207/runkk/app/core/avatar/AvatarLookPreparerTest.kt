@@ -82,8 +82,7 @@ class AvatarLookPreparerTest {
             embedded.getValue(BodySkinLayers.STANDING_BODY),
             request.skinAssets[BodySkinLayers.STANDING_BODY]
         )
-        assertContentEquals(embedded.getValue(MaleSelectedBody.ASSET), request.skinAssets[MaleSelectedBody.ASSET])
-        assertContentEquals(prepared.legacyStandingBody, request.skinAssets[BodySkinLayers.STANDING_BODY_LEGACY])
+        assertEquals(setOf(BodySkinLayers.STANDING_BODY), request.skinAssets.keys, "남자 내장 기본 옷 몸·앞 단계 몸은 합성하지 않는다")
         assertNull(request.runFullness)
         assertNull(request.sideLayers)
         assertNull(request.generatedSkinColor)

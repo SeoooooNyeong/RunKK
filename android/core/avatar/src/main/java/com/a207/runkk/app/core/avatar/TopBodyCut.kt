@@ -36,38 +36,53 @@ internal object TopBodyCut {
         for (i in 0 until size) {
             val band = area[i] ushr 24
             if (skin[i] ushr 24 == 0 || band < CUT_ALPHA || band in skipped || !outside[i]) continue
-            if (band == FULL_CUT_ALPHA) {
-                skin[i] = 0 // 달리기 몸통: 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다
-                continue
-            }
-            val t = nearestTop[i]
-            if (t < 0) continue
-            val x = i % width
-            val y = i / width
-            val tx = (t % width - x).toDouble()
-            val ty = (t / width - y).toDouble()
-            // 배경: 가장 가까운 빈 픽셀, 또는 텍스처 가장자리 너머(가장자리에 닿은 맨몸은 그 바깥이 배경이다)
-            val b = nearestBackground[i]
-            var bx = if (b >= 0) (b % width - x).toDouble() else Double.MAX_VALUE
-            var by = if (b >= 0) (b / width - y).toDouble() else 0.0
-            for ((ex, ey) in listOf(
-                -(x + 1.0) to 0.0,
-                (width - x).toDouble() to 0.0,
-                0.0 to -(y + 1.0),
-                0.0 to (height - y).toDouble()
-            )) {
-                if (hypot(ex, ey) < hypot(bx, by)) {
-                    bx = ex
-                    by = ey
-                }
-            }
-            val toTop = hypot(tx, ty)
-            val toBackground = hypot(bx, by)
-            if (toTop + toBackground > RIM_PX + 2) continue
-            val cosine = (tx * bx + ty * by) / (toTop * toBackground)
-            if (cosine < OPPOSITE) skin[i] = 0
+            // 달리기 몸통(240): 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다
+            if (band == FULL_CUT_ALPHA || isRim(i, nearestTop[i], nearestBackground[i], width, height)) skin[i] = 0
         }
         dropCrumbs(skin, top, area, outside, nearestTop, skipped, width, height)
+    }
+
+    /**
+     * [i]가 상의([t])와 배경([b], 없으면 -1) 사이에 낀 띠인가. 텍스처 가장자리 너머도 배경이다(가장자리에 닿은 맨몸은 그 바깥이
+     * 배경이다). 띠 = 거리 합 ≤ [RIM_PX] + 2, 두 방향 코사인 < [OPPOSITE].
+     */
+    private fun isRim(i: Int, t: Int, b: Int, width: Int, height: Int): Boolean {
+        if (t < 0) return false
+        val x = i % width
+        val y = i / width
+        val tx = (t % width - x).toDouble()
+        val ty = (t / width - y).toDouble()
+        // 가장 가까운 배경: 빈 픽셀과 네 가장자리 너머 가운데 가까운 것(할당 없이 차례로 견준다)
+        var bx = if (b >= 0) (b % width - x).toDouble() else Double.MAX_VALUE
+        var by = if (b >= 0) (b / width - y).toDouble() else 0.0
+        var best = hypot(bx, by)
+        val left = x + 1.0
+        val right = (width - x).toDouble()
+        val up = y + 1.0
+        val down = (height - y).toDouble()
+        if (left < best) {
+            best = left
+            bx = -left
+            by = 0.0
+        }
+        if (right < best) {
+            best = right
+            bx = right
+            by = 0.0
+        }
+        if (up < best) {
+            best = up
+            bx = 0.0
+            by = -up
+        }
+        if (down < best) {
+            best = down
+            bx = 0.0
+            by = down
+        }
+        val toTop = hypot(tx, ty)
+        if (toTop + best > RIM_PX + 2) return false
+        return (tx * bx + ty * by) / (toTop * best) < OPPOSITE
     }
 
     /**
@@ -93,25 +108,39 @@ internal object TopBodyCut {
         val queue = IntArray(size)
         for (start in 0 until size) {
             if (!exposed[start] || seen[start]) continue
-            var head = 0
-            var tail = 0
-            var near = true
-            seen[start] = true
-            queue[tail++] = start
-            while (head < tail) {
-                val i = queue[head++]
-                val t = nearestTop[i]
-                if (t < 0 || squared(i, t, width) > RIM_PX * RIM_PX) near = false
-                val x = i % width
-                if (x > 0) tail = visit(i - 1, exposed, seen, queue, tail)
-                if (x < width - 1) tail = visit(i + 1, exposed, seen, queue, tail)
-                if (i >= width) tail = visit(i - width, exposed, seen, queue, tail)
-                if (i < (height - 1) * width) tail = visit(i + width, exposed, seen, queue, tail)
+            val count = fill(start, exposed, seen, queue, width, height)
+            val near = (0 until count).all { k ->
+                val t = nearestTop[queue[k]]
+                t >= 0 && squared(queue[k], t, width) <= RIM_PX * RIM_PX
             }
-            if (near && tail <= CRUMB_PX) {
-                for (k in 0 until tail) skin[queue[k]] = 0
+            if (near && count <= CRUMB_PX) {
+                for (k in 0 until count) skin[queue[k]] = 0
             }
         }
+    }
+
+    /** [start]에서 [exposed]를 4방향으로 이은 덩어리를 [queue] 앞에 채우고 그 픽셀 수를 돌려준다. */
+    private fun fill(
+        start: Int,
+        exposed: BooleanArray,
+        seen: BooleanArray,
+        queue: IntArray,
+        width: Int,
+        height: Int
+    ): Int {
+        var head = 0
+        var tail = 0
+        seen[start] = true
+        queue[tail++] = start
+        while (head < tail) {
+            val i = queue[head++]
+            val x = i % width
+            if (x > 0) tail = visit(i - 1, exposed, seen, queue, tail)
+            if (x < width - 1) tail = visit(i + 1, exposed, seen, queue, tail)
+            if (i >= width) tail = visit(i - width, exposed, seen, queue, tail)
+            if (i < (height - 1) * width) tail = visit(i + width, exposed, seen, queue, tail)
+        }
+        return tail
     }
 
     private fun visit(index: Int, exposed: BooleanArray, seen: BooleanArray, queue: IntArray, tail: Int): Int {
@@ -127,7 +156,8 @@ internal object TopBodyCut {
         val covered = mutableMapOf<Int, Int>()
         for (i in area.indices) {
             val band = area[i] ushr 24
-            if (band < CUT_ALPHA || band == TORSO_ALPHA || skin[i] ushr 24 == 0) continue
+            // 몸통(255)과 모두 지우는 칸(240)은 팔 띠가 아니다(cut.py와 같다)
+            if (band < CUT_ALPHA || band == TORSO_ALPHA || band == FULL_CUT_ALPHA || skin[i] ushr 24 == 0) continue
             total[band] = (total[band] ?: 0) + 1
             if (top[i] ushr 24 != 0) covered[band] = (covered[band] ?: 0) + 1
         }
@@ -150,23 +180,26 @@ internal object TopBodyCut {
             val i = queue[head++]
             val x = i % width
             val y = i / width
-            val o = origin[i]
             for (dy in -1..1) {
                 for (dx in -1..1) {
                     val nx = x + dx
                     val ny = y + dy
                     if ((dx == 0 && dy == 0) || nx !in 0 until width || ny !in 0 until height) continue
-                    val n = ny * width + nx
-                    if (origin[n] < 0) {
-                        origin[n] = o
-                        queue[tail++] = n
-                    } else if (squared(n, o, width) < squared(n, origin[n], width)) {
-                        origin[n] = o
-                    }
+                    if (spread(ny * width + nx, origin[i], origin, width)) queue[tail++] = ny * width + nx
                 }
             }
         }
         return origin
+    }
+
+    /** 이웃 [n]에 원점 [o]를 넘긴다. 처음 닿았으면 true(큐에 넣는다), 이미 있으면 더 가까울 때만 바꾼다. */
+    private fun spread(n: Int, o: Int, origin: IntArray, width: Int): Boolean {
+        if (origin[n] < 0) {
+            origin[n] = o
+            return true
+        }
+        if (squared(n, o, width) < squared(n, origin[n], width)) origin[n] = o
+        return false
     }
 
     private fun squared(a: Int, b: Int, width: Int): Int {

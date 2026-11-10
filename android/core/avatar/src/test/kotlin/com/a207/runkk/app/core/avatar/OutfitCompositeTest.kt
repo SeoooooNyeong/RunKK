@@ -7,7 +7,9 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -339,6 +341,65 @@ class OutfitCompositeTest {
         assertTrue(cloth > 0, "$message 옷 픽셀")
         light.recycle()
         dark.recycle()
+    }
+
+    @Test
+    fun `달리기 몸통 세 자리는 같은 모습이면 한 번만 합성해 같은 결과를 나눠 쓴다`() {
+        val names = listOf("side_body_coral", "side_body_cream", "side_body_blue")
+        val request = AvatarToneRequest(
+            version = 1,
+            identity = 1,
+            gender = AvatarGender.MALE,
+            amount = 60,
+            outfit = AvatarOutfit(top = 4),
+            shape = AvatarBodyShape.BASE,
+            face = null,
+            hair = null,
+            frontFullness = null,
+            runFullness = null,
+            sideLayers = null,
+            skinAssets = names.associateWith { byteArrayOf() },
+            generatedSkinColor = null
+        )
+        val prepared = AvatarTextureComposer.compose(request, AvatarToneCache())
+        val first = prepared.skinRenders.getValue(names.first())
+        names.forEach { assertSame(first, prepared.skinRenders.getValue(it), it) }
+        names.forEach { assertSame(prepared.skinBases.getValue(names.first()), prepared.skinBases.getValue(it), it) }
+    }
+
+    @Test
+    fun `깨진 레이어는 그 부위 base_* 로 그리고 그것도 없으면 건너뛴다(전체 실패 없음)`() {
+        val slot = OutfitSlot.STAND
+        val gender = AvatarGender.FEMALE
+        val outfit = AvatarOutfit(top = 2, bottom = 2, shoes = 3)
+        val layers = layersOf(slot, gender, outfit)
+        val broken = layers.map { (part, bytes) -> part to if (part == OutfitPart.TOP) byteArrayOf(1, 2, 3) else bytes }
+        val baseTop = OutfitLibrary.read(
+            catalog.bundle(
+                OutfitPart.TOP,
+                OutfitCatalog.baseKey(OutfitPart.TOP)
+            )!!.file(gender, slot, AvatarBodyShape.BASE)
+        )!!
+        val expected = layers.map { (part, bytes) -> part to if (part == OutfitPart.TOP) baseTop else bytes }
+
+        val fallback = pixels(
+            OutfitLayerComposer.compose(null, broken, 0, slot.width, slot.height) { part ->
+                if (part == OutfitPart.TOP) baseTop else null
+            }
+        )
+        assertContentEquals(pixels(OutfitLayerComposer.compose(null, expected, 0, slot.width, slot.height)), fallback)
+
+        val skipped = pixels(OutfitLayerComposer.compose(null, broken, 0, slot.width, slot.height))
+        val withoutTop = layers.filter { it.first != OutfitPart.TOP }
+        assertContentEquals(pixels(OutfitLayerComposer.compose(null, withoutTop, 0, slot.width, slot.height)), skipped)
+    }
+
+    private fun pixels(bytes: ByteArray): IntArray {
+        val bitmap = decode(bytes)
+        return IntArray(bitmap.width * bitmap.height).also {
+            bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            bitmap.recycle()
+        }
     }
 
     private fun layersOf(slot: OutfitSlot, gender: AvatarGender, outfit: AvatarOutfit) =

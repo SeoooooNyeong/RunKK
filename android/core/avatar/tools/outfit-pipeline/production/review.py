@@ -91,20 +91,27 @@ def compose(index: dict, gender: str, slot: str, chosen: dict, amount: int) -> I
     return out
 
 
+def clear_work(work: Path, root: Path) -> None:
+    """검수 작업 폴더 [work]를 지운다. [root](--out) 안의 하위 폴더일 때만 지우고 아니면 ValueError(잘못된 경로로 다른 폴더를 지우지 않는다)."""
+    resolved, base = work.resolve(), root.resolve()
+    if resolved == base or base not in resolved.parents:
+        raise ValueError(f"작업 폴더는 {base} 안이어야 한다: {resolved}")
+    if resolved.exists():
+        shutil.rmtree(resolved)
+
+
 def render(
     rive: Path, rml: Path, scene: str, out: Path, textures: dict, amount: int, shape: int, surface: int, work: Path
 ) -> None:
     source, artboard = SCENES[scene]
-    if work.exists():
-        shutil.rmtree(work)
+    clear_work(work, out.parent)
     shutil.copytree(rml / source, work, ignore=shutil.ignore_patterns("build"))
     for slot, image in textures.items():
         for name in FILES[slot]:
             image.save(work / name)
-    if amount:
-        if scene.endswith("stand"):
-            tone(Image.open(work / "faceImage.png"), amount).save(work / "faceImage.png")
-        # 달리기 측면 머리는 Rive 원본에 얼굴·헤어가 합쳐진 한 장이라 얼굴만 골라 톤을 줄 수 없어 원본 그대로 둔다(앱은 얼굴 레이어에만 준다)
+    if amount and scene.endswith("stand"):
+        tone(Image.open(work / "faceImage.png"), amount).save(work / "faceImage.png")
+    # 달리기 측면 머리는 Rive 원본에 얼굴·헤어가 합쳐진 한 장이라 얼굴만 골라 톤을 줄 수 없어 원본 그대로 둔다(앱은 얼굴 레이어에만 준다)
     text = (work / "scene.rml").read_text(encoding="utf-8")
 
     def number(name: str, value: int) -> None:
