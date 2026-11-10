@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.SelfieFailure
 import com.a207.runkk.app.domain.avatar.SelfieJob
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -31,6 +32,8 @@ import kotlinx.coroutines.withContext
  * 셀카 얼굴은 서버가 비동기로 만든다(S15P31A207-276, 248): 접수(202, 작업 ID) → 만드는 중 → 상태 조회(간격을 늘려 가며) →
  * 완료면 결과를 받아 서버가 내 얼굴을 셀카 머리(head:)로 바꾸고 꾸미기로 돌아간다. 실패면 사유 문구를 보인다.
  * 화면을 떠나도 서버 작업은 계속되므로, 다시 들어오거나 앱을 다시 켜면 남긴 작업(AvatarRepository.pendingSelfieJobId)을 이어 조회한다.
+ * 실패로 끝난 작업은 기기에 남겨(lastSelfieFailure) 다시 들어와도 셀카 카드에 실패와 「다시 시도」를 보이고, 서버에 한 번 다시 물어
+ * 결과가 불명확했던 작업을 서버가 회수했으면 결과를 받는다(DV-성-9, DV-성-10).
  * 셀카는 얼굴 변환 전송 동의(셀카 카드의 체크, FACE_TRANSFER)가 있어야 보낸다. 체크하면 바로 동의를 저장한다.
  * 셀카 거부(동의 없음·하루 1회 초과·재시도 한도)는 사유와 함께 기본 캐릭터 선택을 안내한다.
  */
@@ -69,7 +72,12 @@ class AvatarSetupViewModel internal constructor(
             }
         }
         viewModelScope.launch {
-            avatars.pendingSelfieJobId()?.let { jobId -> follow(jobId, isFirstCheckNow = true) }
+            val pendingJob = avatars.pendingSelfieJobId()
+            if (pendingJob != null) {
+                follow(pendingJob, isFirstCheckNow = true)
+            } else {
+                avatars.lastSelfieFailure()?.let { recheck(it) }
+            }
         }
         viewModelScope.launch {
             faceConsent.isGiven()?.let { given -> _state.update { it.copy(hasFaceConsent = given) } }
@@ -110,7 +118,7 @@ class AvatarSetupViewModel internal constructor(
     /** 찍은 셀카를 줄여(긴 변 1024px·JPEG·1MB) 보낸다. 줄이는 동안에도 다시 누르지 못하게 먼저 isWorking을 켠다. */
     fun onSelfieCaptured(bitmap: android.graphics.Bitmap) {
         if (isBusy()) return
-        _state.update { it.copy(isWorking = true, error = null) }
+        _state.update { it.copy(isWorking = true, error = null, canRetrySelfie = false) }
         viewModelScope.launch {
             val jpeg = withContext(encodeDispatcher) { SelfieEncoder.encode(bitmap) }
             upload(jpeg)
@@ -119,7 +127,7 @@ class AvatarSetupViewModel internal constructor(
 
     fun onSelfie(jpeg: ByteArray) {
         if (isBusy()) return
-        _state.update { it.copy(isWorking = true, error = null) }
+        _state.update { it.copy(isWorking = true, error = null, canRetrySelfie = false) }
         viewModelScope.launch { upload(jpeg) }
     }
 
@@ -178,6 +186,16 @@ class AvatarSetupViewModel internal constructor(
         }
     }
 
+    /** 남긴 실패를 보이고 서버에 한 번 다시 묻는다. 회수됐으면(SUCCEEDED) 결과를 받고, 그 밖에는 실패를 그대로 둔다. */
+    private suspend fun recheck(failure: SelfieFailure) {
+        failJob(failure.code)
+        val job = avatars.selfieJob(failure.jobId).getOrNull() ?: return
+        if (job.status != SelfieJob.Status.FAILED) {
+            _state.update { it.copy(canRetrySelfie = false, error = null) }
+            onJob(job)
+        }
+    }
+
     private val SelfieJob.isOver: Boolean
         get() = status == SelfieJob.Status.SUCCEEDED || status == SelfieJob.Status.FAILED
 
@@ -209,7 +227,7 @@ class AvatarSetupViewModel internal constructor(
 
     /** 서버가 얼굴을 만들지 못했다(작업 FAILED). 모르는 사유는 공용 "얼굴을 만들지 못했어요"다. */
     private fun failJob(code: String?) = _state.update {
-        it.copy(isMakingFace = false, error = AvatarErrorText.ofSelfieFailure(code))
+        it.copy(isMakingFace = false, error = AvatarErrorText.ofSelfieFailure(code), canRetrySelfie = true)
     }
 
     private fun fail(error: AppError) {
@@ -234,7 +252,7 @@ class AvatarSetupViewModel internal constructor(
     fun onConfirmCharacter() {
         val character = _state.value.selected ?: return
         if (_state.value.isWorking) return
-        _state.update { it.copy(isWorking = true, error = null) }
+        _state.update { it.copy(isWorking = true, saveError = null) }
         viewModelScope.launch {
             when (val result = avatars.chooseDefault(character.name)) {
                 is Outcome.Success -> {
@@ -244,7 +262,7 @@ class AvatarSetupViewModel internal constructor(
                 }
 
                 is Outcome.Failure -> _state.update {
-                    it.copy(isWorking = false, error = AvatarErrorText.of(result.error))
+                    it.copy(isWorking = false, saveError = AvatarErrorText.of(result.error))
                 }
             }
         }
@@ -269,11 +287,18 @@ class AvatarSetupViewModel internal constructor(
             override suspend fun give(): Outcome<Unit> = Outcome.Success(Unit)
         }
 
-        /** 얼굴 생성은 1~2분 걸린다. 3초부터 늘려 15초마다 본다. */
+        /** 얼굴 생성은 보통 1~6분 걸린다. 3초부터 늘려 15초마다 본다. */
         val POLL_DELAYS = listOf(3_000L, 3_000L, 5_000L, 8_000L, 10_000L, 15_000L)
 
-        /** 이만큼 보고도 끝나지 않으면(약 10분) 멈추고 다시 들어올 때 이어 본다. */
-        const val MAX_POLLS = 42
+        /** 아바타(Node) 서버의 생성 제한(head-jobs generationTimeoutMs). 조회는 이보다 오래 이어 간다(DV-성-9). */
+        const val AVATAR_GENERATION_LIMIT_MILLIS = 15 * 60_000L
+
+        /** 이만큼 보고도 끝나지 않으면(약 16분, 서버 생성 제한 15분 뒤) 멈추고 다시 들어올 때 이어 본다. */
+        const val MAX_POLLS = 68
+
+        /** [MAX_POLLS]번 보는 동안 기다리는 시간. */
+        fun pollWindowMillis(delays: List<Long> = POLL_DELAYS): Long =
+            (0 until MAX_POLLS).sumOf { delays[it.coerceAtMost(delays.lastIndex)] }
 
         /** 연속 연결·서버 실패 허용 횟수. */
         const val MAX_FAILURES = 3

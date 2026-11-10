@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieFailure
 import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
@@ -115,6 +116,11 @@ class FakeAvatars : AvatarRepository {
     }
 
     override suspend fun pendingSelfieJobId(): String? = pendingJob
+
+    /** 기기에 남긴 마지막 셀카 실패(DV-성-10). */
+    var lastFailure: SelfieFailure? = null
+
+    override suspend fun lastSelfieFailure(): SelfieFailure? = lastFailure
 
     override suspend fun chooseDefault(characterId: String): Outcome<Avatar> {
         calls += "default:$characterId"
@@ -244,6 +250,58 @@ class AvatarSetupViewModelTest {
         assertEquals(UiText.Res(R.string.avatar_error_no_face), vm.state.value.error)
         assertTrue(vm.state.value.canCreateSelfie)
         assertTrue(repo.calls.none { it.startsWith("finish:") })
+    }
+
+    @Test
+    fun `얼굴을 만들지 못하면 다시 시도할 수 있고, 다시 시도는 동의를 확인한 뒤 사진을 고르게 한다(DV-성-10)`() = runTest(main.dispatcher) {
+        repo.jobResults = mutableListOf(
+            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.FAILED, "GENERATION_OUTCOME_UNKNOWN"))
+        )
+        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
+        assertFalse(vm.state.value.canRetrySelfie)
+        vm.onSelfie(byteArrayOf(1))
+        advanceTimeBy(1_001)
+        assertTrue(vm.state.value.canRetrySelfie)
+        assertEquals(UiText.Res(R.string.avatar_error_selfie_failed), vm.state.value.error)
+        assertTrue(vm.onSelfieRequested())
+        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.RUNNING)))
+        vm.onSelfie(byteArrayOf(1))
+        assertFalse(vm.state.value.canRetrySelfie, "다시 보내면 실패 표시를 지운다")
+        assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `나갔다 다시 들어와도 남긴 실패를 셀카 카드에 보이고 서버에 한 번 다시 묻는다(DV-성-10)`() = runTest(main.dispatcher) {
+        repo.lastFailure = SelfieFailure("job-1", "SELFIE_QUALITY_REJECTED")
+        repo.jobResults = mutableListOf(
+            Outcome.Success(SelfieJob("job-1", SelfieJob.Status.FAILED, "SELFIE_QUALITY_REJECTED"))
+        )
+        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
+        assertEquals(UiText.Res(R.string.avatar_error_no_face), vm.state.value.error)
+        assertTrue(vm.state.value.canRetrySelfie)
+        assertFalse(vm.state.value.isMakingFace)
+        assertEquals(listOf("job:job-1"), repo.calls)
+    }
+
+    @Test
+    fun `다시 들어왔을 때 실패했던 작업을 서버가 회수했으면 결과를 받아 돌아간다(DV-성-9)`() = runTest(main.dispatcher) {
+        repo.lastFailure = SelfieFailure("job-1", "GENERATION_OUTCOME_UNKNOWN")
+        repo.jobResults = mutableListOf(Outcome.Success(SelfieJob("job-1", SelfieJob.Status.SUCCEEDED)))
+        val vm = AvatarSetupViewModel(repo, main.dispatcher, listOf(1_000L))
+        vm.events.test {
+            assertEquals(AvatarSetupEvent.Done, awaitItem())
+        }
+        assertEquals(listOf("job:job-1", "finish:job-1"), repo.calls)
+        assertNull(vm.state.value.error)
+        assertFalse(vm.state.value.canRetrySelfie)
+    }
+
+    @Test
+    fun `상태 조회는 아바타 서버의 생성 제한 15분보다 오래 이어 간다(DV-성-9)`() {
+        assertTrue(
+            AvatarSetupViewModel.pollWindowMillis() > AvatarSetupViewModel.AVATAR_GENERATION_LIMIT_MILLIS,
+            "조회 기간 ${AvatarSetupViewModel.pollWindowMillis()}ms"
+        )
     }
 
     @Test

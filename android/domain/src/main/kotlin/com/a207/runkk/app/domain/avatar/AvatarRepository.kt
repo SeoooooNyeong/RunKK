@@ -32,6 +32,12 @@ interface AvatarRepository {
      */
     suspend fun pendingSelfieJobId(): String?
 
+    /**
+     * 기기에 남긴 마지막 셀카 실패(DV-성-10). 작업이 실패로 끝나면 남기고, 새로 접수하거나 결과를 받거나 기본 캐릭터를 고르면 지운다.
+     * 구현이 없으면 null이다.
+     */
+    suspend fun lastSelfieFailure(): SelfieFailure? = null
+
     suspend fun chooseDefault(characterId: String): Outcome<Avatar>
 
     /** 착용·해제 변경. 거부된 항목은 Avatar.rejected에 사유로 모인다. */

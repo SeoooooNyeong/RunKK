@@ -17,5 +17,10 @@ data class AvatarSetupUiState(
     val hasFaceConsent: Boolean = false,
     /** 동의를 저장하는 중. */
     val isSavingConsent: Boolean = false,
-    val error: UiText? = null
+    /** 셀카·동의 문구. 셀카 카드 안에 보인다(DV-성-10). */
+    val error: UiText? = null,
+    /** 마지막 셀카 작업이 실패했다. 셀카 카드에 「다시 시도」를 보인다(나갔다 와도 기기에 남긴 실패로 다시 켠다, DV-성-10). */
+    val canRetrySelfie: Boolean = false,
+    /** 기본 캐릭터 저장 실패 문구. 저장 단추 위에 보인다. */
+    val saveError: UiText? = null
 )

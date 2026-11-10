@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieFailure
 import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
 import com.a207.runkk.app.domain.notification.Inbox
@@ -37,6 +38,7 @@ class AvatarAndRunimalAndNotificationTest {
     /** 남긴 셀카 작업 ID를 메모리에 두는 저장소. */
     private val pending = object : PendingSelfieStore {
         var jobId: String? = null
+        var failed: SelfieFailure? = null
 
         override fun load(): String? = jobId
 
@@ -46,6 +48,16 @@ class AvatarAndRunimalAndNotificationTest {
 
         override fun clear() {
             jobId = null
+        }
+
+        override fun failure(): SelfieFailure? = failed
+
+        override fun saveFailure(failure: SelfieFailure) {
+            failed = failure
+        }
+
+        override fun clearFailure() {
+            failed = null
         }
     }
 
@@ -115,6 +127,35 @@ class AvatarAndRunimalAndNotificationTest {
         assertNull(repository.pendingSelfieJobId(), "서버에도 진행 중 작업이 없다")
         api.take()
         assertEquals("/api/v1/avatar/selfie/jobs/job-1", api.take().target)
+    }
+
+    @Test
+    fun `작업이 실패로 끝나면 실패를 남기고, 새로 접수하거나 결과를 받으면 지운다(DV-성-10)`() = runTest {
+        api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
+        api.reply(
+            """{"jobId":"job-1","status":"FAILED","error":{"code":"GENERATION_OUTCOME_UNKNOWN","message":"불명확"}}"""
+        )
+        api.reply("""{"jobId":"job-1","status":"SUCCEEDED","headId":"h-1"}""")
+        api.reply("""{"headId":"h-1","faceImage":"data:image/png;base64,AAAA"}""")
+        api.reply("""{"faceKey":"head:7:job-1","bodyShape":"STAGE1","skinTone":"DAYTIME"}""")
+        api.reply("""{"jobId":"job-2","status":"QUEUED"}""", code = 202)
+        val repository = repository()
+        repository.submitSelfie(byteArrayOf(1))
+        assertNull(repository.lastSelfieFailure())
+
+        repository.selfieJob("job-1")
+        assertEquals(SelfieFailure("job-1", "GENERATION_OUTCOME_UNKNOWN"), repository.lastSelfieFailure())
+        assertEquals(SelfieJob.Status.SUCCEEDED, repository.selfieJob("job-1").value().status)
+        assertEquals(
+            SelfieFailure("job-1", "GENERATION_OUTCOME_UNKNOWN"),
+            repository.lastSelfieFailure(),
+            "회수된 작업도 결과를 받기 전까지는 남긴다"
+        )
+        repository.finishSelfie("job-1")
+        assertNull(repository.lastSelfieFailure())
+        pending.failed = SelfieFailure("job-1", "UPSTREAM_TIMEOUT")
+        repository.submitSelfie(byteArrayOf(2))
+        assertNull(repository.lastSelfieFailure())
     }
 
     @Test

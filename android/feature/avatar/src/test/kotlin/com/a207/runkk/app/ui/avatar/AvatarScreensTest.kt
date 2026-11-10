@@ -13,8 +13,10 @@ import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasStateDescription
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -89,6 +91,31 @@ class AvatarScreensTest {
         compose.onNodeWithText(str(R.string.avatar_setup_take_selfie)).assertIsNotEnabled()
         compose.onNodeWithText(str(R.string.avatar_setup_pick_album)).assertIsNotEnabled()
         compose.onNodeWithText(str(R.string.avatar_setup_save)).assertIsEnabled()
+    }
+
+    @Test
+    fun `얼굴 만들기 - 셀카 실패는 셀카 카드 안에 보이고 다시 시도를 누르면 사진을 고른다(DV-성-10)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarSetupScreen(
+                    AvatarSetupUiState(
+                        isLoading = false,
+                        hasFaceConsent = true,
+                        error = UiText.Res(R.string.avatar_error_selfie_failed),
+                        canRetrySelfie = true
+                    ),
+                    onBack = {},
+                    onSelfie = {},
+                    onCharacter = {},
+                    onSave = {},
+                    onAlbum = { calls += "album" }
+                )
+            }
+        }
+        val inCard = hasAnyAncestor(hasTestTag(SELFIE_CARD_TAG))
+        compose.onNode(hasText(str(R.string.avatar_error_selfie_failed)) and inCard).assertExists()
+        compose.onNode(hasText(str(R.string.avatar_setup_retry)) and inCard).performClick()
+        assertEquals(listOf("album"), calls)
     }
 
     @Test
@@ -306,6 +333,23 @@ class AvatarScreenshotTest {
                 selected = DefaultCharacter.FOX,
                 isMakingFace = true,
                 hasFaceConsent = true
+            ),
+            {},
+            {},
+            {},
+            {}
+        )
+    }
+
+    /** 셀카 얼굴 생성 실패(DV-성-10): 실패 문구와 다시 시도가 셀카 카드 안에 있다. */
+    @Test
+    fun setupSelfieFailed() = compose.captureRunkkScreen("J7_avatar_face_failed") {
+        AvatarSetupScreen(
+            AvatarSetupUiState(
+                isLoading = false,
+                hasFaceConsent = true,
+                error = UiText.Res(R.string.avatar_error_selfie_failed),
+                canRetrySelfie = true
             ),
             {},
             {},

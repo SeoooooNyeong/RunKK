@@ -36,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -159,9 +160,9 @@ fun AvatarSetupScreen(
                 modifier = Modifier.semantics { heading() }
             )
             CharacterRow(state.selected, onCharacter)
-            if (state.error != null) {
+            if (state.saveError != null) {
                 Text(
-                    state.error.asString(),
+                    state.saveError.asString(),
                     style = RunkkTextStyles.text(13, FontWeight.Bold),
                     color = RunkkColors.Lavender,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
@@ -233,9 +234,13 @@ private fun FacePreview(state: AvatarSetupUiState) {
     }
 }
 
+/** 셀카 카드의 시험 태그. 셀카 실패 문구와 다시 시도가 이 카드 안에 있는지 본다(DV-성-10). */
+internal const val SELFIE_CARD_TAG = "avatar_setup_selfie_card"
+
 /**
  * 셀카로 만들기 카드(하루 1번, 피그마 H-1): 얼굴 변환 서비스 전송 동의 체크, 셀카 찍기, 앨범에서 고르기. 오늘 만들었으면 두 버튼을
  * 끈다. 동의는 체크하면 바로 저장하고, 이미 동의했으면 체크된 채 둔다(철회는 마이 > 동의 관리).
+ * 셀카 문구(실패·거부·동의 필요)는 화면 위쪽인 이 카드 안에 보인다. 작업이 실패했으면 「다시 시도」로 사진을 다시 고른다(DV-성-10).
  */
 @Composable
 private fun SelfieCard(
@@ -252,6 +257,7 @@ private fun SelfieCard(
             .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)
             .border(1.dp, RunkkColors.Border, RunkkShapes.Large)
+            .testTag(SELFIE_CARD_TAG)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -277,6 +283,27 @@ private fun SelfieCard(
             isChecked = state.hasFaceConsent,
             onCheckedChange = { isChecked -> if (isChecked) onFaceConsent() }
         )
+        if (state.error != null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    state.error.asString(),
+                    style = RunkkTextStyles.text(13, FontWeight.Bold),
+                    color = RunkkColors.Lavender,
+                    modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite }
+                )
+                if (state.canRetrySelfie && canCreateSelfie && !isWorking) {
+                    RunkkButton(
+                        stringResource(R.string.avatar_setup_retry),
+                        onClick = onAlbum,
+                        style = RunkkButtonStyle.Outline,
+                        size = RunkkButtonSize.Small
+                    )
+                }
+            }
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             RunkkButton(
                 stringResource(R.string.avatar_setup_take_selfie),

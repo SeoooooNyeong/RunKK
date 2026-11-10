@@ -16,6 +16,7 @@ import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieFailure
 import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.Shop
@@ -45,36 +46,56 @@ constructor(
 
     override suspend fun runner(): Outcome<AvatarRunner> = ApiErrorMapper.call { api.runner().toDomain() }
 
-    /** 접수하면 작업 ID를 남긴다. 접수 응답이 이미 실패면 남기지 않는다. */
+    /** 접수하면 작업 ID를 남기고 지난 실패를 지운다. 접수 응답이 이미 실패면 작업 대신 실패를 남긴다. */
     override suspend fun submitSelfie(jpeg: ByteArray): Outcome<SelfieJob> {
         val result = ApiErrorMapper.call {
             val part = MultipartBody.Part.createFormData(SELFIE_PART, SELFIE_FILE, jpeg.toRequestBody(JPEG))
             api.submitSelfie(part).toDomain()
         }
         if (result is Outcome.Success) {
-            if (result.value.status == SelfieJob.Status.FAILED) pending.clear() else pending.save(result.value.jobId)
+            val job = result.value
+            if (job.status == SelfieJob.Status.FAILED) {
+                pending.clear()
+                pending.saveFailure(SelfieFailure(job.jobId, job.failureCode))
+            } else {
+                pending.save(job.jobId)
+                if (pending.failure()?.jobId != job.jobId) pending.clearFailure()
+            }
         }
         return result
     }
 
+    /** 실패로 끝나면 남긴 작업 대신 실패를 남긴다(DV-성-10). 서버가 작업을 잃었으면 둘 다 지운다. */
     override suspend fun selfieJob(jobId: String): Outcome<SelfieJob> {
         val result = ApiErrorMapper.call { api.selfieJob(jobId).toDomain() }
-        val isOver = when (result) {
-            is Outcome.Success -> result.value.status == SelfieJob.Status.FAILED
-            is Outcome.Failure -> result.error is AppError.Rejected
+        when {
+            result is Outcome.Success && result.value.status == SelfieJob.Status.FAILED -> {
+                forget(jobId)
+                pending.saveFailure(SelfieFailure(jobId, result.value.failureCode))
+            }
+
+            result is Outcome.Failure && result.error is AppError.Rejected -> {
+                forget(jobId)
+                forgetFailure(jobId)
+            }
         }
-        if (isOver) forget(jobId)
         return result
     }
+
+    override suspend fun lastSelfieFailure(): SelfieFailure? = pending.failure()
 
     /** 결과 본문은 읽지 않고 닫는다(서버가 응답 전에 얼굴을 바꾼다). 거부(작업 없음·준비 안 됨 등)면 남긴 작업도 지운다. */
     override suspend fun finishSelfie(jobId: String): Outcome<Avatar> {
         val done = ApiErrorMapper.call { api.selfieResult(jobId).close() }
         if (done is Outcome.Failure) {
-            if (done.error is AppError.Rejected) forget(jobId)
+            if (done.error is AppError.Rejected) {
+                forget(jobId)
+                forgetFailure(jobId)
+            }
             return done
         }
         forget(jobId)
+        forgetFailure(jobId)
         return avatar()
     }
 
@@ -96,8 +117,16 @@ constructor(
         if (pending.load() == jobId) pending.clear()
     }
 
-    override suspend fun chooseDefault(characterId: String): Outcome<Avatar> =
-        ApiErrorMapper.call { api.chooseDefault(DefaultCharacterRequest(characterId)).toDomain() }
+    private fun forgetFailure(jobId: String) {
+        if (pending.failure()?.jobId == jobId) pending.clearFailure()
+    }
+
+    /** 기본 캐릭터를 고르면 지난 셀카 실패는 더 보이지 않는다(서버도 그 뒤 회수된 결과를 반영하지 않는다). */
+    override suspend fun chooseDefault(characterId: String): Outcome<Avatar> {
+        val result = ApiErrorMapper.call { api.chooseDefault(DefaultCharacterRequest(characterId)).toDomain() }
+        if (result is Outcome.Success) pending.clearFailure()
+        return result
+    }
 
     override suspend fun equip(changes: Map<ItemSlot, Long?>): Outcome<Avatar> =
         ApiErrorMapper.call { api.equip(EquipRequest(changes.mapKeys { it.key.name })).toDomain() }
