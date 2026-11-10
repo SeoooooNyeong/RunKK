@@ -13,7 +13,7 @@ internal class PreparedRiveAssets(
     val legacyStandingBody: ByteArray,
     private val scenes: Map<AvatarMotion, ByteArray>
 ) {
-    /** [motion]의 Rive 파일 바이트([RiveAvatarScene.rawResource]). */
+    /** [motion]의 Rive 파일 바이트([RiveAvatarScene.rawResource], 검수 바탕을 투명하게 한 사본 [RivReviewBackground]). */
     fun riv(motion: AvatarMotion): ByteArray = scenes.getValue(motion)
 
     companion object {
@@ -22,7 +22,10 @@ internal class PreparedRiveAssets(
             val resources = context.resources
             fun raw(id: Int): ByteArray = resources.openRawResource(id).use { it.readBytes() }
             val scenes = EnumMap<AvatarMotion, ByteArray>(AvatarMotion::class.java)
-            AvatarMotion.entries.forEach { scenes[it] = raw(RiveAvatarScene.rawResource(gender, it)) }
+            // 검수용 베이지 바탕 도형은 투명하게 해 카드 배경이 보이게 한다(DV-성-3, 파일은 승인본 그대로).
+            AvatarMotion.entries.forEach {
+                scenes[it] = RivReviewBackground.hidden(raw(RiveAvatarScene.rawResource(gender, it)))
+            }
             return PreparedRiveAssets(
                 gender,
                 AvatarVariantAssets.loadBuiltIn(context.assets, gender),
