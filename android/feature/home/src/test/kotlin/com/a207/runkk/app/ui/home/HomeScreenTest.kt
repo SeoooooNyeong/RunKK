@@ -3,10 +3,12 @@ package com.a207.runkk.app.ui.home
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
@@ -17,6 +19,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.GuideAnchors
@@ -96,6 +101,26 @@ class HomeScreenTest {
         compose.onNodeWithContentDescription("이번 주 12킬로미터, 목표 20킬로미터, 4주 연속").assertExists()
         compose.onNodeWithContentDescription("자유런, 음성 켬, 진동 켬").assertExists()
         compose.onNodeWithContentDescription("배틀런, 랜덤 또는 친구와 대결").assertExists()
+    }
+
+    @Test
+    fun `머리 알약의 Lv는 좁은 폭에서도 한 줄이고 닉네임이 말줄임된다(실기기 DV3-9)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    Box(Modifier.width(280.dp)) {
+                        HomeScreen(
+                            loaded.copy(header = HomeHeader("아주아주긴닉네임을가진러너입니다", "골드", 3, 1_250_000)),
+                            HomeActions()
+                        )
+                    }
+                }
+            }
+        }
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("Lv.3", useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals(1, layouts.single().lineCount)
     }
 
     @Test

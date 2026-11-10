@@ -378,7 +378,14 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
             )
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL) }
-                Text(text = level, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+                // 「Lv.3」는 쪼개지 않는다(실기기 DV3-9). 자리가 모자라면 위 닉네임이 말줄임된다.
+                Text(
+                    text = level,
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary,
+                    maxLines = 1,
+                    softWrap = false
+                )
             }
         }
     }
