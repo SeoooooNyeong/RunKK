@@ -221,7 +221,8 @@ class AvatarW8ScreenTest {
         }
         compose.onNodeWithText(text(R.string.avatar_runner_body_chip, 2)).assertExists()
         compose.onNodeWithText(text(R.string.avatar_runner_skin_chip, "아침")).assertExists()
-        compose.onNodeWithText("이번 주 3번 달렸어요. 4일 넘게 쉬면 배가 나오기 시작해요.").assertExists()
+        // 값은 오늘 포함 최근 7일 횟수라 문구도 「최근 7일」이다(DV-성-13, D-성-57)
+        compose.onNodeWithText("최근 7일 3번 달렸어요. 4일 넘게 쉬면 배가 나오기 시작해요.").assertExists()
         compose.onNodeWithText("주로 오전 7시에 달려서 아침 톤이에요").assertExists()
         compose.onNodeWithText(text(R.string.avatar_runner_balance, "1,240")).assertExists()
         compose.onNodeWithContentDescription(text(R.string.avatar_runner_body_gauge, "보통", 2)).assertExists()

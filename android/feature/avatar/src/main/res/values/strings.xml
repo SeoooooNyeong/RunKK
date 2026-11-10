@@ -104,7 +104,7 @@
     <string name="avatar_tone_evening">저녁</string>
     <string name="avatar_tone_night">밤</string>
     <string name="avatar_runner_body_title">체형 변화</string>
-    <string name="avatar_runner_body_guide">이번 주 %1$d번 달렸어요. %2$d일 넘게 쉬면 배가 나오기 시작해요.</string>
+    <string name="avatar_runner_body_guide">최근 7일 %1$d번 달렸어요. %2$d일 넘게 쉬면 배가 나오기 시작해요.</string>
     <string name="avatar_runner_body_gauge">체형 %1$s, 3단계 중 %2$d단계</string>
     <string name="avatar_runner_body_low">배가 볼록</string>
     <string name="avatar_runner_body_mid">보통</string>
