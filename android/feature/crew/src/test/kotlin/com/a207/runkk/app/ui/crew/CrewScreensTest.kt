@@ -272,27 +272,23 @@ class CrewScreensTest {
     }
 
     @Test
-    fun `일정 탭 - 가장 가까운 크루런은 강조 카드이고 제목을 누르면 응답 시트에서 참석·불참·미정과 대기실(F-11, FR-145)`() {
-        var state by androidx.compose.runtime.mutableStateOf(
-            CrewHomeUiState(
-                crewId = 11,
-                detail = crewDetail(),
-                tab = CrewTab.SCHEDULE,
-                crewRuns = crewRunPosts,
-                scheduleNow = crewRunVoting.scheduledAt.minusSeconds(1_785),
-                lobbyEntries = mapOf(31L to LobbyAvailability.Open, 32L to LobbyAvailability.Closed)
-            )
-        )
+    fun `일정 탭 - 가장 가까운 크루런은 강조 카드이고 제목은 일정 상세, 지난 크루런 링크는 늘 보인다(F-11, W6)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
-                    state,
+                    CrewHomeUiState(
+                        crewId = 11,
+                        detail = crewDetail(),
+                        tab = CrewTab.SCHEDULE,
+                        crewRuns = crewRunPosts,
+                        scheduleNow = crewRunVoting.scheduledAt.minusSeconds(1_785),
+                        lobbyEntries = mapOf(31L to LobbyAvailability.Open, 32L to LobbyAvailability.Closed)
+                    ),
                     CrewHomeActions(
-                        onAttendance = { post, answer -> calls += "${post.postId}:$answer" },
                         onLobby = { calls += "lobby:${it.postId}" },
-                        onResult = { calls += "result:${it.postId}" },
-                        onRunOpen = { state = state.copy(openedRunId = it.postId) },
-                        onRunClose = { state = state.copy(openedRunId = null) }
+                        onRunOpen = { calls += "open:${it.postId}" },
+                        onPastRuns = { calls += "past" },
+                        onWriteSchedule = { calls += "write" }
                     )
                 )
             }
@@ -301,22 +297,11 @@ class CrewScreensTest {
         compose.onNodeWithContentDescription("29분 45초 후 시작").assertExists()
         compose.onNodeWithText("대기실 입장하기").performClick()
         compose.onNodeWithText("같이 달려요").performClick()
-        compose.onAllNodes(androidx.compose.ui.test.hasText("크루런, 비대면", substring = true))[0].assertExists()
-        compose.onNodeWithText("참석").performClick()
-        // 강조 카드와 시트에 대기실 단추가 하나씩 있다. 시트의 단추는 시트를 닫고 대기실로 간다.
-        val lobbyButtons = compose.onAllNodes(androidx.compose.ui.test.hasText("대기실 입장하기"))
-        lobbyButtons.assertCountEquals(2)
-        lobbyButtons[1].performClick()
-        compose.waitForIdle()
-        if (state.openedRunId != null) {
-            compose.onAllNodes(androidx.compose.ui.test.hasText("대기실 입장하기"))[0].performClick()
-            compose.waitForIdle()
-        }
-        assertNull(state.openedRunId)
-        // 끝난 크루런(32)은 지난 크루런에 있고 누르면 결과로 간다(와이어 I4).
-        compose.onNodeWithText("지난 크루런").performScrollTo().assertExists()
-        compose.onNodeWithContentDescription("지난 결과", substring = true).performScrollTo().performClick()
-        assertEquals(listOf("lobby:31", "31:${AttendanceAnswer.GOING}", "result:32"), calls.distinct())
+        compose.onNodeWithText("크루런 모집하기").performClick()
+        compose.onNodeWithContentDescription("지난 크루런").performClick()
+        // 끝난 크루런(32)은 이 탭에 두지 않는다(지난 크루런 화면 F-11b가 보인다).
+        compose.onNodeWithText("10km LSD").assertDoesNotExist()
+        assertEquals(listOf("lobby:31", "open:31", "write", "past"), calls)
     }
 
     @Test
@@ -347,16 +332,18 @@ class CrewScreensTest {
                         crewRuns = PostList(listOf(crewRunPosts.posts[0], sat, next)),
                         scheduleNow = now
                     ),
-                    CrewHomeActions(onAttendance = { post, answer -> calls += "${post.postId}:$answer" })
+                    CrewHomeActions(
+                        onAttendance = { post, answer -> calls += "${post.postId}:$answer" },
+                        onAttendanceWithdraw = { calls += "${it.postId}:withdraw" }
+                    )
                 )
             }
         }
         compose.onNodeWithContentDescription("이번주 1개").assertExists()
         compose.onNodeWithContentDescription("다음주 1개").assertExists()
-        compose.onNodeWithText("지난 크루런 ›").assertDoesNotExist()
         compose.onNodeWithContentDescription("참석 응답, 참석 5").assertIsOff().performClick()
         compose.onNodeWithContentDescription("참석 응답, 참석 4").assertIsOn().performClick()
-        assertEquals(listOf("33:${AttendanceAnswer.GOING}", "34:${AttendanceAnswer.UNDECIDED}"), calls)
+        assertEquals(listOf("33:${AttendanceAnswer.GOING}", "34:withdraw"), calls)
     }
 
     private fun showCrewRuns(entry: LobbyAvailability, status: CrewRunStatus = CrewRunStatus.VOTING) {
@@ -713,8 +700,43 @@ class CrewScreenshotTest {
     }
 
     @Test
-    fun crewRunSheet() = compose.captureRunkkScreen("G3_my_crew_crew_run_sheet") {
-        CrewHomeScreen(crewRunsHome.copy(openedRunId = 34), CrewHomeActions())
+    fun crewRunDetail() = compose.captureRunkkScreen("G3_crew_run_detail") {
+        CrewRunDetailScreen(
+            CrewRunDetailUiState(postId = 42, detail = crewRunDetail, now = crewRunDetail.writtenAt.plusSeconds(7_200)),
+            CrewRunDetailActions()
+        )
+    }
+
+    @Test
+    fun crewRunDetailMine() = compose.captureRunkkScreen("G3_crew_run_detail_mine", isDarkTheme = false) {
+        CrewRunDetailScreen(
+            CrewRunDetailUiState(
+                postId = 42,
+                detail = crewRunDetail.copy(
+                    isMine = true,
+                    canEdit = true,
+                    canDelete = true,
+                    myAnswer = AttendanceAnswer.GOING,
+                    attendees = crewRunDetail.attendees.map { if (it.isAuthor) it.copy(isMe = true) else it }
+                ),
+                now = crewRunDetail.writtenAt.plusSeconds(7_200),
+                isMenuOpen = true
+            ),
+            CrewRunDetailActions()
+        )
+    }
+
+    @Test
+    fun crewRunDeleteConfirm() = compose.captureRunkkScreen("G3_crew_run_delete_confirm", isDarkTheme = false) {
+        CrewRunDetailScreen(
+            CrewRunDetailUiState(
+                postId = 42,
+                detail = crewRunDetail.copy(isMine = true, canEdit = true, canDelete = true),
+                now = crewRunDetail.writtenAt.plusSeconds(7_200),
+                isDeleteAsked = true
+            ),
+            CrewRunDetailActions()
+        )
     }
 
     @Test
@@ -757,16 +779,57 @@ class CrewScreenshotTest {
     }
 
     @Test
-    fun write() = compose.captureRunkkScreen("G5_crew_run_write") {
+    fun write() = compose.captureRunkkScreen("G5_crew_run_write", isDarkTheme = false) {
         CrewRunWriteScreen(
-            CrewRunWriteUiState(title = "토요일 아침 5K", today = LocalDate.of(2026, 10, 20), dayOffset = 4),
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {}
+            CrewRunWriteUiState(
+                mode = CrewRunWriteMode.Create(11),
+                title = "토요일 한강 같이 뛰어요",
+                today = LocalDate.of(2026, 10, 20)
+            ),
+            CrewRunWriteActions()
+        )
+    }
+
+    @Test
+    fun writeEdit() = compose.captureRunkkScreen("G5_crew_run_edit", isDarkTheme = false) {
+        CrewRunWriteScreen(
+            CrewRunWriteUiState(
+                mode = CrewRunWriteMode.Edit(42),
+                title = "토요일 한강 같이 뛰어요",
+                body = "반포 8번 출구, 6분대 페이스",
+                date = LocalDate.of(2026, 10, 24),
+                time = java.time.LocalTime.of(7, 0),
+                distance = CrewRunDistanceChoice.KM5,
+                repeat = com.a207.runkk.app.domain.crew.CrewRunRepeat.WEEKLY,
+                today = LocalDate.of(2026, 10, 20)
+            ),
+            CrewRunWriteActions()
+        )
+    }
+
+    @Test
+    fun writeDateSheet() = compose.captureRunkkScreen("G5_crew_run_write_date", isDarkTheme = false) {
+        CrewRunWriteScreen(
+            CrewRunWriteUiState(
+                mode = CrewRunWriteMode.Create(11),
+                today = LocalDate.of(2026, 10, 21),
+                sheet = CrewRunWriteSheet.DATE
+            ),
+            CrewRunWriteActions()
+        )
+    }
+
+    @Test
+    fun writeRepeatSheet() = compose.captureRunkkScreen("G5_crew_run_write_repeat", isDarkTheme = false) {
+        CrewRunWriteScreen(
+            CrewRunWriteUiState(
+                mode = CrewRunWriteMode.Create(11),
+                date = LocalDate.of(2026, 10, 24),
+                today = LocalDate.of(2026, 10, 21),
+                repeat = com.a207.runkk.app.domain.crew.CrewRunRepeat.WEEKLY,
+                sheet = CrewRunWriteSheet.REPEAT
+            ),
+            CrewRunWriteActions()
         )
     }
 

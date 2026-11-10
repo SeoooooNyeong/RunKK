@@ -21,7 +21,13 @@ class CrewFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.CREW_SEARCH) { CrewSearchRoute() }
         builder.addEntryProvider(Routes.CrewHome::class) { key -> CrewHomeRoute(key) }
         builder.addEntryProvider(Routes.CrewManage::class) { key -> CrewManageRoute(key) }
-        builder.addEntryProvider(Routes.CrewRunWrite::class) { key -> CrewRunWriteRoute(key) }
+        builder.addEntryProvider(Routes.CrewRunWrite::class) { key ->
+            CrewRunWriteRoute(CrewRunWriteMode.Create(key.crewId))
+        }
+        builder.addEntryProvider(Routes.CrewRunEdit::class) { key ->
+            CrewRunWriteRoute(CrewRunWriteMode.Edit(key.postId))
+        }
+        builder.addEntryProvider(Routes.CrewRunDetail::class) { key -> CrewRunDetailRoute(key) }
         builder.addEntryProvider(Routes.CrewRunLobby::class) { key -> CrewRunRoute(key) }
         builder.addEntryProvider(Routes.CrewRunResult::class) { key -> CrewRunResultRoute(key.postId) }
         builder.addEntryProvider(Routes.CrewGoalSet::class) { key -> CrewGoalSetRoute(key) }

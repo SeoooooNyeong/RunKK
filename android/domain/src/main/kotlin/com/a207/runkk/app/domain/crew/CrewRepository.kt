@@ -74,8 +74,17 @@ interface CrewRepository {
 
     suspend fun deletePost(postId: Long): Outcome<Unit>
 
-    /** 일정(크루런·대면 모임) 참석 응답(PUT /posts/{id}/attendance, FR-145, D-99). */
+    /** 일정(크루런·대면 모임) 참석 응답(PUT /posts/{id}/attendance, FR-145, D-99). 앱은 참석하기에 GOING만 보낸다(W6). */
     suspend fun answerAttendance(postId: Long, answer: AttendanceAnswer): Outcome<Unit>
+
+    /** 참석 취소(DELETE /posts/{id}/attendance, 피그마 F-13b): 크루런 참석 응답을 거둔다. 응답이 없어도 성공이다. */
+    suspend fun withdrawAttendance(postId: Long): Outcome<Unit>
+
+    /** 크루런 일정 상세(GET /crew-runs/{id}, 피그마 F-13·F-11d). 크루원만. */
+    suspend fun crewRun(postId: Long): Outcome<CrewRunDetail>
+
+    /** 모집글 수정(PATCH /crew-runs/{id}, 피그마 F-13d). 작성자만, 투표 중이고 일시 전. 바뀐 상세를 돌려준다. */
+    suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail>
 
     suspend fun enterLobby(postId: Long): Outcome<Lobby>
 

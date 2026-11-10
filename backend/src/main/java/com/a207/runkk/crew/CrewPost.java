@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Inheritance;
 import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -21,7 +22,12 @@ import java.util.Objects;
  * 사용자"로 보인다(FR-021). 신고 숨김(hidden)은 CrewPostService.hideReported·unhideReported만 바꾼다(D-104, D-135).
  */
 @Entity
-@Table(name = "crew_post")
+@Table(
+        name = "crew_post",
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uq_crew_post_series_scheduled",
+                        columnNames = {"series_id", "scheduled_at"}))
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @DiscriminatorColumn(name = "post_kind", length = 10)
 public abstract class CrewPost {
@@ -80,6 +86,15 @@ public abstract class CrewPost {
         this.authorId = authorId;
         this.body = text;
         this.createdAt = now;
+    }
+
+    /** 본문 고치기(크루런 모집글 수정, W6). 상한은 생성자와 같은 maxBody()이고 넘으면 BODY_TOO_LONG, null은 빈 문자열이다. */
+    protected void changeBody(String body) {
+        String text = body == null ? "" : body;
+        if (codePoints(text) > maxBody()) {
+            throw new BusinessRuleException(ReasonCode.BODY_TOO_LONG);
+        }
+        this.body = text;
     }
 
     /** 글자 수(코드 포인트). 이모지 같은 서로게이트 쌍을 한 글자로 센다(앱과 같은 기준, D-143). 본문·투표 질문·선택지·장소명 상한에 쓴다. */

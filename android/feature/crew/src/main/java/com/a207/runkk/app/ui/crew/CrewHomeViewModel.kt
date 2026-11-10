@@ -260,10 +260,24 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    /** 크루런 응답 시트를 연다(피그마 F-11: 강조 카드 제목·날짜 줄을 누름). */
-    fun onRunOpen(item: PostList.Item) = _state.update { it.copy(openedRunId = item.postId) }
+    /**
+     * 참석 취소(참석 칩을 끔, 피그마 F-11·F-13b, W6): 응답을 거둔다(DELETE /posts/{id}/attendance). 바로 그 글의 내 응답을 비우고 서버 목록을
+     * 다시 읽어 참석 수를 맞춘다.
+     */
+    fun onAttendanceWithdraw(item: PostList.Item) {
+        viewModelScope.launch {
+            when (val r = crews.withdrawAttendance(item.postId)) {
+                is Outcome.Success -> {
+                    _state.update { st ->
+                        st.crewRuns?.let { st.copy(crewRuns = it.withAnswer(item.postId, null)) } ?: st
+                    }
+                    reloadPosts(item.kind)
+                }
 
-    fun onRunClose() = _state.update { it.copy(openedRunId = null) }
+                is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
+            }
+        }
+    }
 
     /** 크루런 탭의 다음 쪽을 이어 받는다. 끝이거나 읽는 중이면 아무것도 하지 않는다. */
     fun onLoadMore() {
@@ -394,7 +408,7 @@ class CrewHomeViewModel @Inject constructor(
 }
 
 /** [postId] 크루런의 내 응답을 [answer]로 바꾼 목록. */
-private fun PostList.withAnswer(postId: Long, answer: AttendanceAnswer): PostList = copy(
+private fun PostList.withAnswer(postId: Long, answer: AttendanceAnswer?): PostList = copy(
     posts = posts.map { post ->
         if (post.postId != postId) post else post.copy(crewRun = post.crewRun?.copy(myAnswer = answer))
     }

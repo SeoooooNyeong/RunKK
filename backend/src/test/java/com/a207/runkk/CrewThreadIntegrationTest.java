@@ -236,7 +236,7 @@ class CrewThreadIntegrationTest {
                                 leader,
                                 crewId,
                                 new CrewRunDraft(
-                                        "10명 크루런", scheduledAt, StandardDistance.KM1, null))
+                                        "10명 크루런", scheduledAt, StandardDistance.KM3, null))
                         .postId();
         for (long m : runners) {
             crewRuns.enterLobby(m, postId);
@@ -304,7 +304,7 @@ class CrewThreadIntegrationTest {
         for (Future<Long> f : together(uploadsAtOnce)) {
             f.get();
         }
-        crewRuns.tick(start.plusMinutes(15));
+        crewRuns.tick(start.plusMinutes(45)); // 3km × km당 15분(W6에서 1km가 빠졌다)
 
         CrewRunResultView result = crewRuns.result(leader, postId);
         assertThat(result.status()).isEqualTo(CrewRunStatus.FINISHED);
