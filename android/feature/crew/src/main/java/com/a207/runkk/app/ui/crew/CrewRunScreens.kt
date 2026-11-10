@@ -114,8 +114,12 @@ import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.RunAvatarSlot
+import com.a207.runkk.app.core.navigation.SlotKey
+import com.a207.runkk.app.core.navigation.isSlotFilled
 import com.a207.runkk.app.domain.crew.CrewRunProgress
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.Lobby
@@ -638,6 +642,12 @@ private fun CrewRunMap(state: CrewRunUiState) {
     val isMoving = rememberIsMoving(mine.distance) && !mine.isPaused && mine.currentPace != null
     val frameMillis = runFrameMillis(mine.currentPace)
     val isLeft = rememberHeadingLeft(route)
+    // 내 아바타 칸(design-oo 05-30 7절): 크루런 중이고 내가 멈추지 않았으면 RUN. 칸이 있으면 내 칸만 88dp다(크루원 그림 칸은 그대로)
+    val pose = if (state.phase == CrewRunPhase.RUNNING && !mine.isPaused) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    val myFigureSize = if (isSlotFilled(SlotKey.RUN_AVATAR)) MY_AVATAR_SLOT else MY_FIGURE
+    val myFigure: @Composable () -> Unit = {
+        RunAvatarSlot(pose, isLeft) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+    }
     val myLabel = if (mine.isPaused) {
         stringResource(R.string.crew_run_mate_paused, stringResource(R.string.crew_member_me))
     } else {
@@ -672,24 +682,23 @@ private fun CrewRunMap(state: CrewRunUiState) {
             modifier = Modifier.fillMaxSize(),
             markerSize = MY_FIGURE,
             others = mates.map { m -> RunMapMarker(m.point, label = m.label, figure = { mateFigure(m) }) },
+            myMarkerSize = myFigureSize,
             myLabel = myLabel,
             onMapError = { isMapFailed = true },
             isFramed = false
-        ) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        ) { myFigure() }
         return
     }
     if (me == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(MY_FIGURE)) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+            Box(Modifier.size(myFigureSize)) { myFigure() }
         }
         return
     }
     val markers = mates.map { m ->
         RouteMarker(m.point, label = m.label, tag = OPPONENT_MARKER_TAG, figure = { mateFigure(m) })
     } +
-        RouteMarker(point = me, label = myLabel, figure = {
-            RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
-        })
+        RouteMarker(point = me, label = myLabel, figure = myFigure, size = myFigureSize)
     RouteCanvas(
         route = route,
         markers = markers,
@@ -854,6 +863,9 @@ private val LOBBY_GRID_GAP = 14.dp
 private val CHIP_AREA = 64.dp
 private val BIG_DISTANCE_HEIGHT = 82.dp
 private val MY_FIGURE = 58.dp
+
+/** 내 Rive 아바타 칸(SlotKey.RUN_AVATAR가 있을 때, [임시:D-성-121]). 크루원 그림 칸은 [MY_FIGURE] 그대로다. */
+private val MY_AVATAR_SLOT = 88.dp
 private val MATE_FIGURE = 45.dp
 private val MAP_FADE = 24.dp
 private val BIG_BUTTON = 84.dp
