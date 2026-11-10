@@ -15,16 +15,28 @@ internal fun inboxDestination(screen: String?, targetId: String?): NavKey? {
     val id = targetId?.toLongOrNull()
     return when (screen) {
         "COACH_PROGRESS" -> Routes.Key(Routes.COACH)
+
         "AVATAR" -> Routes.Key(Routes.AVATAR)
+
         "AVATAR_BACKGROUND" -> Routes.Key(Routes.AVATAR_BACKGROUND)
-        "CREW_MANAGE" -> id?.let(Routes::CrewManage) ?: Routes.Key(Routes.CREW)
+
+        // 크루 관리 화면은 지웠다(W7): 가입 신청 알림은 크루 홈으로 연다(가입 신청은 크루 정보에 있다).
+        "CREW_MANAGE" -> id?.let(Routes::CrewHome) ?: Routes.Key(Routes.CREW)
+
         "CREW_HOME" -> id?.let(Routes::CrewHome) ?: Routes.Key(Routes.CREW)
+
         "CREW_NOTICE" -> Routes.Key(Routes.CREW_NOTICE)
+
         "CREW_POLL" -> Routes.Key(Routes.CREW_POLL)
+
         "CREW_SCHEDULE" -> Routes.Key(Routes.CREW_SCHEDULE)
+
         "CREW_CHAT" -> id?.let(Routes::CrewChat) ?: Routes.Key(Routes.CREW_CHAT)
+
         "CREW_RUN_RECRUIT" -> Routes.Key(Routes.CREW)
+
         "BATTLE_RESULT" -> id?.let(Routes::BattleResult) ?: Routes.Key(Routes.RECORDS_BATTLES)
+
         else -> null
     }
 }

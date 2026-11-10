@@ -42,13 +42,20 @@ class CrewV011ScreensTest {
     )
 
     @Test
-    fun `크루원의 ⋯ 메뉴는 크루 정보와 크루원이고 운영진에게는 크루 관리와 목표 설정이 있다(FR-128, F-17·F-24)`() {
+    fun `⋯ 메뉴는 역할과 무관하게 크루 정보와 크루원 두 줄이고 운영진은 목표 설정만 더 본다(F-17·F-24, W7)`() {
         var role by mutableStateOf(CrewRole.MEMBER)
+        var isMenuOpen by mutableStateOf(false)
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
-                    home(role).copy(race = raceWithGoal.copy(celebration = null)),
-                    CrewHomeActions(onPage = { calls += "page:$it" }, onManage = { calls += "manage" })
+                    home(role).copy(race = raceWithGoal.copy(celebration = null), isMenuOpen = isMenuOpen),
+                    CrewHomeActions(
+                        onPage = {
+                            calls += "page:$it"
+                            isMenuOpen = false
+                        },
+                        onMenuOpen = { isMenuOpen = true }
+                    )
                 )
             }
         }
@@ -61,8 +68,9 @@ class CrewV011ScreensTest {
         compose.waitForIdle()
         compose.onNodeWithText("목표 설정").assertExists()
         compose.onNodeWithContentDescription("크루 메뉴").performClick()
-        compose.onNodeWithText("크루 관리").performClick()
-        assertEquals(listOf("page:INFO", "manage"), calls)
+        compose.onNodeWithText("크루 관리").assertDoesNotExist()
+        compose.onNodeWithText("크루원").performClick()
+        assertEquals(listOf("page:INFO", "page:MEMBERS"), calls)
     }
 
     @Test
@@ -119,82 +127,4 @@ class CrewV011ScreensTest {
         compose.onNodeWithText("채팅").performClick()
         assertEquals(listOf("share:새벽질주", "chat"), calls)
     }
-
-    @Test
-    fun `크루 관리 - 크루장은 크루원 메뉴에서 운영진 지정·해제, 운영진은 가입 결정만 본다(FR-204, 와이어 I10)`() {
-        var role by mutableStateOf(CrewRole.LEADER)
-        var menu by mutableStateOf<com.a207.runkk.app.domain.crew.CrewMembers.Member?>(null)
-        val withManager = members.copy(
-            members = members.members.map {
-                if (it.memberId ==
-                    3L
-                ) {
-                    it.copy(role = CrewRole.MANAGER)
-                } else {
-                    it
-                }
-            }
-        )
-        compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                CrewManageScreen(
-                    CrewManageUiState(
-                        crewId = 11,
-                        detail = crewDetail(role = role),
-                        isLoading = false,
-                        members = withManager,
-                        menuMember = menu
-                    ),
-                    CrewManageActions(
-                        onMenu = { calls += "menu:${it.memberId}" },
-                        onAsk = { calls += "ask:${(it as ManageAction.Appoint).member.memberId}:${it.managerCount}" },
-                        onDismissManager = { calls += "dismiss:${it.memberId}" }
-                    )
-                )
-            }
-        }
-        compose.onNodeWithContentDescription("달빛 크루원 메뉴").performClick()
-        menu = withManager.members[1]
-        compose.waitForIdle()
-        compose.onNodeWithText("운영진으로 지정").performClick()
-        menu = withManager.members[2]
-        compose.waitForIdle()
-        compose.onNodeWithText("운영진 해제").performClick()
-        assertEquals(listOf("menu:2", "ask:2:1", "dismiss:3"), calls)
-        menu = null
-        role = CrewRole.MANAGER
-        compose.waitForIdle()
-        compose.onNodeWithContentDescription("달빛 크루원 메뉴").assertDoesNotExist()
-        compose.onNodeWithText("크루 삭제").assertDoesNotExist()
-    }
 }
-
-/** v0.11 크루 화면 스크린샷: 크루 홈(레이스)·일정(대면 모임)·공지·투표·게시판 × 라이트·다크(NFR-041), 쓰기 화면. */
-@RunWith(RobolectricTestRunner::class)
-class CrewV011ScreenshotTest {
-    @get:Rule
-    val compose = createComposeRule()
-
-    private val home = CrewHomeUiState(
-        crewId = 11,
-        detail = crewDetail(role = CrewRole.MANAGER),
-        race = raceWithGoal,
-        ranking = ranking,
-        crewRuns = crewRunPosts
-    )
-
-    private fun crewHome(isDark: Boolean) = compose.captureRunkkScreen("A3b_crew_home_race_${theme(isDark)}", isDark) {
-        CrewHomeScreen(home, CrewHomeActions())
-    }
-
-    @Config(qualifiers = RUNKK_PHONE)
-    @Test
-    fun homeDark() = crewHome(isDark = true)
-
-    @Config(qualifiers = RUNKK_PHONE)
-    @Test
-    fun homeLight() = crewHome(isDark = false)
-}
-
-/** 스크린샷 파일 이름 끝(라이트·다크 벌, NFR-041). */
-private fun theme(isDark: Boolean): String = if (isDark) "dark" else "light"

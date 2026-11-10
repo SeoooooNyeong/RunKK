@@ -218,21 +218,29 @@ class CrewScreensTest {
     }
 
     @Test
-    fun `내 크루 - 크루장의 ⋯ 메뉴에는 크루 관리가 있고 탭 자리에서는 뒤로 단추가 없다(F-24)`() {
+    fun `내 크루 - 크루장의 ⋯ 메뉴도 크루 정보·크루원 두 줄뿐이고 탭 자리에서는 뒤로 단추가 없다(F-24, W7)`() {
         val leader = crewDetail(role = com.a207.runkk.app.domain.crew.CrewRole.LEADER)
+        var state by androidx.compose.runtime.mutableStateOf(CrewHomeUiState(crewId = 11, detail = leader))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
-                    CrewHomeUiState(crewId = 11, detail = leader),
-                    CrewHomeActions(onManage = { calls += "manage" }),
+                    state,
+                    CrewHomeActions(
+                        onMenuOpen = {
+                            calls += "menu"
+                            state = state.copy(isMenuOpen = true)
+                        },
+                        onPage = { calls += "page:$it" }
+                    ),
                     isAtTabRoot = true
                 )
             }
         }
         compose.onNodeWithContentDescription("뒤로").assertDoesNotExist()
         compose.onNodeWithContentDescription("크루 메뉴").performClick()
-        compose.onNodeWithText("크루 관리").performClick()
-        assertEquals(listOf("manage"), calls)
+        compose.onNodeWithText("크루 관리").assertDoesNotExist()
+        compose.onNodeWithText("크루 정보").performClick()
+        assertEquals(listOf("menu", "page:INFO"), calls)
     }
 
     @Test
@@ -638,42 +646,21 @@ class CrewScreenshotTest {
     }
 
     @Test
-    fun `크루원 쪽은 내 정보, 티어와 한줄 소개를 보인다(와이어 E4, 피그마 F-22)`() {
+    fun `크루원 쪽은 내 정보 카드와 크루원별 누적 거리를 보인다(피그마 F-22, W7)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                CrewHomeScreen(home.copy(page = CrewHomePage.MEMBERS), CrewHomeActions())
+                CrewHomeScreen(home.copy(page = CrewHomePage.MEMBERS, members = membersWithMe), CrewHomeActions())
             }
         }
-        compose.onNodeWithText("크루에서 보이는 내 정보").assertExists()
-        compose.onNodeWithText("골드, 매일 새벽 5시").assertExists()
-        compose.onNodeWithText("크루원 3").assertExists()
+        compose.onNodeWithText("내 정보").assertExists()
+        compose.onNodeWithText("누적 거리").assertExists()
+        compose.onNodeWithText("512.39km").assertExists()
         compose.onNodeWithText("MORNING_SPARROW").assertDoesNotExist()
     }
 
     @Test
     fun memberList() = compose.captureRunkkScreen("G3_my_crew_members") {
         CrewHomeScreen(home.copy(page = CrewHomePage.MEMBERS), CrewHomeActions())
-    }
-
-    @Test
-    fun manage() = compose.captureRunkkScreen("G4_crew_manage") {
-        CrewManageScreen(
-            CrewManageUiState(
-                crewId = 11,
-                crewName = "새벽질주",
-                detail = crewDetail(role = com.a207.runkk.app.domain.crew.CrewRole.LEADER),
-                isLoading = false,
-                requests = com.a207.runkk.app.domain.crew.PendingRequests(
-                    listOf(
-                        com.a207.runkk.app.domain.crew.PendingRequests.Request(91, 9, "새내기", start.minusSeconds(86_400))
-                    )
-                ),
-                members = members,
-                inviteCode = "K7P2QX",
-                form = CrewFormState(name = "새벽질주")
-            ),
-            CrewManageActions()
-        )
     }
 
     @Test

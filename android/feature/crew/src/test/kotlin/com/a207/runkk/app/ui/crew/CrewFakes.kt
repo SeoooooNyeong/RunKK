@@ -157,9 +157,40 @@ val crewC = CrewList.Item(
 
 val members = CrewMembers(
     listOf(
-        CrewMembers.Member(1, "바람처럼", CrewRole.LEADER, "매일 새벽 5시", "골드", "MORNING_SPARROW"),
-        CrewMembers.Member(2, "달빛", CrewRole.MEMBER, null, "실버", "LONE_WOLF"),
-        CrewMembers.Member(3, "비공개러너", CrewRole.MEMBER, "반가워요", null, null)
+        CrewMembers.Member(
+            1,
+            "바람처럼",
+            CrewRole.LEADER,
+            "매일 새벽 5시",
+            "GOLD",
+            "MORNING_SPARROW",
+            accumulated = Distance(512_390),
+            joinedAt = Instant.parse("2026-09-01T00:00:00Z"),
+            level = 26,
+            ageBand = "20대",
+            gender = Gender.FEMALE
+        ),
+        CrewMembers.Member(
+            2,
+            "달빛",
+            CrewRole.MEMBER,
+            null,
+            "SILVER",
+            "LONE_WOLF",
+            accumulated = Distance(120_500),
+            joinedAt = Instant.parse("2026-10-02T00:00:00Z"),
+            level = 12
+        ),
+        CrewMembers.Member(3, "비공개러너", CrewRole.MEMBER, "반가워요", null, null, level = 4)
+    )
+)
+
+/** W7: 내 줄이 있는 크루원(나 = 크루장, 나이 공개·성별 비공개). */
+val membersWithMe = CrewMembers(
+    listOf(
+        members.members[0].copy(isMe = true, isAgePublic = true, isGenderPublic = false),
+        members.members[1],
+        members.members[2]
     )
 )
 
@@ -382,7 +413,10 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
     weeklyDistance = Distance(42_300),
     myRole = role,
     inviteCode = if (role != null) "K7P2QX" else null,
-    inviteCodeExpiresAt = null
+    inviteCodeExpiresAt = null,
+    createdAt = java.time.LocalDate.of(2026, 10, 1),
+    totalDistance = Distance(1_284_670),
+    crewRunCount = 12
 )
 
 val crewRunResult = CrewRunResult(
@@ -467,8 +501,6 @@ class FakeCrewRepository : CrewRepository {
     override suspend fun changeInfo(crewId: Long, form: CrewForm) =
         answer("changeInfo:${form.name}", Unit).also { if (it is Outcome.Success) renamed = form.name }
 
-    override suspend fun reissueInviteCode(crewId: Long) = answer("reissue", "K7P2QX")
-
     override suspend fun transferLeadership(crewId: Long, memberId: Long) = answer("transfer:$memberId", Unit)
 
     override suspend fun delete(crewId: Long) = answer("delete", Unit)
@@ -520,10 +552,44 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun editCrewProfile(crewId: Long, intro: String) = answer("intro:$intro", Unit)
 
-    override suspend fun members(crewId: Long) = answer("members", members)
+    /** 크루원 목록 응답(W7 시험은 [membersWithMe]로 바꾼다). */
+    var memberList = members
 
-    override suspend fun pendingRequests(crewId: Long) =
-        answer("pending", PendingRequests(listOf(PendingRequests.Request(91, 9, "새내기", start.minusSeconds(86_400)))))
+    override suspend fun members(crewId: Long) = answer("members", memberList)
+
+    override suspend fun pendingRequests(crewId: Long) = answer(
+        "pending",
+        PendingRequests(
+            listOf(
+                PendingRequests.Request(
+                    91,
+                    9,
+                    "새내기",
+                    start.minusSeconds(86_400),
+                    tier = "GOLD",
+                    level = 23,
+                    ageBand = "20대",
+                    gender = Gender.MALE
+                )
+            )
+        )
+    )
+
+    /** 지난 공동 목표 쪽(before → 쪽). 없는 before는 빈 쪽이다. */
+    val pastGoalPages = mutableMapOf<java.time.LocalDate?, com.a207.runkk.app.domain.crew.PastGoals>()
+
+    override suspend fun pastGoals(crewId: Long, before: java.time.LocalDate?) = answer(
+        "pastGoals:$before",
+        pastGoalPages[before] ?: com.a207.runkk.app.domain.crew.PastGoals(emptyList(), null)
+    )
+
+    /** 지난 크루런 달 → 응답. 없는 달은 빈 달이다. */
+    val pastRunMonths = mutableMapOf<java.time.YearMonth, com.a207.runkk.app.domain.crew.PastCrewRuns>()
+
+    override suspend fun pastCrewRuns(crewId: Long, month: java.time.YearMonth, date: java.time.LocalDate?) = answer(
+        "pastRuns:$month",
+        pastRunMonths[month] ?: com.a207.runkk.app.domain.crew.PastCrewRuns(month, emptySet(), emptyList(), null)
+    )
 
     /** 기간별 순위 응답(없으면 [ranking])과 응답을 붙잡아 둘 문(시험이 complete로 연다). */
     val rankingByPeriod = mutableMapOf<CrewRanking.Period, CrewRanking>()
@@ -578,10 +644,6 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun answerAttendance(postId: Long, answer: AttendanceAnswer) =
         answer("vote:$postId:$answer", Unit).also { if (it is Outcome.Success) attendance[postId] = answer }
-
-    override suspend fun appointManager(crewId: Long, memberId: Long) = answer("appoint:$memberId", Unit)
-
-    override suspend fun dismissManager(crewId: Long, memberId: Long) = answer("dismiss:$memberId", Unit)
 
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance) =
         answer("goal:${goal.meters}", raceWithGoal.copy(goal = goal))

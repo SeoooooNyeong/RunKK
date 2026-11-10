@@ -206,12 +206,13 @@ object Routes {
     @Serializable
     data class CrewHome(val crewId: Long) : NavKey
 
-    /**
-     * 크루 관리(크루장·운영진, FR-113~FR-116·FR-123·FR-127·FR-204). 보이는 기능은 내 역할(3.0.3)로 정한다.
-     * 지금 크루 정보는 화면이 GET /crews/{id}로 읽는다.
-     */
+    /** 지난 크루런 달력(피그마 F-20, W7). 크루 정보의 「지난 크루런 ›」에서 연다. 크루 관리 화면은 지웠다(W7 결정 C5). */
     @Serializable
-    data class CrewManage(val crewId: Long) : NavKey
+    data class CrewPastRuns(val crewId: Long) : NavKey
+
+    /** 지난 공동 목표(피그마 F-21, W7). 크루 정보의 「지난 목표 ›」에서 연다. */
+    @Serializable
+    data class CrewPastGoals(val crewId: Long) : NavKey
 
     /** 일정 쓰기(FR-132): 크루런 또는 대면 모임을 고른다. 이름은 v0.10 크루런 모집글 쓰기에서 이어 왔다. */
     @Serializable

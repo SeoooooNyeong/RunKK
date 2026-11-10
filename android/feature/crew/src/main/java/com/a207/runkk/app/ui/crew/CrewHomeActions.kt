@@ -4,6 +4,7 @@ import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
+import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 
 /** 크루 홈 화면의 입력 묶음(상태 없는 CrewHomeScreen을 시험·미리보기에서 그대로 쓴다). */
@@ -26,13 +27,38 @@ data class CrewHomeActions(
     val onRunOpen: (PostList.Item) -> Unit = {},
     val onRunClose: () -> Unit = {},
     val onResult: (PostList.Item) -> Unit = {},
-    /** ⋯ 메뉴의 크루 관리(크루장·운영진, Routes.CrewManage). */
-    val onManage: () -> Unit = {},
+    /** ⋯ 메뉴(F-17·F-24) 열기·닫기. */
+    val onMenuOpen: () -> Unit = {},
+    val onMenuClose: () -> Unit = {},
+    /** 크루 정보의 「지난 크루런 ›」(Routes.CrewPastRuns)·「지난 목표 ›」(Routes.CrewPastGoals). */
+    val onPastRuns: () -> Unit = {},
+    val onPastGoals: () -> Unit = {},
+    /** 가입 신청 승인·거절(F-25, 크루장). */
+    val onApprove: (PendingRequests.Request) -> Unit = {},
+    val onReject: (PendingRequests.Request) -> Unit = {},
+    /** 크루원 정보 팝업(F-22b·F-29b) 열기·닫기. */
+    val onMemberOpen: (CrewMembers.Member) -> Unit = {},
+    val onMemberClose: () -> Unit = {},
+    /** 크루장 넘기기(F-29c)·내보내기(F-29d) 확인 열기·닫기·확정. */
+    val onTransferAsk: (CrewMembers.Member) -> Unit = {},
+    val onTransferDismiss: () -> Unit = {},
+    val onTransferConfirm: () -> Unit = {},
+    val onKickAsk: (CrewMembers.Member) -> Unit = {},
+    val onKickDismiss: () -> Unit = {},
+    val onKickConfirm: () -> Unit = {},
+    /** 크루 삭제(F-27) 확인 열기·닫기·확정. */
+    val onCrewDeleteAsk: () -> Unit = {},
+    val onCrewDeleteDismiss: () -> Unit = {},
+    val onCrewDeleteConfirm: () -> Unit = {},
+    /** 크루 정보 수정(F-26) 입력·저장. 여는 것은 onPage(EDIT). */
+    val onEditForm: (CrewFormState) -> Unit = {},
+    val onEditSave: () -> Unit = {},
+    /** 내 정보 시트(F-23)의 나이·성별 공개 토글. */
+    val onAgePublic: (Boolean) -> Unit = {},
+    val onGenderPublic: (Boolean) -> Unit = {},
     val onChat: () -> Unit = {},
     /** 주간 공동 목표 화면(와이어 M8, Routes.CrewGoalSet). */
     val onGoalEdit: () -> Unit = {},
-    /** 다른 러너 프로필(와이어 F8, Routes.MemberProfile): 크루원 줄. */
-    val onMember: (CrewMembers.Member) -> Unit = {},
     val onShareCelebration: (CelebrationCard) -> Unit = {},
     val onLeaveAsk: () -> Unit = {},
     val onLeaveDismiss: () -> Unit = {},

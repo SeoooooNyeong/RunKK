@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
@@ -241,7 +242,9 @@ class CrewHomeViewModelTest {
     private val clock = MutableClock()
     private val serverClock = ServerClock(clock)
 
-    private fun vm() = CrewHomeViewModel(repo, serverClock, FakeCelebrationSharer()).also {
+    private fun vm() = CrewHomeViewModel(repo, serverClock, FakeCelebrationSharer(), { _, _ ->
+        Outcome.Success(Unit)
+    }).also {
         it.bind(Routes.CrewHome(11))
     }
 
@@ -306,7 +309,9 @@ class CrewHomeViewModelTest {
         assertEquals(6, member.state.value.detail?.headcount)
         assertFalse(member.state.value.canManage)
         repo.role = CrewRole.LEADER
-        val leader = CrewHomeViewModel(repo, serverClock, FakeCelebrationSharer()).also { it.bind(Routes.CrewHome(11)) }
+        val leader = CrewHomeViewModel(repo, serverClock, FakeCelebrationSharer(), { _, _ ->
+            Outcome.Success(Unit)
+        }).also { it.bind(Routes.CrewHome(11)) }
         assertTrue(leader.state.value.canManage)
     }
 
@@ -385,94 +390,6 @@ class CrewHomeViewModelTest {
         vm.onIntroDraft("새벽 5시 고정")
         vm.onIntroSave()
         assertTrue("intro:새벽 5시 고정" in repo.calls)
-    }
-}
-
-class CrewManageViewModelTest {
-    @get:Rule
-    val main = MainDispatcherRule()
-    private val repo = FakeCrewRepository()
-
-    private fun vm() = CrewManageViewModel(repo).also { it.bind(Routes.CrewManage(11)) }
-
-    @Test
-    fun `정보 수정 칸과 초대 코드는 크루 조회로 채운다(FR-112·FR-113)`() {
-        repo.role = CrewRole.LEADER
-        val vm = vm()
-        val form = vm.state.value.form
-        assertEquals("새벽질주", vm.state.value.crewName)
-        assertEquals("새벽에 같이 달려요", form.intro)
-        assertEquals(setOf("WEEKDAY_EVENING", "WEEKDAY_DAWN"), form.tags)
-        assertEquals(JoinPolicy.FREE, form.joinPolicy)
-        assertEquals("K7P2QX", vm.state.value.inviteCode)
-        assertTrue("detail:11" in repo.calls)
-    }
-
-    @Test
-    fun `가입 신청을 승인하면 안내하고 다시 읽는다(FR-123·FR-136)`() {
-        val vm = vm()
-        val request = vm.state.value.requests!!.requests.first()
-        vm.onApprove(request)
-        assertEquals(uiText(R.string.crew_manage_approved, "새내기"), vm.state.value.message)
-        assertEquals(2, repo.calls.count { it == "pending" })
-    }
-
-    @Test
-    fun `초대 코드를 새로 만든다(FR-114)`() {
-        val vm = vm()
-        vm.onReissue()
-        assertEquals("K7P2QX", vm.state.value.inviteCode)
-    }
-
-    @Test
-    fun `내보내기·크루장 넘기기는 확인 뒤에 보낸다(FR-115·FR-127)`() {
-        val vm = vm()
-        val member = members.members[1]
-        vm.onAsk(ManageAction.Kick(member))
-        assertTrue(repo.calls.none { it.startsWith("kick") })
-        vm.onConfirm()
-        assertTrue("kick:2" in repo.calls)
-        vm.onAsk(ManageAction.Transfer(member))
-        vm.onDismiss()
-        assertTrue(repo.calls.none { it.startsWith("transfer") })
-    }
-
-    @Test
-    fun `크루장이 아니면 서버 거부를 안내한다(FR-128)`() {
-        repo.fail["reissue"] = AppError.Rejected("PERMISSION_DENIED")
-        val vm = vm()
-        vm.onReissue()
-        assertEquals(UiText.Res(R.string.crew_error_permission_denied), vm.state.value.message)
-    }
-
-    @Test
-    fun `크루를 지우면 크루 탭으로(FR-116)`() = runTest(main.dispatcher) {
-        val vm = vm()
-        vm.events.test {
-            vm.onAsk(ManageAction.Delete)
-            vm.onConfirm()
-            assertEquals(CrewManageEvent.Deleted, awaitItem())
-        }
-    }
-
-    @Test
-    fun `정보 수정이 거부되면 제목을 바꾸지 않는다`() {
-        repo.fail["changeInfo"] = AppError.Rejected("CREW_NAME_INVALID")
-        val vm = vm()
-        vm.onForm(vm.state.value.form.copy(name = "겹치는이름", tags = setOf("WEEKDAY_DAWN")))
-        vm.onSaveInfo()
-        assertEquals("새벽질주", vm.state.value.crewName)
-        assertEquals(UiText.Res(R.string.crew_error_crew_name_invalid), vm.state.value.message)
-    }
-
-    @Test
-    fun `정보 수정은 이름을 채워 두고 저장한다(FR-113)`() {
-        val vm = vm()
-        assertEquals("새벽질주", vm.state.value.form.name)
-        vm.onForm(vm.state.value.form.copy(name = "새벽질주2", tags = setOf("WEEKDAY_DAWN")))
-        vm.onSaveInfo()
-        assertTrue("changeInfo:새벽질주2" in repo.calls)
-        assertEquals("새벽질주2", vm.state.value.crewName)
     }
 }
 

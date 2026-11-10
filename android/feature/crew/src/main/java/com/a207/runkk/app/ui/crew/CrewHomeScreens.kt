@@ -102,16 +102,16 @@ fun CrewHomeRoute(
 
 /**
  * 크루 홈에서 다른 화면으로 가는 입력을 경로로 잇는다(시험은 [navigate]에 넣어 어느 경로를 부르는지 본다): 크루런 모집, 크루런
- * 대기실·결과, 크루 관리, 채팅방(M4), 주간 공동 목표(M8), 다른 러너 프로필(F8).
+ * 대기실·결과, 채팅방(M4), 주간 공동 목표(M8), 지난 크루런(F-20)·지난 목표(F-21). 크루 관리 화면은 지웠다(W7).
  */
 internal fun CrewHomeActions.withNavigation(crewId: Long, navigate: (NavKey) -> Unit): CrewHomeActions = copy(
     onWriteSchedule = { navigate(Routes.CrewRunWrite(crewId)) },
     onLobby = { post -> navigate(Routes.CrewRunLobby(post.postId)) },
     onResult = { post -> navigate(Routes.CrewRunResult(post.postId)) },
-    onManage = { navigate(Routes.CrewManage(crewId)) },
     onChat = { navigate(Routes.CrewChat(crewId)) },
     onGoalEdit = { navigate(Routes.CrewGoalSet(crewId)) },
-    onMember = { member -> navigate(Routes.MemberProfile(member.memberId)) }
+    onPastRuns = { navigate(Routes.CrewPastRuns(crewId)) },
+    onPastGoals = { navigate(Routes.CrewPastGoals(crewId)) }
 )
 
 /** 다른 ViewModel의 안내 문구를 크루 홈 안내 줄로 넘기고 그 ViewModel에서는 지운다. */
@@ -152,7 +152,26 @@ private fun crewHomeActions(vm: CrewHomeViewModel, onReport: (PostList.Item) -> 
     onInviteClose = vm::onInviteClose,
     onInviteCopied = vm::onInviteCopied,
     onMessageShown = vm::onMessageShown,
-    onLoadMore = vm::onLoadMore
+    onLoadMore = vm::onLoadMore,
+    onMenuOpen = vm::onMenuOpen,
+    onMenuClose = vm::onMenuClose,
+    onApprove = vm::onApprove,
+    onReject = vm::onReject,
+    onMemberOpen = vm::onMemberOpen,
+    onMemberClose = vm::onMemberClose,
+    onTransferAsk = vm::onTransferAsk,
+    onTransferDismiss = vm::onTransferDismiss,
+    onTransferConfirm = vm::onTransferConfirm,
+    onKickAsk = vm::onKickAsk,
+    onKickDismiss = vm::onKickDismiss,
+    onKickConfirm = vm::onKickConfirm,
+    onCrewDeleteAsk = vm::onCrewDeleteAsk,
+    onCrewDeleteDismiss = vm::onCrewDeleteDismiss,
+    onCrewDeleteConfirm = vm::onCrewDeleteConfirm,
+    onEditForm = vm::onEditForm,
+    onEditSave = vm::onEditSave,
+    onAgePublic = vm::onAgePublic,
+    onGenderPublic = vm::onGenderPublic
 )
 
 /**
@@ -178,7 +197,15 @@ fun CrewHomeScreen(
         when (state.page) {
             CrewHomePage.INFO -> CrewInfoPage(state, actions)
             CrewHomePage.MEMBERS -> CrewMembersPage(state, actions)
+            CrewHomePage.EDIT -> CrewEditPage(state, actions)
             CrewHomePage.HOME -> HomeTabs(state, actions, isAtTabRoot)
+        }
+        if (state.isMenuOpen && state.page == CrewHomePage.HOME) {
+            CrewHomeMenu(
+                onInfo = { actions.onPage(CrewHomePage.INFO) },
+                onMembers = { actions.onPage(CrewHomePage.MEMBERS) },
+                onClose = actions.onMenuClose
+            )
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 16.dp))
     }
@@ -264,7 +291,7 @@ private fun CrewTabStrip(selected: CrewTab, onTab: (CrewTab) -> Unit, onChat: ()
     )
 }
 
-/** 크루 홈의 확인 대화상자: 글 삭제, 크루 탈퇴, 크루장 탈퇴 불가(E7), 크루 내 정보 편집(E6), 초대 코드(F-18b). */
+/** 크루 홈의 대화상자: 글 삭제, 크루 정보·크루원 쪽 대화상자(CrewInfoDialogs), 내 정보 시트(F-23), 크루런 응답 시트. */
 @Composable
 private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
     if (state.confirmDelete != null) {
@@ -277,30 +304,8 @@ private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
             isDestructive = true
         )
     }
-    if (state.isConfirmingLeave) {
-        RunkkConfirmDialog(
-            title = stringResource(R.string.crew_home_leave_title),
-            message = stringResource(R.string.crew_home_leave_message),
-            confirmLabel = stringResource(R.string.crew_home_leave),
-            onConfirm = actions.onLeaveConfirm,
-            onDismiss = actions.onLeaveDismiss,
-            isDestructive = true
-        )
-    }
-    if (state.isLeaveBlocked) {
-        RunkkConfirmDialog(
-            title = stringResource(R.string.crew_home_leave_blocked_title),
-            message = stringResource(R.string.crew_home_leave_blocked_message),
-            confirmLabel = stringResource(R.string.crew_manage_transfer),
-            onConfirm = {
-                actions.onLeaveBlockedDismiss()
-                actions.onManage()
-            },
-            onDismiss = actions.onLeaveBlockedDismiss,
-            dismissLabel = stringResource(R.string.crew_home_leave_blocked_close)
-        )
-    }
-    if (state.isEditingIntro) IntroSheet(state, actions)
+    CrewInfoDialogs(state, actions)
+    if (state.isEditingIntro) MyInfoSheet(state, actions)
     state.openedRun?.let { post ->
         // 시트에서 다른 화면·대화상자로 가면 시트를 닫는다(돌아왔을 때 시트가 남지 않게).
         val closing = actions.copy(
@@ -318,45 +323,6 @@ private fun HomeDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
             }
         )
         CrewRunSheet(post, state.lobbyEntries[post.postId], closing)
-    }
-    val code = state.detail?.inviteCode
-    if (state.isInviteOpen && code != null) InviteCodeDialog(code, actions)
-}
-
-/** 크루에서 보이는 내 정보 편집 시트(와이어 E6): 한줄 소개(40자)와 저장. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun IntroSheet(state: CrewHomeUiState, actions: CrewHomeActions) {
-    val colors = MaterialTheme.colorScheme
-    ModalBottomSheet(onDismissRequest = actions.onIntroDismiss, containerColor = colors.surface) {
-        Column(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Text(
-                stringResource(R.string.crew_home_intro_title),
-                style = RunkkTextStyles.CardTitle,
-                color = colors.onSurface,
-                modifier = Modifier.semantics { heading() }
-            )
-            RunkkTextField(
-                value = state.introDraft,
-                onValueChange = actions.onIntroDraft,
-                label = stringResource(
-                    R.string.crew_home_intro_label,
-                    state.introDraft.length,
-                    CrewHomeUiState.INTRO_MAX
-                ),
-                imeAction = ImeAction.Done,
-                onImeAction = actions.onIntroSave
-            )
-            RunkkPrimaryButton(
-                stringResource(R.string.crew_home_intro_save),
-                onClick = actions.onIntroSave,
-                isEnabled = !state.isBusy,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
     }
 }
 
@@ -392,17 +358,9 @@ private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRoot
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).semantics { heading() }
         )
-        MoreMenu(stringResource(R.string.crew_home_menu), homeMenuEntries(state, actions))
+        CrewMoreDots(stringResource(R.string.crew_home_menu), onClick = actions.onMenuOpen)
     }
 }
-
-/** ⋯ 메뉴 줄(피그마 F-17·F-24): 크루 정보, 크루원, 크루장·운영진이면 크루 관리. */
-@Composable
-private fun homeMenuEntries(state: CrewHomeUiState, actions: CrewHomeActions): List<MenuEntry> = listOfNotNull(
-    MenuEntry(stringResource(R.string.crew_home_menu_info)) { actions.onPage(CrewHomePage.INFO) },
-    MenuEntry(stringResource(R.string.crew_home_tab_members)) { actions.onPage(CrewHomePage.MEMBERS) },
-    if (state.canManage) MenuEntry(stringResource(R.string.crew_home_menu_manage), actions.onManage) else null
-)
 
 @StringRes
 internal fun CrewRole.labelRes(): Int = when (this) {
