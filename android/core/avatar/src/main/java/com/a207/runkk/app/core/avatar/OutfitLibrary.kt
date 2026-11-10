@@ -4,11 +4,6 @@ import android.content.res.AssetManager
 import android.util.LruCache
 import java.io.FileNotFoundException
 
-/** 의상 자산 파일 읽기(assets 기준 경로 → 바이트, 없으면 null). 시험은 파일 폴더로 바꿔 끼운다. */
-internal fun interface OutfitFiles {
-    fun read(path: String): ByteArray?
-}
-
 /**
  * 프로세스 공용 의상 자산(assets/outfits). [PreparedRiveAssets.read]가 IO 스레드에서 한 번 [install]하고, 합성 스레드가
  * [catalog]와 [read]를 쓴다. 읽은 PNG 바이트는 상한(약 8MB) 안에서 다시 쓴다.
