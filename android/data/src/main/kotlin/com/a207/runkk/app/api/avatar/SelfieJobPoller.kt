@@ -9,6 +9,7 @@ import com.a207.runkk.app.domain.avatar.SelfieJob
 import com.a207.runkk.app.domain.avatar.SelfieProgress
 import com.a207.runkk.app.domain.avatar.SelfieResultNotifier
 import java.time.Clock
+import java.util.Optional
 import javax.inject.Inject
 import kotlinx.coroutines.delay
 
@@ -21,8 +22,9 @@ import kotlinx.coroutines.delay
  * - 총 상한은 접수 시각부터 [TOTAL_LIMIT_MILLIS](974초 약 16분, 앞 판 68번 조회와 같은 시간)다. 워커가 멈췄다 다시 시작해도 접수
  *   시각(기기 사본)에서 센다. 넘으면 실패(사유 [SelfieProgress.TIMEOUT])다.
  * - 성공(SUCCEEDED)이면 결과를 받아 내 얼굴을 바꾸고(finishSelfie, 하루 1회 차감은 서버가 한다) 보낸 사진을 지운 뒤 알림을 낸다.
- * - 실패(FAILED)·업무 거부(Rejected)는 바로 실패, 연결·서버 실패는 [MAX_FAILURES]번 이어지면 실패다. 실패는 하루 횟수에 세지 않는다
- *   (FR-155, 서버 규칙). 실패해도 사진을 지우고 알림을 낸다.
+ * - 실패(FAILED)·업무 거부(Rejected)는 바로 실패, 서버 실패(5xx 등 Server)는 [MAX_FAILURES]번 이어지면 실패다. 연결 실패(오프라인)는
+ *   세지 않고 총 상한까지 이어 간다(리뷰 R2-10, [임시:D-성-159]). 실패는 하루 횟수에 세지 않는다(FR-155, 서버 규칙). 실패해도 사진을
+ *   지우고 알림을 낸다. 그사이 다른 작업이 기기에 남았으면 뒷정리·알림을 하지 않는다.
  * - 기기에 남긴 작업이 [jobId]가 아니면(새로 접수, 기본 캐릭터 고름, 로그아웃) 아무것도 하지 않고 끝낸다.
  */
 internal class SelfieJobPoller(
@@ -41,9 +43,9 @@ internal class SelfieJobPoller(
         store: PendingSelfieStore,
         progress: SelfieProgressHub,
         photo: PendingSelfiePhoto,
-        notifier: SelfieResultNotifier,
+        notifier: Optional<SelfieResultNotifier>,
         clock: Clock
-    ) : this(avatars, store, progress, photo, notifier, clock, POLL_DELAYS, { delay(it) })
+    ) : this(avatars, store, progress, photo, notifier.orElse(SILENT), clock, POLL_DELAYS, { delay(it) })
 
     suspend fun poll(jobId: String): SelfiePollEnd {
         if (store.load() != jobId) return SelfiePollEnd.FINISHED
@@ -59,11 +61,15 @@ internal class SelfieJobPoller(
             sleep(delays[attempt.coerceAtMost(delays.lastIndex)])
             attempt++
             if (store.load() != jobId) return SelfiePollEnd.FINISHED
-            val result = check(jobId)
-            when {
-                result == Check.DONE -> return SelfiePollEnd.FINISHED
-                result == Check.WAIT -> failures = 0
-                ++failures >= MAX_FAILURES -> return fail(jobId, null)
+            when (check(jobId)) {
+                Check.DONE -> return SelfiePollEnd.FINISHED
+
+                Check.WAIT -> failures = 0
+
+                // 연결 실패(오프라인)는 세지 않고 총 상한까지 기다린다(리뷰 R2-10).
+                Check.OFFLINE -> Unit
+
+                Check.SERVER -> if (++failures >= MAX_FAILURES) return fail(jobId, null)
             }
         }
     }
@@ -71,7 +77,8 @@ internal class SelfieJobPoller(
     /** 한 번 조회한다. 끝났으면 결과를 처리하고 [Check.DONE]이다. */
     private suspend fun check(jobId: String): Check = when (val job = avatars.selfieJob(jobId)) {
         is Outcome.Success -> when (job.value.status) {
-            SelfieJob.Status.SUCCEEDED -> finish(jobId)
+            // 조회하는 사이 기기 작업이 바뀌었으면(새 접수, 기본 캐릭터) 결과를 받지 않는다(리뷰 R2-9).
+            SelfieJob.Status.SUCCEEDED -> if (store.load() == jobId) finish(jobId) else Check.DONE
 
             SelfieJob.Status.FAILED -> {
                 // 저장소가 실패를 남기고 진행을 맞췄다.
@@ -94,28 +101,43 @@ internal class SelfieJobPoller(
         is Outcome.Failure -> rejectedOrRetry(jobId, result.error)
     }
 
-    private suspend fun rejectedOrRetry(jobId: String, error: AppError): Check {
-        if (error !is AppError.Rejected) return Check.RETRY
-        fail(jobId, error.code)
-        return Check.DONE
+    private suspend fun rejectedOrRetry(jobId: String, error: AppError): Check = when (error) {
+        is AppError.Rejected -> {
+            fail(jobId, error.code)
+            Check.DONE
+        }
+
+        is AppError.Server -> Check.SERVER
+
+        AppError.Network, AppError.Unauthorized, AppError.Storage -> Check.OFFLINE
     }
 
     private suspend fun fail(jobId: String, code: String?): SelfiePollEnd {
-        if (store.load() == jobId) store.clear()
+        val current = store.load()
+        if (current != null && current != jobId) return SelfiePollEnd.FINISHED
+        store.clear()
         store.saveFailure(SelfieFailure(jobId, code))
         progress.sync()
         done(jobId, succeeded = false)
         return SelfiePollEnd.FINISHED
     }
 
+    /** 끝난 작업의 뒷정리. 그사이 다른 작업이 기기에 남았으면(새 접수) 그 사진을 지우지 않고 알리지 않는다(리뷰 R2-9). */
     private suspend fun done(jobId: String, succeeded: Boolean) {
+        val current = store.load()
+        if (current != null && current != jobId) return
         photo.clear()
         notifier.notify(jobId, succeeded)
     }
 
-    private enum class Check { DONE, WAIT, RETRY }
+    private enum class Check { DONE, WAIT, OFFLINE, SERVER }
 
     internal companion object {
+        /** 알림 구현이 없는 앱(워치)에서 쓰는 빈 알림. */
+        private val SILENT = object : SelfieResultNotifier {
+            override fun notify(jobId: String, succeeded: Boolean) = Unit
+        }
+
         /** 얼굴 생성은 보통 1~6분 걸린다. 3초부터 늘려 15초마다 본다. */
         val POLL_DELAYS = listOf(3_000L, 3_000L, 5_000L, 8_000L, 10_000L, 15_000L)
 
@@ -125,7 +147,7 @@ internal class SelfieJobPoller(
         /** 워커 한 번의 실행 시간(CoroutineWorker 실행 제한 10분 안). */
         const val RUN_LIMIT_MILLIS = 8 * 60_000L
 
-        /** 연속 연결·서버 실패 허용 횟수. */
+        /** 연속 서버 실패(Server) 허용 횟수. 연결 실패는 세지 않는다. */
         const val MAX_FAILURES = 3
     }
 }

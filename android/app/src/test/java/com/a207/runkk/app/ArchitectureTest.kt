@@ -58,16 +58,18 @@ class ArchitectureTest {
      * 아바타 화면의 Rive 렌더러(W8·W9, S15P31A207-299·300)가 ui.avatar → core.avatar를 더해 178개다.
      * 셀카 결과 알림·얼굴 화면 표시 포트 구현(S15P31A207-300, design-oo 05-30 [임시:D-성-120])이 data.push → domain.avatar를 더해 179개다.
      * 내 러너 숫자 타일(이번 주 횟수·거리, 연속 러닝 일수, 대시보드, 05-30 [임시:D-성-145])이 ui.avatar → domain.record를 더해 180개다.
+     * 셀카 결과 알림의 실행 인텐트 약속(SelfieNoticeIntent, 05-30 [임시:D-성-162])을 알림(data.push)과 읽는 쪽(app)이 함께 보려고
+     * data.push → core.model을 더해 181개다(RunNoticeExtras가 data.device와 app 사이에 있는 것과 같은 자리).
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 180개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 181개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(180, phone.sumOf { it.value.size })
+        assertEquals(181, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -558,7 +560,8 @@ class ArchitectureTest {
                 "data.live" to setOf("domain.live", "api.core", "api.live", "core.model"),
                 // domain.chat 추가: OpenChatRoomTracker가 OpenChatRoomRegistry를 구현한다(D-130).
                 // domain.avatar 추가: 셀카 결과 알림·얼굴 화면 표시 포트 구현(SelfieNoticeTracker), 05-30 [임시:D-성-120].
-                "data.push" to setOf("domain.notification", "domain.chat", "domain.avatar"),
+                // core.model 추가: 알림 실행 인텐트 약속 SelfieNoticeIntent를 app과 함께 본다(05-30 [임시:D-성-162]).
+                "data.push" to setOf("domain.notification", "domain.chat", "domain.avatar", "core.model"),
                 // core.model 추가: SessionRepository.save·clear가 Outcome을 돌려준다(13.2 "포트는 Outcome"). A2 결정.
                 "data.session" to setOf("domain.account", "domain.notification", "api.core", "core.model"),
                 // core.designsystem 추가: 러니멀 카드 이미지가 공용 유형 그림·이름 대응표(RunimalArt, RunimalAxisName)를 쓴다.

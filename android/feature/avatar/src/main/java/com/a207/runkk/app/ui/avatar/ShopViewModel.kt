@@ -159,23 +159,26 @@ class ShopViewModel @Inject constructor(
         _state.update { it.copy(isEquipping = true) }
         viewModelScope.launch {
             when (val result = avatars.equip(mapOf(item.slot to item.itemId))) {
-                is Outcome.Success -> _state.update {
-                    myAvatar.refresh()
+                is Outcome.Success -> {
                     val reason = result.value.rejected[item.slot]
-                    it.copy(
-                        isEquipping = false,
-                        avatar = result.value,
-                        selected = null,
-                        message = if (reason == null) {
-                            uiText(R.string.avatar_shop_equipped, item.name)
-                        } else {
-                            uiText(
-                                R.string.avatar_equip_rejected,
-                                UiText.Res(item.slot.labelRes),
-                                AvatarErrorText.ofCode(reason)
-                            )
-                        }
-                    ).withLook()
+                    // 홈·러닝 칸도 새 착용으로 다시 준비한다. 거부되면 바뀐 것이 없다(리뷰 R2-6). update 람다 밖에서 부른다.
+                    if (reason == null) myAvatar.refresh()
+                    _state.update {
+                        it.copy(
+                            isEquipping = false,
+                            avatar = result.value,
+                            selected = null,
+                            message = if (reason == null) {
+                                uiText(R.string.avatar_shop_equipped, item.name)
+                            } else {
+                                uiText(
+                                    R.string.avatar_equip_rejected,
+                                    UiText.Res(item.slot.labelRes),
+                                    AvatarErrorText.ofCode(reason)
+                                )
+                            }
+                        ).withLook()
+                    }
                 }
 
                 is Outcome.Failure -> _state.update {

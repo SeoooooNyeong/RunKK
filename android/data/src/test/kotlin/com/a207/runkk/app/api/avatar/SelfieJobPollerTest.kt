@@ -1,5 +1,9 @@
 package com.a207.runkk.app.api.avatar
 
+import androidx.work.ListenableWorker
+import com.a207.runkk.app.api.core.SelfMember
+import com.a207.runkk.app.api.core.TokenProvider
+import com.a207.runkk.app.api.core.jwtOf
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.avatar.Avatar
@@ -30,7 +34,8 @@ import kotlinx.coroutines.test.runTest
 class SelfieJobPollerTest {
     private val clock = FakeClock(1_000_000L)
     private val store = MemoryStore()
-    private val hub = SelfieProgressHub(store)
+    private val tokens = TestTokens(jwtOf("7"))
+    private val hub = SelfieProgressHub(store, SelfMember(tokens))
     private val photo = MemoryPhoto(byteArrayOf(1))
     private val notices = mutableListOf<Pair<String, Boolean>>()
     private val notifier = object : SelfieResultNotifier {
@@ -85,16 +90,40 @@ class SelfieJobPollerTest {
     }
 
     @Test
-    fun `연결 실패는 두 번까지 이어 가고 세 번 이어지면 실패다`() = runTest {
+    fun `서버 실패(5xx)는 두 번까지 이어 가고 세 번 이어지면 실패다`() = runTest {
         store.save("job-1", clock.now)
-        repo.failures += listOf(AppError.Network, AppError.Network)
+        repo.failures += listOf(AppError.Server(503), AppError.Server(502))
         repo.jobs += job(SelfieJob.Status.RUNNING)
-        repo.afterJobs = listOf(AppError.Network, AppError.Network, AppError.Network)
+        repo.afterJobs = listOf(AppError.Server(500), AppError.Server(500), AppError.Server(500))
 
         poller().poll("job-1")
 
         assertEquals(SelfieProgress.Failed("job-1", null), hub.progress.value)
         assertEquals(6, repo.checks, "실패 둘 → 대기 성공으로 다시 셈 → 실패 셋")
+    }
+
+    @Test
+    fun `연결 실패(오프라인)는 총 상한까지 이어 가고 실패로 세지 않는다(리뷰 R2-10)`() = runTest {
+        store.save("job-1", clock.now)
+        repo.afterJobs = List(10) { AppError.Network }
+        repo.jobs += job(SelfieJob.Status.RUNNING)
+        repo.forever = job(SelfieJob.Status.SUCCEEDED)
+
+        poller().poll("job-1")
+
+        assertEquals(listOf("job-1" to true), notices, "연결이 돌아오면 이어서 끝낸다")
+    }
+
+    @Test
+    fun `조회하는 사이 기기 작업이 바뀌면(새 접수·기본 캐릭터) 사진을 지우지 않고 알리지 않는다(리뷰 R2-9)`() = runTest {
+        store.save("job-1", clock.now)
+        repo.onCheck = { store.save("job-2", clock.now) }
+        repo.jobs += job(SelfieJob.Status.FAILED, "NO_FACE_DETECTED")
+
+        poller().poll("job-1")
+
+        assertTrue(notices.isEmpty())
+        assertTrue(photo.saved != null, "새 작업의 사진은 그대로")
     }
 
     @Test
@@ -139,6 +168,13 @@ class SelfieJobPollerTest {
 
         assertEquals(0, repo.checks)
         assertTrue(notices.isEmpty())
+    }
+
+    @Test
+    fun `워커 실행이 예외로 끝나면 백오프로 다시 걸고 세 번째부터 멈춘다(리뷰 R2-2)`() {
+        assertEquals(ListenableWorker.Result.retry(), SelfieJobWorker.afterException(runAttemptCount = 0))
+        assertEquals(ListenableWorker.Result.retry(), SelfieJobWorker.afterException(runAttemptCount = 1))
+        assertEquals(ListenableWorker.Result.failure(), SelfieJobWorker.afterException(runAttemptCount = 2))
     }
 
     private fun job(status: SelfieJob.Status, code: String? = null) = SelfieJob("job-1", status, code)
@@ -207,13 +243,20 @@ private class ScriptedAvatars(private val store: PendingSelfieStore) : AvatarRep
     var checks = 0
     var finishes = 0
     var seenAt: Long? = null
+    var onCheck: () -> Unit = {}
 
     override suspend fun selfieJob(jobId: String): Outcome<SelfieJob> {
         checks++
         seenAt = store.submittedAt()
+        onCheck()
         failures.removeFirstOrNull()?.let { return failure(jobId, it) }
+        if (jobs.isEmpty() && afterJobs.isNotEmpty()) {
+            val next = afterJobs.first()
+            afterJobs = afterJobs.drop(1)
+            return failure(jobId, next)
+        }
         jobs.removeFirstOrNull()?.let { job ->
-            if (job.status == SelfieJob.Status.FAILED) {
+            if (job.status == SelfieJob.Status.FAILED && store.load() == jobId) {
                 store.clear()
                 store.saveFailure(SelfieFailure(jobId, job.failureCode))
             }
@@ -257,4 +300,15 @@ private class ScriptedAvatars(private val store: PendingSelfieStore) : AvatarRep
     override suspend fun chooseBackground(key: String?): Outcome<Unit> = error("unused")
 
     override suspend fun backgroundChoice(): Outcome<BackgroundChoice?> = error("unused")
+}
+
+/** 시험용 접근 토큰(회원 바뀜·로그아웃). */
+internal class TestTokens(var access: String?) : TokenProvider {
+    override fun accessToken(): String? = access
+
+    override fun refreshToken(): String? = null
+
+    override fun update(access: String, refresh: String) = Unit
+
+    override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 }

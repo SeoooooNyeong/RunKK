@@ -17,6 +17,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -220,8 +221,11 @@ class AvatarSetupViewModel internal constructor(
             }
             return
         }
-        pendingPhoto.save(jpeg)
-        follower.follow(job.jobId)
+        // 접수된 뒤에는 화면을 바로 떠나도(ViewModel 취소) 사진을 남기고 따라가기를 맡긴다(리뷰 R2-3).
+        withContext(NonCancellable) {
+            pendingPhoto.save(jpeg)
+            follower.follow(job.jobId)
+        }
         _state.update { it.copy(phase = SetupPhase.WORKING) }
     }
 

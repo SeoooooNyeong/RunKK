@@ -91,8 +91,14 @@ class HomeSelfieBadgeTest {
     }
 
     @Test
-    fun badge() = compose.captureRunkkScreen("home_avatar_slot_selfie_badge", isDarkTheme = false) {
+    fun badge() {
+        // 진행은 그리기 전에 정한다(컴포지션 안에서 StateFlow.value를 쓰지 않는다).
         repo.progress.value = SelfieProgress.Working("job-1")
+        compose.captureRunkkScreen("home_avatar_slot_selfie_badge", isDarkTheme = false) { badgeSlot() }
+    }
+
+    @androidx.compose.runtime.Composable
+    private fun badgeSlot() {
         CompositionLocalProvider(LocalRunkkNavigator provides navigator) {
             Box(Modifier.size(390.dp, 420.dp)) { HomeAvatarSlotContent(store) }
         }

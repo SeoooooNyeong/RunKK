@@ -1,8 +1,12 @@
 package com.a207.runkk.app.data.push
 
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import androidx.test.core.app.ApplicationProvider
+import com.a207.runkk.app.core.model.SelfieNoticeIntent
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,6 +31,15 @@ class SelfieNoticeTrackerTest {
     @BeforeTest
     fun setUp() {
         context.getSystemService(NotificationManager::class.java).cancelAll()
+        // 실행 화면이 있어야 알림이 앱을 여는 인텐트를 싣는다.
+        val launcher = ComponentName(context.packageName, "${context.packageName}.MainActivity")
+        shadowOf(context.packageManager).apply {
+            addActivityIfNotPresent(launcher)
+            addIntentFilterForActivity(
+                launcher,
+                IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) }
+            )
+        }
     }
 
     @Test
@@ -62,6 +75,25 @@ class SelfieNoticeTrackerTest {
         tracker.notify("job-1", succeeded = true)
 
         assertEquals(0, manager.allNotifications.size)
+    }
+
+    @Test
+    fun `안 낸 알림은 낸 것으로 세지 않아 뒤에 다시 부르면 낸다(리뷰 R2-12)`() {
+        isForeground = true
+        tracker.notify("job-1", succeeded = true)
+        isForeground = false
+        tracker.notify("job-1", succeeded = true)
+
+        assertEquals(1, manager.allNotifications.size)
+    }
+
+    @Test
+    fun `알림을 누르면 앱 안 전용 동작으로 앱을 연다(리뷰 R2-5)`() {
+        tracker.notify("job-1", succeeded = true)
+
+        val intent = shadowOf(manager.allNotifications.single().contentIntent).savedIntent
+        assertEquals(SelfieNoticeIntent.ACTION_OPEN_RESULT, intent.action)
+        assertEquals(context.packageName, intent.`package` ?: intent.component?.packageName)
     }
 
     @Test

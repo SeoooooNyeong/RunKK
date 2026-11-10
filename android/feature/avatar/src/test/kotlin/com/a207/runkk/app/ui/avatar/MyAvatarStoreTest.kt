@@ -37,6 +37,9 @@ class MyAvatarStoreTest {
     private val preloaded = mutableListOf<AvatarGender>()
     private val prepared = mutableListOf<RiveAvatarLook>()
     private var prepareFailure: Exception? = null
+    private val loggedIn = MutableStateFlow(true)
+    private var loggedOutCleanups = 0
+    private var resumes = 0
 
     private fun TestScope.store() = MyAvatarStore(
         avatars = repo,
@@ -47,8 +50,61 @@ class MyAvatarStoreTest {
             prepareFailure?.let { throw it }
             prepared += look
         },
-        scope = backgroundScope
+        scope = backgroundScope,
+        loggedIn = loggedIn,
+        onLoggedOut = { loggedOutCleanups++ },
+        resumeSelfie = { resumes++ }
     )
+
+    @Test
+    fun `로그아웃(세션)에 비우고 보낸 사진을 지우며, 로그아웃 동안 warm은 아무것도 하지 않는다(리뷰 R2-7, R2-11)`() = runTest {
+        val store = store()
+        store.warm()
+        gender.value = Gender.MALE
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value)
+
+        loggedIn.value = false
+        runCurrent()
+        assertIs<MyAvatarState.Idle>(store.state.value)
+        assertEquals(1, loggedOutCleanups)
+
+        store.warm()
+        runCurrent()
+        assertIs<MyAvatarState.Idle>(store.state.value, "로그아웃 뒤 늦게 온 warm은 앞 회원 그림을 다시 준비하지 않는다")
+
+        loggedIn.value = true
+        store.warm()
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value)
+    }
+
+    @Test
+    fun `warm은 기기에 남은 셀카 작업 따라가기를 잇는다(리뷰 R2-3)`() = runTest {
+        val store = store()
+        store.warm()
+        runCurrent()
+        assertEquals(1, resumes)
+    }
+
+    @Test
+    fun `입력 읽기가 예외를 던져도 앱이 죽지 않고 Failed다(리뷰 R2-8)`() = runTest {
+        val store = MyAvatarStore(
+            avatars = object : AvatarRepository by repo {
+                override suspend fun runner(): Outcome<AvatarRunner> = throw IllegalStateException("boom")
+            },
+            myGender = gender,
+            heads = headsOf(repo),
+            preload = {},
+            prepare = {},
+            scope = backgroundScope,
+            loggedIn = loggedIn
+        )
+        store.warm()
+        gender.value = Gender.MALE
+        runCurrent()
+        assertIs<MyAvatarState.Failed>(store.state.value)
+    }
 
     @Test
     fun `셀카 결과를 워커가 적용하면 화면이 없어도 다시 준비하고, 앞서 끝난 성공으로는 다시 읽지 않는다(DR-성-13)`() = runTest {

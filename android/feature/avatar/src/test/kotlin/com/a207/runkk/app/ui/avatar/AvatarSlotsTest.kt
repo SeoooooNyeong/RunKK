@@ -64,15 +64,15 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `Overlay가 처음 그려지면 미리 준비를 시작하고 빠지면(로그아웃) 비운다`() {
-        var isLoggedIn by mutableStateOf(true)
-        compose.setContent { if (isLoggedIn) entry.Overlay(null) }
+    fun `Overlay가 처음 그려지면 미리 준비를 시작하고, 빠져도(회전·구성 변경) 비우지 않는다(리뷰 R2-7)`() {
+        var isShown by mutableStateOf(true)
+        compose.setContent { if (isShown) entry.Overlay(null) }
         compose.waitForIdle()
         assertIs<MyAvatarState.Loading>(store.state.value, "성별을 기다린다")
 
-        isLoggedIn = false
+        isShown = false
         compose.waitForIdle()
-        assertIs<MyAvatarState.Idle>(store.state.value)
+        assertIs<MyAvatarState.Loading>(store.state.value, "로그아웃은 세션 상태로만 비운다")
     }
 
     @Test

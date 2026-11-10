@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.avatar
 
 import android.content.Context
+import android.util.Log
 import com.a207.runkk.app.core.avatar.AvatarGender
 import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.preloadRiveAvatar
@@ -9,12 +10,16 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.PendingSelfiePhoto
+import com.a207.runkk.app.domain.avatar.SelfieJobFollower
 import com.a207.runkk.app.domain.avatar.SelfieProgress
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -25,6 +30,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterIsInstance
@@ -51,13 +57,22 @@ class MyAvatarStore internal constructor(
     private val heads: SelfieHeads,
     private val preload: suspend (AvatarGender) -> Unit,
     private val prepare: suspend (RiveAvatarLook) -> Unit,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /** 로그인 상태(SessionRepository.loggedIn). 참 → 거짓이면 비운다([임시:D-성-161], 리뷰 R2-7). */
+    private val loggedIn: StateFlow<Boolean> = MutableStateFlow(true),
+    /** 로그아웃 뒷정리(보낸 사진 지움, 리뷰 R2-11). */
+    private val onLoggedOut: suspend () -> Unit = {},
+    /** 기기에 남은 셀카 작업 따라가기 잇기(리뷰 R2-3, [임시:D-성-163]). */
+    private val resumeSelfie: suspend () -> Unit = {}
 ) {
     @Inject
     constructor(
         avatars: AvatarRepository,
         accounts: AccountRepository,
         heads: SelfieHeads,
+        sessions: SessionRepository,
+        photo: PendingSelfiePhoto,
+        follower: SelfieJobFollower,
         @ApplicationContext context: Context
     ) : this(
         avatars = avatars,
@@ -74,7 +89,10 @@ class MyAvatarStore internal constructor(
                 look.headLayers
             )
         },
-        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + LOG_FAILURE),
+        loggedIn = sessions.loggedIn,
+        onLoggedOut = { photo.clear() },
+        resumeSelfie = { avatars.pendingSelfieJobId()?.let(follower::resume) }
     )
 
     /** 셀카 작업 진행(홈 칸의 진행 배지가 듣는다, 피그마 AV-7 4). */
@@ -89,13 +107,38 @@ class MyAvatarStore internal constructor(
     private var work: Job? = null
     private var gender: AvatarGender? = null
 
+    /** 마지막으로 본 로그인 상태(로그인 → 로그아웃 바뀜을 가린다). */
+    private var wasLoggedIn = loggedIn.value
+
+    init {
+        scope.launch {
+            loggedIn
+                .catch { /* 세션 흐름이 끊겨도 앱을 멈추지 않는다(리뷰 R2-8). */ }
+                .collect { now ->
+                    val before = wasLoggedIn
+                    wasLoggedIn = now
+                    if (before && !now) {
+                        clear()
+                        quietly { onLoggedOut() }
+                    }
+                }
+        }
+    }
+
     /** 미리 준비를 시작한다(로그인한 동안 Overlay가 처음 그려질 때, 홈 칸이 먼저 그려질 때). 이미 시작했으면 아무것도 안 한다. */
     fun warm() {
-        if (genderJob?.isActive == true) return
+        // 로그아웃 상태면(clear 뒤 늦게 온 warm) 앞 회원 그림을 다시 준비하지 않는다(리뷰 R2-7).
+        if (genderJob?.isActive == true || !loggedIn.value) return
         _state.value = MyAvatarState.Loading
         genderJob = scope.launch {
-            myGender.map { it?.let(::avatarGenderOf) }.distinctUntilChanged().collect(::onGender)
+            myGender
+                .map { it?.let(::avatarGenderOf) }
+                .distinctUntilChanged()
+                .catch { _state.value = MyAvatarState.Failed }
+                .collect(::onGender)
         }
+        // 셀카 화면을 다시 열지 않아도 남은 작업이 이어지게 따라가기를 잇는다(KEEP이라 돌고 있으면 그대로다).
+        scope.launch { quietly { resumeSelfie() } }
         // 셀카 결과는 화면이 없어도 워커가 적용한다. 성공을 받으면 바뀐 머리로 다시 준비한다([임시:DR-성-13]).
         selfieJob = scope.launch {
             // 첫 값은 지금 상태라 버린다(앞에서 이미 적용한 성공이면 준비가 이미 반영한다).
@@ -103,6 +146,7 @@ class MyAvatarStore internal constructor(
                 .drop(1)
                 .filterIsInstance<SelfieProgress.Succeeded>()
                 .distinctUntilChanged()
+                .catch { /* 진행을 못 들어도 칸은 그대로 둔다(리뷰 R2-8). */ }
                 .collect { refresh() }
         }
     }
@@ -157,7 +201,15 @@ class MyAvatarStore internal constructor(
         work?.cancel()
         val mine = ++generation
         work = scope.launch {
-            val next = load(target)
+            val next =
+                try {
+                    load(target)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // 입력 읽기가 예외를 던져도 앱을 멈추지 않고 실패로 둔다(리뷰 R2-8).
+                    MyAvatarState.Failed
+                }
             if (mine == generation) _state.value = next
         }
     }
@@ -199,6 +251,10 @@ class MyAvatarStore internal constructor(
         }
     }
 }
+
+/** 저장소 작업에서 놓친 예외를 기록만 하고 앱을 멈추지 않는다(리뷰 R2-8). */
+private val LOG_FAILURE =
+    CoroutineExceptionHandler { _, e -> Log.w("MyAvatarStore", "내 아바타 준비 실패: ${e.javaClass.simpleName}") }
 
 /** 프로필 성별 → Rive 몸체(FR-162: 여성이면 여 몸체, 남성·비공개는 남 몸체). */
 private fun avatarGenderOf(gender: Gender): AvatarGender =

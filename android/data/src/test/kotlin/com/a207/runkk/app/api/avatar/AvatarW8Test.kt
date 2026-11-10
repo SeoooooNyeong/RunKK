@@ -26,7 +26,10 @@ class AvatarW8Test {
         api.retrofit.create(),
         api.faces,
         store,
-        SelfieProgressHub(store),
+        SelfieProgressHub(
+            store,
+            com.a207.runkk.app.api.core.SelfMember(TestTokens(com.a207.runkk.app.api.core.jwtOf("7")))
+        ),
         java.time.Clock.systemUTC()
     )
 
