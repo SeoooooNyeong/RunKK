@@ -488,6 +488,11 @@ class FakeCrewRepository : CrewRepository {
     /** 정보 수정(changeInfo)이 받아들인 크루명. 크루 조회가 이 이름을 돌려준다. */
     private var renamed: String? = null
 
+    /** 크루 조회가 돌려줄 크루명을 바꾼다(긴 옛 이름 시험, W7). */
+    fun renameTo(name: String) {
+        renamed = name
+    }
+
     override suspend fun detail(crewId: Long) =
         answer("detail:$crewId", crewDetail(crewId, role).let { d -> renamed?.let { d.copy(name = it) } ?: d })
 
