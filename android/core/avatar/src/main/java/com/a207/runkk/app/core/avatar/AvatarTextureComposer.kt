@@ -21,10 +21,10 @@ internal object AvatarTextureComposer {
             val key = SkinRenderKey.of(name, request.amount, request.outfit, request.shape)
             val rendered = cache.skinRenders[name]?.takeIf { it.key == key } ?: run {
                 // 캐시 키는 riv 자리 이름(정면·달리기 캐시 나눔 [SharedToneCache]과 같은 이름).
-                val body = slot.bodyFile(request.gender)?.let { path ->
+                val body = catalog.bodyFile(request.gender, slot)?.let { path ->
                     cache.skinBases[name] ?: skinBases.getOrPut(name) { bodyBase(path, request.generatedSkinColor) }
                 }
-                val layers = OutfitLayerComposer.layerFiles(
+                val layers = OutfitLayerComposer.layers(
                     catalog,
                     slot,
                     request.gender,
@@ -35,10 +35,14 @@ internal object AvatarTextureComposer {
                     key,
                     OutfitLayerComposer.compose(
                         body,
-                        layers.map { checkNotNull(OutfitLibrary.read(it)) { "outfit layer missing: $it" } },
+                        layers.map {
+                            it.part to
+                                checkNotNull(OutfitLibrary.read(it.path)) { "outfit layer missing: ${it.path}" }
+                        },
                         request.amount,
                         slot.width,
-                        slot.height
+                        slot.height,
+                        cut = catalog.cutFile(request.gender, slot)?.let(OutfitLibrary::read)
                     )
                 )
             }
