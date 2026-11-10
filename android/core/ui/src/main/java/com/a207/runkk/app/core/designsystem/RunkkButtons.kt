@@ -316,15 +316,21 @@ fun RunkkLimePillButton(
 /**
  * 라임 알약 표시(누르지 않는 값 알약, 홈 리워드 잔액 등): [RunkkLimePillButton]과 같은 모양(최소 높이 36, 알약).
  * 높이를 고정하지 않아 기기 글자 크기를 키우면 알약도 함께 커진다(고정 높이 안에서 글자가 잘리지 않게, 사용자 요청 2026-10-31).
+ * [horizontalPadding]은 좁은 머리 줄에서 줄인다(홈 잔액 12dp, 실기기 DV3-9).
  */
 @Composable
-fun RunkkLimePill(text: String, modifier: Modifier = Modifier, textStyle: TextStyle = RunkkButtonSize.Small.textStyle) {
+fun RunkkLimePill(
+    text: String,
+    modifier: Modifier = Modifier,
+    textStyle: TextStyle = RunkkButtonSize.Small.textStyle,
+    horizontalPadding: Dp = RunkkButtonSize.Small.horizontalPadding
+) {
     Box(
         modifier = modifier
             .heightIn(min = RunkkButtonSize.Small.height)
             .clip(RunkkShapes.Pill)
             .background(RunkkColors.LimeFill)
-            .padding(horizontal = RunkkButtonSize.Small.horizontalPadding),
+            .padding(horizontal = horizontalPadding),
         contentAlignment = Alignment.Center
     ) {
         Text(text, style = textStyle, color = RunkkColors.OnLimeFill)
