@@ -352,7 +352,7 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
 
 
 def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
-    """상의 자르기 칸([임시:D-성-156], 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위를 뺀 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
+    """상의 자르기 칸([임시:D-성-156], 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위, 허리 밴드를 뺀 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
     조각을 뺀 전체, 달리기 팔은 전체(소매 끝 아래는 팔 띠)."""
     from outfit_pipeline.masks import stand_zones
 
@@ -362,6 +362,7 @@ def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
         area = ImageChops.subtract(zones["TOP"], zones["HANDS"])
         area.paste(0, spec.NECK_CHEST)
         area.paste(0, spec.NECK_TOP)
+        area.paste(0, spec.STAND_WAIST)
         array = np.array(area)
         for box, value in ((spec.STAND_LEFT_ARM, spec.CUT_LEFT_ARM), (spec.STAND_RIGHT_ARM, spec.CUT_RIGHT_ARM)):
             x0, y0, x1, y1 = box

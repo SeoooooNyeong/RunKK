@@ -172,18 +172,17 @@ def fill_base_gaps(work: Path) -> None:
         covered |= array[..., 3] > 0
     differs = np.abs(body_stand[..., :3].astype(int) - ref[..., :3].astype(int)).sum(axis=2) > 12
     gap = (ref[..., 3] > 0) & ~covered & (differs | (body_stand[..., 3] == 0))
-    # 하의 칸의 승인 피부(허벅지)는 옷 레이어에 넣지 않는다(넣으면 러닝량 톤을 받지 않는 밝은 띠가 된다, DV-성-11).
-    # 상의 칸의 피부색 픽셀은 흰 반팔티 소매 안 분홍 그늘이라 옷이다.
+    # 승인 피부는 옷 레이어에 넣지 않는다(넣으면 러닝량 톤을 받지 않는 밝은 피부가 된다: 하의 칸 허벅지 DV-성-11, 상의 칸 소매 밑
+    # 팔 안쪽 DV3-8). 그 피부는 맨몸 바탕이 승인 픽셀로 그린다(make_body). 피부가 아닌 승인 픽셀(소매 밑단 선, 몸통 옆 외곽선)은
+    # 팔 칸이어도 넣는다: 빠지면 기본 의상에서 소매 밑단·옷 옆에 구멍(배경)이 점점이 비쳤다(실기기 3차 재확인).
     from outfit_pipeline.build import _skin_like
+    from outfit_pipeline.skin import skin_mask
 
-    gap &= ~(_skin_like(ref[..., :3]) & (np.array(zones["TOP"]) == 0))
-    yy, xx = np.mgrid[0 : ref.shape[0], 0 : ref.shape[1]]
-    gap &= ~(
-        (yy >= 185) & ((xx < 112) | (xx >= 404))
-    )  # 팔(소매 끝 아래, 밑단 폭 밖)은 맨몸 바탕이 승인 그림이라 채우지 않는다
+    # 상의 칸은 맨살 규칙(skin_mask)으로만 뺀다: 넓은 피부색 판정(_skin_like)은 흰 반팔티의 분홍 회색 그늘도 피부로 봐서 빠지면 구멍이 났다
+    gap &= ~((_skin_like(ref[..., :3]) & (np.array(zones["TOP"]) == 0)) | skin_mask(ref))
     for part, array in arrays.items():
         allowed = np.array(load_mask(MASKS, "female_stand", part)) > 0
-        take = drop_specks(gap & (np.array(zones[part]) > 0) & allowed, 6)  # 떨어진 한두 점은 넣지 않는다
+        take = gap & (np.array(zones[part]) > 0) & allowed  # 한 점짜리 구멍도 채운다
         array[take] = ref[take]
         gap &= ~take
         for gender in spec.GENDERS:

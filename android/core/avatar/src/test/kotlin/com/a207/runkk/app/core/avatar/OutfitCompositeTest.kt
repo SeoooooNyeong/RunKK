@@ -283,6 +283,109 @@ class OutfitCompositeTest {
     }
 
     /** 기본 의상 러닝량 0 합성이 승인 기본 텍스처(서기 PNG, 달리기는 riv 내장)와 같은 픽셀(러닝량과 무관하게 같은 자리). */
+    @Test
+    fun `기본 의상 서기 합성은 승인 기본 텍스처의 몸 실루엣 안(팔·몸통, 소매 아래)에 투명 구멍이 없다`() {
+        val approved = pixels(approvedBytes(OutfitSlot.STAND))
+        val width = OutfitSlot.STAND.width
+        val found = mutableListOf<String>()
+        AvatarGender.entries.forEach { gender ->
+            val visible = uvMask(OutfitSlot.STAND, gender, AvatarOutfit())
+            val composed = compose(OutfitSlot.STAND, gender, AvatarOutfit(), 100)
+            // 소매 아래(y 185)부터 손 위(y 300)까지: 팔 띠·몸통 옆·허리 위. 소매 끝 모서리(y 185 위)와 목은 상의 자르기·머리가 정한다.
+            for (y in 185..300) {
+                for (x in 0 until width) {
+                    val i = y * width + x
+                    if (visible[i] && approved[i] ushr 24 >= 250 &&
+                        composed.getPixel(x, y) ushr 24 < 128
+                    ) {
+                        found += "$gender ($x, $y)"
+                    }
+                }
+            }
+            composed.recycle()
+        }
+        assertEquals(emptyList(), found.take(10), "몸 실루엣 안 투명 픽셀 ${found.size}")
+    }
+
+    @Test
+    fun `짧은 상의 × 모든 하의 서기 합성에서 밑단과 허리 사이 몸통에 투명 구멍이 없다`() {
+        val approved = pixels(approvedBytes(OutfitSlot.STAND))
+        val found = mutableListOf<String>()
+        // 짧은 상의(반팔·민소매): 기본, 라임 싱글렛, 크루 티
+        listOf(0, 1, 2).forEach { top ->
+            OutfitCatalog.LEGACY_KEYS.getValue(OutfitPart.BOTTOM).indices.forEach { bottom ->
+                AvatarGender.entries.forEach { gender ->
+                    val outfit = AvatarOutfit(top = top, bottom = bottom)
+                    val composed = compose(OutfitSlot.STAND, gender, outfit, 100)
+                    val width = OutfitSlot.STAND.width
+                    var holes = 0
+                    // 몸통 열(x 128~383)의 허리 밴드(y 296~321, 상의 밑단과 하의 허리 사이), 승인 기본 텍스처가 불투명한 곳
+                    for (y in 296..321) {
+                        for (x in 128..383) {
+                            if (approved[y * width + x] ushr 24 >= 250 && composed.getPixel(x, y) ushr 24 < 128) holes++
+                        }
+                    }
+                    composed.recycle()
+                    if (holes > 0) found += "top $top bottom $bottom $gender: $holes"
+                }
+            }
+        }
+        assertEquals(emptyList(), found, "밑단과 허리 사이 투명 픽셀")
+    }
+
+    @Test
+    fun `기본 의상 러닝량 0 서기 합성의 팔 가장자리는 승인 기본 텍스처와 알파·색이 같다`() {
+        val approved = pixels(approvedBytes(OutfitSlot.STAND))
+        val composed = compose(OutfitSlot.STAND, AvatarGender.FEMALE, AvatarOutfit(), 0)
+        val width = OutfitSlot.STAND.width
+        val opaque = BooleanArray(approved.size) { approved[it] ushr 24 >= 128 }
+        var edge = 0
+        val differs = mutableListOf<String>()
+        // 팔 띠(소매 밑 y 190~300, 바깥 열 x < 140·x > 372)에서 승인 실루엣 경계 2px 안
+        for (y in 190..300) {
+            for (x in (0 until 140) + (373 until width)) {
+                val i = y * width + x
+                val near = (-2..2).any { dy ->
+                    (-2..2).any { dx ->
+                        opaque[
+                            (y + dy) * width +
+                                (x + dx).coerceIn(0, width - 1)
+                        ] !=
+                            opaque[i]
+                    }
+                }
+                if (!near) continue
+                edge++
+                val a = approved[i]
+                val c = composed.getPixel(x, y)
+                val alpha = abs((a ushr 24) - (c ushr 24))
+                val color = if (a ushr 24 >=
+                    128
+                ) {
+                    listOf(16, 8, 0).sumOf { abs((a shr it and 0xFF) - (c shr it and 0xFF)) }
+                } else {
+                    0
+                }
+                if (alpha > 24 || color > 30) differs += "($x, $y)"
+            }
+        }
+        composed.recycle()
+        assertTrue(edge > 300, "검사한 가장자리 $edge")
+        assertEquals(emptyList(), differs.take(10), "팔 가장자리 차이 ${differs.size}/$edge")
+    }
+
+    private fun approvedBytes(slot: OutfitSlot): ByteArray = if (slot == OutfitSlot.STAND) {
+        File("src/main/res/raw/avatar_legacy_standing_body.png").readBytes()
+    } else {
+        val asset = mapOf(
+            OutfitSlot.RUN_BODY to "side_body_coral",
+            OutfitSlot.RUN_ARM to "continuous_arm",
+            OutfitSlot.RUN_LEG to "side_leg_skin",
+            OutfitSlot.RUN_SHOE to "side_shoe"
+        ).getValue(slot)
+        RivEmbeddedImages.read(File("src/main/res/raw/avatar_run_approved.riv").readBytes()).getValue(asset)
+    }
+
     private fun approvedMask(slot: OutfitSlot, gender: AvatarGender): BooleanArray {
         val bytes = if (slot == OutfitSlot.STAND) {
             File("src/main/res/raw/avatar_legacy_standing_body.png").readBytes()
