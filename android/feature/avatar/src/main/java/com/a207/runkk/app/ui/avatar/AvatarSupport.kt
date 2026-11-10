@@ -34,6 +34,18 @@ internal val ItemSlot.labelRes: Int
         ItemSlot.HAT -> R.string.avatar_slot_hat
     }
 
+/** 꾸미기 탭 부위 문구: 모자 부위는 "악세서리"(사용자 결정 A2, FR-161 표시 이름), 나머지는 [labelRes]와 같다. */
+@get:StringRes
+internal val ItemSlot.decorateLabelRes: Int
+    get() = if (this == ItemSlot.HAT) R.string.avatar_slot_accessory else labelRes
+
+/** 서버 체형 4단계를 화면·렌더러 3단계(0 기본, 1 변화 1, 2 변화 2)로(서버 BodyShape.variant와 같다). 모르면 0. */
+internal fun bodyVariantOf(bodyShape: String): Int = when (bodyStage(bodyShape)) {
+    2, 3 -> 1
+    4 -> 2
+    else -> 0
+}
+
 /** 체형 단계(서버 BodyShape STAGE1~4, FR-163). 모르는 값이면 null. */
 internal fun bodyStage(bodyShape: String): Int? = bodyShape.filter(Char::isDigit).toIntOrNull()?.takeIf {
     it in

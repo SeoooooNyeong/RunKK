@@ -11,6 +11,8 @@ data class AvatarUiState(
     val avatar: Avatar? = null,
     /** 셀카 얼굴 부위 그림. 셀카 얼굴이 아니거나 받지 못하면 비어 있고 자리 그림을 그린다. */
     val faceLayers: List<FaceLayer> = emptyList(),
+    /** Rive 렌더러 값(의상·체형·러닝량·셀카 머리, W9). */
+    val look: AvatarLook = AvatarLook(),
     /** 보유 아이템 이름을 찾으려고 읽은 상점 목록(보유 여부 포함). */
     val items: List<Shop.Item> = emptyList(),
     val slot: ItemSlot = ItemSlot.TOP,

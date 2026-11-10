@@ -30,7 +30,7 @@ val sampleBackgrounds = AvatarBackgrounds(
             true,
             Instant.parse("2026-10-21T00:00:00Z")
         ),
-        AvatarBackgrounds.Item("BEIJING", "베이징", "EAST_ASIA", Distance(950_000), false, null)
+        AvatarBackgrounds.Item("BEIJING", "베이징", "EAST_ASIA", Distance(950_000), false, null, Distance(829_500))
     )
 )
 
@@ -60,11 +60,11 @@ class AvatarBackgroundViewModelTest {
     }
 
     @Test
-    fun `잠긴 배경은 보내지 않고 해금 거리를 안내한다(FR-201)`() {
+    fun `잠긴 배경은 보내지 않고 남은 거리(올림 km)를 안내한다(FR-201, W8)`() {
         val vm = AvatarBackgroundViewModel(avatars)
         vm.onChoose(sampleBackgrounds.items[2])
         assertEquals(listOf("backgrounds"), avatars.calls)
-        assertEquals(UiText.Res(R.string.avatar_background_locked_hint, listOf("베이징", 950L)), vm.state.value.message)
+        assertEquals(UiText.Res(R.string.avatar_background_locked_hint, listOf("베이징", 830L)), vm.state.value.message)
         assertNull(vm.state.value.selectedKey)
     }
 

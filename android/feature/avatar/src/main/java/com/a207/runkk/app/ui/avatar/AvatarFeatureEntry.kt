@@ -13,6 +13,7 @@ class AvatarFeatureEntry @Inject constructor() : FeatureEntry {
 
     override fun register(builder: EntryProviderScope<NavKey>) {
         builder.route(Routes.AVATAR) { AvatarRoute() }
+        builder.route(Routes.AVATAR_RUNNER) { AvatarRunnerRoute() }
         builder.route(Routes.AVATAR_SETUP) { AvatarSetupRoute() }
         builder.route(Routes.SHOP) { ShopRoute() }
         builder.route(Routes.AVATAR_BACKGROUND) { AvatarRoute(startOnBackground = true) }

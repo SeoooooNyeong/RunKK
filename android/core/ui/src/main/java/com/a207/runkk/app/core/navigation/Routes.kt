@@ -90,6 +90,9 @@ object Routes {
     const val RUNIMAL_TYPES = "runimal/types"
     const val AVATAR = "avatar"
 
+    /** 내 러너(피그마 H-2, W8): 홈 아바타를 누르면 온다. 체형·피부톤 근거와 꾸미기·상점 입구. */
+    const val AVATAR_RUNNER = "avatar/runner"
+
     /** 아바타 만들기(가입 5단계에서 이어진다, FR-155·FR-158). */
     const val AVATAR_SETUP = "avatar/setup"
     const val SHOP = "avatar/shop"
