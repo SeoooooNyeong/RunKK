@@ -511,7 +511,8 @@ class CrewHomeViewModel @Inject constructor(
     /** 크루 정보 수정 저장(FR-113). 되면 크루 정보 쪽으로 돌아가 크루 정보를 다시 읽는다. */
     fun onEditSave() {
         val form = _state.value.editForm
-        if (!form.isValid) return
+        // 긴 옛 크루명은 그대로 두면 통과, 바꿀 때만 12자 검사(CrewEditName, 서버 S2·S3).
+        if (!form.isEditValid(_state.value.detail?.name.orEmpty())) return
         act {
             val r = crews.changeInfo(_state.value.crewId, form.toForm())
             if (r is Outcome.Success) {

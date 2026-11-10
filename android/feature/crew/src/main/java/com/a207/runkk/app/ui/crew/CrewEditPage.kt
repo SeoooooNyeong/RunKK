@@ -52,6 +52,7 @@ import com.a207.runkk.app.domain.crew.JoinPolicy
 internal fun CrewEditPage(state: CrewHomeUiState, actions: CrewHomeActions) {
     BackHandler { actions.onPage(CrewHomePage.INFO) }
     val form = state.editForm
+    val original = state.detail?.name.orEmpty()
     Column(Modifier.fillMaxSize()) {
         RunkkTopBar(title = stringResource(R.string.crew_edit_title), onBack = { actions.onPage(CrewHomePage.INFO) })
         Column(
@@ -67,7 +68,12 @@ internal fun CrewEditPage(state: CrewHomeUiState, actions: CrewHomeActions) {
                     value = form.name,
                     onValueChange = { actions.onEditForm(form.copy(name = it)) },
                     label = stringResource(R.string.crew_edit_name),
-                    maxLength = CrewFormState.NAME_MAX,
+                    maxLength = editNameMaxLength(original),
+                    error = if (form.isEditNameValid(original)) {
+                        null
+                    } else {
+                        stringResource(R.string.crew_edit_name_invalid, CrewFormState.NAME_MIN, CrewFormState.NAME_MAX)
+                    },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -107,7 +113,7 @@ internal fun CrewEditPage(state: CrewHomeUiState, actions: CrewHomeActions) {
         RunkkButton(
             stringResource(R.string.crew_manage_info_save),
             onClick = actions.onEditSave,
-            isEnabled = form.isValid && !state.isBusy,
+            isEnabled = form.isEditValid(original) && !state.isBusy,
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp)
         )
     }

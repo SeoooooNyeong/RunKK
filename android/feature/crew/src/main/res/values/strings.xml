@@ -357,6 +357,7 @@
     <string name="crew_my_info_public">공개</string>
     <string name="crew_edit_title">크루 정보 수정</string>
     <string name="crew_edit_name">크루명</string>
+    <string name="crew_edit_name_invalid">크루명은 %1$d~%2$d자로 입력해 주세요</string>
     <string name="crew_edit_intro">한 줄 소개</string>
     <string name="crew_edit_tags">태그</string>
     <string name="crew_edit_tags_max">" 최대 %1$d개"</string>
