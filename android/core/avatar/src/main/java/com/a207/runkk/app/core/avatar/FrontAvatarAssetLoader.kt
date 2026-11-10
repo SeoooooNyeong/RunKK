@@ -109,7 +109,8 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
         return (sources ?: originals).getValue(slot)
     }
 
-    private companion object {
+    companion object {
+        /** 정면 볼 덮개 자리 이름. */
         const val FULLNESS = "fullness_overlay"
     }
 }
