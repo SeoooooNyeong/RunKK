@@ -115,6 +115,16 @@ class ProgressNotificationTest {
     }
 
     @Test
+    fun `일시정지 중에는 제목이 경과가 아니라 일시정지다(자유런·크루런, DV-성 9(e))`() {
+        assertEquals(
+            "자유런 11:52 일시정지",
+            ProgressNoticeText.of(context, free(712, 2_140, FreeRunGoalState.None, isPaused = true)).title
+        )
+        val paused = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = true)
+        assertEquals("크루런 15:40 일시정지", ProgressNoticeText.of(context, paused).title)
+    }
+
+    @Test
     fun `진행 알림 작은 아이콘은 런크크 단색 아이콘이다(F-15b, D-성-16)`() {
         val running = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = false)
         val icon = OngoingProgressStyle(context).build(running).smallIcon

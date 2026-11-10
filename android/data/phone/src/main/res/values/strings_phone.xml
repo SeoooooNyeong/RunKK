@@ -6,6 +6,9 @@
     <!-- 잠금 화면 진행 알림(FR-224, D-259). 문구는 피그마 B-3·C-5 그대로다. -->
     <string name="progress_notice_free_title">자유런 %1$s 경과</string>
     <string name="progress_notice_crew_run_title">크루런 %1$s 경과</string>
+    <!-- 일시정지 중 제목(실기기 관찰 DV-성 9(e)): 경과가 멈췄음을 보인다. -->
+    <string name="progress_notice_free_paused_title">자유런 %1$s 일시정지</string>
+    <string name="progress_notice_crew_run_paused_title">크루런 %1$s 일시정지</string>
     <string name="progress_notice_battle_title">vs %1$s, %2$s 경과</string>
     <string name="progress_notice_distance">%1$s km</string>
     <string name="progress_notice_goal_remaining">목표까지 %1$skm</string>
