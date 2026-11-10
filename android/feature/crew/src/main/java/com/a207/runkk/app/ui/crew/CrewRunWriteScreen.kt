@@ -161,8 +161,7 @@ private fun WriteFields(state: CrewRunWriteUiState, actions: CrewRunWriteActions
         CrewFormInput(
             state.title,
             actions.onTitle,
-            placeholder = stringResource(R.string.crew_run_write_title_placeholder),
-            label = titleLabel
+            placeholder = stringResource(R.string.crew_run_write_title_placeholder)
         )
     }
     val bodyLabel = stringResource(R.string.crew_run_write_body_label)
@@ -171,7 +170,6 @@ private fun WriteFields(state: CrewRunWriteUiState, actions: CrewRunWriteActions
             state.body,
             actions.onBody,
             placeholder = stringResource(R.string.crew_run_write_body_placeholder),
-            label = bodyLabel,
             minHeight = 72.dp
         )
     }
@@ -246,9 +244,14 @@ internal fun repeatLabel(repeat: CrewRunRepeat, day: DayOfWeek?): String = when 
 private fun WriteSheet(state: CrewRunWriteUiState, actions: CrewRunWriteActions) {
     when (state.sheet) {
         CrewRunWriteSheet.DATE -> DateSheet(state, actions)
+
         CrewRunWriteSheet.TIME -> TimeSheet(state.time ?: CrewRunWriteUiState.DEFAULT_TIME, actions)
-        CrewRunWriteSheet.DISTANCE -> DistanceSheet(state.distance ?: CrewRunDistanceChoice.KM5, actions)
+
+        CrewRunWriteSheet.DISTANCE ->
+            DistanceSheet(state.distance ?: CrewRunDistanceChoice.KM5, isLegacy = state.legacyDistance != null, actions)
+
         CrewRunWriteSheet.REPEAT -> RepeatSheet(state.repeat, state.date?.dayOfWeek, actions)
+
         null -> Unit
     }
 }
@@ -438,9 +441,11 @@ private fun TimeSheet(initial: LocalTime, actions: CrewRunWriteActions) {
 
 // ---------- 거리 시트(F-12e) ----------
 
-/** 거리 선택 시트: 휠 1열(제한 없음, 3km, 5km, 10km, 하프). */
+/**
+ * 거리 선택 시트: 휠 1열(제한 없음, 3km, 5km, 10km, 하프). [isLegacy]면 기존 1km 글이라 휠을 돌리지 않고 "확인"을 누르면 1km를 그대로 둔다.
+ */
 @Composable
-private fun DistanceSheet(initial: CrewRunDistanceChoice, actions: CrewRunWriteActions) {
+private fun DistanceSheet(initial: CrewRunDistanceChoice, isLegacy: Boolean, actions: CrewRunWriteActions) {
     val resources = LocalContext.current.resources
     val choices = CrewRunDistanceChoice.entries
     val labels = choices.map { crewRunDistanceLabel(resources, it.distance) }
@@ -450,7 +455,15 @@ private fun DistanceSheet(initial: CrewRunDistanceChoice, actions: CrewRunWriteA
         title = stringResource(R.string.crew_run_sheet_distance)
     ) {
         CrewWheel(labels, index, onSelect = { index = it }, modifier = Modifier.fillMaxWidth())
-        SheetConfirm(onClick = { actions.onDistance(choices[index]) })
+        SheetConfirm(onClick = {
+            if (isLegacy &&
+                index == choices.indexOf(initial)
+            ) {
+                actions.onSheetDismiss()
+            } else {
+                actions.onDistance(choices[index])
+            }
+        })
     }
 }
 

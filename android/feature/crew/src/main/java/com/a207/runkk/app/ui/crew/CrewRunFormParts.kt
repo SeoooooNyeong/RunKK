@@ -78,7 +78,6 @@ internal fun CrewFormInput(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    label: String,
     modifier: Modifier = Modifier,
     minHeight: Dp = 48.dp
 ) {
@@ -91,9 +90,8 @@ internal fun CrewFormInput(
         textStyle = RunkkTextStyles.text(15, lineHeight = 18).copy(color = RunkkColors.TextPrimary),
         cursorBrush = SolidColor(RunkkColors.TextPrimary),
         keyboardOptions = KeyboardOptions(imeAction = if (isMultiline) ImeAction.Default else ImeAction.Next),
-        modifier = modifier
-            .fillMaxWidth()
-            .semantics { contentDescription = label },
+        // 라벨은 칸 위 글자(CrewFormField)가 보인다. 입력값을 가리지 않게 contentDescription을 달지 않는다(자가 리뷰 M2).
+        modifier = modifier.fillMaxWidth(),
         decorationBox = { inner ->
             Box(
                 modifier = Modifier

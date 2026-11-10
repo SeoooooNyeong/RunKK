@@ -46,7 +46,7 @@ data class CrewRunDetailUiState(
         } ?: false
 
     /** ⋯ 메뉴에 둘 항목이 있다(수정·삭제는 권한이 있을 때, 남의 글은 신고). */
-    val hasMenu: Boolean get() = detail != null
+    val hasMenu: Boolean get() = detail?.let { it.canEdit || it.canDelete || !it.isMine } ?: false
 }
 
 sealed interface CrewRunDetailEvent {
@@ -103,8 +103,10 @@ class CrewRunDetailViewModel @Inject constructor(private val crews: CrewReposito
     fun onCancelAttend() = answer { crews.withdrawAttendance(it) }
 
     private fun answer(call: suspend (Long) -> Outcome<Unit>) {
+        // 화면을 오래 열어 둔 사이 시작 시각이 지났으면 버튼을 거두고 보내지 않는다(자가 리뷰 M6).
+        _state.update { it.copy(now = clock.instant()) }
         val s = _state.value
-        if (s.isAnswering || s.detail == null) return
+        if (s.isAnswering || s.detail == null || !s.canAnswer) return
         _state.update { it.copy(isAnswering = true) }
         viewModelScope.launch {
             val r = call(s.postId)
