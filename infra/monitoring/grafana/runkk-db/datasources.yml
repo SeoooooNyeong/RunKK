@@ -1,0 +1,46 @@
+# 이벤트 현황 대시보드(dashboards/runkk-event.json)가 읽는 두 환경 DB(S15P31A207-275, README 6절 "이벤트 현황").
+# deploy.sh가 GRAFANA_DB_READONLY_PASSWORD가 있을 때만 이 파일을 provisioning/datasources/runkk-db.yml로 복사한다(없으면 datasources-off.yml).
+# 읽기 전용 계정 runkk_grafana_ro로 DB 전용 망(runkk_db-<환경>)의 postgres-<환경>에 붙는다. 계정과 권한은 readonly-role.sql.
+# 비밀번호와 DB 이름은 grafana 컨테이너 환경 변수(docker-compose.edge.yml)에서 Grafana가 읽을 때 채운다. 이 파일에는 값이 없다.
+apiVersion: 1
+
+datasources:
+  - name: runkk-db-prod
+    uid: runkk-db-prod
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres-prod:5432
+    user: runkk_grafana_ro
+    editable: false
+    jsonData:
+      database: ${GRAFANA_DB_NAME_PROD}
+      # 호스트 밖으로 나가지 않는 internal 망이라 TLS 없이 붙는다(postgres 이미지 기본 설정)
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+      # 계정 연결 제한(3)보다 작게 둔다
+      maxOpenConns: 2
+      maxIdleConns: 1
+      maxIdleConnsAuto: false
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: ${GRAFANA_DB_READONLY_PASSWORD}
+
+  - name: runkk-db-develop
+    uid: runkk-db-develop
+    type: grafana-postgresql-datasource
+    access: proxy
+    url: postgres-develop:5432
+    user: runkk_grafana_ro
+    editable: false
+    jsonData:
+      database: ${GRAFANA_DB_NAME_DEVELOP}
+      sslmode: disable
+      postgresVersion: 1500
+      timescaledb: false
+      maxOpenConns: 2
+      maxIdleConns: 1
+      maxIdleConnsAuto: false
+      connMaxLifetime: 14400
+    secureJsonData:
+      password: ${GRAFANA_DB_READONLY_PASSWORD}
