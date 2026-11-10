@@ -174,8 +174,11 @@ class AvatarSetupViewModel internal constructor(
 
     fun onCharacterSelected(character: DefaultCharacter) = _state.update { it.copy(selected = character, error = null) }
 
-    /** 셀카 촬영을 취소했거나 사진을 읽지 못했을 때. */
+    /** 찍거나 고른 사진을 읽지 못했을 때. */
     fun onSelfieUnavailable() = _state.update { it.copy(error = UiText.Res(R.string.avatar_setup_selfie_unavailable)) }
+
+    /** 카메라를 사용자가 취소했을 때: 문구 없이 고르기 단계에 남는다(앞 안내도 지운다, 리뷰 RC-3). */
+    fun onSelfieCancelled() = _state.update { it.copy(phase = SetupPhase.CHOOSE, error = null) }
 
     /** 찍거나 고른 사진을 줄여(긴 변 1024px·JPEG·1MB) 사진 확인 화면에 보인다. 아직 보내지 않는다. */
     fun onSelfieCaptured(bitmap: android.graphics.Bitmap) {
