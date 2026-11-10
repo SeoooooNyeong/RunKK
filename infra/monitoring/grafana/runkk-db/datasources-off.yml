@@ -1,0 +1,9 @@
+# GRAFANA_DB_READONLY_PASSWORD가 없을 때 deploy.sh가 provisioning/datasources/runkk-db.yml로 복사한다(datasources.yml 대신).
+# 전에 넣은 두 DB 데이터소스를 지운다. 이벤트 현황 대시보드는 남지만 패널은 데이터소스 없음으로 보인다.
+apiVersion: 1
+
+deleteDatasources:
+  - name: runkk-db-prod
+    orgId: 1
+  - name: runkk-db-develop
+    orgId: 1
