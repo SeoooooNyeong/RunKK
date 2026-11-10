@@ -6,16 +6,6 @@ import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import java.time.LocalDate
 import java.time.LocalTime
 
-/** 모집하기(크루 ID로 새 글) 또는 수정(모집글 ID, 피그마 F-13d). */
-sealed interface CrewRunWriteMode {
-    data class Create(val crewId: Long) : CrewRunWriteMode
-
-    data class Edit(val postId: Long) : CrewRunWriteMode
-}
-
-/** 작성 화면에서 연 바텀시트(피그마 F-12b 날짜·F-12d 시간·F-12e 거리·F-12f 반복). */
-enum class CrewRunWriteSheet { DATE, TIME, DISTANCE, REPEAT }
-
 /**
  * 크루런 모집하기·수정(FR-132, 피그마 F-12·F-13d) 상태. 칸은 제목 → 내용 → 날짜 → 시간 → 거리 → 반복 순이고 날짜·시간·거리는 처음에
  * 비어 있다(자리 문구). 날짜는 오늘~14일 뒤([DAYS]일), 시간은 [MINUTE_STEP]분 단위다(서버 규칙과 같다). 수정이면 날짜·시간을 잠근다.
