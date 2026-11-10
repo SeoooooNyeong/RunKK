@@ -83,11 +83,15 @@ class CrewHomeViewModel @Inject constructor(
     private var moreJob: Job? = null
     private var periodJob: Job? = null
 
-    /** 크루 홈을 연다. [initialTab]은 알림으로 들어올 때 먼저 보일 탭(크루런, D-150)이다. */
+    /** 크루 홈을 연다. [initialTab]은 알림으로 들어올 때 먼저 보일 탭(크루런, D-150)이고, 경로의 page가 있으면 그 쪽을 먼저 연다. */
     fun bind(key: Routes.CrewHome, initialTab: CrewTab = CrewTab.RACE) {
         if (bound == key.crewId) return
         bound = key.crewId
-        _state.value = CrewHomeUiState(crewId = key.crewId, tab = CrewTab.of(key.tab, initialTab))
+        _state.value = CrewHomeUiState(
+            crewId = key.crewId,
+            tab = CrewTab.of(key.tab, initialTab),
+            page = CrewHomePage.of(key.page)
+        )
         loadDetail()
         refresh()
     }

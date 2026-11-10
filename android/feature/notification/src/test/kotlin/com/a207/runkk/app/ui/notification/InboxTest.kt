@@ -205,7 +205,11 @@ class InboxTest {
         assertEquals(Routes.CrewHome(7), inboxDestination("CREW_HOME", "7"))
         assertEquals(Routes.BattleResult(12), inboxDestination("BATTLE_RESULT", "12"))
         assertEquals(Routes.Key(Routes.RECORDS_BATTLES), inboxDestination("BATTLE_RESULT", "x"))
-        assertEquals(Routes.CrewHome(4), inboxDestination("CREW_MANAGE", "4"))
+        assertEquals(
+            Routes.CrewHome(4, page = "INFO"),
+            inboxDestination("CREW_MANAGE", "4"),
+            "가입 신청 알림은 가입 신청이 있는 크루 정보 쪽으로 연다"
+        )
         assertEquals(null, inboxDestination("CREW_BOARD", "3"))
         assertEquals(null, inboxDestination("SOMETHING_NEW", null))
         assertEquals(null, inboxDestination(null, null))

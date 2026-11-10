@@ -96,6 +96,16 @@ class CrewHomeW7ViewModelTest {
     }
 
     @Test
+    fun `가입 신청 알림(page INFO)으로 열면 크루 정보 쪽에서 가입 신청을 읽는다(리뷰 M6)`() {
+        repo.role = CrewRole.LEADER
+        repo.memberList = membersWithMe
+        val vm = CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer(), { _, _ -> saveResult })
+        vm.bind(Routes.CrewHome(11, page = CrewHomePage.INFO.name))
+        assertEquals(CrewHomePage.INFO, vm.state.value.page)
+        assertEquals("GOLD", vm.state.value.requests!!.requests.single().tier)
+    }
+
+    @Test
     fun `크루원은 크루 정보를 열어도 가입 신청을 읽지 않는다`() {
         val vm = vm(CrewRole.MEMBER)
         vm.onPage(CrewHomePage.INFO)

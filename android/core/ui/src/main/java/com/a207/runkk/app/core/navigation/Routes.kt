@@ -210,10 +210,11 @@ object Routes {
 
     /**
      * 내 크루 홈(레이스·크루런·채팅 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. [tab]은 먼저 보일 탭 이름(ui.crew CrewTab.name,
-     * 채팅 알림은 "CHAT", [임시:D-성-21])이고 없으면 레이스다.
+     * 채팅 알림은 "CHAT", [임시:D-성-21])이고 없으면 레이스다. [page]는 먼저 열 ⋯ 메뉴 쪽 이름(ui.crew CrewHomePage.name, 가입 신청
+     * 알림은 크루 정보 "INFO")이고 없으면 홈이다.
      */
     @Serializable
-    data class CrewHome(val crewId: Long, val tab: String? = null) : NavKey
+    data class CrewHome(val crewId: Long, val tab: String? = null, val page: String? = null) : NavKey
 
     /** 지난 공동 목표(피그마 F-21, W7). 크루 정보의 「지난 목표 ›」에서 연다. 크루 관리 화면(CrewManage)은 지웠다(W7 결정 C5). */
     @Serializable

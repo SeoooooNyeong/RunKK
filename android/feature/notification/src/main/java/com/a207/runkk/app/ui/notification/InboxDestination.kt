@@ -20,8 +20,8 @@ internal fun inboxDestination(screen: String?, targetId: String?): NavKey? {
 
         "AVATAR_BACKGROUND" -> Routes.Key(Routes.AVATAR_BACKGROUND)
 
-        // 크루 관리 화면은 지웠다(W7): 가입 신청 알림은 크루 홈으로 연다(가입 신청은 크루 정보에 있다).
-        "CREW_MANAGE" -> id?.let(Routes::CrewHome) ?: Routes.Key(Routes.CREW)
+        // 크루 관리 화면은 지웠다(W7): 가입 신청 알림은 가입 신청이 있는 크루 홈의 크루 정보 쪽으로 연다.
+        "CREW_MANAGE" -> id?.let { Routes.CrewHome(it, page = INFO_PAGE) } ?: Routes.Key(Routes.CREW)
 
         "CREW_HOME" -> id?.let(Routes::CrewHome) ?: Routes.Key(Routes.CREW)
 
@@ -43,6 +43,9 @@ internal fun inboxDestination(screen: String?, targetId: String?): NavKey? {
 
 /** 크루 홈 채팅 탭 이름(ui.crew CrewTab.CHAT.name). 화면 모듈끼리 import하지 않으므로 이름으로 둔다. */
 internal const val CHAT_TAB = "CHAT"
+
+/** 크루 홈 크루 정보 쪽 이름(ui.crew CrewHomePage.INFO.name). 가입 신청이 여기 있다. */
+internal const val INFO_PAGE = "INFO"
 
 /** 바깥 브라우저로 여는 서버 화면 이름(운영자 공지 NOTICE, S15P31A207-275). 대상 ID가 주소다. */
 internal const val LINK_SCREEN = "EXTERNAL_LINK"
