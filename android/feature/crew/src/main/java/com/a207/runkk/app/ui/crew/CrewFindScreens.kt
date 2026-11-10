@@ -84,7 +84,8 @@ fun CrewFindRoute(initialTab: CrewTab? = null, viewModel: CrewFindViewModel = hi
             CrewHomeRoute(
                 Routes.CrewHome(mine.crewId),
                 isAtTabRoot = initialTab == null,
-                initialTab = initialTab ?: CrewTab.RACE
+                initialTab = initialTab ?: CrewTab.RACE,
+                onLeft = viewModel::onLeftCrew
             )
             return
         }

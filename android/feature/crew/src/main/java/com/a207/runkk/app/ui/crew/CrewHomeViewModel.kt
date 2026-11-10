@@ -78,10 +78,14 @@ class CrewHomeViewModel @Inject constructor(
     val events: Flow<CrewHomeEvent> = _events.receiveAsFlow()
 
     private var bound: Long? = null
+
+    /** 크루 로고 바이트(크루 홈 머리·크루 정보·정보 수정의 크루 이미지가 읽는다, DV-성-8). */
+    suspend fun logo(url: String): Outcome<ByteArray> = crews.logo(url)
     private var refreshJob: Job? = null
     private var detailJob: Job? = null
     private var moreJob: Job? = null
     private var periodJob: Job? = null
+    private var logoJob: Job? = null
 
     /** 크루 홈을 연다. [initialTab]은 알림으로 들어올 때 먼저 보일 탭(크루런, D-150)이고, 경로의 page가 있으면 그 쪽을 먼저 연다. */
     fun bind(key: Routes.CrewHome, initialTab: CrewTab = CrewTab.RACE) {
@@ -129,7 +133,9 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
+    /** 탭을 옮긴다. 옮길 때마다 크루 정보(역할)를 다시 읽어, 그 사이 크루장이 되면 바로 「목표 정하기」를 보인다(DV-성 9(b)). */
     fun onTab(tab: CrewTab) {
+        if (tab != _state.value.tab) loadDetail()
         _state.update { it.copy(tab = tab) }
         val s = _state.value
         val loaded = when (tab) {
@@ -144,16 +150,23 @@ class CrewHomeViewModel @Inject constructor(
     }
 
     /**
-     * ⋯ 메뉴의 쪽(크루 정보·크루원)이나 크루 정보 수정(F-26)을 열거나 홈으로 돌아간다. 크루원 쪽은 처음 열 때 읽고, 크루 정보는 크루장이면
-     * 가입 신청(F-25)을 읽는다. 수정 쪽은 지금 크루 정보로 입력을 채운다.
+     * ⋯ 메뉴의 쪽(크루 정보·크루원)이나 크루 정보 수정(F-26)을 열거나 홈으로 돌아간다. 크루원 쪽은 처음 열 때 읽고, 크루 정보는 열 때마다
+     * 크루 정보(인원·역할, DV-성 9(d))와 크루장이면 가입 신청(F-25)을 다시 읽는다. 수정 쪽은 지금 크루 정보로 입력을 채우고 고른 로고를 비운다.
      */
     fun onPage(page: CrewHomePage) {
         _state.update { s ->
-            val form = if (page == CrewHomePage.EDIT) s.detail?.toFormState() ?: s.editForm else s.editForm
-            s.copy(page = page, error = null, isMenuOpen = false, editForm = form)
+            val isEdit = page == CrewHomePage.EDIT
+            val form = if (isEdit) s.detail?.toFormState() ?: s.editForm else s.editForm
+            s.copy(
+                page = page,
+                error = null,
+                isMenuOpen = false,
+                editForm = form,
+                editLogo = if (isEdit) null else s.editLogo
+            )
         }
         if (page == CrewHomePage.MEMBERS && _state.value.members == null) refresh()
-        if (page == CrewHomePage.INFO) viewModelScope.launch { loadRequests() }
+        if (page == CrewHomePage.INFO) loadDetail()
     }
 
     /** 지금 보이는 것을 다시 읽는다: 크루원 쪽이면 크루원, 아니면 지금 탭. */
@@ -383,11 +396,7 @@ class CrewHomeViewModel @Inject constructor(
         _state.update { it.copy(isConfirmingLeave = false, isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.leave(crewId)) {
-                is Outcome.Success -> {
-                    _state.update { it.copy(isBusy = false) }
-                    _events.trySend(CrewHomeEvent.Left)
-                }
-
+                is Outcome.Success -> leftCrew()
                 is Outcome.Failure -> _state.update { it.copy(isBusy = false, message = CrewErrorText.of(r.error)) }
             }
         }
@@ -557,7 +566,7 @@ class CrewHomeViewModel @Inject constructor(
         act {
             when (val r = crews.delete(_state.value.crewId)) {
                 is Outcome.Success -> {
-                    _events.trySend(CrewHomeEvent.Left)
+                    leftCrew()
                     null
                 }
 
@@ -566,21 +575,63 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    fun onEditForm(form: CrewFormState) = _state.update { it.copy(editForm = form) }
+    /** 입력 칸 변경. 로고 주소는 업로드가 정하므로 화면이 넘긴 옛 값으로 되돌리지 않는다. */
+    fun onEditForm(form: CrewFormState) = _state.update { it.copy(editForm = form.copy(logoUrl = it.editForm.logoUrl)) }
 
-    /** 크루 정보 수정 저장(FR-113). 되면 크루 정보 쪽으로 돌아가 크루 정보를 다시 읽는다. */
+    /**
+     * 정보 수정에서 고른 로고(JPEG로 줄인 바이트, 크루 만들기와 같은 CrewLogoEncoder)를 미리 보이고 올린다(POST /crew-logos, DV-성-6).
+     * 올리면 받은 주소를 입력에 싣고, 실패하면 미리보기를 비우고 원래 로고 주소를 둔 채 안내한다.
+     */
+    fun onEditLogoPicked(jpeg: ByteArray) {
+        logoJob?.cancel()
+        val original = _state.value.editForm.logoUrl
+        _state.update { it.copy(editLogo = jpeg, isUploadingLogo = true) }
+        logoJob = viewModelScope.launch {
+            when (val r = crews.uploadLogo(jpeg)) {
+                is Outcome.Success -> _state.update {
+                    it.copy(isUploadingLogo = false, editForm = it.editForm.copy(logoUrl = r.value))
+                }
+
+                is Outcome.Failure -> _state.update {
+                    it.copy(
+                        isUploadingLogo = false,
+                        editLogo = null,
+                        editForm = it.editForm.copy(logoUrl = original),
+                        message = CrewErrorText.of(r.error)
+                    )
+                }
+            }
+        }
+    }
+
+    /** 정보 수정에서 고른 사진을 읽지 못했다(디코딩 실패). */
+    fun onEditLogoUnreadable() = _state.update { it.copy(message = uiText(R.string.crew_create_logo_failed)) }
+
+    /** 크루 정보 수정 저장(FR-113). 되면 크루 정보 쪽으로 돌아가 크루 정보를 다시 읽는다. 로고를 올리는 동안은 저장하지 않는다. */
     fun onEditSave() {
         val form = _state.value.editForm
         // 긴 옛 크루명은 그대로 두면 통과, 바꿀 때만 12자 검사(CrewEditName, 서버 S2·S3).
-        if (!form.isEditValid(_state.value.detail?.name.orEmpty())) return
+        if (!form.isEditValid(_state.value.detail?.name.orEmpty()) || _state.value.isUploadingLogo) return
         act {
             val r = crews.changeInfo(_state.value.crewId, form.toForm())
             if (r is Outcome.Success) {
-                _state.update { it.copy(page = CrewHomePage.INFO) }
+                _state.update { it.copy(page = CrewHomePage.INFO, editLogo = null) }
                 reloadCrew()
             }
             r.done(uiText(R.string.crew_manage_info_changed))
         }
+    }
+
+    /**
+     * 탈퇴·크루 삭제가 됐다(DV-성-7): 떠난 크루의 상태와 읽기를 모두 버리고 크루 탭으로 나가라고 알린다. 같은 크루 홈 항목이 남아 있어도
+     * 다음 bind가 처음부터 읽는다.
+     */
+    private fun leftCrew() {
+        listOf(refreshJob, detailJob, moreJob, periodJob, logoJob).forEach { it?.cancel() }
+        bound = null
+        resumedOnce = false
+        _state.value = CrewHomeUiState()
+        _events.trySend(CrewHomeEvent.Left)
     }
 
     /** 처리 한 번: 바쁜 동안 다시 받지 않고 [block]이 돌려준 문구를 안내한다. */

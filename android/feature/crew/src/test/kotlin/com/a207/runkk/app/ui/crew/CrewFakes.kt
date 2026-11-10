@@ -558,8 +558,15 @@ class FakeCrewRepository : CrewRepository {
         renamed = name
     }
 
-    override suspend fun detail(crewId: Long) =
-        answer("detail:$crewId", crewDetail(crewId, role).let { d -> renamed?.let { d.copy(name = it) } ?: d })
+    /** 크루 조회의 개설 시각을 바꾼다(null이면 기본값). */
+    var createdAt: java.time.Instant? = null
+
+    override suspend fun detail(crewId: Long) = answer(
+        "detail:$crewId",
+        crewDetail(crewId, role)
+            .let { d -> renamed?.let { d.copy(name = it) } ?: d }
+            .let { d -> createdAt?.let { d.copy(createdAt = it) } ?: d }
+    )
 
     private fun <T> answer(op: String, value: T): Outcome<T> {
         calls += op
@@ -568,8 +575,13 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun create(form: CrewForm) = answer("create:${form.name}", 77L)
 
-    override suspend fun changeInfo(crewId: Long, form: CrewForm) =
-        answer("changeInfo:${form.name}", Unit).also { if (it is Outcome.Success) renamed = form.name }
+    /** 마지막으로 받은 정보 수정 입력(로고 주소 확인). */
+    var lastChangeInfo: CrewForm? = null
+
+    override suspend fun changeInfo(crewId: Long, form: CrewForm) = answer("changeInfo:${form.name}", Unit).also {
+        lastChangeInfo = form
+        if (it is Outcome.Success) renamed = form.name
+    }
 
     override suspend fun transferLeadership(crewId: Long, memberId: Long) = answer("transfer:$memberId", Unit)
 

@@ -1,5 +1,9 @@
 package com.a207.runkk.app.ui.crew
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -60,7 +65,9 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.PostList
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // ---------- 내 크루 홈 ----------
 
@@ -73,6 +80,7 @@ fun CrewHomeRoute(
     key: Routes.CrewHome,
     isAtTabRoot: Boolean = false,
     initialTab: CrewTab = CrewTab.RACE,
+    onLeft: () -> Unit = {},
     viewModel: CrewHomeViewModel = hiltViewModel(),
     report: CrewReportViewModel = hiltViewModel()
 ) {
@@ -89,18 +97,40 @@ fun CrewHomeRoute(
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                CrewHomeEvent.Left -> navigator.selectTab(Routes.CREW)
+                // 크루 탭 자리에 그렸으면 그 탭의 내 크루를 비워 크루 찾기로 바꾼다(같은 탭 항목이 남아 있어도, DV-성-7).
+                CrewHomeEvent.Left -> {
+                    onLeft()
+                    navigator.selectTab(Routes.CREW)
+                }
             }
         }
     }
-    CrewHomeScreen(
-        state = state,
-        isAtTabRoot = isAtTabRoot,
-        actions = crewHomeActions(viewModel, report::onAsk).withNavigation(state.crewId, navigator::navigate)
-            .copy(onBack = navigator::back),
-        // 채팅 탭(피그마 F-09, [임시:D-성-21]): ui.chat이 칸 SlotKey.CREW_CHAT_TAB에 넣은 ChatTabContent를 그린다.
-        chatContent = { chatModifier -> CrewChatSlot(state.crewId, chatModifier) }
-    )
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // 정보 수정 로고(F-26, DV-성-6): 크루 만들기와 같이 사진 고르기 → JPEG로 줄여(EXIF 방향 반영) 올린다.
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val jpeg = withContext(Dispatchers.IO) { runCatching { CrewLogoEncoder.fromUri(context, uri) }.getOrNull() }
+            if (jpeg == null) viewModel.onEditLogoUnreadable() else viewModel.onEditLogoPicked(jpeg)
+        }
+    }
+    val loadLogo = remember(viewModel) { viewModel::logo }
+    CompositionLocalProvider(LocalCrewLogoLoader provides loadLogo) {
+        CrewHomeScreen(
+            state = state,
+            isAtTabRoot = isAtTabRoot,
+            actions = crewHomeActions(viewModel, report::onAsk).withNavigation(state.crewId, navigator::navigate)
+                .copy(
+                    onBack = navigator::back,
+                    onEditLogoPick = {
+                        picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    }
+                ),
+            // 채팅 탭(피그마 F-09, [임시:D-성-21]): ui.chat이 칸 SlotKey.CREW_CHAT_TAB에 넣은 ChatTabContent를 그린다.
+            chatContent = { chatModifier -> CrewChatSlot(state.crewId, chatModifier) }
+        )
+    }
     CrewReportDialog(
         reportState,
         CrewReportActions(report::onReason, report::onDetail, report::onSubmit, report::onDismiss)

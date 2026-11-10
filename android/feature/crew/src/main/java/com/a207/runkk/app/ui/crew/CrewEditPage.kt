@@ -1,7 +1,10 @@
 package com.a207.runkk.app.ui.crew
 
+import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,11 +24,15 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.buildAnnotatedString
@@ -46,7 +53,8 @@ import com.a207.runkk.app.domain.crew.JoinPolicy
 
 /**
  * 크루 정보 수정(피그마 F-26, 크루장): 로고(연필 덮개)와 크루명 한 줄, 한 줄 소개, 태그(최대 3개, 32 칩), 공개 여부·가입 방식 세그먼트,
- * 아래 라임 "저장"(위 구분선 없음). 로고 사진 바꾸기는 W4의 로고 올리기 API가 들어오면 잇는다(지금은 덮개만 그린다).
+ * 아래 라임 "저장"(위 구분선 없음). 로고 연필 덮개를 누르면 사진 고르기를 열고, 고른 사진은 크루 만들기처럼 올려 저장 때 그 주소를 싣는다
+ * (DV-성-6). 로고는 고른 사진 → 지금 로고 → 기본 그림 순으로 보인다.
  */
 @Composable
 internal fun CrewEditPage(state: CrewHomeUiState, actions: CrewHomeActions) {
@@ -63,7 +71,12 @@ internal fun CrewEditPage(state: CrewHomeUiState, actions: CrewHomeActions) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                EditableLogo()
+                EditableLogo(
+                    picked = state.editLogo,
+                    logoUrl = form.logoUrl,
+                    isUploading = state.isUploadingLogo,
+                    onPick = actions.onEditLogoPick
+                )
                 RunkkTextField(
                     value = form.name,
                     onValueChange = { actions.onEditForm(form.copy(name = it)) },
@@ -113,7 +126,7 @@ internal fun CrewEditPage(state: CrewHomeUiState, actions: CrewHomeActions) {
         RunkkButton(
             stringResource(R.string.crew_manage_info_save),
             onClick = actions.onEditSave,
-            isEnabled = form.isEditValid(original) && !state.isBusy,
+            isEnabled = form.isEditValid(original) && !state.isBusy && !state.isUploadingLogo,
             modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp)
         )
     }
@@ -135,18 +148,36 @@ private fun FieldLabel(title: String, suffix: String? = null) {
     )
 }
 
-/** 크루 이미지 수정(피그마 `RunKK / Avatar / 크루 이미지 수정` 66): 기본 이미지 위 검정 50% 덮개와 흰 연필 24. */
+/**
+ * 크루 이미지 수정(피그마 `RunKK / Avatar / 크루 이미지 수정` 66): 고른 사진(올리는 중에도) 또는 크루 로고(없으면 기본 그림) 위 검정 50%
+ * 덮개와 흰 연필 24. 누르면 사진 고르기(DV-성-6), 올리는 동안은 누를 수 없다.
+ */
 @Composable
-private fun EditableLogo() {
-    Box(Modifier.size(66.dp), contentAlignment = Alignment.Center) {
-        CrewDefaultImage(66.dp)
+private fun EditableLogo(picked: ByteArray?, logoUrl: String?, isUploading: Boolean, onPick: () -> Unit) {
+    val bitmap = remember(picked) {
+        picked?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
+    }
+    val label = stringResource(R.string.crew_edit_logo)
+    Box(
+        Modifier
+            .size(66.dp)
+            .clip(RoundedCornerShape(24.dp))
+            .clickable(enabled = !isUploading, role = Role.Button, onClick = onPick)
+            .semantics(mergeDescendants = true) { contentDescription = label },
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(bitmap, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(66.dp))
+        } else {
+            CrewImage(logoUrl, size = 66.dp, corner = 24.dp)
+        }
         Box(
             Modifier
                 .matchParentSize()
                 .clip(RoundedCornerShape(24.dp))
                 .background(LOGO_EDIT_SCRIM)
         )
-        Icon(PencilIcon, contentDescription = stringResource(R.string.crew_edit_logo), tint = RunkkColors.OnSecondary)
+        Icon(PencilIcon, contentDescription = null, tint = RunkkColors.OnSecondary)
     }
 }
 

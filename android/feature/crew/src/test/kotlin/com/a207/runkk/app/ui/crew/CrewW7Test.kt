@@ -165,6 +165,67 @@ class CrewHomeW7ViewModelTest {
     }
 
     @Test
+    fun `정보 수정 로고 - 고른 사진을 미리 보이고 올린 주소를 저장에 싣는다(F-26, DV-성-6)`() {
+        val vm = vm()
+        vm.onPage(CrewHomePage.EDIT)
+        vm.onEditLogoPicked(byteArrayOf(1, 2, 3))
+        assertTrue("uploadLogo:3" in repo.calls)
+        assertEquals(3, vm.state.value.editLogo?.size)
+        assertFalse(vm.state.value.isUploadingLogo)
+        assertEquals("/api/v1/crew-logos/7", vm.state.value.editForm.logoUrl)
+        vm.onEditSave()
+        assertEquals("/api/v1/crew-logos/7", repo.lastChangeInfo?.logoUrl)
+        assertNull(vm.state.value.editLogo, "저장하면 미리보기를 비우고 크루 정보의 로고를 쓴다")
+    }
+
+    @Test
+    fun `정보 수정 로고 - 올리지 못하면 미리보기를 비우고 원래 로고를 둔 채 안내한다(DV-성-6)`() {
+        repo.fail["uploadLogo"] = AppError.Network
+        val vm = vm()
+        vm.onPage(CrewHomePage.EDIT)
+        vm.onEditLogoPicked(byteArrayOf(1, 2, 3))
+        assertNull(vm.state.value.editLogo)
+        assertNull(vm.state.value.editForm.logoUrl, "원래 로고(없음)를 그대로 둔다")
+        assertTrue(vm.state.value.message != null)
+        vm.onEditLogoUnreadable()
+        assertEquals(uiText(R.string.crew_create_logo_failed), vm.state.value.message)
+    }
+
+    @Test
+    fun `탈퇴하면 크루 홈 상태를 비우고 같은 크루로 다시 묶으면 처음부터 읽는다(DV-성-7)`() = runTest(main.dispatcher) {
+        val vm = vm(CrewRole.MEMBER)
+        vm.onPage(CrewHomePage.INFO)
+        vm.events.test {
+            vm.onLeaveAsk()
+            vm.onLeaveConfirm()
+            assertEquals(CrewHomeEvent.Left, awaitItem())
+        }
+        assertNull(vm.state.value.detail, "떠난 크루의 정보를 남기지 않는다")
+        assertEquals(CrewHomePage.HOME, vm.state.value.page)
+        val before = repo.calls.count { it == "detail:11" }
+        vm.bind(Routes.CrewHome(11))
+        assertEquals(before + 1, repo.calls.count { it == "detail:11" })
+    }
+
+    @Test
+    fun `역할이 바뀌면 탭을 옮길 때 크루 정보를 다시 읽어 목표 정하기를 보인다(DV-성 9(b))`() {
+        val vm = vm(CrewRole.MEMBER)
+        assertFalse(vm.state.value.canSetGoal)
+        repo.role = CrewRole.LEADER
+        vm.onTab(CrewTab.CHAT)
+        vm.onTab(CrewTab.RACE)
+        assertTrue(vm.state.value.canSetGoal)
+    }
+
+    @Test
+    fun `크루 정보 쪽을 열 때마다 크루 정보(인원)를 다시 읽는다(DV-성 9(d))`() {
+        val vm = vm(CrewRole.MEMBER)
+        val before = repo.calls.count { it == "detail:11" }
+        vm.onPage(CrewHomePage.INFO)
+        assertEquals(before + 1, repo.calls.count { it == "detail:11" })
+    }
+
+    @Test
     fun `정보 수정은 크루 정보로 채워 열고 저장하면 크루 정보 쪽으로 돌아간다(F-26)`() {
         val vm = vm()
         vm.onPage(CrewHomePage.EDIT)

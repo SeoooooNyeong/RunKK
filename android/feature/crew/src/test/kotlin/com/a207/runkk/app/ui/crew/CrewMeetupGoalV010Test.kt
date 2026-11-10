@@ -96,4 +96,13 @@ class CrewMeetupGoalViewModelsTest {
         assertTrue("goal:80000" in repo.calls)
         assertTrue(vm.state.value.isSaved)
     }
+
+    @Test
+    fun `주간 목표 - 크루를 만들기 전 주는 지난 목표에 넣지 않는다(DV-성 9(c))`() {
+        // 이번 주 월요일 2026-10-19, 크루 개설 10-08(목): 10-12 주와 10-05 주(개설일이 든 주)만, 09-28 주는 뺀다.
+        repo.createdAt = java.time.Instant.parse("2026-10-08T03:00:00Z")
+        val vm = CrewGoalSetViewModel(repo, MutableClock()).also { it.bind(11) }
+        assertEquals(2, vm.state.value.pastWeeks.size)
+        assertEquals(3, repo.calls.count { it == "race" }, "이번 주 1번 + 개설 뒤 지난 2주")
+    }
 }

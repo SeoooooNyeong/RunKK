@@ -182,6 +182,20 @@ class CrewFindViewModelTest {
     }
 
     @Test
+    fun `크루 홈에서 탈퇴하면 내 크루를 비우고 다시 확인해 크루 찾기를 보인다(DV-성-7)`() {
+        repo.mine = MyCrew(crewDetail(11, CrewRole.MEMBER), emptyList())
+        val vm = CrewFindViewModel(repo)
+        assertEquals(11L, vm.state.value.mine?.crewId)
+        repo.mine = MyCrew(null, emptyList())
+        vm.refreshMine()
+        assertEquals(11L, vm.state.value.mine?.crewId, "내 크루를 보이는 동안은 돌아와도 다시 확인하지 않는다")
+        vm.onLeftCrew()
+        assertNull(vm.state.value.mine)
+        assertEquals(2, repo.calls.count { it == "myCrew" })
+        assertTrue(repo.calls.any { it.startsWith("search") }, "크루 찾기 목록을 읽는다")
+    }
+
+    @Test
     fun `초대 코드는 6자리 영문·숫자 대문자로 받고 확인으로 크루를 먼저 조회한 뒤 가입한다(FR-122, F-03c)`() {
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()

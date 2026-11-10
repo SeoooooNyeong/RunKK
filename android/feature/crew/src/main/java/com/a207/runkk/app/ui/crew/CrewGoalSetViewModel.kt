@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 주간 목표 정하기(FR-138, 피그마 F-07). 크루장만 이 화면에 온다. 이번 주 목표가 있으면 입력칸에 채우고, 지난 3주 레이스
- * (GET /crews/{id}/race?weekStart=그 주 월요일 세 번)로 지난 목표 카드를 보인다. 1km 미만은 보내지 않고, 최종 판정은 서버(GOAL_INVALID)다.
+ * (GET /crews/{id}/race?weekStart=그 주 월요일 세 번, 크루 개설 전 주는 빼고)로 지난 목표 카드를 보인다. 1km 미만은 보내지 않고, 최종 판정은 서버(GOAL_INVALID)다.
  */
 @HiltViewModel
 class CrewGoalSetViewModel internal constructor(
@@ -52,9 +52,13 @@ class CrewGoalSetViewModel internal constructor(
             _state.update { if (it.draft.isEmpty()) it.copy(draft = kmText(goal)) else it }
         }
         // 지난 목표 3주(피그마 F-07): 새 API 없이 race(weekStart)를 지난 1·2·3주에 대해 함께 부른다([임시:D-성-32]).
+        // 크루를 만들기 전 주는 빈 레이스라 「목표 없음」으로 보이므로 개설일이 든 주까지만 부른다(DV-성 9(c)). 개설일을 모르면 3주 모두.
         viewModelScope.launch {
+            val createdOn = (crews.detail(crewId) as? Outcome.Success)?.value?.createdAt?.atZone(zone)?.toLocalDate()
             val past = (1..CrewGoalSetUiState.PAST_WEEKS)
-                .map { weeks -> async { crews.race(crewId, monday.minusWeeks(weeks.toLong())) } }
+                .map { weeks -> monday.minusWeeks(weeks.toLong()) }
+                .filter { weekStart -> createdOn == null || weekStart.plusWeeks(1).isAfter(createdOn) }
+                .map { weekStart -> async { crews.race(crewId, weekStart) } }
                 .awaitAll()
                 .mapNotNull { (it as? Outcome.Success)?.value }
             _state.update { it.copy(pastWeeks = past) }
