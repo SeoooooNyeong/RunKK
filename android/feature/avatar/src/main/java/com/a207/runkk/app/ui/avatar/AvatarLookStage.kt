@@ -14,9 +14,8 @@ import com.a207.runkk.app.core.avatar.AvatarStageFrame
 import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.RiveAvatarStage
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
-import com.a207.runkk.app.core.designsystem.R as DesignR
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.avatarBackdropRes
+import com.a207.runkk.app.core.designsystem.avatarStageBackdropRes
 import com.a207.runkk.app.core.model.FaceLayer
 
 /**
@@ -37,13 +36,7 @@ internal fun AvatarLookStage(
     overlay: @Composable BoxScope.() -> Unit = {}
 ) {
     val isDark = LocalRunkkColors.current.isDark
-    val backdrop = painterResource(
-        if (backgroundKey == null && isDark) {
-            DesignR.drawable.avatar_backdrop_default_night
-        } else {
-            avatarBackdropRes(backgroundKey)
-        }
-    )
+    val backdrop = painterResource(avatarStageBackdropRes(backgroundKey, isDark = isDark))
     val gender = myAvatarGender()
     var isFailed by remember(gender, look?.headLayers) { mutableStateOf(false) }
     if (isFailed) {
