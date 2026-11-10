@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -122,6 +123,7 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.SlotKey
+import com.a207.runkk.app.core.navigation.isSlotFilled
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -523,12 +525,21 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
             }
             // 「내 기록 요약」은 아바타 위에 겹친다(블러 없음). 펼치면 알약 자리에 화면 가로 여백 16 안쪽 전체 폭 패널이 뜬다(8절 2).
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                RoomAvatar(
-                    state,
-                    isAvatarOpen,
-                    onAvatar = { actions.onNavigate(Routes.AVATAR_RUNNER) },
-                    Modifier.matchParentSize()
-                )
+                // 아바타 칸(ui.avatar의 Rive 아바타, design-oo 05-30 2절)이 있으면 칸을, 비면(미리보기·화면 시험) 지금 그림을 그린다
+                if (isSlotFilled(SlotKey.HOME_AVATAR)) {
+                    HomeAvatarSlot(
+                        isAvatarOpen,
+                        onAvatar = { actions.onNavigate(Routes.AVATAR_RUNNER) },
+                        Modifier.matchParentSize()
+                    )
+                } else {
+                    RoomAvatar(
+                        state,
+                        isAvatarOpen,
+                        onAvatar = { actions.onNavigate(Routes.AVATAR_RUNNER) },
+                        Modifier.matchParentSize()
+                    )
+                }
                 if (state.isSummaryExpanded) {
                     SummaryPanel(
                         state.summary,
@@ -746,6 +757,37 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
     }
 }
 
+/**
+ * 아바타 칸(SlotKey.HOME_AVATAR, design-oo 05-30 2절, [임시:D-성-100], [임시:D-성-134], 피그마 62341:1878): 390×420 칸에 ui.avatar가
+ * 바닥선·그림자·Rive 서기·로딩 표시를 그린다. 배경 사진은 홈이 화면 전체에 깔아 두므로 칸은 배경을 다시 그리지 않고 같은 바닥 규칙
+ * (칸 위에서 342dp, 아래에서 [HOME_AVATAR_FLOOR_FROM_BOTTOM])만 쓴다. 칸 바닥선이 지금 아바타 발 자리(남은 자리 아래 +
+ * [AVATAR_GROUND_SINK])에 오게 칸을 아래로 내리고, 남은 자리가 좁으면 칸 높이를 줄인다(바닥선은 칸 아래에서 같은 거리다).
+ * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다. 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
+ */
+@Composable
+private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.home_avatar_description)
+    val editLabel = stringResource(R.string.home_house_edit_avatar)
+    val slot = LocalSlots.current[SlotKey.HOME_AVATAR].orEmpty()
+    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+        val drop = HOME_AVATAR_FLOOR_FROM_BOTTOM + AVATAR_GROUND_SINK
+        val height = (maxHeight + drop).coerceIn(HOME_AVATAR_SLOT_MIN_HEIGHT, HOME_AVATAR_SLOT_HEIGHT)
+        val press = if (isAvatarOpen) {
+            Modifier.clickable(role = Role.Button, onClickLabel = editLabel, onClick = onAvatar)
+        } else {
+            Modifier
+        }
+        Box(
+            Modifier
+                .offset(y = drop)
+                .requiredSize(HOME_AVATAR_SLOT_WIDTH, height)
+                .testTag(HOME_AVATAR_SLOT_TAG)
+                .then(press)
+                .semantics { contentDescription = description }
+        ) { slot.forEach { it() } }
+    }
+}
+
 /** 주간 막대의 km 표기: 정수면 정수, 아니면 소수 한 자리("12", "12.5"). */
 internal fun compactKm(distance: Distance): String {
     val text = RunkkFormat.kmShort(distance)
@@ -769,6 +811,20 @@ private const val HOP_DAMPING = 0.45f
 
 /** 발을 남은 자리 바닥보다 더 내리는 거리. 솟은 홈 탭 원(20dp)과 신발이 조금 겹친다(사용자 요청 2026-10-30). */
 private val AVATAR_GROUND_SINK = 8.dp
+
+/** 홈 아바타 칸 크기(피그마 62341:1878, [임시:D-성-134]). 남은 자리가 좁으면 높이만 줄인다. */
+private val HOME_AVATAR_SLOT_WIDTH = 390.dp
+private val HOME_AVATAR_SLOT_HEIGHT = 420.dp
+private val HOME_AVATAR_SLOT_MIN_HEIGHT = 240.dp
+
+/**
+ * 홈 칸 바닥선의 칸 아래 끝으로부터 거리(4.4 계산: 390dp 칸에 1080×1200 배경 규격이면 그려진 그림 높이 433.3dp × 0.18 = 78dp,
+ * 칸 높이 433dp 이하에서 같다). ui.avatar 홈 칸 내용이 같은 규격으로 바닥선을 잡는다.
+ */
+internal val HOME_AVATAR_FLOOR_FROM_BOTTOM = 78.dp
+
+/** 홈 아바타 칸의 시험 표지. */
+internal const val HOME_AVATAR_SLOT_TAG = "home-avatar-slot"
 
 /** 서 있는 그림 칸의 가로세로 비(그림은 칸 바닥에 붙어 그려지므로 칸이 조금 넓어도 된다). */
 private const val AVATAR_ASPECT = 0.6f

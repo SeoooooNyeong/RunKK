@@ -83,8 +83,12 @@ import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.RunAvatarSlot
+import com.a207.runkk.app.core.navigation.SlotKey
+import com.a207.runkk.app.core.navigation.isSlotFilled
 import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
 import kotlin.math.abs
@@ -425,6 +429,12 @@ private fun BattleRoute(state: BattleRunningUiState) {
     val isMoving = rememberIsMoving(state.myDistance) && state.isMeasuring && state.currentPace != null
     val frameMillis = runFrameMillis(state.currentPace)
     val isLeft = rememberHeadingLeft(route)
+    // 내 아바타 칸(design-oo 05-30 7절): 대결은 일시정지가 없어 RUNNING이면 RUN, 마감·카운트다운 등은 STAND. 칸이 있으면 내 칸만 88dp
+    val pose = if (state.phase == BattlePhase.RUNNING) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    val myFigureSize = if (isSlotFilled(SlotKey.RUN_AVATAR)) MY_AVATAR_SLOT else MARKER_SIZE
+    val myFigure: @Composable () -> Unit = {
+        RunAvatarSlot(pose, isLeft) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+    }
     val isTheirsMoving = rememberIsMoving(state.opponentDistance) && state.isMeasuring
     val mine = stringResource(R.string.battle_me)
     val opponentName = opponentLabel(state)
@@ -472,14 +482,15 @@ private fun BattleRoute(state: BattleRunningUiState) {
                     RunMapMarker(it, label = opponentName, figure = { opponentFigure(opponentAlpha) })
                 }
             ),
+            myMarkerSize = myFigureSize,
             myLabel = mine,
             onMapError = { isMapFailed = true }
-        ) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        ) { myFigure() }
         return
     }
     if (me == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(72.dp)) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+            Box(Modifier.size(myFigureSize)) { myFigure() }
         }
         return
     }
@@ -495,7 +506,9 @@ private fun BattleRoute(state: BattleRunningUiState) {
         isMoving,
         frameMillis,
         isTheirsMoving,
-        isLeft
+        isLeft,
+        pose,
+        myFigureSize
     ) {
         listOfNotNull(
             theirs?.let { point ->
@@ -507,9 +520,7 @@ private fun BattleRoute(state: BattleRunningUiState) {
                     figure = { opponentFigure(1f) }
                 )
             },
-            RouteMarker(point = me, label = mine, figure = {
-                RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
-            })
+            RouteMarker(point = me, label = mine, figure = myFigure, size = myFigureSize)
         )
     }
     RouteCanvas(route = route, markers = markers, modifier = Modifier.fillMaxSize())
@@ -596,6 +607,9 @@ private const val PAST_SELF_ALPHA = 0.5f
 
 /** 경로 마커 그림 칸(RouteCanvas·KakaoRunMap 기본 markerSize). 배치고사 「?」 원은 이 칸 안에 성사 화면과 같은 비율로 그린다. */
 private val MARKER_SIZE = 72.dp
+
+/** 내 Rive 아바타 칸(SlotKey.RUN_AVATAR가 있을 때, [임시:D-성-121]). 상대 그림 칸은 [MARKER_SIZE] 그대로다. */
+private val MY_AVATAR_SLOT = 88.dp
 
 /** 셀프런·셀럽런 출발 전 카운트다운(3초, design-review.md M34). 고리 몫의 분모다. */
 private const val RECORD_COUNTDOWN_SECONDS = 3L

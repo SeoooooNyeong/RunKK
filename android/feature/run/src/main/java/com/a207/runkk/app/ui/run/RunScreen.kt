@@ -103,9 +103,13 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.SignalState
+import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.RunAvatarSlot
 import com.a207.runkk.app.core.navigation.RunkkNavigator
+import com.a207.runkk.app.core.navigation.SlotKey
+import com.a207.runkk.app.core.navigation.isSlotFilled
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
@@ -364,7 +368,13 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
             RunningDistance(state.progress.distance)
             RunningStats(state.progress)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                RunningRoute(state.route, state.progress, isPaused = state.isPaused)
+                RunningRoute(
+                    state.route,
+                    state.progress,
+                    isPaused = state.isPaused,
+                    isRunning =
+                        state.phase == RunPhase.RUNNING
+                )
                 state.splitBanner?.takeIf { !state.isPaused }?.let {
                     RunkkBanner(
                         it.asString(),
@@ -432,34 +442,40 @@ private fun StatColumn(value: String, label: String, spoken: String? = null) {
 }
 
 /**
- * 경로선과 경로 끝의 내 아바타(D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. 아바타는 경로 전후 같은 그림이다:
- * 움직이는 동안 달리기 동작을 현재 페이스 빠르기로 넘기고, 멈춰 있거나 일시정지면 서 있는다.
+ * 경로선과 경로 끝의 내 아바타(D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. 아바타는 경로 전후 같은 그림이다.
+ * 아바타 칸(SlotKey.RUN_AVATAR, design-oo 05-30 7절)이 있으면 88dp 칸에 Rive 아바타를 넣는다: 측정 중(일시정지 아님)이면 RUN, 그 밖은
+ * STAND이고 진행 방향 원값을 넘긴다([임시:D-성-122], [임시:D-성-133]). 칸이 비면 지금 그림이다: 움직이는 동안 달리기 동작을 현재
+ * 페이스 빠르기로 넘기고, 멈춰 있거나 일시정지면 서 있는다.
  */
 @Composable
-private fun RunningRoute(route: RouteLine, progress: RunProgress, isPaused: Boolean) {
+private fun RunningRoute(route: RouteLine, progress: RunProgress, isPaused: Boolean, isRunning: Boolean) {
     val me = route.points.lastOrNull()
     val isMoving = rememberIsMoving(progress.distance) && !isPaused && progress.currentPace != null
     val frameMillis = runFrameMillis(progress.currentPace)
     val isLeft = rememberHeadingLeft(route)
+    val pose = if (isRunning && !isPaused) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    val figureSize = if (isSlotFilled(SlotKey.RUN_AVATAR)) MY_AVATAR_SLOT else MY_FIGURE
+    val figure: @Composable () -> Unit = {
+        RunAvatarSlot(pose, isLeft) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+    }
     // Kakao 지도를 띄울 수 있으면(키 + 지도 라이브러리) 지도 위에서 카메라가 나를 따라가고, 아니면 격자 바탕 경로선이다.
     // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340).
     var isMapFailed by remember { mutableStateOf(false) }
     if (canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)) {
-        KakaoRunMap(route = route, modifier = Modifier.fillMaxSize(), onMapError = { isMapFailed = true }) {
-            RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft)
-        }
+        KakaoRunMap(
+            route = route,
+            modifier = Modifier.fillMaxSize(),
+            myMarkerSize = figureSize,
+            onMapError = { isMapFailed = true }
+        ) { figure() }
         return
     }
-    val markers = remember(me, isMoving, frameMillis, isLeft) {
-        listOfNotNull(
-            me?.let {
-                RouteMarker(point = it, figure = { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) })
-            }
-        )
+    val markers = remember(me, isMoving, frameMillis, isLeft, pose, figureSize) {
+        listOfNotNull(me?.let { RouteMarker(point = it, figure = figure, size = figureSize) })
     }
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         RouteCanvas(route = route, markers = markers, modifier = Modifier.fillMaxSize())
-        if (me == null) Box(Modifier.size(72.dp)) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        if (me == null) Box(Modifier.size(figureSize)) { figure() }
     }
 }
 
@@ -586,6 +602,10 @@ private const val PAUSE_SCRIM_ALPHA = 0.45f
 private const val SUMMARY_SEPARATOR = ", "
 private const val NO_HEART_RATE = "--"
 private val BIG_BUTTON = 88.dp
+
+/** 내 위치 그림 칸: 지금 그림 72dp, 아바타 칸(Rive)이면 88dp([임시:D-성-121], 피그마 62341:1878). */
+private val MY_FIGURE = 72.dp
+private val MY_AVATAR_SLOT = 88.dp
 private val SMALL_BUTTON = 48.dp
 
 private val previewProgress = RunProgress(
