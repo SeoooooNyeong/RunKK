@@ -235,3 +235,15 @@ Flyway: **`V59__crew_manager_to_member.sql`** — 기존 운영진(`crew_members
 | W7-11 | 크루원이 크루 상세·내 크루를 읽을 때 만료된 초대 코드를 새로 발급한다(`InviteCodeRenewal`, 새 쓰기 트랜잭션에서 크루 행 잠금 뒤 다시 확인) | 재발급 화면이 없어도 크루원이 늘 쓸 수 있는 코드를 본다(조정자 결정). 크루 상세 응답 형식은 W4 몫이라 조회 서비스에서만 바꿨다 |
 | W7-12 | V59로 기존 운영진을 모두 크루원으로 바꾼다(퇴장 행 포함) | 운영진 지정 화면 삭제(조정자 결정). 퇴장 행의 역할은 읽는 곳이 없다 |
 | W7-13 | web 응답의 `gender`·`ageBandVisibility`·`genderVisibility`는 enum 이름 문자열 | web.crew는 member 형식을 쓰지 않는다(ArchUnit 13.1 규칙 1). JSON은 같다 |
+
+## 8. B단계(앱) 구현 메모 (2026-11-10)
+
+| # | 내용 |
+|---|---|
+| B-1 | 크루 관리 화면(`CrewManage*`, `ManageAction`, `CrewStaffConfirmDialog`)과 `Routes.CrewManage`를 지웠다. `CREW_MANAGE` 알림은 `Routes.CrewHome(crewId)`로 연다. 앱 `CrewRepository`에서 `reissueInviteCode`·`appointManager`·`dismissManager`를 지웠다(서버 API·`CrewApi` 메소드는 남김). `CrewMoreButton`은 W6 일정 상세가 써서 남겼다 |
+| B-2 | 새 경로 `Routes.CrewPastGoals(crewId)`와 화면 등록. `Routes.CrewPastRuns(crewId)` 경로 정의와 일정 탭 「지난 크루런 ›」은 W6 것을 쓰고 W7은 화면 등록·Repository·DTO만 둔다. 지난 크루런 줄(마친·취소 모두)은 W6 `Routes.CrewRunDetail(postId)`로 연다 |
+| B-3 | 상태는 `CrewHomeUiState`에 `isMenuOpen`·`requests`·`openedMember`·`confirmTransfer`·`confirmKick`·`isConfirmingCrewDelete`·`isAgePublic`·`isGenderPublic`·`editForm`, 쪽은 `CrewHomePage.EDIT`(F-26)을 더했다. `canManage`는 크루장만, `canSetGoal`은 크루장·운영진 그대로 |
+| B-4 | 지난 목표 상태는 설계 05-29의 `weeks: List<RaceStatus>, nextCursor: String?` 대신 이 계약 4장 응답을 그대로 쓴 `CrewPastGoalsUiState(goals: List<PastGoals.Goal>, nextBefore: LocalDate?)`다 |
+| B-5 | F-23 공개 토글은 `ProfileVisibilitySaver`(→ `AccountRepository.editProfile`, `ProfileEdit(nickname = null, intro = null, …)`)로 저장한다. 이를 위해 `ProfileEdit.nickname`·`ProfileEditRequest.nickname`을 nullable로 바꿨다(null이면 서버가 그대로 둔다) |
+| B-6 | 크루 상세의 `createdAt`·`totalDistanceMeters`·`crewRunCount`는 W4 계약 이름 그대로 앱 `CrewDetailResponse`·`CrewDetail`에 더했다(W4 앱 병합 때 같은 필드가 겹치면 W4 쪽을 남긴다) |
+| B-7 | 기간 선택 휠(F-20b)은 스냅 휠 대신 고르기 열(높이 180, 줄 36, 고른 줄 막대)로 근사했다. 크루 로고 연필 덮개(F-26)는 그리기만 하고, 로고 올리기는 W4 업로드 API가 들어오면 잇는다 |

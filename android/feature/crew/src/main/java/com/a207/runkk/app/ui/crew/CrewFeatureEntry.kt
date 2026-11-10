@@ -8,7 +8,7 @@ import com.a207.runkk.app.core.navigation.route
 import javax.inject.Inject
 
 /**
- * 크루 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14): 크루 탭(찾기), 만들기, 내 크루 홈, 크루 관리,
+ * 크루 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14): 크루 탭(찾기), 만들기, 내 크루 홈, 지난 크루런·지난 목표(W7),
  * 일정 쓰기·크루런 대기실/진행·결과, 주간 공동 목표, 알림 이동 경로(크루 홈, 크루런 탭, 채팅방).
  * 게시판 글쓰기·공지 쓰기·투표·대면 모임 상세는 앱에서 뺐다(S15P31A207-236, 서버 API는 남아 있다).
  */
@@ -20,7 +20,8 @@ class CrewFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.CREW_CREATE) { CrewCreateRoute() }
         builder.route(Routes.CREW_SEARCH) { CrewSearchRoute() }
         builder.addEntryProvider(Routes.CrewHome::class) { key -> CrewHomeRoute(key) }
-        builder.addEntryProvider(Routes.CrewManage::class) { key -> CrewManageRoute(key) }
+        builder.addEntryProvider(Routes.CrewPastRuns::class) { key -> CrewPastRunsRoute(key) }
+        builder.addEntryProvider(Routes.CrewPastGoals::class) { key -> CrewPastGoalsRoute(key) }
         builder.addEntryProvider(Routes.CrewRunWrite::class) { key ->
             CrewRunWriteRoute(CrewRunWriteMode.Create(key.crewId))
         }

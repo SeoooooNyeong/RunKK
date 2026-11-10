@@ -6,6 +6,7 @@ import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.LobbyAvailability
+import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import java.time.Instant
@@ -41,6 +42,24 @@ data class CrewHomeUiState(
     val introDraft: String = "",
     /** 초대 코드 팝업(피그마 F-18b·F-25b)을 연 상태. */
     val isInviteOpen: Boolean = false,
+    /** ⋯ 메뉴(피그마 F-17·F-24: 딤 + 카드)를 연 상태. */
+    val isMenuOpen: Boolean = false,
+    /** 가입 신청(피그마 F-25 크루 정보 안 "가입 신청 N건"). 크루장만 읽는다. */
+    val requests: PendingRequests? = null,
+    /** 크루원 정보 팝업(피그마 F-22b·F-29b) 대상. 목록 값을 그대로 쓴다(따로 읽지 않는다). */
+    val openedMember: CrewMembers.Member? = null,
+    /** 크루장 넘기기 확인(F-29c) 대상. */
+    val confirmTransfer: CrewMembers.Member? = null,
+    /** 내보내기 확인(F-29d) 대상. */
+    val confirmKick: CrewMembers.Member? = null,
+    /** 크루 삭제 확인(F-27). */
+    val isConfirmingCrewDelete: Boolean = false,
+    /** 내 정보 시트(F-23)의 나이 공개 토글. 시트를 열 때 내 줄의 공개 설정으로 채운다. */
+    val isAgePublic: Boolean = false,
+    /** 내 정보 시트(F-23)의 성별 공개 토글. */
+    val isGenderPublic: Boolean = false,
+    /** 크루 정보 수정(F-26) 입력. 수정 쪽을 열 때 크루 정보로 채운다. */
+    val editForm: CrewFormState = CrewFormState(),
     val isBusy: Boolean = false,
     val message: UiText? = null,
     val error: UiText? = null,
@@ -57,11 +76,17 @@ data class CrewHomeUiState(
 
     val isLeader: Boolean get() = myRole == CrewRole.LEADER
 
-    /** 크루장·운영진: ⋯ 메뉴의 크루 관리(가입 결정 등)·공동 목표(3.0.3). */
-    val canManage: Boolean get() = myRole == CrewRole.LEADER || myRole == CrewRole.MANAGER
+    /**
+     * 크루장만: 가입 신청 결정·크루 정보 수정·크루 삭제·크루장 넘기기·내보내기(피그마 F-25·F-29b). 운영진 화면은 지웠다(W7 결정 C5,
+     * 서버 권한은 그대로).
+     */
+    val canManage: Boolean get() = myRole == CrewRole.LEADER
 
     /** 주간 공동 목표 설정(FR-138): 크루장·운영진. */
-    val canSetGoal: Boolean get() = canManage
+    val canSetGoal: Boolean get() = myRole == CrewRole.LEADER || myRole == CrewRole.MANAGER
+
+    /** 크루원 목록의 내 줄(내 정보 카드, F-22·F-29). */
+    val me: CrewMembers.Member? get() = members?.members?.firstOrNull { it.isMe }
 
     /** 크루 인원(크루 정보, 없으면 크루원 목록 수). */
     val headcount: Int? get() = detail?.headcount ?: members?.members?.size

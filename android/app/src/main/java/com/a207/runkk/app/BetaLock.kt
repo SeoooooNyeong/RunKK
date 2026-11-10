@@ -20,7 +20,7 @@ internal object BetaLock {
         is Routes.Key -> featureOfRoute(key.route)
 
         is Routes.CrewHome,
-        is Routes.CrewManage,
+        is Routes.CrewPastGoals,
         is Routes.CrewRunWrite,
         is Routes.CrewRunDetail,
         is Routes.CrewRunEdit,

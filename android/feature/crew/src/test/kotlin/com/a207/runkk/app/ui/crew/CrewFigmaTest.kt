@@ -13,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRole
@@ -213,7 +214,7 @@ class CrewFigmaTest {
     }
 
     @Test
-    fun `크루 정보 쪽은 태그, 이번 주와 지난 주 거리, 탈퇴하기를 보이고 뒤로 가면 홈이다(F-18)`() {
+    fun `크루 정보 쪽은 태그, 누적 거리·누적 크루런, 탈퇴하기를 보이고 뒤로 가면 홈이다(F-18, W7)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
@@ -228,8 +229,9 @@ class CrewFigmaTest {
         }
         compose.onNodeWithText("새벽질주").assertExists()
         compose.onNodeWithText("평일 저녁").assertExists()
-        compose.onNodeWithText("이번 주 달린 거리").assertExists()
-        compose.onNodeWithText("64.27km").assertExists()
+        compose.onNodeWithText("누적 거리").assertExists()
+        compose.onNodeWithText("1,284.67km").assertExists()
+        compose.onNodeWithText("이번 주 달린 거리").assertDoesNotExist()
         compose.onNodeWithText("탈퇴하기").performClick()
         compose.onNodeWithContentDescription("뒤로", substring = true).performClick()
         assertEquals(listOf("leave", "page:HOME"), calls)
@@ -238,7 +240,9 @@ class CrewFigmaTest {
     @Test
     fun `크루원 쪽을 처음 열면 크루원을 읽는다(F-22)`() {
         val repo = FakeCrewRepository()
-        val vm = CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer())
+        val vm = CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer(), { _, _ ->
+            Outcome.Success(Unit)
+        })
             .also { it.bind(Routes.CrewHome(11)) }
         assertTrue("members" !in repo.calls)
         vm.onPage(CrewHomePage.MEMBERS)
@@ -266,7 +270,7 @@ class CrewFigmaTest {
             }
         }
         compose.onNodeWithText("초대 코드").performClick()
-        compose.onNodeWithText("K 7 P 2 Q X").assertExists()
+        compose.onNodeWithText("K7P2QX").assertExists()
         compose.onNodeWithText("복사").performClick()
         compose.waitForIdle()
         assertEquals(listOf("copied"), calls)

@@ -35,14 +35,16 @@ class CrewHomeV011ViewModelTest {
 
     private fun vm(role: CrewRole = CrewRole.MEMBER, tab: CrewTab = CrewTab.RACE): CrewHomeViewModel {
         repo.role = role
-        return CrewHomeViewModel(repo, ServerClock(MutableClock()), sharer).also { it.bind(Routes.CrewHome(11), tab) }
+        return CrewHomeViewModel(repo, ServerClock(MutableClock()), sharer, { _, _ ->
+            Outcome.Success(Unit)
+        }).also { it.bind(Routes.CrewHome(11), tab) }
     }
 
     @Test
-    fun `권한표 - 크루 관리·공동 목표는 크루장·운영진만, 크루원은 없다(FR-128, 3·0·3)`() {
+    fun `권한표 - 크루 관리는 크루장만(W7 C5), 공동 목표는 크루장·운영진, 크루원은 없다(FR-128, 3·0·3)`() {
         assertFalse(vm(CrewRole.MEMBER).state.value.canManage)
         assertFalse(vm(CrewRole.MEMBER).state.value.canSetGoal)
-        assertTrue(vm(CrewRole.MANAGER).state.value.canManage)
+        assertFalse(vm(CrewRole.MANAGER).state.value.canManage)
         assertTrue(vm(CrewRole.MANAGER).state.value.canSetGoal)
         assertFalse(vm(CrewRole.MANAGER).state.value.isLeader)
         assertTrue(vm(CrewRole.LEADER).state.value.isLeader)
@@ -212,45 +214,6 @@ class FakeReportRepository : ReportRepository {
     override suspend fun report(target: ReportTarget, reason: ReportReason, detail: String?): Outcome<ReportStatus> {
         calls += Triple(target, reason, detail)
         return failure?.let { Outcome.Failure(it) } ?: Outcome.Success(ReportStatus.RECEIVED)
-    }
-}
-
-/** 운영진 지정·해제(FR-204, TC-7351~TC-7355)와 운영진의 관리 화면. */
-class CrewManageV011ViewModelTest {
-    @get:Rule
-    val main = MainDispatcherRule()
-    private val repo = FakeCrewRepository()
-
-    private fun vm(role: CrewRole) = CrewManageViewModel(repo).also {
-        repo.role = role
-        it.bind(Routes.CrewManage(11))
-    }
-
-    @Test
-    fun `크루장이 크루원을 운영진으로 지정하고 운영진을 해제한다`() {
-        val vm = vm(CrewRole.LEADER)
-        assertTrue(vm.state.value.isLeader)
-        vm.onAsk(ManageAction.Appoint(members.members[1], 0))
-        vm.onConfirm()
-        assertTrue("appoint:2" in repo.calls)
-        assertEquals(UiText.Res(R.string.crew_manage_appointed, listOf("달빛")), vm.state.value.message)
-        vm.onDismissManager(members.members[1].copy(role = CrewRole.MANAGER))
-        assertTrue("dismiss:2" in repo.calls)
-    }
-
-    @Test
-    fun `운영진이 2명이면 MANAGER_LIMIT를 알린다`() {
-        repo.fail["appoint"] = AppError.Rejected("MANAGER_LIMIT")
-        val vm = vm(CrewRole.LEADER)
-        vm.onAsk(ManageAction.Appoint(members.members[1], 2))
-        vm.onConfirm()
-        assertEquals(UiText.Res(R.string.crew_error_manager_limit), vm.state.value.message)
-    }
-
-    @Test
-    fun `운영진은 크루장 기능을 보지 못한다`() {
-        val vm = vm(CrewRole.MANAGER)
-        assertFalse(vm.state.value.isLeader)
     }
 }
 

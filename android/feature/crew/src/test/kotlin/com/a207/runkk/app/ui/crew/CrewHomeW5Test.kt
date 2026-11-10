@@ -54,6 +54,7 @@ class CrewHomeW5ViewModelTest {
         RaceRepository(base, race),
         ServerClock(MutableClock()),
         FakeCelebrationSharer(),
+        { _, _ -> Outcome.Success(Unit) },
         store
     ).also { it.bind(key) }
 

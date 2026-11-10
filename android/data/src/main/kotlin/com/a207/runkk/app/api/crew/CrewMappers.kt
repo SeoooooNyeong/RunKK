@@ -27,6 +27,9 @@ import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.Meetup
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.Notice
+import com.a207.runkk.app.domain.crew.PastCrewRun
+import com.a207.runkk.app.domain.crew.PastCrewRuns
+import com.a207.runkk.app.domain.crew.PastGoals
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.Poll
 import com.a207.runkk.app.domain.crew.PollMethod
@@ -34,6 +37,7 @@ import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import com.a207.runkk.app.domain.crew.RecentCrewRun
 import java.time.DayOfWeek
+import java.time.YearMonth
 
 // 도메인 ↔ DTO 매퍼(13.2 toRequest·toDomain). 앱이 모르는 글 종류는 건너뛰고, 모르는 가입 방식은 승인제로 읽는다.
 
@@ -169,16 +173,73 @@ internal fun CrewMembersResponse.toDomain(): CrewMembers = CrewMembers(
             it.crewIntro,
             it.tier,
             it.runimalType,
-            isMe = it.me
+            isMe = it.me,
+            accumulated = Distance(it.accumulatedMeters),
+            joinedAt = it.joinedAt?.let { at -> runCatching { ServerTime.parse(at) }.getOrNull() },
+            level = it.level,
+            ageBand = it.ageBand,
+            gender = it.gender?.let { g -> enumByName<Gender>(g) },
+            isAgePublic = it.ageBandVisibility?.let { v -> v == VISIBILITY_PUBLIC },
+            isGenderPublic = it.genderVisibility?.let { v -> v == VISIBILITY_PUBLIC }
         )
     }
 )
 
 internal fun PendingRequestsResponse.toDomain(): PendingRequests = PendingRequests(
     requests.map {
-        PendingRequests.Request(it.requestId, it.memberId, it.displayName.orEmpty(), ServerTime.parse(it.requestedAt))
+        PendingRequests.Request(
+            requestId = it.requestId,
+            memberId = it.memberId,
+            displayName = it.displayName.orEmpty(),
+            requestedAt = ServerTime.parse(it.requestedAt),
+            tier = it.tier,
+            level = it.level,
+            ageBand = it.ageBand,
+            gender = it.gender?.let { g -> enumByName<Gender>(g) }
+        )
     }
 )
+
+/** 지난 공동 목표 한 쪽(contract-W7 4장). 날짜를 읽지 못한 주는 버린다. */
+internal fun GoalHistoryResponse.toDomain(): PastGoals = PastGoals(
+    goals = goals.mapNotNull { g ->
+        runCatching { ServerTime.parseDate(g.weekStart) }.getOrNull()?.let { week ->
+            PastGoals.Goal(
+                weekStart = week,
+                month = g.month,
+                weekOfMonth = g.weekOfMonth,
+                goal = Distance(g.goalMeters),
+                total = Distance(g.totalMeters),
+                isAchieved = g.achieved,
+                progressPercent = g.progressPercent,
+                participantCount = g.participantCount
+            )
+        }
+    },
+    nextBefore = nextBefore?.let { runCatching { ServerTime.parseDate(it) }.getOrNull() }
+)
+
+/** 지난 크루런 한 달(contract-W6). 날짜·시각을 읽지 못한 항목은 버린다. */
+internal fun PastCrewRunsResponse.toDomain(requested: YearMonth): PastCrewRuns = PastCrewRuns(
+    month = runCatching { YearMonth.parse(month) }.getOrDefault(requested),
+    days = dates.mapNotNull { runCatching { ServerTime.parseDate(it) }.getOrNull() }.toSet(),
+    runs = runs.mapNotNull { r ->
+        runCatching { ServerTime.parse(r.scheduledAt) }.getOrNull()?.let { at ->
+            PastCrewRun(
+                postId = r.postId,
+                title = r.title,
+                scheduledAt = at,
+                distance = r.distanceMeters?.let(::Distance),
+                status = enumByName<CrewRunStatus>(r.status) ?: CrewRunStatus.FINISHED,
+                goingCount = r.goingCount,
+                runnerCount = r.runnerCount
+            )
+        }
+    },
+    earliestMonth = earliestMonth?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
+)
+
+private const val VISIBILITY_PUBLIC = "PUBLIC"
 
 internal fun CrewRankingResponse.toDomain(): CrewRanking =
     CrewRanking(entries.map { CrewRanking.Entry(it.rank, it.displayName.orEmpty(), Distance(it.distanceMeters)) })

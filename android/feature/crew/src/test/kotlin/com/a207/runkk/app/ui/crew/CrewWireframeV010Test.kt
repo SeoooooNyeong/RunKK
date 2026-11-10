@@ -6,6 +6,7 @@ import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRole
@@ -26,7 +27,9 @@ class CrewWireframeV010ViewModelTest {
 
     private fun vm(role: CrewRole): CrewHomeViewModel {
         repo.role = role
-        return CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer())
+        return CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer(), { _, _ ->
+            Outcome.Success(Unit)
+        })
             .also {
                 it.bind(Routes.CrewHome(11))
                 it.onPage(CrewHomePage.MEMBERS)
@@ -77,21 +80,20 @@ class CrewWireframeV010ScreensTest {
     )
 
     @Test
-    fun `크루장 탈퇴 불가 안내의 크루장 넘기기는 크루 관리로 간다(E7)`() {
+    fun `크루장 탈퇴 불가 안내는 닫기 하나다(F-28, W7)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
                     leaderHome.copy(isLeaveBlocked = true),
-                    CrewHomeActions(
-                        onManage = { calls += "manage" },
-                        onLeaveBlockedDismiss = { calls += "dismiss" }
-                    )
+                    CrewHomeActions(onLeaveBlockedDismiss = { calls += "dismiss" })
                 )
             }
         }
         compose.onNodeWithText("지금은 크루를 탈퇴할 수 없어요").assertExists()
-        compose.onNodeWithText("크루장 넘기기").performClick()
-        assertEquals(listOf("dismiss", "manage"), calls)
+        compose.onNodeWithText("다른 크루원에게 크루장을 넘긴 뒤 탈퇴할 수 있어요.").assertExists()
+        compose.onNodeWithText("크루장 넘기기").assertDoesNotExist()
+        compose.onNodeWithText("닫기").performClick()
+        assertEquals(listOf("dismiss"), calls)
     }
 
     @Test
@@ -104,7 +106,7 @@ class CrewWireframeV010ScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("한줄 소개 8/40").assertExists()
+        compose.onNodeWithText("한 줄 소개 8/40").assertExists()
         compose.onNodeWithText("저장").performClick()
         assertEquals(listOf("save"), calls)
     }
@@ -134,34 +136,33 @@ class CrewWireframeV010ScreensTest {
         CrewHomeScreen(leaderHome.copy(isLeaveBlocked = true), CrewHomeActions())
     }
 
-    private val manage = CrewManageUiState(
-        crewId = 11,
-        crewName = "새벽질주",
-        detail = crewDetail(role = CrewRole.LEADER),
-        isLoading = false,
-        members = members.copy(members = members.members.map { if (it.memberId == 1L) it.copy(isMe = true) else it }),
-        inviteCode = "K7P2QX",
-        weeklyGoal = raceWithGoal.goal
-    )
-
     @Test
     fun memberMenuDark() = compose.captureRunkkScreen("W_I10_crew_member_menu_dark") {
-        CrewManageScreen(manage.copy(menuMember = members.members[1]), CrewManageActions())
+        CrewHomeScreen(
+            leaderHome.copy(page = CrewHomePage.MEMBERS, openedMember = members.members[1]),
+            CrewHomeActions()
+        )
     }
 
     @Test
     fun memberMenuLight() = compose.captureRunkkScreen("W_I10_crew_member_menu_light", isDarkTheme = false) {
-        CrewManageScreen(manage.copy(menuMember = members.members[1]), CrewManageActions())
+        CrewHomeScreen(
+            leaderHome.copy(page = CrewHomePage.MEMBERS, openedMember = members.members[1]),
+            CrewHomeActions()
+        )
     }
 
     @Test
     fun crewEdit() = compose.captureRunkkScreen("W_I9_crew_edit") {
-        CrewManageScreen(manage.copy(isEditingInfo = true, form = crewDetail().toFormState()), CrewManageActions())
+        CrewHomeScreen(
+            leaderHome.copy(page = CrewHomePage.EDIT, editForm = crewDetail().toFormState()),
+            CrewHomeActions()
+        )
     }
 
     @Test
     fun deleteConfirm() = compose.captureRunkkScreen("W_I11_crew_delete_confirm") {
-        CrewManageScreen(manage.copy(confirming = ManageAction.Delete), CrewManageActions())
+        CrewHomeScreen(leaderHome.copy(isConfirmingCrewDelete = true), CrewHomeActions())
     }
 
     @Test

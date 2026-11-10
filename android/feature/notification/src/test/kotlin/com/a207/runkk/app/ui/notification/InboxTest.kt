@@ -205,7 +205,7 @@ class InboxTest {
         assertEquals(Routes.CrewHome(7), inboxDestination("CREW_HOME", "7"))
         assertEquals(Routes.BattleResult(12), inboxDestination("BATTLE_RESULT", "12"))
         assertEquals(Routes.Key(Routes.RECORDS_BATTLES), inboxDestination("BATTLE_RESULT", "x"))
-        assertEquals(Routes.CrewManage(4), inboxDestination("CREW_MANAGE", "4"))
+        assertEquals(Routes.CrewHome(4), inboxDestination("CREW_MANAGE", "4"))
         assertEquals(null, inboxDestination("CREW_BOARD", "3"))
         assertEquals(null, inboxDestination("SOMETHING_NEW", null))
         assertEquals(null, inboxDestination(null, null))
@@ -230,7 +230,10 @@ class InboxTest {
                 "CREW_SEARCH",
             constants
         )
-        assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS, keys)
+        assertEquals(
+            V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS + W7_KEYS,
+            keys
+        )
     }
 
     @Test
@@ -329,8 +332,11 @@ class InboxTest {
         val W6_KEYS = setOf("CrewRunDetail", "CrewRunEdit", "CrewPastRuns")
         val V010_KEYS = setOf(
             "Key", "RunResult", "RecordDetail", "RecordCard", "BattleRunning", "BattleQuickMatch", "BattleResult",
-            "CrewHome", "CrewManage", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
+            "CrewHome", "CrewRunWrite", "CrewRunLobby", "CrewRunResult"
         )
+
+        /** 피그마 맞춤 W7: 크루 관리(CrewManage)를 지우고 지난 목표를 더했다(지난 크루런 경로는 W6). */
+        val W7_KEYS = setOf("CrewPastGoals")
 
         // W5([임시:D-성-21]): 채팅은 크루 홈 탭이 되어 CrewChat 경로를 지웠다.
         val V011_KEYS = setOf("CrewPollWrite", "CrewBoardWrite")

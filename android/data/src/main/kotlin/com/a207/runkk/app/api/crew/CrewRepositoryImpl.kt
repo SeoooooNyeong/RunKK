@@ -22,11 +22,14 @@ import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.MyCrew
+import com.a207.runkk.app.domain.crew.PastCrewRuns
+import com.a207.runkk.app.domain.crew.PastGoals
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import java.time.Duration
 import java.time.LocalDate
+import java.time.YearMonth
 import javax.inject.Inject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -52,9 +55,6 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
 
     override suspend fun changeInfo(crewId: Long, form: CrewForm): Outcome<Unit> =
         ApiErrorMapper.call { api.changeInfo(crewId, form.toRequest()) }
-
-    override suspend fun reissueInviteCode(crewId: Long): Outcome<String> =
-        ApiErrorMapper.call { api.reissueInviteCode(crewId).inviteCode }
 
     override suspend fun transferLeadership(crewId: Long, memberId: Long): Outcome<Unit> =
         ApiErrorMapper.call { api.transferLeadership(crewId, LeaderRequest(memberId)) }
@@ -98,6 +98,13 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
     override suspend fun pendingRequests(crewId: Long): Outcome<PendingRequests> =
         ApiErrorMapper.call { api.pendingRequests(crewId).toDomain() }
 
+    override suspend fun pastGoals(crewId: Long, before: LocalDate?): Outcome<PastGoals> = ApiErrorMapper.call {
+        api.goalHistory(crewId, before?.toString(), PAST_GOALS_PAGE_SIZE).toDomain()
+    }
+
+    override suspend fun pastCrewRuns(crewId: Long, month: YearMonth, date: LocalDate?): Outcome<PastCrewRuns> =
+        ApiErrorMapper.call { api.pastCrewRuns(crewId, month.toString(), date?.toString()).toDomain(month) }
+
     override suspend fun crewRanking(crewId: Long, period: CrewRanking.Period): Outcome<CrewRanking> =
         ApiErrorMapper.call { api.crewRanking(crewId, period.name).toDomain() }
 
@@ -129,16 +136,6 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
 
     override suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail> =
         ApiErrorMapper.call { api.editCrewRun(postId, edit.toRequest()).toDomain() }
-
-    override suspend fun appointManager(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call {
-        api.appointManager(crewId, memberId)
-        Unit
-    }
-
-    override suspend fun dismissManager(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call {
-        api.dismissManager(crewId, memberId)
-        Unit
-    }
 
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance): Outcome<RaceStatus> =
         ApiErrorMapper.call { api.setGoal(crewId, GoalRequest(goal.meters)).toDomain() }
@@ -198,5 +195,8 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
         const val LOAD_FACTOR = 0.75f
         val JPEG = "image/jpeg".toMediaType()
         val LOGO_PATH = Regex("^/api/v1/crew-logos/(\\d{1,18})$")
+
+        /** 지난 공동 목표 한 쪽 크기(서버 기본과 같다). */
+        const val PAST_GOALS_PAGE_SIZE = 20
     }
 }

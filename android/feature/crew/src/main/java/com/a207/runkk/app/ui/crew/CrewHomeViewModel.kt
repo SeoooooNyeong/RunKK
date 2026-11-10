@@ -11,9 +11,11 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.CrewCelebrationStore
+import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.LobbyAvailability
+import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -48,6 +50,7 @@ class CrewHomeViewModel @Inject constructor(
     private val crews: CrewRepository,
     private val serverClock: ServerClock,
     private val celebration: CelebrationSharer,
+    private val visibility: ProfileVisibilitySaver,
     /** 축하 팝업을 그 주에 본 기록([임시:D-성-23]). 시험은 기본 메모리 구현을 쓴다. */
     private val celebrationStore: CrewCelebrationStore = CrewCelebrationStore.inMemory()
 ) : ViewModel() {
@@ -95,7 +98,11 @@ class CrewHomeViewModel @Inject constructor(
         detailJob?.cancel()
         detailJob = viewModelScope.launch {
             when (val r = crews.detail(crewId)) {
-                is Outcome.Success -> _state.update { it.copy(detail = r.value) }
+                is Outcome.Success -> {
+                    _state.update { it.copy(detail = r.value) }
+                    if (_state.value.page == CrewHomePage.INFO) loadRequests()
+                }
+
                 is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
             }
         }
@@ -115,10 +122,17 @@ class CrewHomeViewModel @Inject constructor(
         if (!loaded) refresh()
     }
 
-    /** ⋯ 메뉴의 쪽(크루 정보·크루원)을 열거나 홈으로 돌아간다. 크루원 쪽은 처음 열 때 읽는다. */
+    /**
+     * ⋯ 메뉴의 쪽(크루 정보·크루원)이나 크루 정보 수정(F-26)을 열거나 홈으로 돌아간다. 크루원 쪽은 처음 열 때 읽고, 크루 정보는 크루장이면
+     * 가입 신청(F-25)을 읽는다. 수정 쪽은 지금 크루 정보로 입력을 채운다.
+     */
     fun onPage(page: CrewHomePage) {
-        _state.update { it.copy(page = page, error = null) }
+        _state.update { s ->
+            val form = if (page == CrewHomePage.EDIT) s.detail?.toFormState() ?: s.editForm else s.editForm
+            s.copy(page = page, error = null, isMenuOpen = false, editForm = form)
+        }
         if (page == CrewHomePage.MEMBERS && _state.value.members == null) refresh()
+        if (page == CrewHomePage.INFO) viewModelScope.launch { loadRequests() }
     }
 
     /** 지금 보이는 것을 다시 읽는다: 크루원 쪽이면 크루원, 아니면 지금 탭. */
@@ -172,14 +186,10 @@ class CrewHomeViewModel @Inject constructor(
 
     fun onCelebrationClose() = _state.update { it.copy(celebration = null) }
 
-    /** 크루원 목록. 줄마다 이번 주 거리를 보이므로 레이스를 아직 읽지 않았으면 함께 읽는다(와이어 E4). */
+    /** 크루원 목록. 줄마다 서버가 준 이 크루 누적 거리를 보인다(피그마 F-22, contract-W7 2장). */
     private suspend fun loadMembers(s: CrewHomeUiState): AppError? {
         val members = crews.members(s.crewId)
         if (members is Outcome.Success) _state.update { it.copy(members = members.value) }
-        if (_state.value.race == null) {
-            val race = crews.race(s.crewId, null)
-            if (race is Outcome.Success) _state.update { it.copy(race = race.value) }
-        }
         return (members as? Outcome.Failure)?.error
     }
 
@@ -362,31 +372,69 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    /** 크루 내 소개 편집(와이어 E6): 지금 내 소개로 채워 연다. */
+    /** 내 정보 시트(피그마 F-23): 지금 내 소개와 계정의 나이·성별 공개 설정으로 채워 연다. */
     fun onIntroEdit() = _state.update { s ->
-        val mine = s.members?.members?.firstOrNull { it.isMe }?.crewIntro.orEmpty()
-        s.copy(isEditingIntro = true, introDraft = mine.take(CrewHomeUiState.INTRO_MAX))
+        val me = s.me
+        s.copy(
+            isEditingIntro = true,
+            introDraft = me?.crewIntro.orEmpty().take(CrewHomeUiState.INTRO_MAX),
+            isAgePublic = me?.isAgePublic ?: false,
+            isGenderPublic = me?.isGenderPublic ?: false
+        )
     }
+
+    fun onAgePublic(isPublic: Boolean) = _state.update { it.copy(isAgePublic = isPublic) }
+
+    fun onGenderPublic(isPublic: Boolean) = _state.update { it.copy(isGenderPublic = isPublic) }
 
     fun onIntroDraft(text: String) = _state.update { it.copy(introDraft = text.take(CrewHomeUiState.INTRO_MAX)) }
 
     fun onIntroDismiss() = _state.update { it.copy(isEditingIntro = false) }
 
-    /** 크루 내 한줄 소개(FR-144, 40자). 러너 성향 태그는 크루 안에서도 고르지 않는다(CR-04). */
+    /**
+     * 내 정보 저장(FR-144, 피그마 F-23): 소개가 바뀌었으면 PATCH /crews/{id}/me, 공개 토글이 바뀌었으면 계정 공개 설정(PATCH
+     * /me/profile)을 저장한다. 둘 다 되면 시트를 닫고 크루원을 다시 읽는다. 하나라도 실패하면 시트를 연 채 안내한다.
+     */
     fun onIntroSave() {
         val s = _state.value
-        _state.update { it.copy(isEditingIntro = false, isBusy = true) }
+        if (s.isBusy) return
+        val me = s.me
+        val intro = s.introDraft.trim()
+        val introChanged = intro != me?.crewIntro.orEmpty()
+        // 내 공개 설정을 모르면(옛 서버) 토글을 숨기고 저장하지 않는다(건드리지 않은 쪽을 PRIVATE로 덮지 않게).
+        val knowsVisibility = me?.isAgePublic != null && me.isGenderPublic != null
+        val visibilityChanged = knowsVisibility &&
+            (s.isAgePublic != me?.isAgePublic || s.isGenderPublic != me?.isGenderPublic)
+        if (!introChanged && !visibilityChanged) {
+            _state.update { it.copy(isEditingIntro = false) }
+            return
+        }
+        _state.update { it.copy(isBusy = true) }
         viewModelScope.launch {
-            when (val r = crews.editCrewProfile(s.crewId, s.introDraft.trim())) {
-                is Outcome.Success -> {
-                    _state.update {
-                        it.copy(isBusy = false, message = uiText(R.string.crew_home_intro_changed), members = null)
-                    }
-                    if (_state.value.page == CrewHomePage.MEMBERS) refresh()
-                }
-
-                is Outcome.Failure -> _state.update { it.copy(isBusy = false, message = CrewErrorText.of(r.error)) }
+            val introError = if (introChanged) {
+                (
+                    crews.editCrewProfile(
+                        s.crewId,
+                        intro
+                    ) as? Outcome.Failure
+                    )?.error
+            } else {
+                null
             }
+            val error = introError ?: if (visibilityChanged) {
+                (visibility.save(s.isAgePublic, s.isGenderPublic) as? Outcome.Failure)?.error
+            } else {
+                null
+            }
+            if (error != null) {
+                _state.update { it.copy(isBusy = false, message = CrewErrorText.of(error)) }
+                if (introChanged && introError == null) reloadMembers()
+                return@launch
+            }
+            _state.update {
+                it.copy(isBusy = false, isEditingIntro = false, message = uiText(R.string.crew_home_intro_changed))
+            }
+            reloadMembers()
         }
     }
 
@@ -398,6 +446,153 @@ class CrewHomeViewModel @Inject constructor(
 
     fun onInviteCopied() = _state.update {
         it.copy(isInviteOpen = false, message = uiText(R.string.crew_manage_invite_copied))
+    }
+
+    // ⋯ 메뉴(피그마 F-17·F-24)
+
+    fun onMenuOpen() = _state.update { it.copy(isMenuOpen = true) }
+
+    fun onMenuClose() = _state.update { it.copy(isMenuOpen = false) }
+
+    // 가입 신청(피그마 F-25, 크루장)
+
+    /** 크루장이면 가입 신청을 읽는다. 실패하면 앞서 읽은 목록을 둔다. */
+    private suspend fun loadRequests() {
+        val s = _state.value
+        if (!s.canManage) return
+        when (val r = crews.pendingRequests(s.crewId)) {
+            is Outcome.Success -> _state.update { it.copy(requests = r.value) }
+            is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
+        }
+    }
+
+    fun onApprove(request: PendingRequests.Request) = decide(request, shouldApprove = true)
+
+    fun onReject(request: PendingRequests.Request) = decide(request, shouldApprove = false)
+
+    private fun decide(request: PendingRequests.Request, shouldApprove: Boolean) = act {
+        val r = if (shouldApprove) crews.approveJoin(request.requestId) else crews.rejectJoin(request.requestId)
+        val text = if (shouldApprove) {
+            uiText(R.string.crew_manage_approved, request.displayName)
+        } else {
+            uiText(R.string.crew_manage_rejected, request.displayName)
+        }
+        loadRequests()
+        if (shouldApprove && r is Outcome.Success) reloadCrew()
+        r.done(text)
+    }
+
+    // 크루원 정보 팝업(피그마 F-22b·F-29b)과 크루장 넘기기·내보내기(F-29c·F-29d)
+
+    fun onMemberOpen(member: CrewMembers.Member) = _state.update { it.copy(openedMember = member) }
+
+    fun onMemberClose() = _state.update { it.copy(openedMember = null) }
+
+    /** 팝업을 닫고 넘기기 확인을 연다. 크루장이 다른 크루원에게만. */
+    fun onTransferAsk(member: CrewMembers.Member) = _state.update {
+        if (it.canManage && !member.isMe) it.copy(openedMember = null, confirmTransfer = member) else it
+    }
+
+    fun onTransferDismiss() = _state.update { it.copy(confirmTransfer = null) }
+
+    fun onTransferConfirm() {
+        if (_state.value.isBusy) return
+        val member = _state.value.confirmTransfer ?: return
+        _state.update { it.copy(confirmTransfer = null) }
+        act {
+            val r = crews.transferLeadership(_state.value.crewId, member.memberId)
+            if (r is Outcome.Success) reloadCrew()
+            r.done(uiText(R.string.crew_manage_transferred, member.displayName))
+        }
+    }
+
+    fun onKickAsk(member: CrewMembers.Member) = _state.update {
+        if (it.canManage && !member.isMe) it.copy(openedMember = null, confirmKick = member) else it
+    }
+
+    fun onKickDismiss() = _state.update { it.copy(confirmKick = null) }
+
+    fun onKickConfirm() {
+        if (_state.value.isBusy) return
+        val member = _state.value.confirmKick ?: return
+        _state.update { it.copy(confirmKick = null) }
+        act {
+            val r = crews.kick(_state.value.crewId, member.memberId)
+            if (r is Outcome.Success) reloadCrew()
+            r.done(uiText(R.string.crew_manage_kicked, member.displayName))
+        }
+    }
+
+    // 크루 삭제(피그마 F-27)·크루 정보 수정(F-26), 크루장
+
+    fun onCrewDeleteAsk() = _state.update { if (it.canManage) it.copy(isConfirmingCrewDelete = true) else it }
+
+    fun onCrewDeleteDismiss() = _state.update { it.copy(isConfirmingCrewDelete = false) }
+
+    /** 크루를 지운다(FR-116). 지우면 크루 탭(찾기)으로 간다. */
+    fun onCrewDeleteConfirm() {
+        if (!_state.value.isConfirmingCrewDelete || _state.value.isBusy) return
+        _state.update { it.copy(isConfirmingCrewDelete = false) }
+        act {
+            when (val r = crews.delete(_state.value.crewId)) {
+                is Outcome.Success -> {
+                    _events.trySend(CrewHomeEvent.Left)
+                    null
+                }
+
+                is Outcome.Failure -> CrewErrorText.of(r.error)
+            }
+        }
+    }
+
+    fun onEditForm(form: CrewFormState) = _state.update { it.copy(editForm = form) }
+
+    /** 크루 정보 수정 저장(FR-113). 되면 크루 정보 쪽으로 돌아가 크루 정보를 다시 읽는다. */
+    fun onEditSave() {
+        val form = _state.value.editForm
+        // 긴 옛 크루명은 그대로 두면 통과, 바꿀 때만 12자 검사(CrewEditName, 서버 S2·S3).
+        if (!form.isEditValid(_state.value.detail?.name.orEmpty())) return
+        act {
+            val r = crews.changeInfo(_state.value.crewId, form.toForm())
+            if (r is Outcome.Success) {
+                _state.update { it.copy(page = CrewHomePage.INFO) }
+                reloadCrew()
+            }
+            r.done(uiText(R.string.crew_manage_info_changed))
+        }
+    }
+
+    /** 처리 한 번: 바쁜 동안 다시 받지 않고 [block]이 돌려준 문구를 안내한다. */
+    private fun act(block: suspend () -> UiText?) {
+        if (_state.value.isBusy) return
+        _state.update { it.copy(isBusy = true) }
+        viewModelScope.launch {
+            var message: UiText? = null
+            try {
+                message = block()
+            } finally {
+                _state.update { it.copy(isBusy = false, message = message ?: it.message) }
+            }
+        }
+    }
+
+    private fun Outcome<Unit>.done(success: UiText): UiText = when (this) {
+        is Outcome.Success -> success
+        is Outcome.Failure -> CrewErrorText.of(error)
+    }
+
+    /** 역할·인원이 바뀐 뒤: 크루 정보와(읽어 둔 경우) 크루원을 다시 읽는다. */
+    private suspend fun reloadCrew() {
+        val r = crews.detail(_state.value.crewId)
+        if (r is Outcome.Success) _state.update { it.copy(detail = r.value) }
+        if (_state.value.members != null) reloadMembers()
+    }
+
+    private suspend fun reloadMembers() {
+        when (val r = crews.members(_state.value.crewId)) {
+            is Outcome.Success -> _state.update { it.copy(members = r.value) }
+            is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
+        }
     }
 
     /**
