@@ -46,7 +46,9 @@ data class RouteMarker(
     val label: String? = null,
     val alpha: Float = 1f,
     val tag: String = MY_MARKER_TAG,
-    val figure: @Composable () -> Unit = DefaultMarkerFigure
+    val figure: @Composable () -> Unit = DefaultMarkerFigure,
+    /** 이 마커만의 그림 칸 크기. null이면 RouteCanvas의 markerSize다(내 아바타 칸 88dp, [임시:D-성-121]). */
+    val size: Dp? = null
 )
 
 /** 내 마커의 시험 표지. 상대 마커는 [OPPONENT_MARKER_TAG]를 쓴다. */
