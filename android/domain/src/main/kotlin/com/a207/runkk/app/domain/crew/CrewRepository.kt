@@ -6,6 +6,7 @@ import com.a207.runkk.app.core.model.Outcome
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * 크루·게시판·크루런 대기실 REST 포트(5.7.1 /crews/…, /join-requests/…, /posts/…, /crew-runs/…). 구현 api.crew.
@@ -24,15 +25,7 @@ interface CrewRepository {
 
     suspend fun changeInfo(crewId: Long, form: CrewForm): Outcome<Unit>
 
-    suspend fun reissueInviteCode(crewId: Long): Outcome<String>
-
     suspend fun transferLeadership(crewId: Long, memberId: Long): Outcome<Unit>
-
-    /** 운영진 지정(PUT /crews/{id}/managers/{memberId}, FR-204). 크루장만. 최대 2명(MANAGER_LIMIT). */
-    suspend fun appointManager(crewId: Long, memberId: Long): Outcome<Unit>
-
-    /** 운영진 해제(DELETE /crews/{id}/managers/{memberId}, FR-204). 크루장만. */
-    suspend fun dismissManager(crewId: Long, memberId: Long): Outcome<Unit>
 
     suspend fun delete(crewId: Long): Outcome<Unit>
 
@@ -59,6 +52,17 @@ interface CrewRepository {
     suspend fun members(crewId: Long): Outcome<CrewMembers>
 
     suspend fun pendingRequests(crewId: Long): Outcome<PendingRequests>
+
+    /**
+     * 지난 공동 목표 한 쪽(GET /crews/{id}/goals/history, 피그마 F-21, contract-W7 4장). [before]는 앞 쪽의 nextBefore(첫 쪽은 null).
+     * 최신 주부터 온다.
+     */
+    suspend fun pastGoals(crewId: Long, before: LocalDate? = null): Outcome<PastGoals>
+
+    /**
+     * 지난 크루런 한 달(GET /crews/{id}/crew-runs/past, 피그마 F-20, contract-W6). [date]를 주면 runs가 그날 것만이다.
+     */
+    suspend fun pastCrewRuns(crewId: Long, month: YearMonth, date: LocalDate? = null): Outcome<PastCrewRuns>
 
     suspend fun crewRanking(crewId: Long, period: CrewRanking.Period): Outcome<CrewRanking>
 

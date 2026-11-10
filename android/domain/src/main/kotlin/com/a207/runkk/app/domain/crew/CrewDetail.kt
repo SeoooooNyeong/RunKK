@@ -25,7 +25,13 @@ data class CrewDetail(
     val inviteCode: String?,
     val inviteCodeExpiresAt: Instant?,
     /** 지난 주 크루 거리(크루 상세 통계, 피그마 F-02). */
-    val lastWeekDistance: Distance = Distance(0)
+    val lastWeekDistance: Distance = Distance(0),
+    /** 개설일(F-18 "yyyy. mm. dd", contract-W4 createdAt). 옛 서버면 null. */
+    val createdAt: LocalDate? = null,
+    /** 누적 크루 거리(F-18 "누적 거리", contract-W4 totalDistanceMeters). 옛 서버면 null. */
+    val totalDistance: Distance? = null,
+    /** 누적 크루런 횟수(F-18, contract-W4 crewRunCount). 옛 서버면 null. */
+    val crewRunCount: Int? = null
 ) {
     val isLeader: Boolean get() = myRole == CrewRole.LEADER
 }

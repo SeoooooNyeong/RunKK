@@ -51,6 +51,7 @@ import com.a207.runkk.app.api.crew.CrewMembersResponse
 import com.a207.runkk.app.api.crew.CrewProfileRequest
 import com.a207.runkk.app.api.crew.CrewRankingResponse
 import com.a207.runkk.app.api.crew.CrewRunResultResponse
+import com.a207.runkk.app.api.crew.GoalHistoryResponse
 import com.a207.runkk.app.api.crew.GoalRequest
 import com.a207.runkk.app.api.crew.InviteCodeResponse
 import com.a207.runkk.app.api.crew.JoinRequestBody
@@ -371,6 +372,7 @@ class ServerContractTest {
         )
         response(CrewMembersResponse.serializer(), "CrewMembersAssembler.CrewMembersResponse")
         response(PendingRequestsResponse.serializer(), "CrewMembersAssembler.PendingRequestsResponse")
+        response(GoalHistoryResponse.serializer(), "CrewGoalHistoryController.GoalHistoryResponse")
         response(CrewRankingResponse.serializer(), "CrewController.RankingResponse")
         response(RaceStatusResponse.serializer(), "CrewDtos.RaceStatusResponse")
         response(PostListResponse.serializer(), "CrewDtos.PostListResponse")

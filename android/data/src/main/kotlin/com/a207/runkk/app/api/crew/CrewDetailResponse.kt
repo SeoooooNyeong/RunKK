@@ -19,5 +19,9 @@ internal data class CrewDetailResponse(
     val lastWeekDistanceMeters: Long = 0,
     val myRole: String? = null,
     val inviteCode: String? = null,
-    val inviteCodeExpiresAt: String? = null
+    val inviteCodeExpiresAt: String? = null,
+    /** 개설일·누적 거리·누적 크루런 횟수(contract-W4 1장, W7 크루 정보 F-18). 옛 서버면 없다. */
+    val createdAt: String? = null,
+    val totalDistanceMeters: Long? = null,
+    val crewRunCount: Int? = null
 )

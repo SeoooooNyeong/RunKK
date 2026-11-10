@@ -71,6 +71,22 @@ internal interface CrewApi {
     @GET("crews/{id}/join-requests")
     suspend fun pendingRequests(@Path("id") crewId: Long): PendingRequestsResponse
 
+    /** 지난 공동 목표(contract-W7 4장). */
+    @GET("crews/{id}/goals/history")
+    suspend fun goalHistory(
+        @Path("id") crewId: Long,
+        @Query("before") before: String?,
+        @Query("size") size: Int
+    ): GoalHistoryResponse
+
+    /** 지난 크루런 한 달(contract-W6). */
+    @GET("crews/{id}/crew-runs/past")
+    suspend fun pastCrewRuns(
+        @Path("id") crewId: Long,
+        @Query("month") month: String,
+        @Query("date") date: String?
+    ): PastCrewRunsResponse
+
     @GET("crews/{id}/ranking")
     suspend fun crewRanking(@Path("id") crewId: Long, @Query("period") period: String): CrewRankingResponse
 
