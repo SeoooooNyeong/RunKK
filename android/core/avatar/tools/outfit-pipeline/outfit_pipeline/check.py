@@ -70,7 +70,7 @@ def check_layer(path: Path, part: str, template: str, masks_dir: Path) -> list[P
     coverage = sum(alpha.histogram()[1:]) / (slot.width * slot.height)
     if coverage < spec.MIN_COVERAGE:
         problems.append(Problem(4, str(path), f"coverage {coverage:.4f} < {spec.MIN_COVERAGE}"))
-    # 9번: 옷 레이어에 드러난 맨살이 없다(피부는 맨몸 바탕에서만 와 러닝량 톤이 걸린다, [임시:D-성-172]).
+    # 9번: 옷 레이어에 드러난 맨살이 없다(피부는 맨몸 바탕에서만 와 러닝량 톤이 걸린다, [임시:D-성-174]).
     skin = count_exposed(image)
     if skin:
         problems.append(Problem(9, str(path), f"{skin} exposed skin pixel(s) in garment layer"))
