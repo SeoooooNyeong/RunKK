@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # 서버 배포. infra/ 폴더에서 실행한다(README 3절).
 #   ./deploy.sh         .env의 RUNKK_ENV(develop|prod) 환경을 배포한다: 이미지 빌드 → 에지 맞추기 → 배포 직전 DB 덤프 → 환경 스택 재시작 → 헬스체크
+#                       → Grafana 읽기 전용 DB 계정 맞추기(이 환경 DB만, README 6절 "이벤트 현황")
 #   ./deploy.sh edge    에지(nginx·모니터링)만 맞춘다. .env가 필요 없다
 # 값: .env(환경 스택, CI INFRA_ENV / INFRA_ENV_PROD), edge.env(에지, CI INFRA_ENV_EDGE).
 # 한 환경 배포는 다른 환경 컨테이너를 건드리지 않는다(프로젝트가 다르고 --remove-orphans도 자기 프로젝트만 본다).
@@ -15,6 +16,14 @@ TARGET="${1:-app}"
 case "$TARGET" in app|edge) ;; *) die "usage: ./deploy.sh [edge]" ;; esac
 
 load_edge_env
+# 이벤트 현황 대시보드의 읽기 전용 DB 계정 비밀번호(CI masked 변수 → edge.env, README 6절 "이벤트 현황"). 비었거나 형식이 틀리면
+# 대시보드 데이터소스와 계정 맞추기만 건너뛰고 배포는 계속한다. 비운 값을 export해 compose도 grafana에 빈 값을 넘긴다(edge.env 값보다 앞선다)
+GRAFANA_DB_READONLY_PASSWORD="$(env_value "$EDGE_ENV_FILE" GRAFANA_DB_READONLY_PASSWORD "")"
+if [ -n "$GRAFANA_DB_READONLY_PASSWORD" ] && ! [[ "$GRAFANA_DB_READONLY_PASSWORD" =~ ^[A-Za-z0-9]{16,}$ ]]; then
+  echo "WARN: GRAFANA_DB_READONLY_PASSWORD must be 16+ letters or digits (openssl rand -hex 24); the event dashboard datasource is skipped" >&2
+  GRAFANA_DB_READONLY_PASSWORD=""
+fi
+export GRAFANA_DB_READONLY_PASSWORD
 if [ "$TARGET" = app ]; then
   load_app_env
   SPRING_PROFILE="$(env_value "$APP_ENV_FILE" SPRING_PROFILES_ACTIVE prod)"
@@ -67,6 +76,13 @@ retire_legacy_app_containers() {
 
 deploy_edge() {
   sync_bundle "$EDGE_DIR" docker-compose.edge.yml nginx monitoring
+  # 이벤트 현황 DB 데이터소스는 비밀번호가 있을 때만 넣는다. 없으면 지우는 파일을 넣어 전에 넣은 데이터소스도 걷어 낸다
+  if [ -n "$GRAFANA_DB_READONLY_PASSWORD" ]; then
+    cp monitoring/grafana/runkk-db/datasources.yml "$EDGE_DIR/monitoring/grafana/provisioning/datasources/runkk-db.yml"
+  else
+    echo "GRAFANA_DB_READONLY_PASSWORD is not set; the event dashboard datasources are off."
+    cp monitoring/grafana/runkk-db/datasources-off.yml "$EDGE_DIR/monitoring/grafana/provisioning/datasources/runkk-db.yml"
+  fi
   detect_nginx_mode
   if [ "$NGINX_MODE" = https ]; then
     # Grafana가 만드는 링크 주소와 로그인 쿠키 Secure를 nginx 모드에 맞춘다(compose 기본값은 http). Grafana는 prod 도메인(443)에 둔다
@@ -92,13 +108,14 @@ deploy_edge() {
   edge_compose exec -T nginx sh -c '/docker-entrypoint.d/20-envsubst-on-templates.sh >/dev/null && nginx -t -q && nginx -s reload'
   wait_edge_healthy prometheus
   edge_compose exec -T prometheus wget -q -O /dev/null --post-data= http://127.0.0.1:9090/-/reload
-  # 알림 규칙·연락처(monitoring/grafana/provisioning/alerting)도 파일만 바뀌면 다시 읽히지 않는다. 관리자 API로 다시 읽힌다.
-  # 관리자 비밀번호를 reset-admin-password로 바꿔 edge.env와 어긋나면 실패하므로 배포는 멈추지 않고 경고만 남긴다(그때는 grafana 재시작)
+  # 데이터소스(이벤트 현황 DB)와 알림 규칙·연락처(monitoring/grafana/provisioning/datasources, alerting)도 파일만 바뀌면 다시 읽히지 않는다.
+  # 관리자 API로 다시 읽힌다. 관리자 비밀번호를 reset-admin-password로 바꿔 edge.env와 어긋나면 실패하므로 배포는 멈추지 않고 경고만 남긴다(그때는 grafana 재시작)
   wait_edge_healthy grafana
-  edge_compose exec -T grafana sh -c 'wget -q -O /dev/null --post-data= \
-    --header "Authorization: Basic $(printf "%s:%s" "$GF_SECURITY_ADMIN_USER" "$GF_SECURITY_ADMIN_PASSWORD" | base64 | tr -d "\n")" \
-    http://127.0.0.1:3000/api/admin/provisioning/alerting/reload' \
-    || echo "WARN: grafana alerting reload failed; run: docker compose -p runkk restart grafana" >&2
+  edge_compose exec -T grafana sh -c 'auth="Authorization: Basic $(printf "%s:%s" "$GF_SECURITY_ADMIN_USER" "$GF_SECURITY_ADMIN_PASSWORD" | base64 | tr -d "\n")"
+    for kind in datasources alerting; do
+      wget -q -O /dev/null --post-data= --header "$auth" "http://127.0.0.1:3000/api/admin/provisioning/$kind/reload" || exit 1
+    done' \
+    || echo "WARN: grafana provisioning reload failed; run: docker compose -p runkk restart grafana" >&2
   edge_compose ps
 }
 
@@ -135,6 +152,22 @@ predeploy_backup() {
   docker exec "$APP_PROJECT-backup-1" sh /opt/runkk-backup/pg-backup.sh now predeploy     || die "pre-deploy backup failed; aborting the deploy before the migrations run"
 }
 
+# Grafana 이벤트 현황용 읽기 전용 계정 runkk_grafana_ro를 이 환경 DB에 맞춘다(없으면 만들고, 비밀번호와 표·열 권한을 다시 맞춘다).
+# Flyway가 끝난 뒤(api healthy) 돌아야 새 표에 권한을 줄 수 있다. 대시보드는 서비스가 아니므로 실패해도 배포를 멈추지 않는다.
+# 비밀번호는 docker exec -e에 이름만 넘겨(값은 이 셸 환경에서 읽힌다) 명령줄에 보이지 않고, SQL 파일은 \getenv로 읽는다
+sync_grafana_readonly_role() {
+  if [ -z "$GRAFANA_DB_READONLY_PASSWORD" ]; then
+    echo "GRAFANA_DB_READONLY_PASSWORD is not set; skipping the Grafana read-only DB role on $RUNKK_ENV."
+    return 0
+  fi
+  if docker exec -i -e GRAFANA_DB_READONLY_PASSWORD "$APP_PROJECT-postgres-1" \
+      sh -c 'psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < monitoring/grafana/runkk-db/readonly-role.sql; then
+    echo "Grafana read-only DB role runkk_grafana_ro is in sync on $RUNKK_ENV."
+  else
+    echo "WARN: could not sync the Grafana read-only DB role on $RUNKK_ENV; the event dashboard cannot read this environment" >&2
+  fi
+}
+
 deploy_app() {
   sync_bundle "$APP_DIR" docker-compose.yml backup secrets
   guard_postgres_volume
@@ -148,6 +181,7 @@ deploy_app() {
   # nginx를 거친 주소까지 확인한다. `cmd && echo` 꼴은 set -e에서 실패해도 넘어가므로 따로 부른다
   health_curl "$RUNKK_ENV" /actuator/health || die "$RUNKK_ENV api is not reachable through nginx"
   echo
+  sync_grafana_readonly_role
   wait_healthy ai 12
 }
 
