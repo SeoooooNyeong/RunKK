@@ -61,6 +61,48 @@ class RunTrackerTest {
     }
 
     @Test
+    fun `폰 자유런은 정지 중 밀린 좌표와 튄 좌표를 경로와 거리에 넣지 않는다`() = runTest {
+        val tracker = started()
+        tracker.onPhoneLocationSample(sample(1, 0.0))
+        tracker.onPhoneLocationSample(sample(2, 4.0).copy(speedMps = 0.1, speedAccuracyMps = 0.2))
+        tracker.onPhoneLocationSample(sample(3, 45.0))
+        tracker.tick(at(3))
+        assertEquals(listOf(north(0.0)), tracker.routeLine.value.points)
+        assertEquals(Distance.ZERO, tracker.progress.value.distance)
+
+        tracker.onPhoneLocationSample(sample(4, 5.0).copy(speedMps = 2.5, speedAccuracyMps = 0.2))
+        tracker.tick(at(4))
+        assertEquals(listOf(north(0.0), north(5.0)), tracker.routeLine.value.points)
+        assertEquals(Distance(5), tracker.progress.value.distance)
+    }
+
+    @Test
+    fun `IMU 정지는 GPS 속도보다 우선하고 IMU 이동은 기록을 재개한다`() = runTest {
+        val tracker = started()
+        tracker.onPhoneLocationSample(sample(1, 0.0).copy(inertialMotion = InertialMotion.WARMING_UP))
+        tracker.onPhoneLocationSample(sample(2, 3.0).copy(inertialMotion = InertialMotion.WARMING_UP))
+        for (second in 3L..15L) {
+            tracker.onPhoneLocationSample(
+                sample(second, second * 3.0).copy(
+                    speedMps = 3.0,
+                    speedAccuracyMps = 0.2,
+                    inertialMotion = InertialMotion.STILL
+                )
+            )
+        }
+        tracker.tick(at(15))
+        assertEquals(listOf(north(0.0)), tracker.routeLine.value.points)
+        assertEquals(Distance.ZERO, tracker.progress.value.distance)
+
+        tracker.onPhoneLocationSample(
+            sample(16, 2.0).copy(speedMps = 0.0, speedAccuracyMps = 0.2, inertialMotion = InertialMotion.MOVING)
+        )
+        tracker.tick(at(16))
+        assertEquals(listOf(north(0.0), north(2.0)), tracker.routeLine.value.points)
+        assertEquals(Distance(2), tracker.progress.value.distance)
+    }
+
+    @Test
     fun `OS 위치 권한이 없으면 consentRequired를 참으로 두고 거부한다`() = runTest {
         permission.granted = false
         val tracker = tracker(backgroundScope)
