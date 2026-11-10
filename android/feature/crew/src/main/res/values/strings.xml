@@ -4,7 +4,7 @@
     <string name="crew_error_crew_full">정원 초과. 크루는 크루장 포함 10명까지예요</string>
     <string name="crew_error_already_in_crew">이미 크루에 소속돼 있어요. 1인 1크루예요</string>
     <string name="crew_error_cooldown">크루를 나온 뒤 24시간 동안은 가입하거나 만들 수 없어요</string>
-    <string name="crew_error_crew_name_invalid">크루명은 2~20자로 입력해 주세요</string>
+    <string name="crew_error_crew_name_invalid">크루명은 2~12자로 입력해 주세요</string>
     <string name="crew_error_crew_name_taken">이미 있는 크루명이에요. 다른 이름을 입력해 주세요</string>
     <string name="crew_error_too_many_attempts">초대 코드를 너무 많이 틀렸어요. 10분 뒤 다시 시도해 주세요</string>
     <string name="crew_error_invalid_code">초대 코드가 없거나 7일이 지났어요</string>
@@ -53,7 +53,7 @@
     <string name="crew_find_title">크루</string>
     <string name="crew_find_invite_code">초대 코드</string>
     <string name="crew_find_search_label">크루 찾기</string>
-    <string name="crew_find_search_placeholder">크루명, 한줄소개 검색</string>
+    <string name="crew_find_search_placeholder">크루명 검색</string>
     <string name="crew_find_list_title">전체 크루</string>
     <string name="crew_find_list_title_tags">조건에 맞는 크루</string>
     <string name="crew_find_empty_title">조건에 맞는 공개 크루가 없어요</string>
@@ -65,7 +65,7 @@
     <string name="crew_find_pending_cancel_description">%1$s 가입 신청 취소</string>
     <string name="crew_find_open_detail">%1$s 자세히 보기</string>
     <string name="crew_find_condition_title">조건 설정하기</string>
-    <string name="crew_find_condition_hint">요일과 시간대를 선택해 조건에 맞는 크루를 찾아보세요</string>
+    <string name="crew_find_condition_hint">나와 비슷한 시간대에 뛰는 크루를 찾아보세요</string>
     <string name="crew_find_condition_apply">적용하기</string>
     <string name="crew_find_condition_close">조건 설정 닫기</string>
     <string name="crew_find_condition_open">조건 설정 열기</string>
@@ -354,4 +354,40 @@
     <string name="crew_error_already_reported">이미 신고한 글이에요</string>
     <string name="crew_error_report_target_not_found">신고할 글이 없어요</string>
     <string name="crew_error_goal_invalid">목표는 1km 이상이어야 해요</string>
+    <!-- 피그마 맞춤 W4(S15P31A207-295): 크루 찾기·검색·상세·초대 코드·만들기 -->
+    <string name="crew_find_refresh">새로고침</string>
+    <string name="crew_find_search_open">크루 검색 열기</string>
+    <string name="crew_search_title">크루 검색</string>
+    <string name="crew_search_result_count">검색 결과 %1$d개</string>
+    <string name="crew_search_empty_title">검색 결과가 없어요</string>
+    <string name="crew_search_empty_body">크루명을 다시 확인하거나
+조건 설정으로 크루를 찾아보세요</string>
+    <string name="crew_search_clear">검색어 지우기</string>
+    <string name="crew_invite_confirm">확인</string>
+    <string name="crew_invite_field_state">%1$s, 6자 중 %2$d자</string>
+    <string name="crew_invite_not_found">일치하는 크루가 없어요. 초대 코드를 다시 확인해 주세요.</string>
+    <string name="crew_detail_created_spoken">%1$s 개설</string>
+    <string name="crew_detail_headcount">%1$d명</string>
+    <string name="crew_detail_crew_run_count">누적 크루런 횟수</string>
+    <string name="crew_detail_crew_run_count_value">%1$d회</string>
+    <string name="crew_detail_recent_title">최근 크루런</string>
+    <string name="crew_detail_recent_empty">아직 함께 달린 크루런이 없어요</string>
+    <string name="crew_detail_recent_participants">%1$d명 참여</string>
+    <string name="crew_detail_recent_total">총 %1$skm</string>
+    <string name="crew_detail_recent_when">%1$s %2$s %3$d:%4$s</string>
+    <string name="crew_period_dawn">새벽</string>
+    <string name="crew_period_morning">오전</string>
+    <string name="crew_period_afternoon">오후</string>
+    <string name="crew_period_evening">저녁</string>
+    <string name="crew_detail_join_now">가입하기</string>
+    <string name="crew_detail_cooldown">%1$s 후에 가입할 수 있어요</string>
+    <string name="crew_create_logo_add">크루 로고 등록</string>
+    <string name="crew_create_logo_change">크루 로고 바꾸기</string>
+    <string name="crew_create_logo_failed">로고를 올리지 못했어요. 다시 골라 주세요</string>
+    <string name="crew_create_name_placeholder">2~12자</string>
+    <string name="crew_create_intro_label">한 줄 소개</string>
+    <string name="crew_create_intro_placeholder">최대 40자</string>
+    <string name="crew_create_tags_title">태그</string>
+    <string name="crew_create_tags_max">최대 %1$d개</string>
+    <string name="crew_create_tags_hint">크루에서 주로 뛰는 시간대를 선택해 주세요</string>
 </resources>

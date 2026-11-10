@@ -224,7 +224,9 @@ class InboxTest {
             .toSet()
         val keys = Routes::class.java.declaredClasses.map { it.simpleName }.toSet()
         assertEquals(
-            V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS + V0114_CONSTANTS + "COACH_CONSENTS" + "COACH_CHAT",
+            V010_CONSTANTS + V011_CONSTANTS + V014_CONSTANTS + V018_CONSTANTS + V0114_CONSTANTS + "COACH_CONSENTS" +
+                "COACH_CHAT" +
+                "CREW_SEARCH",
             constants
         )
         assertEquals(V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS, keys)
