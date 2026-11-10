@@ -73,7 +73,22 @@ class FaceImageSource internal constructor(
     }
 
     /** 셀카 머리 얼굴("{회원ID}:{작업ID}") 하나를 받아 세 층으로 바꾼다. */
-    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> {
+    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> = when (val body = headBody(location)) {
+        is Outcome.Success -> headOf(body.value)
+        is Outcome.Failure -> body
+    }
+
+    /**
+     * 셀카 머리 결과 JSON 그대로(W9 Rive 렌더러 입력, contract-W8.md 6.2: 정면 3층 + 옆모습 3층 + 원본 2장 + mobile). 셀카 머리
+     * 얼굴("head:…")이 아니면 null이다. 서버가 no-store로 주므로 메모리에 두지 않는다.
+     */
+    suspend fun headJson(faceKey: String?): Outcome<String?> {
+        if (faceKey == null || !faceKey.startsWith(HEAD_PREFIX)) return Outcome.Success(null)
+        return headBody(faceKey.removePrefix(HEAD_PREFIX))
+    }
+
+    /** GET /avatar/heads/{회원ID}/{작업ID} 본문. 키 형식이 틀리면 FACE_IMAGE_NOT_FOUND, [MAX_HEAD_BYTES]를 넘으면 실패다. */
+    private suspend fun headBody(location: String): Outcome<String> {
         val segments = location.split(':')
         if (segments.size != 2 || segments[0].toLongOrNull() == null ||
             segments.any { it.isBlank() || it.contains('/') }
@@ -91,7 +106,7 @@ class FaceImageSource internal constructor(
                 }
                 val source = response.body.source()
                 if (source.request(MAX_HEAD_BYTES + 1)) return Outcome.Failure(AppError.Server(TOO_LARGE))
-                headOf(source.readUtf8())
+                Outcome.Success(source.readUtf8())
             }
         } catch (e: IOException) {
             Outcome.Failure(AppError.Network)
@@ -232,8 +247,8 @@ class FaceImageSource internal constructor(
         const val JSON = "application/json"
         const val DATA_PNG = "data:image/png;base64,"
 
-        /** 머리 응답 한 개의 상한(세 층 PNG의 base64와 합성 정보, 12MiB). */
-        const val MAX_HEAD_BYTES = 12L * 1024 * 1024
+        /** 머리 응답 한 개의 상한(정면·옆모습 층과 원본 PNG의 base64, 합성 정보, 32MiB. 서버 중계 상한과 같다). */
+        const val MAX_HEAD_BYTES = 32L * 1024 * 1024
 
         /** 머리 응답을 읽지 못함(앱이 그리지 않음). */
         const val MALFORMED = 502
