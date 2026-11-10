@@ -2,6 +2,7 @@
 # 같은 EC2에 prod(main 브랜치, 프로젝트 runkk-prod)와 develop(develop 브랜치, 프로젝트 runkk-develop)이 이 파일로 따로 뜬다.
 # DB·Redis·api·ai·백업이 환경마다 따로라 자료가 섞이지 않는다. postgres·redis·ai는 프로젝트 전용 망에만 있고,
 # api만 에지 스택(docker-compose.edge.yml, 프로젝트 runkk)의 망 runkk_default에 api-<환경> 별칭으로 붙어 nginx·Prometheus가 부른다.
+# postgres는 그 밖에 에지 grafana만 함께 붙는 DB 전용 망 runkk_db-<환경>(internal)에 postgres-<환경> 별칭으로 붙는다(읽기 전용 계정, README 6절).
 # 컨테이너마다 필요한 값만 넘긴다(env_file 없음): ai는 RUNKK_*만, api는 LLM·GMS 키를 받지 않는다. avatar(Node)는 프로필로 켠다.
 # 사용: cp .env.example .env (RUNKK_ENV 등 채우기) && cp edge.env.example edge.env && ./deploy.sh   (README 3절)
 name: runkk-${RUNKK_ENV:?set RUNKK_ENV (develop|prod) in .env}
@@ -128,6 +129,13 @@ services:
       PGTZ: Asia/Seoul
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    # 에지 Grafana만 함께 붙는 DB 전용 망(이벤트 현황 대시보드, README 6절). Grafana는 postgres-<환경> 이름으로 읽기 전용 계정 runkk_grafana_ro로만 붙는다.
+    # 계정과 권한은 deploy.sh가 api 기동(Flyway) 뒤 monitoring/grafana/runkk-db/readonly-role.sql로 맞춘다
+    networks:
+      default: {}
+      grafana-db:
+        aliases:
+          - postgres-${RUNKK_ENV}
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -318,6 +326,10 @@ networks:
   # 에지 스택(docker-compose.edge.yml)이 만드는 망. deploy.sh가 에지를 먼저 올린다
   edge:
     name: ${EDGE_NETWORK:-runkk_default}
+    external: true
+  # 에지 스택이 만드는 이 환경 DB 전용 망(internal). postgres와 에지 grafana만 붙는다
+  grafana-db:
+    name: runkk_db-${RUNKK_ENV}
     external: true
 
 volumes:

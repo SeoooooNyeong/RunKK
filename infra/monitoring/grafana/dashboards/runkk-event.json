@@ -1,0 +1,615 @@
+{
+  "uid": "runkk-event",
+  "title": "런크크 이벤트 현황",
+  "description": "이벤트별 응모자, 코치별 대결과 승리, 포인트 지급, 일별 추이. 운영과 develop DB를 읽기 전용 계정 runkk_grafana_ro로 읽는다(infra/README.md 6절).",
+  "tags": [
+    "runkk",
+    "event"
+  ],
+  "timezone": "Asia/Seoul",
+  "editable": false,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": {
+    "from": "now-14d",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "db",
+        "label": "DB",
+        "type": "datasource",
+        "query": "grafana-postgresql-datasource",
+        "regex": "/^runkk-db-/",
+        "refresh": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "runkk-db-prod",
+          "value": "runkk-db-prod"
+        },
+        "description": "runkk-db-prod는 운영(443), runkk-db-develop은 develop(8443) DB다"
+      },
+      {
+        "name": "event",
+        "label": "이벤트",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "${db}"
+        },
+        "definition": "SELECT id AS __value, title || ' (' || slug || ')' AS __text FROM event ORDER BY sort_order, id",
+        "query": "SELECT id AS __value, title || ' (' || slug || ')' AS __text FROM event ORDER BY sort_order, id",
+        "refresh": 1,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        }
+      },
+      {
+        "name": "tzfix",
+        "label": "시각 보정",
+        "type": "custom",
+        "query": "자동(V48 여부) : auto, 보정 없음 : 0, 9시간 빼기 : 9",
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "자동(V48 여부)",
+          "value": "auto"
+        },
+        "options": [
+          {
+            "text": "자동(V48 여부)",
+            "value": "auto",
+            "selected": true
+          },
+          {
+            "text": "보정 없음",
+            "value": "0",
+            "selected": false
+          },
+          {
+            "text": "9시간 빼기",
+            "value": "9",
+            "selected": false
+          }
+        ],
+        "description": "운영 DB는 2차 배포(V48) 전까지 서버가 쓴 시각이 9시간 앞서 저장된다. 자동은 V48이 없는 DB만 9시간 빼서 보여 준다"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "코치 대결 응모자",
+      "description": "선택한 코치 대결 이벤트(COACH_CELEB)의 응모자 수 합. 이벤트 셀럽 기록을 기간 안(양 끝 포함)에 한 번 이상 이긴 회원이고 탈퇴 회원은 뺀다(EventEntrantService와 같은 판정). 시각은 저장 값끼리 비교해 세므로 보정과 관계없다. 보정은 화면에 보이는 시각과 날짜에만 쓴다(위쪽 「시각 보정」).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ncoach_win AS (\n  -- 셀럽마다 첫 승리(BattleRepository.findCelebrityWinners): 끝난 셀럽 대결, 회원 승리, 판정 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, b.winner_member_id AS member_id, b.opponent_record_id AS celebrity_id, min(b.judged_at) AS won_at\n  FROM ev\n  JOIN battle b\n    ON b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n   AND b.winner_member_id IS NOT NULL\n   AND b.opponent_record_id IN (SELECT jsonb_array_elements_text(ev.cfg -> 'celebrityIds'))\n   AND b.judged_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'COACH_CELEB'\n  GROUP BY 1, 2, 3\n),\nrun_first AS (\n  -- 기준 거리 이상인 첫 유효 기록(RunQueryService.earliestValidRunsAtLeast): 시작 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, r.member_id, min(r.started_at) AS run_at\n  FROM ev\n  JOIN run_record r\n    ON r.valid AND r.distance_meters >= CAST(ev.cfg ->> 'minDistanceMeters' AS bigint)\n   AND r.started_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'RUN_DISTANCE'\n  GROUP BY 1, 2\n),\nentrant AS (\n  -- 탈퇴 회원 제외(MemberQueryService.activeNicknames: ACTIVE이고 닉네임이 있는 회원만)\n  SELECT x.event_id, x.member_id, m.nickname, x.items, x.first_at\n  FROM (SELECT event_id, member_id, count(*) AS items, min(won_at) AS first_at FROM coach_win GROUP BY 1, 2\n        UNION ALL\n        SELECT event_id, member_id, 1, run_at FROM run_first) x\n  JOIN member m ON m.id = x.member_id AND m.status = 'ACTIVE' AND m.nickname IS NOT NULL\n)\nSELECT count(*) AS \"코치 대결 응모자\"\nFROM entrant en JOIN ev ON ev.id = en.event_id\nWHERE ev.kind = 'COACH_CELEB'"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "1km 응모자",
+      "description": "선택한 거리 이벤트(RUN_DISTANCE, 베타는 1km)의 응모자 수 합. 기간 안(양 끝 포함)에 시작한 유효 기록 중 기준 거리 이상이 하나라도 있는 회원이고 탈퇴 회원은 뺀다. 시각은 저장 값끼리 비교해 세므로 보정과 관계없다. 보정은 화면에 보이는 시각과 날짜에만 쓴다(위쪽 「시각 보정」).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ncoach_win AS (\n  -- 셀럽마다 첫 승리(BattleRepository.findCelebrityWinners): 끝난 셀럽 대결, 회원 승리, 판정 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, b.winner_member_id AS member_id, b.opponent_record_id AS celebrity_id, min(b.judged_at) AS won_at\n  FROM ev\n  JOIN battle b\n    ON b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n   AND b.winner_member_id IS NOT NULL\n   AND b.opponent_record_id IN (SELECT jsonb_array_elements_text(ev.cfg -> 'celebrityIds'))\n   AND b.judged_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'COACH_CELEB'\n  GROUP BY 1, 2, 3\n),\nrun_first AS (\n  -- 기준 거리 이상인 첫 유효 기록(RunQueryService.earliestValidRunsAtLeast): 시작 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, r.member_id, min(r.started_at) AS run_at\n  FROM ev\n  JOIN run_record r\n    ON r.valid AND r.distance_meters >= CAST(ev.cfg ->> 'minDistanceMeters' AS bigint)\n   AND r.started_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'RUN_DISTANCE'\n  GROUP BY 1, 2\n),\nentrant AS (\n  -- 탈퇴 회원 제외(MemberQueryService.activeNicknames: ACTIVE이고 닉네임이 있는 회원만)\n  SELECT x.event_id, x.member_id, m.nickname, x.items, x.first_at\n  FROM (SELECT event_id, member_id, count(*) AS items, min(won_at) AS first_at FROM coach_win GROUP BY 1, 2\n        UNION ALL\n        SELECT event_id, member_id, 1, run_at FROM run_first) x\n  JOIN member m ON m.id = x.member_id AND m.status = 'ACTIVE' AND m.nickname IS NOT NULL\n)\nSELECT count(*) AS \"1km 응모자\"\nFROM entrant en JOIN ev ON ev.id = en.event_id\nWHERE ev.kind = 'RUN_DISTANCE'"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "이벤트 포인트 지급",
+      "description": "선택한 이벤트의 포인트 지급 이력(event_point_grant) 건수와 합계. 지급은 이미 일어난 일이라 탈퇴 회원 몫도 센다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name",
+        "justifyMode": "auto",
+        "orientation": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ngrant_sum AS (\n  SELECT g.event_id, count(*) AS grants, sum(g.amount) AS amount\n  FROM event_point_grant g JOIN ev ON ev.id = g.event_id\n  GROUP BY 1\n)\nSELECT coalesce(sum(grants), 0) AS \"지급 건수\", coalesce(sum(amount), 0) AS \"지급 합계\"\nFROM grant_sum"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "이벤트별 현황",
+      "description": "이벤트마다 응모자 수와 포인트 지급. 상태와 시작, 끝은 「시각 보정」을 적용한 한국 시각이다. 비공개 이벤트도 보인다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 4,
+        "w": 24,
+        "h": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cfg AS (\n  -- 표시 보정 시간: 자동이면 서버 시간대 수정 V48이 없는 DB(운영 2차 배포 전)만 9시간 뺀다\n  -- 숫자가 아닌 값(auto)은 NULL이 되어 자동 판정으로 간다\n  SELECT coalesce(CAST(NULLIF(regexp_replace('${tzfix}', '[^0-9]', '', 'g'), '') AS integer),\n                  CASE WHEN EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '48' AND success) THEN 0 ELSE 9 END) AS shift_hours\n),\nev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ncoach_win AS (\n  -- 셀럽마다 첫 승리(BattleRepository.findCelebrityWinners): 끝난 셀럽 대결, 회원 승리, 판정 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, b.winner_member_id AS member_id, b.opponent_record_id AS celebrity_id, min(b.judged_at) AS won_at\n  FROM ev\n  JOIN battle b\n    ON b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n   AND b.winner_member_id IS NOT NULL\n   AND b.opponent_record_id IN (SELECT jsonb_array_elements_text(ev.cfg -> 'celebrityIds'))\n   AND b.judged_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'COACH_CELEB'\n  GROUP BY 1, 2, 3\n),\nrun_first AS (\n  -- 기준 거리 이상인 첫 유효 기록(RunQueryService.earliestValidRunsAtLeast): 시작 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, r.member_id, min(r.started_at) AS run_at\n  FROM ev\n  JOIN run_record r\n    ON r.valid AND r.distance_meters >= CAST(ev.cfg ->> 'minDistanceMeters' AS bigint)\n   AND r.started_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'RUN_DISTANCE'\n  GROUP BY 1, 2\n),\nentrant AS (\n  -- 탈퇴 회원 제외(MemberQueryService.activeNicknames: ACTIVE이고 닉네임이 있는 회원만)\n  SELECT x.event_id, x.member_id, m.nickname, x.items, x.first_at\n  FROM (SELECT event_id, member_id, count(*) AS items, min(won_at) AS first_at FROM coach_win GROUP BY 1, 2\n        UNION ALL\n        SELECT event_id, member_id, 1, run_at FROM run_first) x\n  JOIN member m ON m.id = x.member_id AND m.status = 'ACTIVE' AND m.nickname IS NOT NULL\n),\ngrant_sum AS (\n  SELECT g.event_id, count(*) AS grants, sum(g.amount) AS amount\n  FROM event_point_grant g JOIN ev ON ev.id = g.event_id\n  GROUP BY 1\n)\nSELECT ev.title AS \"이벤트\",\n       ev.slug AS \"slug\",\n       CASE ev.kind WHEN 'COACH_CELEB' THEN '코치 대결' ELSE '거리 ' || CAST(trim_scale(CAST(ev.cfg ->> 'minDistanceMeters' AS numeric) / 1000) AS text) || 'km' END AS \"종류\",\n       CASE WHEN ev.published THEN '공개' ELSE '비공개' END AS \"공개\",\n       CASE WHEN (now() AT TIME ZONE 'Asia/Seoul') + make_interval(hours => cfg.shift_hours) < ev.starts_at THEN '예정'\n            WHEN (now() AT TIME ZONE 'Asia/Seoul') + make_interval(hours => cfg.shift_hours) > ev.ends_at THEN '종료'\n            ELSE '진행 중' END AS \"상태\",\n       to_char(ev.starts_at - make_interval(hours => cfg.shift_hours), 'YYYY-MM-DD HH24:MI:SS') AS \"시작\",\n       to_char(ev.ends_at - make_interval(hours => cfg.shift_hours), 'YYYY-MM-DD HH24:MI:SS') AS \"끝\",\n       (SELECT count(*) FROM entrant en WHERE en.event_id = ev.id) AS \"응모자\",\n       coalesce(gs.grants, 0) AS \"포인트 지급 건수\",\n       coalesce(gs.amount, 0) AS \"포인트 지급 합계\"\nFROM ev CROSS JOIN cfg\nLEFT JOIN grant_sum gs ON gs.event_id = ev.id\nORDER BY ev.sort_order, ev.id"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "코치별 대결과 승리",
+      "description": "코치 대결 이벤트의 셀럽(코치) 기록마다 기간 안 끝난 대결 수, 회원이 이긴 대결 수, 첫 승리 회원 수(응모 항목 달성, 탈퇴 제외), 포인트 지급. 대결과 승리는 같은 회원이 여러 번 해도 모두 센다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH ev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ncoach_win AS (\n  -- 셀럽마다 첫 승리(BattleRepository.findCelebrityWinners): 끝난 셀럽 대결, 회원 승리, 판정 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, b.winner_member_id AS member_id, b.opponent_record_id AS celebrity_id, min(b.judged_at) AS won_at\n  FROM ev\n  JOIN battle b\n    ON b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n   AND b.winner_member_id IS NOT NULL\n   AND b.opponent_record_id IN (SELECT jsonb_array_elements_text(ev.cfg -> 'celebrityIds'))\n   AND b.judged_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'COACH_CELEB'\n  GROUP BY 1, 2, 3\n),\nrun_first AS (\n  -- 기준 거리 이상인 첫 유효 기록(RunQueryService.earliestValidRunsAtLeast): 시작 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, r.member_id, min(r.started_at) AS run_at\n  FROM ev\n  JOIN run_record r\n    ON r.valid AND r.distance_meters >= CAST(ev.cfg ->> 'minDistanceMeters' AS bigint)\n   AND r.started_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'RUN_DISTANCE'\n  GROUP BY 1, 2\n),\nentrant AS (\n  -- 탈퇴 회원 제외(MemberQueryService.activeNicknames: ACTIVE이고 닉네임이 있는 회원만)\n  SELECT x.event_id, x.member_id, m.nickname, x.items, x.first_at\n  FROM (SELECT event_id, member_id, count(*) AS items, min(won_at) AS first_at FROM coach_win GROUP BY 1, 2\n        UNION ALL\n        SELECT event_id, member_id, 1, run_at FROM run_first) x\n  JOIN member m ON m.id = x.member_id AND m.status = 'ACTIVE' AND m.nickname IS NOT NULL\n)\n, celeb AS (\n  SELECT ev.id AS event_id, ev.title, ev.sort_order, ev.starts_at, ev.ends_at, c.celebrity_id, c.ord\n  FROM ev, jsonb_array_elements_text(ev.cfg -> 'celebrityIds') WITH ORDINALITY AS c(celebrity_id, ord)\n  WHERE ev.kind = 'COACH_CELEB'\n)\nSELECT celeb.title AS \"이벤트\",\n       coalesce(cr.anonymous_name, '셀럽 ' || celeb.celebrity_id) AS \"코치\",\n       celeb.celebrity_id AS \"기록 ID\",\n       (SELECT count(*) FROM battle b\n         WHERE b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n           AND b.opponent_record_id = celeb.celebrity_id AND b.judged_at BETWEEN celeb.starts_at AND celeb.ends_at) AS \"대결\",\n       (SELECT count(*) FROM battle b\n         WHERE b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY' AND b.winner_member_id IS NOT NULL\n           AND b.opponent_record_id = celeb.celebrity_id AND b.judged_at BETWEEN celeb.starts_at AND celeb.ends_at) AS \"회원 승리\",\n       (SELECT count(*) FROM coach_win cw JOIN member m ON m.id = cw.member_id AND m.status = 'ACTIVE' AND m.nickname IS NOT NULL\n         WHERE cw.event_id = celeb.event_id AND cw.celebrity_id = celeb.celebrity_id) AS \"응모자(첫 승리)\",\n       (SELECT count(*) FROM event_point_grant g\n         WHERE g.event_id = celeb.event_id AND g.target_key = 'celebrity-' || celeb.celebrity_id) AS \"포인트 지급 건수\",\n       (SELECT coalesce(sum(g.amount), 0) FROM event_point_grant g\n         WHERE g.event_id = celeb.event_id AND g.target_key = 'celebrity-' || celeb.celebrity_id) AS \"포인트 지급 합계\"\nFROM celeb\nLEFT JOIN celebrity_record cr ON CAST(cr.id AS text) = celeb.celebrity_id\nORDER BY celeb.sort_order, celeb.event_id, celeb.ord"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "일별 새 응모자",
+      "description": "이벤트마다 그날 처음 응모 조건을 채운 회원 수(한국 날짜, 「시각 보정」 적용). 대시보드 시간 범위 안의 날만 보인다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH cfg AS (\n  -- 표시 보정 시간: 자동이면 서버 시간대 수정 V48이 없는 DB(운영 2차 배포 전)만 9시간 뺀다\n  -- 숫자가 아닌 값(auto)은 NULL이 되어 자동 판정으로 간다\n  SELECT coalesce(CAST(NULLIF(regexp_replace('${tzfix}', '[^0-9]', '', 'g'), '') AS integer),\n                  CASE WHEN EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '48' AND success) THEN 0 ELSE 9 END) AS shift_hours\n),\nev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ncoach_win AS (\n  -- 셀럽마다 첫 승리(BattleRepository.findCelebrityWinners): 끝난 셀럽 대결, 회원 승리, 판정 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, b.winner_member_id AS member_id, b.opponent_record_id AS celebrity_id, min(b.judged_at) AS won_at\n  FROM ev\n  JOIN battle b\n    ON b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n   AND b.winner_member_id IS NOT NULL\n   AND b.opponent_record_id IN (SELECT jsonb_array_elements_text(ev.cfg -> 'celebrityIds'))\n   AND b.judged_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'COACH_CELEB'\n  GROUP BY 1, 2, 3\n),\nrun_first AS (\n  -- 기준 거리 이상인 첫 유효 기록(RunQueryService.earliestValidRunsAtLeast): 시작 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, r.member_id, min(r.started_at) AS run_at\n  FROM ev\n  JOIN run_record r\n    ON r.valid AND r.distance_meters >= CAST(ev.cfg ->> 'minDistanceMeters' AS bigint)\n   AND r.started_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'RUN_DISTANCE'\n  GROUP BY 1, 2\n),\nentrant AS (\n  -- 탈퇴 회원 제외(MemberQueryService.activeNicknames: ACTIVE이고 닉네임이 있는 회원만)\n  SELECT x.event_id, x.member_id, m.nickname, x.items, x.first_at\n  FROM (SELECT event_id, member_id, count(*) AS items, min(won_at) AS first_at FROM coach_win GROUP BY 1, 2\n        UNION ALL\n        SELECT event_id, member_id, 1, run_at FROM run_first) x\n  JOIN member m ON m.id = x.member_id AND m.status = 'ACTIVE' AND m.nickname IS NOT NULL\n),\ndays AS (\n  -- 이벤트 기간의 날짜(표시 보정 뒤 한국 날짜), 오늘까지만\n  SELECT ev.id AS event_id, ev.title, CAST(d AS date) AS day, d AT TIME ZONE 'Asia/Seoul' AS t\n  FROM ev CROSS JOIN cfg,\n       generate_series(date_trunc('day', ev.starts_at - make_interval(hours => cfg.shift_hours)),\n                       date_trunc('day', least(ev.ends_at - make_interval(hours => cfg.shift_hours), now() AT TIME ZONE 'Asia/Seoul')),\n                       interval '1 day') AS d\n)\nSELECT days.t AS \"time\",\n       days.title AS metric,\n       count(en.member_id) AS value\nFROM days CROSS JOIN cfg\nLEFT JOIN entrant en\n  ON en.event_id = days.event_id AND CAST(en.first_at - make_interval(hours => cfg.shift_hours) AS date) = days.day\nWHERE $__timeFilter(days.t)\nGROUP BY 1, 2\nORDER BY 1, 2"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "일별 코치 대결과 승리",
+      "description": "선택한 코치 대결 이벤트 셀럽 기록과의 끝난 대결 수와 회원 승리 수(판정 날짜 기준, 한국 날짜).",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH cfg AS (\n  -- 표시 보정 시간: 자동이면 서버 시간대 수정 V48이 없는 DB(운영 2차 배포 전)만 9시간 뺀다\n  -- 숫자가 아닌 값(auto)은 NULL이 되어 자동 판정으로 간다\n  SELECT coalesce(CAST(NULLIF(regexp_replace('${tzfix}', '[^0-9]', '', 'g'), '') AS integer),\n                  CASE WHEN EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '48' AND success) THEN 0 ELSE 9 END) AS shift_hours\n),\nev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ndays AS (\n  -- 이벤트 기간의 날짜(표시 보정 뒤 한국 날짜), 오늘까지만\n  SELECT ev.id AS event_id, ev.title, CAST(d AS date) AS day, d AT TIME ZONE 'Asia/Seoul' AS t\n  FROM ev CROSS JOIN cfg,\n       generate_series(date_trunc('day', ev.starts_at - make_interval(hours => cfg.shift_hours)),\n                       date_trunc('day', least(ev.ends_at - make_interval(hours => cfg.shift_hours), now() AT TIME ZONE 'Asia/Seoul')),\n                       interval '1 day') AS d\n)\n, coach_days AS (\n  SELECT DISTINCT days.day, days.t FROM days JOIN ev ON ev.id = days.event_id WHERE ev.kind = 'COACH_CELEB'\n),\ncoach_battle AS (\n  -- 선택한 코치 이벤트의 셀럽 대결(기간 안, 끝난 대결). 두 이벤트가 같은 대결을 세지 않게 대결마다 한 번\n  SELECT DISTINCT b.id, b.judged_at, b.winner_member_id\n  FROM ev\n  JOIN battle b\n    ON b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n   AND b.opponent_record_id IN (SELECT jsonb_array_elements_text(ev.cfg -> 'celebrityIds'))\n   AND b.judged_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'COACH_CELEB'\n)\nSELECT cd.t AS \"time\",\n       count(cb.id) AS \"대결\",\n       count(cb.winner_member_id) AS \"회원 승리\"\nFROM coach_days cd CROSS JOIN cfg\nLEFT JOIN coach_battle cb ON CAST(cb.judged_at - make_interval(hours => cfg.shift_hours) AS date) = cd.day\nWHERE $__timeFilter(cd.t)\nGROUP BY 1\nORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "일별 이벤트 포인트 지급",
+      "description": "그날 지급한 이벤트 포인트 건수(막대)와 합계(오른쪽 축). 지급 시각 기준 한국 날짜.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 0,
+          "min": 0,
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 70,
+            "lineWidth": 1,
+            "barAlignment": 0,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            }
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "지급 합계"
+            },
+            "properties": [
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "interval": "1d",
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "WITH cfg AS (\n  -- 표시 보정 시간: 자동이면 서버 시간대 수정 V48이 없는 DB(운영 2차 배포 전)만 9시간 뺀다\n  -- 숫자가 아닌 값(auto)은 NULL이 되어 자동 판정으로 간다\n  SELECT coalesce(CAST(NULLIF(regexp_replace('${tzfix}', '[^0-9]', '', 'g'), '') AS integer),\n                  CASE WHEN EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '48' AND success) THEN 0 ELSE 9 END) AS shift_hours\n),\nev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ndays AS (\n  -- 이벤트 기간의 날짜(표시 보정 뒤 한국 날짜), 오늘까지만\n  SELECT ev.id AS event_id, ev.title, CAST(d AS date) AS day, d AT TIME ZONE 'Asia/Seoul' AS t\n  FROM ev CROSS JOIN cfg,\n       generate_series(date_trunc('day', ev.starts_at - make_interval(hours => cfg.shift_hours)),\n                       date_trunc('day', least(ev.ends_at - make_interval(hours => cfg.shift_hours), now() AT TIME ZONE 'Asia/Seoul')),\n                       interval '1 day') AS d\n)\n, grant_days AS (\n  SELECT DISTINCT days.day, days.t FROM days JOIN ev ON ev.id = days.event_id WHERE ev.kind = 'COACH_CELEB'\n)\nSELECT gd.t AS \"time\",\n       count(g.id) AS \"지급 건수\",\n       coalesce(sum(g.amount), 0) AS \"지급 합계\"\nFROM grant_days gd CROSS JOIN cfg\nLEFT JOIN (SELECT g.* FROM event_point_grant g JOIN ev ON ev.id = g.event_id) g\n  ON CAST(g.granted_at - make_interval(hours => cfg.shift_hours) AS date) = gd.day\nWHERE $__timeFilter(gd.t)\nGROUP BY 1\nORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "table",
+      "title": "응모자 명단",
+      "description": "응모자 닉네임과 달성 항목 수, 첫 응모 시각(「시각 보정」 적용). 개인정보는 닉네임까지만 보인다. 추첨 명단의 원본은 관리 API(응모자 명단)다.",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "${db}"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "fields": ""
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "${db}"
+          },
+          "editorMode": "code",
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH cfg AS (\n  -- 표시 보정 시간: 자동이면 서버 시간대 수정 V48이 없는 DB(운영 2차 배포 전)만 9시간 뺀다\n  -- 숫자가 아닌 값(auto)은 NULL이 되어 자동 판정으로 간다\n  SELECT coalesce(CAST(NULLIF(regexp_replace('${tzfix}', '[^0-9]', '', 'g'), '') AS integer),\n                  CASE WHEN EXISTS (SELECT 1 FROM flyway_schema_history WHERE version = '48' AND success) THEN 0 ELSE 9 END) AS shift_hours\n),\nev AS (\n  SELECT e.id, e.slug, e.title, e.kind, e.published, e.sort_order, e.starts_at, e.ends_at, e.config::jsonb AS cfg\n  FROM event e\n  WHERE e.id IN ($event)\n),\ncoach_win AS (\n  -- 셀럽마다 첫 승리(BattleRepository.findCelebrityWinners): 끝난 셀럽 대결, 회원 승리, 판정 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, b.winner_member_id AS member_id, b.opponent_record_id AS celebrity_id, min(b.judged_at) AS won_at\n  FROM ev\n  JOIN battle b\n    ON b.status = 'FINISHED' AND b.type = 'CELEBRITY' AND b.opponent_kind = 'CELEBRITY'\n   AND b.winner_member_id IS NOT NULL\n   AND b.opponent_record_id IN (SELECT jsonb_array_elements_text(ev.cfg -> 'celebrityIds'))\n   AND b.judged_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'COACH_CELEB'\n  GROUP BY 1, 2, 3\n),\nrun_first AS (\n  -- 기준 거리 이상인 첫 유효 기록(RunQueryService.earliestValidRunsAtLeast): 시작 시각이 기간 안(양 끝 포함)\n  SELECT ev.id AS event_id, r.member_id, min(r.started_at) AS run_at\n  FROM ev\n  JOIN run_record r\n    ON r.valid AND r.distance_meters >= CAST(ev.cfg ->> 'minDistanceMeters' AS bigint)\n   AND r.started_at BETWEEN ev.starts_at AND ev.ends_at\n  WHERE ev.kind = 'RUN_DISTANCE'\n  GROUP BY 1, 2\n),\nentrant AS (\n  -- 탈퇴 회원 제외(MemberQueryService.activeNicknames: ACTIVE이고 닉네임이 있는 회원만)\n  SELECT x.event_id, x.member_id, m.nickname, x.items, x.first_at\n  FROM (SELECT event_id, member_id, count(*) AS items, min(won_at) AS first_at FROM coach_win GROUP BY 1, 2\n        UNION ALL\n        SELECT event_id, member_id, 1, run_at FROM run_first) x\n  JOIN member m ON m.id = x.member_id AND m.status = 'ACTIVE' AND m.nickname IS NOT NULL\n)\nSELECT ev.title AS \"이벤트\",\n       en.nickname AS \"닉네임\",\n       en.items AS \"달성 항목\",\n       to_char(en.first_at - make_interval(hours => cfg.shift_hours), 'YYYY-MM-DD HH24:MI:SS') AS \"첫 응모 시각\"\nFROM entrant en\nJOIN ev ON ev.id = en.event_id\nCROSS JOIN cfg\nORDER BY ev.sort_order, ev.id, en.first_at, en.member_id\nLIMIT 2000"
+        }
+      ]
+    }
+  ]
+}
