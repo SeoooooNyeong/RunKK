@@ -287,7 +287,7 @@ class AvatarControllerTest extends WebTestSupport {
                         jsonPath("$.backgrounds[0].unlockedAt").value("2026-11-09T07:40:00+09:00"))
                 .andExpect(jsonPath("$.backgrounds[0].remainingMeters").value(0))
                 .andExpect(jsonPath("$.backgrounds[1].unlocked").value(false))
-                .andExpect(jsonPath("$.backgrounds[1].remainingMeters").value(120_000));
+                .andExpect(jsonPath("$.backgrounds[1].remainingMeters").value(150_000));
     }
 
     @Test

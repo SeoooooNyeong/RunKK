@@ -53,9 +53,9 @@ private const val DOMESTIC = "DOMESTIC"
 private const val EAST_ASIA = "EAST_ASIA"
 private const val INTERCONTINENTAL = "INTERCONTINENTAL"
 
-/** D-107 (1) 기본 키(개인 단계 22개) → 단계. 운영 기준값이 더한 키(LM_n)는 목록의 stage로 찾는다. */
+/** D-107 (1) 기본 키(개인 단계 22개, 개성 대신 춘천 D-성-129) → 단계. 운영 기준값이 더한 키(LM_n)는 목록의 stage로 찾는다. */
 private val STAGE_OF_KEY: Map<String, String> =
-    listOf("INCHEON", "KAESONG", "DAEJEON", "JEONJU", "YEOSU", "BUSAN", "JEJU").associateWith { DOMESTIC } +
+    listOf("INCHEON", "CHUNCHEON", "DAEJEON", "JEONJU", "YEOSU", "BUSAN", "JEJU").associateWith { DOMESTIC } +
         listOf("BEIJING", "TOKYO", "TAIPEI", "HONG_KONG", "HANOI", "BANGKOK").associateWith { EAST_ASIA } +
         listOf(
             "KUALA_LUMPUR",

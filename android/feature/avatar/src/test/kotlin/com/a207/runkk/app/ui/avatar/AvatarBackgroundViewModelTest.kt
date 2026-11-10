@@ -23,10 +23,10 @@ val sampleBackgrounds = AvatarBackgrounds(
             Instant.parse("2026-10-20T00:00:00Z")
         ),
         AvatarBackgrounds.Item(
-            "KAESONG",
-            "개성",
+            "CHUNCHEON",
+            "춘천",
             "DOMESTIC",
-            Distance(120_000),
+            Distance(150_000),
             true,
             Instant.parse("2026-10-21T00:00:00Z")
         ),
@@ -53,8 +53,8 @@ class AvatarBackgroundViewModelTest {
     fun `해금한 배경을 고르면 서버에 보내고 고른 배경으로 표시한다`() {
         val vm = AvatarBackgroundViewModel(avatars)
         vm.onChoose(sampleBackgrounds.items[1])
-        assertEquals("chooseBackground:KAESONG", avatars.calls.last())
-        assertEquals("KAESONG", vm.state.value.selectedKey)
+        assertEquals("chooseBackground:CHUNCHEON", avatars.calls.last())
+        assertEquals("CHUNCHEON", vm.state.value.selectedKey)
         assertEquals(UiText.Res(R.string.avatar_background_chosen), vm.state.value.message)
         assertNull(vm.state.value.choosingKey)
     }

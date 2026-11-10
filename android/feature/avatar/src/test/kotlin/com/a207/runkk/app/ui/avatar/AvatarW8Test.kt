@@ -53,7 +53,7 @@ private fun bg(key: String, name: String, km: Long, unlockedAt: Instant?) = Avat
 )
 
 private val incheon = bg("INCHEON", "인천", 60, Instant.parse("2026-10-20T00:00:00Z"))
-private val kaesong = bg("KAESONG", "개성", 120, Instant.parse("2026-11-09T07:40:00Z"))
+private val chuncheon = bg("CHUNCHEON", "춘천", 150, Instant.parse("2026-11-09T07:40:00Z"))
 private val daejeon = bg("DAEJEON", "대전", 280, Instant.parse("2026-11-09T07:40:00Z"))
 private val jeonju = bg("JEONJU", "전주", 400, null)
 
@@ -135,25 +135,34 @@ class AvatarW8LogicTest {
 
     @Test
     fun `H-6 기록이 없으면 지금 해금을 모두 본 것으로 채우고 팝업을 띄우지 않는다`() {
-        val (unlock, seen) = findNewUnlocks(AvatarBackgrounds(null, listOf(incheon, kaesong, jeonju)), null, NOW)
+        val (unlock, seen) = findNewUnlocks(AvatarBackgrounds(null, listOf(incheon, chuncheon, jeonju)), null, NOW)
         assertNull(unlock)
-        assertEquals(BackgroundUnlockSeenStore.Seen(setOf("INCHEON", "KAESONG"), NOW), seen)
+        assertEquals(BackgroundUnlockSeenStore.Seen(setOf("INCHEON", "CHUNCHEON"), NOW), seen)
     }
 
     @Test
     fun `H-6 기록 뒤에 연 배경만 새 배경이고 해금 거리 내림차순, 첫 배경이 제목이다`() {
         val stored = BackgroundUnlockSeenStore.Seen(setOf("INCHEON"), SINCE)
         val (unlock, seen) =
-            findNewUnlocks(AvatarBackgrounds(null, listOf(incheon, kaesong, daejeon, jeonju)), stored, NOW)
-        assertEquals(listOf("DAEJEON", "KAESONG"), unlock?.items?.map { it.key })
+            findNewUnlocks(AvatarBackgrounds(null, listOf(incheon, chuncheon, daejeon, jeonju)), stored, NOW)
+        assertEquals(listOf("DAEJEON", "CHUNCHEON"), unlock?.items?.map { it.key })
         assertEquals("DAEJEON", unlock?.title?.key)
         assertEquals(stored, seen)
         val old = BackgroundUnlockSeenStore.Seen(emptySet(), NOW)
-        assertNull(findNewUnlocks(AvatarBackgrounds(null, listOf(kaesong)), old, NOW).first, "기록 시작 전 해금")
+        assertNull(findNewUnlocks(AvatarBackgrounds(null, listOf(chuncheon)), old, NOW).first, "기록 시작 전 해금")
+    }
+
+    @Test
+    fun `H-6 기기 기록에 남은 지운 키(KAESONG)는 서버 목록에 없으면 무시한다(D-성-124)`() {
+        val stored = BackgroundUnlockSeenStore.Seen(setOf("INCHEON", "KAESONG"), SINCE)
+        val (unlock, _) =
+            findNewUnlocks(AvatarBackgrounds(null, listOf(incheon, chuncheon, daejeon, jeonju)), stored, NOW)
+        assertEquals(listOf("DAEJEON", "CHUNCHEON"), unlock?.items?.map { it.key })
+        assertEquals("DAEJEON", unlock?.title?.key)
     }
 
     private val repo = FakeAvatars().apply {
-        backgroundsResult = Outcome.Success(AvatarBackgrounds(null, listOf(incheon, kaesong, daejeon, jeonju)))
+        backgroundsResult = Outcome.Success(AvatarBackgrounds(null, listOf(incheon, chuncheon, daejeon, jeonju)))
     }
     private val clock = Clock.fixed(NOW, ZoneOffset.UTC)
 
@@ -167,12 +176,12 @@ class AvatarW8LogicTest {
         assertEquals(AvatarBodyShape.CHANGE_1, s.look.bodyShape)
         assertEquals(51, s.look.runAmount)
         assertNull(s.look.headLayers, "셀카 머리가 아니면 기본 머리")
-        assertEquals(listOf("DAEJEON", "KAESONG"), s.unlock?.items?.map { it.key })
+        assertEquals(listOf("DAEJEON", "CHUNCHEON"), s.unlock?.items?.map { it.key })
 
         vm.onUnlockChange()
         assertNull(vm.state.value.unlock)
         assertTrue("chooseBackground:DAEJEON" in repo.calls)
-        assertEquals(setOf("INCHEON", "DAEJEON", "KAESONG"), store.seen?.keys)
+        assertEquals(setOf("INCHEON", "DAEJEON", "CHUNCHEON"), store.seen?.keys)
         assertEquals("DAEJEON", vm.state.value.avatar?.backgroundKey)
     }
 
@@ -181,7 +190,7 @@ class AvatarW8LogicTest {
         val store = FakeSeenStore()
         val first = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
         assertNull(first.state.value.unlock)
-        assertEquals(setOf("INCHEON", "KAESONG", "DAEJEON"), store.seen?.keys)
+        assertEquals(setOf("INCHEON", "CHUNCHEON", "DAEJEON"), store.seen?.keys)
 
         store.seen = BackgroundUnlockSeenStore.Seen(setOf("INCHEON"), SINCE)
         val vm = AvatarRunnerViewModel(repo, store, clock, headsOf(repo))
@@ -285,7 +294,7 @@ class AvatarW8ScreenTest {
                         isLoading = false,
                         avatar = avatar,
                         runner = runner,
-                        unlock = BackgroundUnlock(listOf(daejeon, kaesong))
+                        unlock = BackgroundUnlock(listOf(daejeon, chuncheon))
                     ),
                     AvatarRunnerActions(onUnlockChange = { calls += "change" }, onUnlockClose = { calls += "close" })
                 )
@@ -293,7 +302,7 @@ class AvatarW8ScreenTest {
         }
         compose.onNodeWithText(text(R.string.avatar_unlock_title, "대전")).assertExists()
         compose.onNodeWithText(text(R.string.avatar_unlock_together)).assertExists()
-        compose.onNodeWithText("개성").assertExists()
+        compose.onNodeWithText("춘천").assertExists()
         compose.onNodeWithText(text(R.string.avatar_unlock_change)).performClick()
         compose.onNodeWithText(text(R.string.avatar_unlock_close)).performClick()
         assertEquals(listOf("change", "close"), calls)
@@ -412,7 +421,7 @@ class AvatarW8ScreenshotTest {
                 isLoading = false,
                 avatar = avatar,
                 runner = runner,
-                unlock = BackgroundUnlock(listOf(daejeon, kaesong))
+                unlock = BackgroundUnlock(listOf(daejeon, chuncheon))
             ),
             AvatarRunnerActions()
         )
