@@ -4,7 +4,6 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
-import com.a207.runkk.app.domain.avatar.SelfieHead
 import java.io.IOException
 import java.util.Base64
 import kotlin.coroutines.resume
@@ -87,10 +86,10 @@ class FaceImageSource internal constructor(
      * 대체 그림(정면 세 층)을 함께 준다. 층 형식이 틀리면 대체 그림만 빈 목록이다(받기는 성공). 셀카 머리 얼굴("head:…")이 아니면
      * null이다. 서버가 no-store로 주므로 메모리에 두지 않는다.
      */
-    suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> {
+    internal suspend fun selfieHead(faceKey: String?): Outcome<HeadBody?> {
         if (faceKey == null || !faceKey.startsWith(HEAD_PREFIX)) return Outcome.Success(null)
         return headBody(faceKey.removePrefix(HEAD_PREFIX)) { body ->
-            Outcome.Success(SelfieHead(body, headOf(body).orEmpty()))
+            Outcome.Success(HeadBody(body, headOf(body).orEmpty()))
         }
     }
 

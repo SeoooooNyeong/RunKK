@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
+import com.a207.runkk.app.core.model.map
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRepository
@@ -39,7 +40,8 @@ constructor(
 
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
-    override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> = faces.selfieHead(faceKey)
+    override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> =
+        faces.selfieHead(faceKey).map { body -> body?.let { SelfieHead(it.json, it.faceLayers) } }
 
     override suspend fun runner(): Outcome<AvatarRunner> = ApiErrorMapper.call { api.runner().toDomain() }
 
