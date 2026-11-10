@@ -39,7 +39,7 @@ ENUMS = {
     'runimal': ['RunimalType'],
     'crew': ['CrewVisibility', 'JoinPolicy', 'AttendanceAnswer', 'PostKind', 'CrewRole', 'CrewRunStatus', 'Readiness',
              'JoinRequestStatus', 'PollMethod'],
-    'crew.chat': ['ReactionKind'],
+    'crew.chat': ['ReactionKind', 'ChatMessageKind'],
     'crew.chat.live': ['ChatRemovalReason'],
     'report': ['ReportTargetKind', 'ReportReason', 'ReportStatus'],
 }

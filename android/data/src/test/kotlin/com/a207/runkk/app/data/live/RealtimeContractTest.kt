@@ -200,7 +200,9 @@ class RealtimeContractTest {
                 "새벽곰",
                 "내일 7시 출발 🏃",
                 Instant.parse("2026-10-22T10:07:03Z"),
-                "0f8fad5b-d9cb-469f-a165-70867728950e"
+                "0f8fad5b-d9cb-469f-a165-70867728950e",
+                messageKind = "TEXT",
+                authorRole = "LEADER"
             ),
             decoder.decode(read("CrewChatPosted.json"))
         )
@@ -226,7 +228,23 @@ class RealtimeContractTest {
             decoder.decode(read("CrewChatRemoved-hidden.json"))
         )
         assertEquals(
-            CrewChatReactionChanged(7, 801, mapOf("LIKE" to 2, "HEART" to 1)),
+            CrewChatPosted(
+                7,
+                803,
+                4,
+                "느긋한고래",
+                "느긋한고래님이 5.02km를 달렸어요",
+                Instant.parse("2026-10-22T10:40:00Z"),
+                "9b2f4c3e-6a1d-3c5b-8e7f-0a1b2c3d4e5f",
+                messageKind = "RUN_FINISHED",
+                authorRole = "MEMBER",
+                runDistanceMeters = 5_021
+            ),
+            decoder.decode(read("CrewChatPosted-runFinished.json")),
+            "W5 러닝 완료 시스템 메시지는 종류·직책·거리를 싣는다"
+        )
+        assertEquals(
+            CrewChatReactionChanged(7, 801, mapOf("LIKE" to 2, "HEART" to 1, "CHECK" to 3)),
             decoder.decode(read("CrewChatReactionChanged.json"))
         )
         assertEquals(
@@ -357,6 +375,7 @@ class RealtimeContractTest {
                 "inbound-progress-offset.json",
                 "CrewChatPosted.json",
                 "CrewChatPosted-withdrawn.json",
+                "CrewChatPosted-runFinished.json",
                 "CrewChatRemoved.json",
                 "CrewChatRemoved-hidden.json",
                 "CrewChatReactionChanged.json",
