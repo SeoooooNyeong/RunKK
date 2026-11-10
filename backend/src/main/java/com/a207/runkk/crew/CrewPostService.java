@@ -422,7 +422,10 @@ public class CrewPostService {
         return new PostResult(postId);
     }
 
-    /** 신고용 조회(D-135). 글이 없거나 삭제됐으면 빈 값, 숨김이어도 돌려준다. report.target의 CrewPostReportAdapter만 부른다. */
+    /**
+     * 신고용 조회(D-135). 글이 없거나 삭제됐으면 빈 값, 숨김이어도 돌려준다. report.target의 CrewPostReportAdapter만 부른다. 크루런은
+     * 제목도 신고 대상이라 미리보기에 제목 + 줄바꿈 + 내용을 싣는다(코드 리뷰 M4).
+     */
     @Transactional(readOnly = true)
     public Optional<ReportedPostView> reportedView(long postId) {
         return crewPostRepository
@@ -435,8 +438,16 @@ public class CrewPostService {
                                         post.crewId(),
                                         post.kind(),
                                         post.authorId(),
-                                        preview(post.body()),
+                                        preview(reportedText(post)),
                                         post.isHidden()));
+    }
+
+    /** 크루런이면 제목 + 줄바꿈 + 내용(내용이 비면 제목만), 그 밖은 본문. */
+    private static String reportedText(CrewPost post) {
+        if (post instanceof CrewRunPost run && run.title() != null && !run.title().isBlank()) {
+            return run.body().isBlank() ? run.title() : run.title() + "\n" + run.body();
+        }
+        return post.body();
     }
 
     /** 앞 100자(코드 포인트 단위, 서로게이트 쌍을 가르지 않는다). */

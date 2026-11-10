@@ -311,6 +311,30 @@ class CrewScheduleScenarioTest {
     }
 
     @Test
+    @DisplayName("신고 미리보기(코드 리뷰 M4): 크루런은 제목 + 줄바꿈 + 내용, 내용이 비면 제목만, 다른 글은 본문 그대로")
+    void reportPreview_hasCrewRunTitle() {
+        Crew3 c = crew();
+        long run = write(c.l(), c.id(), tomorrow(), CrewRunRepeat.NONE);
+        long titleOnly =
+                posts.writeCrewRun(
+                                c.l(),
+                                c.id(),
+                                new CrewRunDraft(
+                                        "제목만",
+                                        "",
+                                        tomorrow().plusHours(1),
+                                        StandardDistance.KM5,
+                                        null,
+                                        CrewRunRepeat.NONE))
+                        .postId();
+        long meetup = meetup(c.l(), c.id());
+
+        assertThat(posts.reportedView(run).orElseThrow().preview()).isEqualTo("토요일 한강\n8번 출구");
+        assertThat(posts.reportedView(titleOnly).orElseThrow().preview()).isEqualTo("제목만");
+        assertThat(posts.reportedView(meetup).orElseThrow().preview()).isEqualTo("모여요");
+    }
+
+    @Test
     @DisplayName("누적 크루런 횟수·최근 크루런(코드 리뷰 M8): 신고로 숨긴 마친 크루런은 세지도 보이지도 않는다")
     void finishedCrewRuns_excludeHidden() {
         Crew3 c = crew();
