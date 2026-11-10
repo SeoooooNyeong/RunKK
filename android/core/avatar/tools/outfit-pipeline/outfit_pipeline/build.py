@@ -16,6 +16,7 @@ from PIL import Image, ImageChops, ImageFilter
 from outfit_pipeline import spec
 from outfit_pipeline.check import Problem, check_bundle, template_for
 from outfit_pipeline.masks import load_mask
+from outfit_pipeline.skin import strip_skin
 
 ALPHA_FLOOR = 8  # 이보다 옅은 알파는 잡티로 보고 0
 
@@ -332,7 +333,7 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
         name = path.name.rsplit(".", 1)[0]
         template = template_for(path.name, part, surface)
         slot = spec.SLOTS[spec.TEMPLATES[template].slot]
-        layer = clip(to_slot(Image.open(path), slot), load_mask(masks_dir, template, part))
+        layer, _ = strip_skin(clip(to_slot(Image.open(path), slot), load_mask(masks_dir, template, part)))
         spec.save_webp(layer, target / f"{name}{spec.EXTENSION}")
         names.append(name)
         if match.group(3):
@@ -415,3 +416,20 @@ def update_index(outfits_dir: Path, entry: dict | None = None, body_shared: dict
     outfits.sort(key=lambda e: (order.get(e["assetKey"], len(order)), e["assetKey"]))
     index["outfits"] = outfits
     path.write_text(json.dumps(index, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def strip_bundles(outfits_dir: Path) -> dict[str, int]:
+    """이미 만든 묶음의 옷 레이어에서 드러난 맨살을 지우고 상점 썸네일을 다시 만든다. 파일별 지운 픽셀 수."""
+    removed = {}
+    for folder in sorted(p for p in outfits_dir.iterdir() if p.is_dir() and p.name != spec.BODY_FOLDER):
+        for path in sorted(folder.glob(f"*{spec.EXTENSION}")):
+            if path.name == spec.SHOP_FILE:
+                continue
+            layer, count = strip_skin(Image.open(path))
+            if count:
+                spec.save_webp(layer, path)
+                removed[f"{folder.name}/{path.name}"] = count
+        stand = folder / f"female_stand{spec.EXTENSION}"
+        if stand.is_file() and any(k.startswith(f"{folder.name}/") for k in removed):
+            spec.save_webp(make_shop(Image.open(stand).convert("RGBA")), folder / spec.SHOP_FILE)
+    return removed

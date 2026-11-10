@@ -65,7 +65,8 @@ uv run outfit-pipeline uv-mask          # riv Mesh·MeshVertex(u, v)로 template
 uv run outfit-pipeline templates        # 템플릿 11장
 uv run outfit-pipeline body <맨몸 원본폴더>         # {g}_{slot}.png → body/(무손실 WebP)·상의 자르기 칸·index.json body.shared
 uv run outfit-pipeline build <원본폴더> [assetKey...]   # <원본>/<assetKey>/{g}_{slot}.png → 정리·잘라내기·WebP·shop.webp·남녀 공용·index.json
-uv run outfit-pipeline check            # 아래 6절 여덟 항목
+uv run outfit-pipeline strip-skin       # 이미 만든 묶음의 옷 레이어에서 드러난 맨살을 지운다(6절 9번)
+uv run outfit-pipeline check            # 아래 6절 아홉 항목
 uv run pytest
 ```
 
@@ -81,6 +82,7 @@ uv run pytest
 6. 파일 이름이 규칙(`{g}_{stand|run_body|run_arm|run_leg|run_shoe}{|_b1|_b2}.webp`, `shop.webp`) 안이고 그 부위 슬롯이다. `shared`의 이름은 파일이 없고 가리키는 파일이 있다. 공용 파일은 그 이름(성별)의 템플릿으로도 검사한다.
 7. 묶음 하나 합계 1.5MB 이하.
 8. 상의 `maleTopSurface`가 1 또는 2(남자 서기 검사는 그 표면 템플릿), `bodyOverrides` 파일이 있다.
+9. 옷 레이어에 드러난 맨살이 없다([임시:D-성-172]): 밝은 피부 색조(R ≥ 170, G ≥ 130, 30 ≤ R−G ≤ 80, G−B ≥ 4, 2(G−B) ≤ (R−G)+4, 알파 32 이상) 픽셀을 8방향으로 이은 덩어리가 빈 곳이나 가장자리에 닿고 4픽셀 이상이면 실패다. 피부는 맨몸 바탕에서만 와야 러닝량 톤이 걸린다(옷 레이어의 피부는 톤이 걸리지 않아 짙은 팔 옆에 밝은 분홍으로 보인다). 천 안에 갇힌 피부색 무늬(끈, 패치, 하이라이트)는 세지 않는다. `build`가 지우고(`outfit_pipeline/skin.py`), 이미 만든 묶음은 `strip-skin`으로 지운다. 앱 시험은 러닝량 100 합성에서도 옷 없는 곳에 닿은 밝은 맨살이 없는지 본다(OutfitCompositeTest).
 
 ## 7. 기존 21가지 대응 (앱 `AvatarOutfit` 번호 → 묶음, `OutfitCatalog.LEGACY_KEYS`)
 

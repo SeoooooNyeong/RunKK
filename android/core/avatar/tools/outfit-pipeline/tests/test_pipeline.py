@@ -176,3 +176,49 @@ def test_cut_matches_app_fixture() -> None:
     from tests.make_topcut_fixture import OUT, expected
 
     assert np.array_equal(np.array(expected()), np.array(Image.open(OUT / "expected.png").convert("RGBA")))
+
+
+def test_skin_rule_counts_only_skin_that_touches_empty_space() -> None:
+    """맨살 규칙(DV3-8): 빈 곳에 닿은 피부 색조 덩어리만 센다. 천 안에 갇힌 피부색 무늬, 크림·코랄 천은 세지 않는다."""
+    import numpy as np
+
+    from outfit_pipeline.skin import count_exposed, strip_skin
+
+    skin, cream, coral = (246, 209, 197, 255), (246, 223, 203, 255), (240, 120, 90, 255)
+    array = np.zeros((40, 40, 4), np.uint8)
+    array[:, 10:40] = coral  # 천
+    array[5:15, 10:20] = skin  # 빈 곳(x < 10)에 닿은 맨살 100픽셀
+    array[25:30, 25:30] = skin  # 천에 갇힌 피부색 무늬
+    array[30:38, 12:20] = cream
+    image = Image.fromarray(array, "RGBA")
+    assert count_exposed(image) == 100
+    stripped, removed = strip_skin(image)
+    assert removed == 100 and count_exposed(stripped) == 0
+    assert np.array(stripped)[27, 27, 3] == 255
+
+
+def test_garment_layers_have_no_exposed_skin() -> None:
+    """옷 레이어에 승인 텍스처의 맨살이 남지 않는다(피부는 맨몸 바탕에서만 와 톤이 걸린다)."""
+    from outfit_pipeline.skin import count_exposed
+
+    found = {
+        f"{p.parent.name}/{p.name}": n
+        for p in sorted(OUTFITS.glob("*/*.webp"))
+        if p.parent.name != spec.BODY_FOLDER and p.name != spec.SHOP_FILE and (n := count_exposed(Image.open(p))) > 0
+    }
+    assert found == {}
+
+
+def test_check_reports_exposed_skin(tmp_path: Path) -> None:
+    import numpy as np
+
+    from outfit_pipeline.check import check_layer, template_for
+
+    layer = np.array(Image.open(OUTFITS / "top_crew_tee/female_stand.webp").convert("RGBA"))
+    ys, xs = np.nonzero(layer[..., 3] > 200)
+    y, x = ys[len(ys) // 2], xs.min()
+    layer[y - 3 : y + 3, x : x + 6] = (246, 209, 197, 255)  # 왼쪽 빈 곳에 닿은 맨살
+    path = tmp_path / "female_stand.webp"
+    spec.save_webp(Image.fromarray(layer, "RGBA"), path)
+    problems = check_layer(path, "TOP", template_for(path.name, "TOP", 1), MASKS)
+    assert [p.rule for p in problems] == [9]

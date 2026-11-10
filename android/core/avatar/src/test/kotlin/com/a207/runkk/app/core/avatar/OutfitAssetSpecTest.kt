@@ -135,6 +135,21 @@ class OutfitAssetSpecTest {
         )
     }
 
+    @Test
+    fun `9 옷 레이어에는 드러난 맨살이 없다(피부는 맨몸 바탕에서만 와 러닝량 톤이 걸린다)`() {
+        val found = outfits.listFiles()!!.filter { it.isDirectory && it.name != OutfitCatalog.BODY }
+            .flatMap { folder -> folder.listFiles()!!.filter { it.extension == "webp" && it.name != "shop.webp" } }
+            .associate { file ->
+                val bitmap = read(file)
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                "${file.parentFile!!.name}/${file.name}" to ExposedSkin.count(pixels, bitmap.width, bitmap.height)
+                    .also { bitmap.recycle() }
+            }
+            .filterValues { it > 0 }
+        assertEquals(emptyMap(), found, "옷 레이어의 맨살 픽셀(외곽선 부스러기 제외)")
+    }
+
     private fun slotsOf(part: OutfitPart) = OutfitSlot.entries.filter { part in it.parts }
 
     private fun slotOf(fileName: String) = OutfitSlot.entries.first { it.fileName == fileName }
