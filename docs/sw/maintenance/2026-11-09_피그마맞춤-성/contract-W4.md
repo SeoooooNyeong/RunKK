@@ -44,8 +44,8 @@ Flyway: `V50__crew_run_finished_index.sql`(마친 크루런 조회 색인), `V51
 | inviteCodeExpiresAt | 시각 | 예 | 초대 코드 만료(크루원만) |
 | **createdAt** | 시각 | 아니오 | 개설일(F-02·F-03c·F-18 "yyyy. mm. dd") |
 | **totalDistanceMeters** | long | 아니오 | 누적 크루 거리: 개설 뒤 모든 주의 크루 주간 거리 합(weekly_race 합계). W7 F-18 "누적 거리" |
-| **crewRunCount** | int | 아니오 | 누적 크루런 횟수: 마친(`FINISHED`) 크루런 수, 지운 글·취소된 크루런은 세지 않는다. F-02 통계 오른쪽 칸 "누적 크루런 횟수" |
-| **recentCrewRuns** | `RecentCrewRun[]` | 아니오(빈 배열 가능) | 최근 마친 크루런 최대 3건, 약속 시각 최신순 |
+| **crewRunCount** | int | 아니오 | 누적 크루런 횟수: 마친(`FINISHED`) 크루런 수, 지운 글·신고로 숨긴 글·취소된 크루런은 세지 않는다(숨김 제외는 코드 리뷰 M8). F-02 통계 오른쪽 칸 "누적 크루런 횟수" |
+| **recentCrewRuns** | `RecentCrewRun[]` | 아니오(빈 배열 가능) | 최근 마친 크루런 최대 3건, 약속 시각 최신순(지운 글·신고로 숨긴 글 제외) |
 | **rejoinAvailableAt** | 시각 | 예 | 열람자가 크루를 나온 뒤 24시간 가입 제한 중이면 가입(·크루 만들기) 가능 시각, 아니면 null(크루원이거나 제한 없음) |
 
 `CrewDetailResponse.RecentCrewRun`

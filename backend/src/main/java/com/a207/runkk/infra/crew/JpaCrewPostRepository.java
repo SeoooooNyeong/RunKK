@@ -189,7 +189,8 @@ public class JpaCrewPostRepository implements CrewPostRepository {
         return entityManager
                 .createQuery(
                         "select count(p) from CrewRunPost p where p.crewId = :crew"
-                                + " and p.deleted = false and p.status = :finished",
+                                + " and p.deleted = false and p.hidden = false"
+                                + " and p.status = :finished",
                         Long.class)
                 .setParameter("crew", crewId)
                 .setParameter("finished", CrewRunStatus.FINISHED)
@@ -203,7 +204,8 @@ public class JpaCrewPostRepository implements CrewPostRepository {
         return entityManager
                 .createQuery(
                         "select p from CrewRunPost p where p.crewId = :crew and p.deleted = false"
-                            + " and p.status = :finished order by p.scheduledAt desc, p.id desc",
+                                + " and p.hidden = false and p.status = :finished"
+                                + " order by p.scheduledAt desc, p.id desc",
                         CrewRunPost.class)
                 .setParameter("crew", crewId)
                 .setParameter("finished", CrewRunStatus.FINISHED)

@@ -17,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +41,7 @@ class CrewScheduleScenarioTest {
     @Autowired CrewPostService posts;
     @Autowired CrewScheduleService schedules;
     @Autowired CrewRunRepeater repeater;
+    @Autowired CrewRunHistory history;
     @Autowired MemberRepository members;
     @Autowired TransactionTemplate tx;
     @Autowired JdbcTemplate jdbc;
@@ -306,5 +308,19 @@ class CrewScheduleScenarioTest {
                 status,
                 Timestamp.valueOf(at),
                 postId);
+    }
+
+    @Test
+    @DisplayName("누적 크루런 횟수·최근 크루런(코드 리뷰 M8): 신고로 숨긴 마친 크루런은 세지도 보이지도 않는다")
+    void finishedCrewRuns_excludeHidden() {
+        Crew3 c = crew();
+        long shown = write(c.l(), c.id(), tomorrow(), CrewRunRepeat.NONE);
+        long hidden = write(c.l(), c.id(), tomorrow().plusHours(1), CrewRunRepeat.NONE);
+        jdbc.update("update crew_post set status = 'FINISHED' where id in (?, ?)", shown, hidden);
+        posts.hideReported(hidden);
+
+        assertThat(history.finishedCount(c.id())).isEqualTo(1);
+        List<CrewDetailView.RecentCrewRun> recent = tx.execute(status -> history.recent(c.id()));
+        assertThat(recent).extracting(CrewDetailView.RecentCrewRun::postId).containsExactly(shown);
     }
 }
