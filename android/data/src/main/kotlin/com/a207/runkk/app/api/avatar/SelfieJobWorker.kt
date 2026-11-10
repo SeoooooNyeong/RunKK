@@ -26,9 +26,10 @@ internal class SelfieJobWorker(context: Context, params: WorkerParameters) : Cor
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // 예상하지 못한 실패도 조용히 멈추지 않게 다시 건다. 총 상한(접수 시각 기준)이 끝을 보장한다.
-                Log.w(TAG, "셀카 작업 조회 실패, 다시 건다: ${e.javaClass.simpleName}")
-                SelfiePollEnd.CONTINUE
+                // 예상하지 못한 실패는 바로 다시 걸지 않고 WorkManager 백오프로 미룬다. 이어지면 멈춘다(리뷰 R2-2). 멈춘 작업은 기기에
+                // 남아 있으므로 다음 앱 시작·얼굴 만들기 진입의 resume이 다시 건다.
+                Log.w(TAG, "셀카 작업 조회 실패(시도 ${runAttemptCount + 1}): ${e.javaClass.simpleName}")
+                return afterException(runAttemptCount)
             }
         if (end == SelfiePollEnd.CONTINUE) graph.selfieFollower().continueLater(jobId)
         return Result.success()
@@ -45,5 +46,12 @@ internal class SelfieJobWorker(context: Context, params: WorkerParameters) : Cor
     internal companion object {
         const val KEY_JOB = "jobId"
         private const val TAG = "SelfieJobWorker"
+
+        /** 예외로 끝난 실행을 몇 번까지 백오프로 다시 걸지(이 횟수째 실패에서 멈춘다, [임시:D-성-159]). */
+        const val MAX_EXCEPTION_ATTEMPTS = 3
+
+        /** 예외로 끝난 실행의 결과: [MAX_EXCEPTION_ATTEMPTS]번째 전까지는 백오프 재시도, 그 뒤에는 멈춘다. */
+        fun afterException(runAttemptCount: Int): Result =
+            if (runAttemptCount + 1 < MAX_EXCEPTION_ATTEMPTS) Result.retry() else Result.failure()
     }
 }

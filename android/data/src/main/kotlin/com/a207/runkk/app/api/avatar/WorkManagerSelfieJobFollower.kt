@@ -1,6 +1,7 @@
 package com.a207.runkk.app.api.avatar
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
@@ -9,6 +10,7 @@ import androidx.work.WorkManager
 import androidx.work.workDataOf
 import com.a207.runkk.app.domain.avatar.SelfieJobFollower
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -38,6 +40,7 @@ constructor(@ApplicationContext private val context: Context) :
         val request =
             OneTimeWorkRequestBuilder<SelfieJobWorker>()
                 .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, BACKOFF_SECONDS, TimeUnit.SECONDS)
                 .setInputData(workDataOf(SelfieJobWorker.KEY_JOB to jobId))
                 .build()
         WorkManager.getInstance(context).enqueueUniqueWork(UNIQUE_WORK, policy, request)
@@ -45,5 +48,8 @@ constructor(@ApplicationContext private val context: Context) :
 
     internal companion object {
         const val UNIQUE_WORK = "selfie-job"
+
+        /** 예외로 끝난 실행을 다시 걸기까지 첫 대기(지수 백오프, [임시:D-성-159]). */
+        const val BACKOFF_SECONDS = 30L
     }
 }

@@ -40,7 +40,8 @@ class AvatarViewModel @Inject constructor(
 
     fun load() {
         job?.cancel()
-        _state.update { it.copy(isLoading = true, error = null) }
+        // 이미 그린 화면을 다시 읽을 때(상점에서 돌아옴)는 로딩 표시로 바꾸지 않는다(리뷰 R2-15).
+        _state.update { it.copy(isLoading = it.avatar == null, error = null) }
         job = viewModelScope.launch {
             val shop = async { avatars.shop(null) }
             val runner = async { avatars.runner() }
@@ -142,9 +143,9 @@ class AvatarViewModel @Inject constructor(
         viewModelScope.launch {
             when (val result = avatars.equip(changes)) {
                 is Outcome.Success -> {
-                    // 홈·러닝 칸도 새 착용으로 다시 준비한다(design-oo 05-30 3절 6단계).
-                    myAvatar.refresh()
                     val rejected = result.value.rejected.entries.firstOrNull()
+                    // 홈·러닝 칸도 새 착용으로 다시 준비한다(design-oo 05-30 3절 6단계). 거부되면 바뀐 것이 없다(리뷰 R2-6).
+                    if (rejected == null) myAvatar.refresh()
                     _state.update {
                         it.copy(
                             isSaving = false,

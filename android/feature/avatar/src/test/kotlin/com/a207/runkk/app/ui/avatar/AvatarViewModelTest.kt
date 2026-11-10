@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -522,6 +523,30 @@ class AvatarDecorateViewModelTest {
     }
 
     @Test
+    fun `거부된 저장은 홈 칸을 다시 준비하지 않는다(리뷰 R2-6)`() {
+        repo.equipResult = { Outcome.Success(avatar.copy(rejected = mapOf(ItemSlot.TOP to "ITEM_NOT_OWNED"))) }
+        val store = storeOf(repo, Gender.MALE).also { it.warm() }
+        val model = AvatarViewModel(repo, headsOf(repo), store)
+        val before = repo.calls.count { it == "runner" }
+        model.onToggle(items[1])
+        model.onSave()
+        assertEquals(before, repo.calls.count { it == "runner" })
+    }
+
+    @Test
+    fun `상점에서 돌아와 다시 읽을 때 로딩 표시로 깜박이지 않는다(리뷰 R2-15)`() {
+        val model = vm()
+        val seen = mutableListOf<Boolean>()
+        val watcher = kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined).launch {
+            model.state.collect { seen += it.isLoading }
+        }
+        model.onResumed()
+        model.onResumed()
+        watcher.cancel()
+        assertTrue(seen.none { it }, "이미 그린 화면은 다시 읽는 동안 로딩으로 바꾸지 않는다: $seen")
+    }
+
+    @Test
     fun `바꾼 것이 없으면 보내지 않고 닫는다`() {
         val model = vm()
         model.onSave()
@@ -620,6 +645,27 @@ class ShopViewModelTest {
         assertEquals(2L, model.state.value.avatar?.equipped?.get(ItemSlot.TOP))
         assertNull(model.state.value.selected)
         assertEquals(uiText(R.string.avatar_shop_equipped, items[1].name), model.state.value.message)
+    }
+
+    @Test
+    fun `입기가 거부되면 홈 칸을 다시 준비하지 않는다(리뷰 R2-6)`() {
+        repo.equipResult = { Outcome.Success(avatar.copy(rejected = mapOf(ItemSlot.TOP to "ITEM_NOT_OWNED"))) }
+        val store = storeOf(repo, Gender.MALE).also { it.warm() }
+        val model = ShopViewModel(repo, headsOf(repo), store)
+        val before = repo.calls.count { it == "runner" }
+        model.onPick(items[1])
+        model.onEquip()
+        assertEquals(before, repo.calls.count { it == "runner" })
+    }
+
+    @Test
+    fun `입기가 되면 홈 칸을 다시 준비한다`() {
+        val store = storeOf(repo, Gender.MALE).also { it.warm() }
+        val model = ShopViewModel(repo, headsOf(repo), store)
+        val before = repo.calls.count { it == "runner" }
+        model.onPick(items[1])
+        model.onEquip()
+        assertTrue(repo.calls.count { it == "runner" } > before)
     }
 
     @Test

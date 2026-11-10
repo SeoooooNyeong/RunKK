@@ -45,7 +45,7 @@ fun RunkkAppContent(
     onInviteDone: () -> Unit = {},
     pendingBattleReturn: Long? = null,
     onBattleReturnDone: () -> Unit = {},
-    pendingSelfieResult: String? = null,
+    pendingSelfieResult: Boolean = false,
     onSelfieResultDone: () -> Unit = {}
 ) {
     var startRoute by remember { mutableStateOf<String?>(null) }

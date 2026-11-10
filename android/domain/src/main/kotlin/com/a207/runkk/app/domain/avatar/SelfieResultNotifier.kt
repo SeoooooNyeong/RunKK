@@ -6,11 +6,4 @@ package com.a207.runkk.app.domain.avatar
  */
 interface SelfieResultNotifier {
     fun notify(jobId: String, succeeded: Boolean)
-
-    companion object {
-        /**
-         * 알림을 눌러 앱을 열 때 실행 인텐트에 싣는 작업 ID(String) 키. 앱이 읽으면 얼굴 만들기 화면(Routes.AVATAR_SETUP)으로 간다.
-         */
-        const val EXTRA_JOB_ID = "com.a207.runkk.extra.SELFIE_JOB_ID"
-    }
 }

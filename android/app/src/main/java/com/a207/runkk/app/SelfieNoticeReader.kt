@@ -1,18 +1,16 @@
 package com.a207.runkk.app
 
 import android.content.Intent
+import com.a207.runkk.app.core.model.SelfieNoticeIntent
 
 /**
- * 셀카 얼굴 결과 알림을 눌러 연 실행에서 작업 ID를 꺼낸다(design-oo 05-30 [임시:D-성-120], [임시:D-성-146]). 알림(data.push
- * SelfieNoticeTracker)이 앱 실행 인텐트에 [EXTRA_JOB_ID]를 싣는다. 읽은 값은 [consumed]로 비워 같은 인텐트로 두 번 열지 않는다.
- * app은 domain.avatar를 모르므로 키는 domain.avatar SelfieResultNotifier.EXTRA_JOB_ID와 같은 값을 둔다(시험이 같음을 본다).
+ * 셀카 얼굴 결과 알림을 눌러 연 실행인가(design-oo 05-30 [임시:D-성-120], [임시:D-성-160]). 알림(data.push SelfieNoticeTracker)이 앱 안
+ * 전용 동작 [SelfieNoticeIntent.ACTION_OPEN_RESULT]로 실행 화면을 연다. 동작만 보고 다른 값(엑스트라)은 믿지 않는다. 읽은 실행은
+ * [consumed]로 바꿔 같은 인텐트로 두 번 열지 않게 한다.
  */
 internal object SelfieNoticeReader {
-    const val EXTRA_JOB_ID = "com.a207.runkk.extra.SELFIE_JOB_ID"
+    fun read(intent: Intent?): Boolean = intent?.action == SelfieNoticeIntent.ACTION_OPEN_RESULT
 
-    /** 작업 ID. 없거나 비었으면 null. */
-    fun read(intent: Intent?): String? = intent?.getStringExtra(EXTRA_JOB_ID)?.takeIf { it.isNotBlank() }
-
-    /** 작업 ID를 뺀 인텐트(원본은 바꾸지 않는다). */
-    fun consumed(intent: Intent): Intent = Intent(intent).apply { removeExtra(EXTRA_JOB_ID) }
+    /** 동작을 앱 실행(MAIN)으로 바꾼 인텐트(원본은 바꾸지 않는다). Activity.setIntent로 바꿔 둔다. */
+    fun consumed(intent: Intent): Intent = Intent(intent).setAction(Intent.ACTION_MAIN)
 }

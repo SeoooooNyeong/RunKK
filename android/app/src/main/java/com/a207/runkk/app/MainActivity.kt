@@ -69,10 +69,10 @@ class MainActivity : ComponentActivity() {
     private var pendingBattleReturn by mutableStateOf<Long?>(null)
 
     /**
-     * 셀카 결과 알림을 눌러 열었을 때 얼굴 만들기 화면으로 갈 작업 ID([임시:D-성-146]). 인텐트에서 한 번 읽고 비운다. 로그인 뒤 홈 위에서
-     * 얼굴 만들기를 열면 비운다.
+     * 셀카 결과 알림을 눌러 열어 얼굴 만들기 화면으로 가야 하는가([임시:D-성-146], [임시:D-성-160]). 인텐트에서 한 번 읽고 비운다.
+     * 로그인 뒤 홈이 맨 위가 되면 얼굴 만들기를 열고 비운다.
      */
-    private var pendingSelfieResult by mutableStateOf<String?>(null)
+    private var pendingSelfieResult by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -119,7 +119,7 @@ class MainActivity : ComponentActivity() {
                         pendingBattleReturn = pendingBattleReturn,
                         onBattleReturnDone = { pendingBattleReturn = null },
                         pendingSelfieResult = pendingSelfieResult,
-                        onSelfieResultDone = { pendingSelfieResult = null },
+                        onSelfieResultDone = { pendingSelfieResult = false },
                         // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
                         // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
                         modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }
@@ -135,14 +135,14 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         takeInvite(intent)?.let { pendingInvite = it }
         takeBattleReturn(intent)?.let { pendingBattleReturn = it }
-        takeSelfieResult(intent)?.let { pendingSelfieResult = it }
+        if (takeSelfieResult(intent)) pendingSelfieResult = true
     }
 
-    /** 셀카 결과 알림 실행이면 작업 ID를 읽고 인텐트에서 비운다. */
-    private fun takeSelfieResult(intent: Intent): String? {
-        val jobId = SelfieNoticeReader.read(intent) ?: return null
-        setIntent(SelfieNoticeReader.consumed(getIntent()))
-        return jobId
+    /** 셀카 결과 알림 실행이면 참이고 인텐트의 동작을 비운다. */
+    private fun takeSelfieResult(intent: Intent): Boolean {
+        if (!SelfieNoticeReader.read(intent)) return false
+        setIntent(SelfieNoticeReader.consumed(intent))
+        return true
     }
 
     /** 대결 진행 알림 실행이면 대결 ID를 읽고 인텐트에서 비운다(S15P31A207-278). */

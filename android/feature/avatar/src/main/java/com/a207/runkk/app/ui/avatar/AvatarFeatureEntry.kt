@@ -1,7 +1,7 @@
 package com.a207.runkk.app.ui.avatar
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.navigation.FeatureEntry
@@ -33,13 +33,11 @@ class AvatarFeatureEntry @Inject constructor(private val store: MyAvatarStore) :
 
     /**
      * 미리 준비([임시:D-성-104]): RunkkNavHost는 로그인한 동안 Overlay를 늘 그리므로 로그인된 앱 시작과 로그인·가입 완료 뒤 한 번씩
-     * 데우고, 로그아웃으로 Overlay가 빠지면 비운다(앞 회원 그림을 다음 회원에게 보이지 않는다). 그리는 것은 없다.
+     * 데운다. 로그아웃 때 비우기는 저장소가 세션 상태로 한다(앞 회원 그림을 다음 회원에게 보이지 않는다). 그리는 것은 없다.
      */
     @Composable
     override fun Overlay(top: NavKey?) {
-        DisposableEffect(store) {
-            store.warm()
-            onDispose { store.clear() }
-        }
+        // 빠질 때(회전·구성 변경, 로그아웃) 비우지 않는다. 로그아웃은 저장소가 세션 상태를 보고 비운다(리뷰 R2-7, [임시:D-성-161]).
+        LaunchedEffect(store) { store.warm() }
     }
 }

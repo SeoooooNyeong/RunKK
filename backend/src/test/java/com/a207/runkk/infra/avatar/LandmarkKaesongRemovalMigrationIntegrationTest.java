@@ -158,6 +158,40 @@ class LandmarkKaesongRemovalMigrationIntegrationTest {
     }
 
     @Test
+    @DisplayName("다른 운영 기준값 행이 JSON이 아니어도 LANDMARKS 행만 읽어 실패하지 않는다(리뷰 R2-16)")
+    void ignoresNonJsonRowsOfOtherKeys() throws Exception {
+        jdbc.update(
+                "INSERT INTO operation_setting (setting_key, setting_value, version, updated_at)"
+                        + " VALUES ('ZZ_PLAIN_TEXT', 'not json at all', 0, ?)",
+                T0);
+        landmarks(
+                table(
+                        element("INCHEON", "인천", 60_000, true),
+                        element("KAESONG", "개성", 120_000, true)));
+
+        migrateTo("65");
+
+        assertThat(keysOf(stored())).containsExactly("INCHEON", "CHUNCHEON");
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT setting_value FROM operation_setting WHERE setting_key ="
+                                        + " 'ZZ_PLAIN_TEXT'",
+                                String.class))
+                .isEqualTo("not json at all");
+    }
+
+    @Test
+    @DisplayName("LANDMARKS 값이 JSON이 아니면 건드리지 않는다")
+    void leavesNonJsonLandmarksAlone() {
+        landmarks("not json");
+
+        migrateTo("65");
+
+        assertThat(stored()).isEqualTo("not json");
+        assertThat(storedVersion()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("150km보다 먼 원소가 없으면 끝에 넣고, CHUNCHEON이 이미 있으면 다시 넣지 않고 행도 바꾸지 않는다")
     void appendsAtEnd_andSkipsExistingChuncheon() throws Exception {
         landmarks(table(element("INCHEON", "인천", 60_000, true)));

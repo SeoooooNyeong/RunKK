@@ -1,9 +1,12 @@
 package com.a207.runkk.app.ui.avatar
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,8 +41,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -66,6 +72,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -77,6 +84,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.shouldAskNotificationPermission
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -115,6 +123,22 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
             if (bitmap == null) viewModel.onSelfieUnavailable() else viewModel.onSelfieCaptured(bitmap)
         }
     }
+    // 결과 알림을 받으려면 Android 13부터 알림 권한이 있어야 한다. 「만들기 시작」 직전에 이 화면에서 한 번 묻고, 거부해도 보낸다
+    // (결과는 화면·홈 배지로 본다, 리뷰 R2-12, [임시:D-성-160]).
+    var isNotificationAsked by rememberSaveable { mutableStateOf(false) }
+    val notificationPermission =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { viewModel.onStart() }
+    val start = {
+        val isGranted =
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+        if (shouldAskNotificationPermission(Build.VERSION.SDK_INT, isGranted, isNotificationAsked)) {
+            isNotificationAsked = true
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            viewModel.onStart()
+        }
+    }
     val openAlbum = {
         if (viewModel.onSelfieRequested()) {
             album.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
@@ -130,7 +154,7 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
             onCharacter = viewModel::onCharacterSelected,
             onSave = viewModel::onConfirmCharacter,
             onRepick = viewModel::onRepick,
-            onStart = viewModel::onStart,
+            onStart = start,
             onLater = navigator::back,
             onDoneConfirm = viewModel::onDoneConfirm,
             onRetry = {
@@ -723,33 +747,7 @@ private fun ColumnScope.FailedStep(state: AvatarSetupUiState, actions: AvatarSet
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(64.dp))
-        Box(Modifier.size(176.dp)) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(RunkkColors.SurfaceHigh)
-                    .alpha(FAILED_PHOTO_ALPHA)
-            ) {
-                SentPhoto(state.photo, stringResource(R.string.avatar_setup_sent_photo), Modifier.fillMaxSize()) {
-                    RunkkAvatarPortrait(
-                        state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY,
-                        emptyList(),
-                        Modifier.fillMaxSize()
-                    )
-                }
-            }
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(RunkkColors.Surface),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(RunkkIcons.Alert, null, Modifier.size(28.dp), tint = RunkkColors.Lavender)
-            }
-        }
+        FailedPhoto(state)
         Spacer(Modifier.height(44.dp))
         Text(
             stringResource(R.string.avatar_setup_failed_title),
@@ -771,33 +769,7 @@ private fun ColumnScope.FailedStep(state: AvatarSetupUiState, actions: AvatarSet
             )
         }
         Spacer(Modifier.height(24.dp))
-        val shape = RoundedCornerShape(16.dp)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(RunkkColors.Surface)
-                .border(1.dp, RunkkColors.Border, shape)
-                .padding(horizontal = 17.dp, vertical = 17.dp)
-                .semantics(mergeDescendants = true) {},
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(painterResource(R.drawable.avatar_ic_sparkle), null, Modifier.size(22.dp), tint = RunkkColors.Violet)
-            Text(
-                stringResource(R.string.avatar_setup_count_kept),
-                style = RunkkTextStyles.text(15, FontWeight.Medium),
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            if (state.canCreateSelfie) {
-                Text(
-                    stringResource(R.string.avatar_setup_selfie_count),
-                    style = RunkkTextStyles.text(15, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary
-                )
-            }
-        }
+        CountKeptRow(state.canCreateSelfie)
         Spacer(Modifier.height(16.dp))
     }
     BottomBar {
@@ -814,6 +786,70 @@ private fun ColumnScope.FailedStep(state: AvatarSetupUiState, actions: AvatarSet
                 icon = R.drawable.avatar_ic_image,
                 isEnabled = state.canCreateSelfie,
                 modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+/** 실패한 사진(흐림 + 오른쪽 아래 오류 표시). 사진이 없으면 지금 얼굴. */
+@Composable
+private fun FailedPhoto(state: AvatarSetupUiState) {
+    Box(Modifier.size(176.dp)) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(RunkkColors.SurfaceHigh)
+                .alpha(FAILED_PHOTO_ALPHA)
+        ) {
+            SentPhoto(state.photo, stringResource(R.string.avatar_setup_sent_photo), Modifier.fillMaxSize()) {
+                RunkkAvatarPortrait(
+                    state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY,
+                    emptyList(),
+                    Modifier.fillMaxSize()
+                )
+            }
+        }
+        Box(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(RunkkColors.Surface),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(RunkkIcons.Alert, null, Modifier.size(28.dp), tint = RunkkColors.Lavender)
+        }
+    }
+}
+
+/** 「오늘 횟수는 그대로예요」 줄(실패는 하루 횟수에 세지 않는다, FR-155). 오늘 더 만들 수 있으면 「1회」. */
+@Composable
+private fun CountKeptRow(canCreateSelfie: Boolean) {
+    val shape = RoundedCornerShape(16.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, shape)
+            .padding(horizontal = 17.dp, vertical = 17.dp)
+            .semantics(mergeDescendants = true) {},
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(painterResource(R.drawable.avatar_ic_sparkle), null, Modifier.size(22.dp), tint = RunkkColors.Violet)
+        Text(
+            stringResource(R.string.avatar_setup_count_kept),
+            style = RunkkTextStyles.text(15, FontWeight.Medium),
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.weight(1f)
+        )
+        if (canCreateSelfie) {
+            Text(
+                stringResource(R.string.avatar_setup_selfie_count),
+                style = RunkkTextStyles.text(15, FontWeight.Bold),
+                color = RunkkColors.TextPrimary
             )
         }
     }

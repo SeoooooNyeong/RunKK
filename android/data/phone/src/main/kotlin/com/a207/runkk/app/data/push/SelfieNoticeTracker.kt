@@ -11,11 +11,11 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.a207.runkk.app.core.model.SelfieNoticeIntent
 import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.avatar.SelfieResultNotifier
 import com.a207.runkk.app.domain.avatar.SelfieScreenPresence
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -24,10 +24,10 @@ import javax.inject.Singleton
  * 셀카 얼굴 결과 기기 알림(design-oo 05-30 [임시:D-성-120], [임시:DR-성-2], [임시:FR-성-21]). domain.avatar의 두 포트를 구현한다
  * (OpenChatRoomTracker 선례, D-130): 얼굴 만들기 화면이 열고 닫는 [SelfieScreenPresence]와 워커가 부르는 [SelfieResultNotifier].
  *
- * - 알림은 푸시와 같은 채널(`runkk-push`)에 작업마다 하나다. 누르면 앱을 열고 실행 인텐트에 작업 ID
- *   ([SelfieResultNotifier.EXTRA_JOB_ID])를 싣는다.
+ * - 알림은 푸시와 같은 채널(`runkk-push`)에 작업마다 하나다. 누르면 앱 안 전용 동작([SelfieNoticeIntent.ACTION_OPEN_RESULT])으로
+ *   앱을 연다([임시:D-성-160]).
  * - 내지 않는 때: 얼굴 만들기 화면이 보일 때, 앱이 앞에 있을 때(화면이 진행 표시로 바로 바뀐다), 알림 권한이 없을 때(Android 13부터).
- * - 같은 작업 ID로 두 번 불러도 한 번만 낸다(프로세스 안).
+ * - 같은 작업 ID로 두 번 불러도 한 번만 낸다(프로세스 안, 최근 [MAX_REMEMBERED]개). 안 낸 알림은 세지 않는다.
  */
 @Singleton
 class SelfieNoticeTracker
@@ -45,7 +45,15 @@ internal constructor(
     )
 
     private val openScreens = AtomicInteger(0)
-    private val notified: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** 이미 낸 작업 ID(최근 [MAX_REMEMBERED]개, 오래된 것부터 버린다). */
+    private val notified = object : LinkedHashSet<String>() {
+        fun remember(jobId: String): Boolean {
+            if (!add(jobId)) return false
+            while (size > MAX_REMEMBERED) remove(first())
+            return true
+        }
+    }
 
     override val isVisible: Boolean get() = openScreens.get() > 0
 
@@ -58,8 +66,9 @@ internal constructor(
     }
 
     override fun notify(jobId: String, succeeded: Boolean) {
-        if (!notified.add(jobId)) return
+        // 안 낸 알림은 낸 것으로 세지 않는다(뒤에 다시 부르면 낸다, 리뷰 R2-12).
         if (isVisible || isAppInForeground() || !canPost()) return
+        if (!synchronized(notified) { notified.remember(jobId) }) return
         val manager = context.getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(
             NotificationChannel(
@@ -68,10 +77,12 @@ internal constructor(
                 NotificationManager.IMPORTANCE_DEFAULT
             )
         )
+        // 앱 안 전용 동작으로 실행 화면을 연다(리뷰 R2-5). 읽는 쪽(MainActivity)은 동작만 본다.
         val launch =
             context.packageManager
                 .getLaunchIntentForPackage(context.packageName)
-                ?.putExtra(SelfieResultNotifier.EXTRA_JOB_ID, jobId)
+                ?.setAction(SelfieNoticeIntent.ACTION_OPEN_RESULT)
+                ?.setPackage(context.packageName)
         val content =
             launch?.let {
                 PendingIntent.getActivity(
@@ -103,6 +114,9 @@ internal constructor(
     internal companion object {
         const val CHANNEL_ID = "runkk-push"
         const val TAG = "selfie"
+
+        /** 기억할 낸 작업 수(하루 1회 셀카라 넉넉하다). */
+        const val MAX_REMEMBERED = 16
     }
 }
 

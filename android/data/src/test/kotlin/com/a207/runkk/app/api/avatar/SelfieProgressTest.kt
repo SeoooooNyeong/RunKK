@@ -34,7 +34,8 @@ class SelfieProgressTest {
     private val api = ApiTestServer()
     private val clock = FakeClock(5_000L)
     private val store = MemoryStore()
-    private val hub = SelfieProgressHub(store)
+    private val tokens = TestTokens(jwtOf("7"))
+    private val hub = SelfieProgressHub(store, SelfMember(tokens))
     private val repository = AvatarRepositoryImpl(api.retrofit.create(), api.faces, store, hub, clock)
 
     @AfterTest
@@ -54,6 +55,28 @@ class SelfieProgressTest {
         repository.dismissSelfieResult()
         assertEquals(SelfieProgress.None, repository.selfieProgress().first())
         assertNull(store.failure())
+    }
+
+    @Test
+    fun `회원이 바뀌거나 로그아웃하면 앞 회원의 성공·실패·만드는 중을 보이지 않는다(리뷰 R2-1)`() = runTest {
+        api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
+        repository.submitSelfie(byteArrayOf(1))
+        api.reply("""{"headId":"h-1","faceImage":"data:image/png;base64,AAAA"}""")
+        api.reply("""{"faceKey":"head:7:job-1","bodyShape":"STAGE1","skinTone":"DAYTIME"}""")
+        repository.finishSelfie("job-1")
+        assertEquals(SelfieProgress.Succeeded("job-1", "head:7:job-1"), repository.selfieProgress().first())
+
+        tokens.access = null
+        assertEquals(SelfieProgress.None, repository.selfieProgress().first(), "로그아웃")
+
+        tokens.access = jwtOf("8")
+        assertEquals(SelfieProgress.None, repository.selfieProgress().first(), "다른 회원")
+
+        store.saveFailure(com.a207.runkk.app.domain.avatar.SelfieFailure("job-9", null))
+        hub.sync()
+        tokens.access = jwtOf("7")
+        store.clearFailure()
+        assertEquals(SelfieProgress.None, repository.selfieProgress().first(), "앞 회원 실패도 다시 읽는다")
     }
 
     @Test
