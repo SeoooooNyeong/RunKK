@@ -46,7 +46,15 @@ class SkinToneLayeringTest {
         val body = png(256, 768) { bitmap -> fill(bitmap, 0..255, 0..765, SKIN) }
         val shorts = png(256, 768) { bitmap -> fill(bitmap, 0..255, 0..200, SHIRT) }
         val rendered =
-            decode(OutfitLayerComposer.compose(body, listOf(shorts), amount = 100, width = 256, height = 768))
+            decode(
+                OutfitLayerComposer.compose(
+                    body,
+                    listOf(OutfitPart.BOTTOM to shorts),
+                    amount = 100,
+                    width = 256,
+                    height = 768
+                )
+            )
 
         assertEquals(SHIRT, rendered.getPixel(10, 10), "옷")
         assertNear(Color.rgb(170, 90, 51), rendered.getPixel(120, 350), "피부")

@@ -10,8 +10,8 @@ import pytest
 from PIL import Image
 
 from outfit_pipeline import spec
-from outfit_pipeline.build import build_bundle, clip, extract, make_shop, update_index
-from outfit_pipeline.check import check_all, check_bundle, check_shop
+from outfit_pipeline.build import build_bundle, clip, cut_area, extract, make_shop, update_index
+from outfit_pipeline.check import check_all, check_bundle, check_shop, read_index
 from outfit_pipeline.cli import MASKS, OUTFITS, RAW
 from outfit_pipeline.masks import load_mask, stand_zones, uv_mask
 from outfit_pipeline.riv import read_scene
@@ -67,43 +67,43 @@ def _bundle(tmp: Path, key: str) -> Path:
     return outfits
 
 
+def _entry(key: str) -> dict:
+    return next(e for e in read_index(OUTFITS)["outfits"] if e["assetKey"] == key)
+
+
 def test_check_rejects_forbidden_pixels_bad_names_and_sizes(tmp_path: Path) -> None:
     outfits = _bundle(tmp_path, "base_bottom")
-    entry = {"assetKey": "base_bottom", "part": "BOTTOM", "bodyOverrides": []}
+    entry = _entry("base_bottom")
     assert check_bundle(outfits, entry, MASKS) == []
-    layer = Image.open(outfits / "base_bottom/female_stand.png").convert("RGBA")
+    layer = Image.open(outfits / "base_bottom/female_stand.webp").convert("RGBA")
     layer.putpixel((256, 100), (255, 0, 0, 255))  # 상의 칸
-    layer.save(outfits / "base_bottom/female_stand.png")
-    Image.new("RGBA", (100, 100)).save(outfits / "base_bottom/male_run_leg.png")
-    Image.new("RGBA", (256, 768)).save(outfits / "base_bottom/female_run_arm.png")
+    spec.save_webp(layer, outfits / "base_bottom/female_stand.webp")
+    spec.save_webp(Image.new("RGBA", (100, 100)), outfits / "base_bottom/female_run_leg.webp")
+    spec.save_webp(Image.new("RGBA", (256, 768)), outfits / "base_bottom/female_run_arm.webp")
     rules = sorted({p.rule for p in check_bundle(outfits, entry, MASKS)})
     assert rules == [2, 3, 6]
 
 
-def test_check_requires_male_top_surface_and_files(tmp_path: Path) -> None:
+def test_check_requires_male_top_surface_files_and_valid_shared(tmp_path: Path) -> None:
     outfits = _bundle(tmp_path, "base_top")
-    (outfits / "base_top/male_run_arm.png").unlink()
-    entry = {"assetKey": "base_top", "part": "TOP", "bodyOverrides": ["female_stand_b2"]}
+    (outfits / "base_top/female_run_arm.webp").unlink()  # 남자도 이 파일을 함께 쓴다
+    entry = {**_entry("base_top"), "bodyOverrides": ["female_stand_b2"]}
+    entry.pop("maleTopSurface")
     rules = sorted({p.rule for p in check_bundle(outfits, entry, MASKS)})
     assert rules == [1, 8]
+    bad = {**_entry("base_top"), "shared": {"female_stand": "male_stand"}}  # 있는 파일을 공용 이름으로
+    assert 6 in {p.rule for p in check_bundle(_bundle(tmp_path / "b", "base_top"), bad, MASKS)}
 
 
-def test_shop_image_is_cropped_and_centered() -> None:
-    stand = Image.open(OUTFITS / "top_crew_tee/female_stand.png")
+def test_shop_image_is_cropped_and_centered(tmp_path: Path) -> None:
+    stand = Image.open(OUTFITS / "top_crew_tee/female_stand.webp").convert("RGBA")
     shop = make_shop(stand)
     assert shop.size == (512, 512)
     box = shop.getchannel("A").getbbox()
     assert box is not None and max(box[2] - box[0], box[3] - box[1]) == spec.SHOP_LONG_SIDE
-    assert check_shop_ok(shop)
-
-
-def check_shop_ok(image: Image.Image, tmp: Path | None = None) -> bool:
-    path = Path(__file__).parent / "_shop.png"
-    image.save(path)
-    try:
-        return check_shop(path) == []
-    finally:
-        path.unlink()
+    path = tmp_path / spec.SHOP_FILE
+    spec.save_webp(shop, path)
+    assert check_shop(path) == []
 
 
 def test_clip_and_extract_keep_only_garment_inside_allowed_area() -> None:
@@ -120,24 +120,48 @@ def test_clip_and_extract_keep_only_garment_inside_allowed_area() -> None:
     assert clip(faint, Image.new("L", (4, 4), 255)).getchannel("A").getbbox() is None
 
 
-def test_build_bundle_writes_files_shop_and_index(tmp_path: Path) -> None:
+def test_build_bundle_writes_lossless_webp_shop_index_and_shares_same_genders(tmp_path: Path) -> None:
     source = tmp_path / "src/base_shoes"
     source.mkdir(parents=True)
+    entry = _entry("base_shoes")
     for name in ("female_stand", "male_stand", "female_run_shoe", "male_run_shoe"):
-        image = Image.open(OUTFITS / f"base_shoes/{name}.png")
-        image.resize((image.width * 2, image.height * 2)).save(source / f"{name}.png")  # 2배로 그린 원본
+        image = Image.open(OUTFITS / "base_shoes" / f"{entry.get('shared', {}).get(name, name)}.webp").convert("RGBA")
+        image.resize((image.width * 2, image.height * 2), Image.Resampling.NEAREST).save(source / f"{name}.png")
     (source / "notes.png").write_bytes(b"")  # 규칙 밖 이름은 무시
     outfits = tmp_path / "outfits"
     (outfits / spec.BODY_FOLDER).mkdir(parents=True)
-    entry, problems = build_bundle(source, outfits, MASKS, "base_shoes")
+    built, problems = build_bundle(source, outfits, MASKS, "base_shoes")
     assert problems == []
-    assert entry == {"assetKey": "base_shoes", "part": "SHOES", "bodyOverrides": []}
-    assert Image.open(outfits / "base_shoes/female_stand.png").size == (512, 768)
-    assert (outfits / "base_shoes/shop.png").is_file()
-    update_index(outfits, entry)
+    assert built["shared"] == {"male_run_shoe": "female_run_shoe", "male_stand": "female_stand"}
+    assert not (outfits / "base_shoes/male_stand.webp").exists()
+    assert Image.open(outfits / "base_shoes/female_stand.webp").size == (512, 768)
+    assert (outfits / "base_shoes" / spec.SHOP_FILE).is_file()
+    update_index(outfits, built)
     update_index(outfits, {"assetKey": "base_top", "part": "TOP", "maleTopSurface": 1, "bodyOverrides": []})
-    keys = [e["assetKey"] for e in json.loads((outfits / "index.json").read_text(encoding="utf-8"))["outfits"]]
-    assert keys == ["base_top", "base_shoes"]
+    update_index(outfits, body_shared={"male_stand": "female_stand"})
+    index = json.loads((outfits / "index.json").read_text(encoding="utf-8"))
+    assert [e["assetKey"] for e in index["outfits"]] == ["base_top", "base_shoes"]
+    assert index["version"] == 2 and index["body"] == {"shared": {"male_stand": "female_stand"}}
+
+
+def test_webp_is_lossless(tmp_path: Path) -> None:
+    image = Image.open(OUTFITS / "top_crew_tee/female_stand.webp").convert("RGBA")
+    spec.save_webp(image, tmp_path / "x.webp")
+    import numpy as np
+
+    assert np.array_equal(np.array(Image.open(tmp_path / "x.webp").convert("RGBA")), np.array(image))
+
+
+def test_cut_area_keeps_hands_and_neck() -> None:
+    area = cut_area(RAW, "stand")
+    assert area.getpixel((256, 150)) == spec.CUT_TORSO  # 몸통
+    assert area.getpixel((120, 60)) == spec.CUT_TORSO  # 어깨
+    assert area.getpixel((256, 40)) == 0  # 목·가슴 위
+    assert area.getpixel((40, 350)) == 0  # 손 칸
+    assert area.getpixel((256, 500)) == 0  # 하의 칸
+    run_body = cut_area(RAW, "run_body")
+    assert run_body.getpixel((150, 20)) == 0 and run_body.getpixel((128, 200)) == spec.CUT_ALL
+    assert area.getpixel((60, 300)) == spec.CUT_LEFT_ARM and area.getpixel((450, 300)) == spec.CUT_RIGHT_ARM
 
 
 @pytest.mark.parametrize("key", ["top_cherry_vest", "top_lime_singlet", "base_top"])
