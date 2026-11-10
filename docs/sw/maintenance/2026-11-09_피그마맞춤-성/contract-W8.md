@@ -96,22 +96,22 @@
 |---|---|
 | `V62__shop_items_seed.sql` | 운영 기준값 `SHOP_ITEMS` 행이 **없을 때만** 기본 상점 목록(16개, 그림 키·해금 조건 포함)을 넣는다. 운영자가 이미 넣은 목록은 건드리지 않는다. local 프로필(H2)은 `import-local.sql`에 같은 행을 넣는다 |
 
-V62 기본 목록(앱 그림 리소스 대응표의 기준):
+V62 기본 목록(앱 그림 리소스 대응표의 기준). 이름은 앱이 실제로 그리는 Rive 의상 모양에 맞춰 고쳤다(2026-11-10, 실기기 2차 시험 관찰, 6.3, [임시:D-성-92]):
 
 | itemId | slot | name | price | assetKey | 해금 조건(문구) |
 |---|---|---|---|---|---|
-| 1 | TOP | 라임 싱글렛 | 300 | `top_lime_singlet` | - |
+| 1 | TOP | 민트 싱글렛 | 300 | `top_lime_singlet` | - |
 | 2 | TOP | 새벽 바람막이 | 500 | `top_dawn_windbreaker` | - |
-| 3 | TOP | 크루 티셔츠 | 300 | `top_crew_tee` | - |
+| 3 | TOP | 크루 카라티 | 300 | `top_crew_tee` | - |
 | 4 | TOP | 겨울 후디 | 700 | `top_winter_hoodie` | - |
-| 5 | TOP | 체리 조끼 | 400 | `top_cherry_vest` | - |
-| 6 | TOP | 완주 기념 티 | 300 | `top_finisher_tee` | LONGEST_RUN 21097 "하프 완주하면 열려요" |
+| 5 | TOP | 코랄 집업 후드 | 400 | `top_cherry_vest` | - |
+| 6 | TOP | 완주 기념 맨투맨 | 300 | `top_finisher_tee` | LONGEST_RUN 21097 "하프 완주하면 열려요" |
 | 11 | BOTTOM | 러닝 반바지 | 300 | `bottom_running_shorts` | - |
 | 12 | BOTTOM | 조거 팬츠 | 500 | `bottom_jogger_pants` | - |
 | 13 | BOTTOM | 러닝 레깅스 | 400 | `bottom_leggings` | - |
-| 21 | SHOES | 기본 러닝화 | 400 | `shoes_basic_runner` | - |
-| 22 | SHOES | 라임 러닝화 | 600 | `shoes_lime_runner` | - |
-| 23 | SHOES | 카본 레이싱화 | 900 | `shoes_carbon_racer` | TOTAL_DISTANCE 100000 "누적 100km 달리면 열려요" |
+| 21 | SHOES | 캔버스 로우탑 | 400 | `shoes_basic_runner` | - |
+| 22 | SHOES | 코랄 러닝화 | 600 | `shoes_lime_runner` | - |
+| 23 | SHOES | 트레일 러닝화 | 900 | `shoes_carbon_racer` | TOTAL_DISTANCE 100000 "누적 100km 달리면 열려요" |
 | 31 | HAT | 러닝 캡 | 200 | `hat_running_cap` | - |
 | 32 | HAT | 헤어밴드 | 200 | `hat_headband` | - |
 | 33 | HAT | 비니 | 300 | `hat_beanie` | - |
@@ -279,13 +279,15 @@ E6 잠긴 아이템 구매: `409 {"code": "ITEM_LOCKED", "message": "아직 해�
 
 옆모습이 없는 예전 얼굴은 위에서 `frontImage`~`rightLayerLayout` 6개가 통째로 빠진다. `mobile.skinColor`·`mobile.neckMask`는 `null`이거나 없을 수 있다(ai가 준 그대로). 앱 렌더러(`GeneratedHeadLayers.fromHeadJson`)는 `rightFaceImage`·`rightEyesImage`·`rightHairImage`가 모두 있어야 셀카 옆모습을 쓰고, `frontImage`·`rightImage`는 있으면 쓴다. 같은 모양을 `GET /avatar/selfie/latest`, `GET /avatar/selfie/jobs/{jobId}/result`도 돌려준다.
 
-### 6.3 의상 대응표 (assetKey → Rive 의상 번호, 제안)
+### 6.3 의상 대응표 (assetKey → Rive 의상 번호, 2026-11-10 확정)
+
+처음 제안표는 그림 키를 번호 1부터 차례로 놓아 이름과 그려지는 모양이 달랐다(실기기 2차 시험: 「라임 러닝화」가 파란 하이탑, 「조거 팬츠」가 레깅스). 번호별 실제 의상(core/avatar `avatar_outfit_*_names`, TopTypes·BottomTypes·FootwearTypes 색·모양)에 맞춰 고쳤고, 맞는 그림이 없는 이름은 V62에서 바꿨다([임시:D-성-92]). 칸은 「실제 의상 / 그림 키」다.
 
 | 부위 | 0 | 1 | 2 | 3 | 4 | 5 | 6 |
 |---|---|---|---|---|---|---|---|
-| 상의(TOP) | 기본 흰 반팔티 | `top_lime_singlet` | `top_dawn_windbreaker` | `top_crew_tee` | `top_winter_hoodie` | `top_cherry_vest` | `top_finisher_tee` |
-| 하의(BOTTOM) | 기본 검은 반바지 | `bottom_running_shorts` | `bottom_jogger_pants` | `bottom_leggings` | (비어 있음) | (비어 있음) | (비어 있음) |
-| 신발(SHOES) | 기본 흰 신발 | `shoes_basic_runner` | `shoes_lime_runner` | `shoes_carbon_racer` | (비어 있음) | (비어 있음) | (비어 있음) |
+| 상의(TOP) | 기본 흰 반팔티 | 민소매(청록) / `top_lime_singlet` | 카라티(파랑) / `top_crew_tee` | 긴팔 맨투맨(살구) / `top_finisher_tee` | 후드티(라벤더) / `top_winter_hoodie` | 집업 재킷(초록) / `top_dawn_windbreaker` | 코랄 집업 후드 / `top_cherry_vest` |
+| 하의(BOTTOM) | 기본 검은 반바지 | 러닝 쇼츠(남색) / `bottom_running_shorts` | 레깅스 / `bottom_leggings` | 조거 팬츠(회녹) / `bottom_jogger_pants` | 와이드 팬츠 / (비어 있음) | 카고 쇼츠 / (비어 있음) | 라인 쇼츠 / (비어 있음) |
+| 신발(SHOES) | 기본 흰 신발 | 로우탑(벽돌색 캔버스) / `shoes_basic_runner` | 하이탑(남색) / (비어 있음) | 트레일 러너(청록) / `shoes_carbon_racer` | 슬립온 / (비어 있음) | 앵클 부츠 / (비어 있음) | 코랄 스니커즈 / `shoes_lime_runner` |
 
 Rive 의상 그림 1~6이 실제로 어떤 옷인지에 맞춰 B단계가 이 표를 고친다. 서버는 의상 번호를 모르고 `assetKey`만 준다(그림 번호를 바꿔도 서버 배포가 필요 없다).
 
