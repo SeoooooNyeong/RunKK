@@ -2006,6 +2006,9 @@
     }, {
       "name" : "shownGender",
       "kind" : "leaf"
+    }, {
+      "name" : "distanceMeters",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewScheduleDtos.java"
   },

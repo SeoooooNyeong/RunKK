@@ -109,6 +109,7 @@
 | me | boolean | 아니오 | 나("나" Bold) |
 | faceKey | String | 예 | 아바타 얼굴 키(대기실과 같은 값), 없으면 null |
 | shownGender | String | 예 | `MALE` \| `FEMALE`, 탈퇴·미공개면 null |
+| distanceMeters | Long | 예 | 마친(`FINISHED`) 크루런에서 그 참석자가 달린 거리(결과 화면과 같은 규칙: 연결 기록 → 끝낼 때 남긴 값). 마치지 않았거나 달리지 않았거나 값이 없으면 null(실기기 결함 [임시:DV-성-2], F-11d 참석자 줄 오른쪽, [임시:FR-성-8]) |
 
 `CrewScheduleDtos.PastCrewRunsResponse`
 
@@ -205,6 +206,15 @@ V58은 쓰지 않았다(참석 응답 값을 남기기로 해 CHECK를 바꾸지
     {"memberId": 9, "displayName": "새벽러너", "author": false, "me": false, "faceKey": null, "shownGender": null}
   ]
 }
+```
+
+마친 크루런(`"status": "FINISHED"`)이면 참석자에 달린 거리가 붙는다(달리지 않은 참석자는 null).
+
+```json
+"attendees": [
+  {"memberId": 3, "displayName": "달리는곰", "author": true, "me": true, "faceKey": "face_03", "shownGender": "MALE", "distanceMeters": 5120},
+  {"memberId": 9, "displayName": "새벽러너", "author": false, "me": false, "faceKey": null, "shownGender": null, "distanceMeters": null}
+]
 ```
 
 `PATCH /api/v1/crew-runs/42`

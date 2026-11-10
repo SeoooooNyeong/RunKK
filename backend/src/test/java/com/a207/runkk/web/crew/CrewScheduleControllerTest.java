@@ -148,7 +148,8 @@ class CrewScheduleControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.repeatDayOfWeek").value(at.getDayOfWeek().name()))
                 .andExpect(jsonPath("$.attendees[0].memberId").value(c.l().memberId()))
                 .andExpect(jsonPath("$.attendees[0].author").value(true))
-                .andExpect(jsonPath("$.attendees[0].me").value(false));
+                .andExpect(jsonPath("$.attendees[0].me").value(false))
+                .andExpect(jsonPath("$.attendees[0].distanceMeters").doesNotExist());
         JsonNode detail = json(call(c.l(), get(path), null));
         assertThat(OffsetDateTime.parse(detail.get("scheduledAt").asText()).toInstant())
                 .isEqualTo(at.toInstant());

@@ -2,6 +2,7 @@ package com.a207.runkk.crew;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,7 @@ public class CrewScheduleService {
     private final CrewAccess crewAccess;
     private final CrewRunRepeater repeater;
     private final MemberQueryService memberQueryService;
+    private final CrewRunHistory history;
     private final CrewTransactions transactions;
     private final Clock clock;
 
@@ -40,12 +43,14 @@ public class CrewScheduleService {
             CrewAccess crewAccess,
             CrewRunRepeater repeater,
             MemberQueryService memberQueryService,
+            CrewRunHistory history,
             CrewTransactions transactions,
             Clock clock) {
         this.crewPostRepository = crewPostRepository;
         this.crewAccess = crewAccess;
         this.repeater = repeater;
         this.memberQueryService = memberQueryService;
+        this.history = history;
         this.transactions = transactions;
         this.clock = clock;
     }
@@ -147,8 +152,12 @@ public class CrewScheduleService {
                         .toList();
         Map<Long, MemberSummary> names = memberQueryService.summaries(ids);
         Map<Long, Gender> genders = memberQueryService.shownGendersOf(ids);
+        Function<CrewRunParticipation, Optional<Distance>> distances =
+                history.attendeeDistances(post);
         List<CrewRunDetailView.Attendee> attendees =
-                going.stream().map(p -> attendee(p, post, viewerId, names, genders)).toList();
+                going.stream()
+                        .map(p -> attendee(p, post, viewerId, names, genders, distances))
+                        .toList();
         Optional<CrewRunSeries> series = repeater.repeatingSeriesOf(post, now);
         boolean mine = Objects.equals(post.authorId(), viewerId);
         return new CrewRunDetailView(
@@ -178,7 +187,8 @@ public class CrewScheduleService {
             CrewRunPost post,
             long viewerId,
             Map<Long, MemberSummary> names,
-            Map<Long, Gender> genders) {
+            Map<Long, Gender> genders,
+            Function<CrewRunParticipation, Optional<Distance>> distances) {
         Long id = p.memberId().orElse(null);
         Gender gender = id == null ? null : genders.get(id);
         return new CrewRunDetailView.Attendee(
@@ -186,7 +196,8 @@ public class CrewScheduleService {
                 nameOf(names, id),
                 id != null && id.equals(post.authorId()),
                 id != null && id == viewerId,
-                gender == null ? null : gender.name());
+                gender == null ? null : gender.name(),
+                distances.apply(p).orElse(null));
     }
 
     /** 참석(GOING) 참여: 작성자가 참석 중이면 맨 앞, 나머지는 응답 순(참여 ID 순, 안정 정렬). */

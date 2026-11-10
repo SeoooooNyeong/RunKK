@@ -94,4 +94,41 @@ class CrewRunHistoryTest {
         verify(runs, never()).summariesOf(anyCollection());
         verify(runs, never()).findSummary(any());
     }
+
+    @Test
+    @DisplayName("마친 크루런 참석자 거리(DV-성-2): 기록 → 끝낸 값 → 없음, 달리지 않은 참석자는 없음, 기록은 한 번에 읽는다")
+    void attendeeDistances_finished() {
+        CrewRunPost post = run(5, "r5", 900L);
+        post.answer(11L, AttendanceAnswer.GOING, NOW);
+        post.answer(12L, AttendanceAnswer.GOING, NOW);
+        post.answer(13L, AttendanceAnswer.GOING, NOW);
+        CrewRunParticipation ended = post.participationOf(11L).orElseThrow();
+        ended.markRunner();
+        ended.end(Distance.ofMeters(1_200), Duration.ofMinutes(10));
+        post.participationOf(12L).orElseThrow().markRunner();
+        ReflectionTestUtils.setField(post, "status", CrewRunStatus.FINISHED);
+        when(runs.summariesOf(anyCollection())).thenReturn(Map.of("r5", summary("r5", 5_000)));
+
+        var distances = history.attendeeDistances(post);
+
+        assertThat(distances.apply(post.participationOf(LEADER).orElseThrow()))
+                .contains(Distance.ofMeters(5_000));
+        assertThat(distances.apply(ended)).contains(Distance.ofMeters(1_200));
+        assertThat(distances.apply(post.participationOf(12L).orElseThrow()))
+                .as("달렸지만 기록·끝낸 값이 없음")
+                .isEmpty();
+        assertThat(distances.apply(post.participationOf(13L).orElseThrow()))
+                .as("참석만 하고 달리지 않음")
+                .isEmpty();
+        verify(runs, times(1)).summariesOf(anyCollection());
+    }
+
+    @Test
+    @DisplayName("마치지 않은 크루런은 참석자 거리를 주지 않고 기록도 읽지 않는다(DV-성-2)")
+    void attendeeDistances_notFinished() {
+        CrewRunPost post = run(6, "r6", 900L);
+
+        assertThat(history.attendeeDistances(post).apply(post.participations().get(0))).isEmpty();
+        verify(runs, never()).summariesOf(anyCollection());
+    }
 }

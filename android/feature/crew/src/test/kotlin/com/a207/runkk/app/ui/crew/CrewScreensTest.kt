@@ -746,6 +746,36 @@ class CrewScreenshotTest {
     }
 
     @Test
+    fun crewRunPastDetail() = compose.captureRunkkScreen("F11d_crew_run_past_detail") {
+        CrewRunDetailScreen(
+            CrewRunDetailUiState(
+                postId = 42,
+                detail = pastCrewRunDetail,
+                now = crewRunDetail.writtenAt.plusSeconds(7_200)
+            ),
+            CrewRunDetailActions()
+        )
+    }
+
+    @Test
+    fun `지난 크루런 상세는 참석자 줄 오른쪽에 달린 거리를 보이고 달리지 않았으면 비운다(F-11d, FR-성-8, DV-성-2)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewRunDetailScreen(
+                    CrewRunDetailUiState(
+                        postId = 42,
+                        detail = pastCrewRunDetail,
+                        now = crewRunDetail.writtenAt.plusSeconds(7_200)
+                    ),
+                    CrewRunDetailActions()
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("바람처럼, 작성자, 5.12km").assertExists()
+        compose.onNodeWithContentDescription("달빛").assertExists()
+    }
+
+    @Test
     fun crewRunDeleteConfirm() = compose.captureRunkkScreen("G3_crew_run_delete_confirm", isDarkTheme = false) {
         CrewRunDetailScreen(
             CrewRunDetailUiState(

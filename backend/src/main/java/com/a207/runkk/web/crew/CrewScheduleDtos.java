@@ -143,7 +143,10 @@ final class CrewScheduleDtos {
                                                     a.memberId() == null
                                                             ? null
                                                             : faceKeys.get(a.memberId()),
-                                                    a.shownGender()))
+                                                    a.shownGender(),
+                                                    a.distance() == null
+                                                            ? null
+                                                            : a.distance().meters()))
                             .toList());
         }
 
@@ -156,6 +159,8 @@ final class CrewScheduleDtos {
          * @param me 나
          * @param faceKey 아바타 얼굴 키(대기실과 같은 값), 없으면 null
          * @param shownGender 표시 성별(MALE·FEMALE), 없으면 null
+         * @param distanceMeters 마친(FINISHED) 크루런에서 달린 거리(결과 화면과 같은 규칙: 연결 기록 → 끝낸 값), 마치지 않았거나 달리지
+         *     않았으면 null
          */
         record Attendee(
                 Long memberId,
@@ -163,7 +168,8 @@ final class CrewScheduleDtos {
                 boolean author,
                 boolean me,
                 String faceKey,
-                String shownGender) {}
+                String shownGender,
+                Long distanceMeters) {}
     }
 
     /**

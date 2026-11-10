@@ -1,6 +1,7 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.DisplayName;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.StandardDistance;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
@@ -62,7 +63,13 @@ public record CrewRunDetailView(
      * @param author 작성자
      * @param me 열람자 본인
      * @param shownGender 표시 성별(MALE·FEMALE), 없으면 null
+     * @param distance 마친 크루런에서 달린 거리(결과 화면과 같은 규칙: 연결 기록 → 끝낸 값), 마치지 않았거나 달리지 않았으면 null
      */
     public record Attendee(
-            Long memberId, DisplayName name, boolean author, boolean me, String shownGender) {}
+            Long memberId,
+            DisplayName name,
+            boolean author,
+            boolean me,
+            String shownGender,
+            Distance distance) {}
 }

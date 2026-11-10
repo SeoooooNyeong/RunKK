@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -49,6 +50,7 @@ import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
@@ -324,12 +326,17 @@ private fun WeeklyBadge() {
     )
 }
 
-/** 참석자 줄(피그마: 높이 45, 간격 12, 아래 구분선): 아바타 32, 이름(나는 "나" Bold), 작성자면 뒤에 "작성자" 12. */
+/**
+ * 참석자 줄(피그마: 높이 45, 간격 12, 아래 구분선): 아바타 32, 이름(나는 "나" Bold), 작성자면 뒤에 "작성자" 12. 마친 크루런이면 오른쪽에
+ * 그 사람이 달린 거리(F-11d, FR-성-8), 달리지 않았으면 비운다.
+ */
 @Composable
 private fun AttendeeRow(attendee: CrewRunDetail.Attendee) {
     val name = if (attendee.isMe) stringResource(R.string.crew_member_me) else attendee.displayName
     val authorTag = stringResource(R.string.crew_run_detail_author)
-    val spoken = if (attendee.isAuthor) stringResource(R.string.crew_run_detail_attendee_author, name) else name
+    val ran = attendee.distance?.let { stringResource(R.string.crew_contribution_km, RunkkFormat.km(it)) }
+    val base = if (attendee.isAuthor) stringResource(R.string.crew_run_detail_attendee_author, name) else name
+    val spoken = if (ran == null) base else stringResource(R.string.crew_run_detail_attendee_distance, base, ran)
     Column {
         Row(
             modifier = Modifier
@@ -361,6 +368,14 @@ private fun AttendeeRow(attendee: CrewRunDetail.Attendee) {
             )
             if (attendee.isAuthor) {
                 Text(authorTag, style = RunkkTextStyles.text(12, lineHeight = 14), color = RunkkColors.TextSecondary)
+            }
+            if (ran != null) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    ran,
+                    style = RunkkTextStyles.text(15, FontWeight.Medium, lineHeight = 18),
+                    color = RunkkColors.TextPrimary
+                )
             }
         }
         HorizontalDivider(color = RunkkColors.Border)

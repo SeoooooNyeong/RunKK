@@ -28,7 +28,10 @@ internal data class CrewRunDetailResponse(
     val repeatDayOfWeek: String? = null,
     val attendees: List<Attendee> = emptyList()
 ) {
-    /** 참석자. memberId는 탈퇴했으면 null, shownGender는 MALE·FEMALE이거나 null. */
+    /**
+     * 참석자. memberId는 탈퇴했으면 null, shownGender는 MALE·FEMALE이거나 null. distanceMeters는 마친 크루런에서 달린 거리(결과 화면과 같은
+     * 규칙: 연결 기록 → 끝낸 값), 마치지 않았거나 달리지 않았으면 null(DV-성-2).
+     */
     @Serializable
     data class Attendee(
         val memberId: Long? = null,
@@ -36,6 +39,7 @@ internal data class CrewRunDetailResponse(
         val author: Boolean = false,
         val me: Boolean = false,
         val faceKey: String? = null,
-        val shownGender: String? = null
+        val shownGender: String? = null,
+        val distanceMeters: Long? = null
     )
 }

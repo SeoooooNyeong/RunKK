@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Component;
 
@@ -49,6 +50,25 @@ class CrewRunHistory {
         return posts.stream().map(post -> summaryOf(post, summaries)).toList();
     }
 
+    /**
+     * 마친(FINISHED) 크루런 상세의 참석자별 달린 거리(F-11d, FR-성-8, DV-성-2). 결과 화면과 같은 규칙이다: 진행 참가자의 연결 기록 거리 → 끝낼
+     * 때 남긴 거리 → 없음. 달리지 않은 참석자와 마치지 않은 크루런은 없음이다. 연결 기록 요약은 한 번에 읽는다.
+     */
+    Function<CrewRunParticipation, Optional<Distance>> attendeeDistances(CrewRunPost post) {
+        if (post.status() != CrewRunStatus.FINISHED) {
+            return p -> Optional.empty();
+        }
+        Set<String> recordIds =
+                post.participations().stream()
+                        .filter(CrewRunParticipation::isRunner)
+                        .map(CrewRunHistory::countedRecordId)
+                        .flatMap(Optional::stream)
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<String, RunSummary> summaries =
+                recordIds.isEmpty() ? Map.of() : runQueryService.summariesOf(recordIds);
+        return p -> p.isRunner() ? runDistanceOf(p, summaries) : Optional.empty();
+    }
+
     private static CrewDetailView.RecentCrewRun summaryOf(
             CrewRunPost post, Map<String, RunSummary> summaries) {
         List<CrewRunParticipation> runners =
@@ -68,10 +88,15 @@ class CrewRunHistory {
 
     /** 연결된 기록(탈퇴하지 않은 참가자의 것) → 끝낼 때 남긴 값 → 0. 지워진 기록은 끝낸 값으로 넘어간다. */
     private static Distance distanceOf(CrewRunParticipation p, Map<String, RunSummary> summaries) {
+        return runDistanceOf(p, summaries).orElse(Distance.ZERO);
+    }
+
+    /** 연결된 기록(탈퇴하지 않은 참가자의 것) → 끝낼 때 남긴 값 → 없음. */
+    private static Optional<Distance> runDistanceOf(
+            CrewRunParticipation p, Map<String, RunSummary> summaries) {
         return countedRecordId(p)
                 .map(summaries::get)
                 .map(RunSummary::distance)
-                .or(p::finalDistance)
-                .orElse(Distance.ZERO);
+                .or(p::finalDistance);
     }
 }

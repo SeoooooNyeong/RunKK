@@ -100,7 +100,8 @@ class CrewRepositoryImplTest {
                |"writtenAt":"2026-10-21T10:12:00+09:00","scheduledAt":"2026-10-24T07:00:00+09:00",
                |"voteDeadline":"2026-10-24T07:00:00+09:00","status":"VOTING","goingCount":1,"myAnswer":"GOING",
                |"canEdit":true,"canDelete":true,"repeat":"WEEKLY","repeatDayOfWeek":"SATURDAY",
-               |"attendees":[{"memberId":3,"displayName":"곰","author":true,"me":true,"faceKey":null,"shownGender":"MALE"}]}
+               |"attendees":[{"memberId":3,"displayName":"곰","author":true,"me":true,"faceKey":null,"shownGender":"MALE",
+               |"distanceMeters":3200},{"memberId":4,"displayName":"범","author":false,"me":false}]}
             """.trimMargin()
         api.reply(detailJson)
         val detail = repository.crewRun(42).value()
@@ -110,9 +111,17 @@ class CrewRepositoryImplTest {
         assertEquals(java.time.DayOfWeek.SATURDAY, detail.repeatDay)
         assertEquals(true, detail.isGoing)
         assertEquals(
-            CrewRunDetail.Attendee(3, "곰", isAuthor = true, isMe = true, shownGender = Gender.MALE),
+            CrewRunDetail.Attendee(
+                3,
+                "곰",
+                isAuthor = true,
+                isMe = true,
+                shownGender = Gender.MALE,
+                distance = Distance(3_200)
+            ),
             detail.attendees[0]
         )
+        assertEquals(null, detail.attendees[1].distance, "달린 거리가 없으면(마치기 전·안 달림) null(DV-성-2)")
 
         api.reply(detailJson)
         repository.editCrewRun(42, CrewRunEdit("하프", null, Distance(21_097), CrewRunRepeat.NONE))

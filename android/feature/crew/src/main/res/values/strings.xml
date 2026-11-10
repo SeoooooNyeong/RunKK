@@ -440,6 +440,7 @@
     <string name="crew_run_detail_report">신고하기</string>
     <string name="crew_run_detail_load_failed">일정을 불러오지 못했어요</string>
     <string name="crew_run_detail_attendee_author">%1$s, 작성자</string>
+    <string name="crew_run_detail_attendee_distance">%1$s, %2$s</string>
     <string name="crew_run_delete_title">모집글을 삭제할까요?</string>
     <string name="crew_run_delete_message">삭제한 모집글은 되돌릴 수 없어요.</string>
     <string name="crew_run_delete_confirm">삭제</string>

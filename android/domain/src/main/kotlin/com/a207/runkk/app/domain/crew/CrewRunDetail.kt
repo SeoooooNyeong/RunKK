@@ -35,13 +35,17 @@ data class CrewRunDetail(
     /** 끝났거나 취소된 일정(F-11d 지난 일정 상세: 하단 버튼 없음). */
     val isPast: Boolean get() = status == CrewRunStatus.FINISHED || status == CrewRunStatus.CANCELLED
 
-    /** [memberId]는 탈퇴했으면 null, [isAuthor]는 "작성자" 꼬리표, [isMe]는 "나". */
+    /**
+     * [memberId]는 탈퇴했으면 null, [isAuthor]는 "작성자" 꼬리표, [isMe]는 "나". [distance]는 마친 크루런에서 달린 거리(F-11d, FR-성-8),
+     * 마치지 않았거나 달리지 않았으면 null.
+     */
     data class Attendee(
         val memberId: Long?,
         val displayName: String,
         val isAuthor: Boolean,
         val isMe: Boolean,
         val faceKey: String? = null,
-        val shownGender: Gender? = null
+        val shownGender: Gender? = null,
+        val distance: Distance? = null
     )
 }

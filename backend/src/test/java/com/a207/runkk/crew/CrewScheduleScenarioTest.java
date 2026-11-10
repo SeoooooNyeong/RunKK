@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.a207.runkk.bootstrap.RunkkApplication;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.CrewTag;
+import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
@@ -151,6 +152,38 @@ class CrewScheduleScenarioTest {
         long cheer = posts.writeCheer(c.l(), c.id(), "응원").postId();
         assertThatThrownBy(() -> schedules.detail(c.l(), cheer))
                 .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.POST_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("마친 크루런 상세(DV-성-2): 참석자마다 달린 거리(끝낸 값), 달리지 않았거나 값이 없으면 null, 마치기 전엔 모두 null")
+    void detail_finishedAttendeeDistances() {
+        Crew3 c = crew();
+        long id = write(c.l(), c.id(), tomorrow(), CrewRunRepeat.NONE);
+        posts.answerAttendance(c.a(), id, AttendanceAnswer.GOING);
+        posts.answerAttendance(c.b(), id, AttendanceAnswer.GOING);
+        assertThat(schedules.detail(c.a(), id).attendees())
+                .extracting(CrewRunDetailView.Attendee::distance)
+                .containsOnlyNulls();
+
+        jdbc.update("update crew_post set status = 'FINISHED' where id = ?", id);
+        jdbc.update(
+                "update crew_run_participation set runner = true, ended = true, final_distance_m ="
+                        + " 3200 where post_id = ? and member_id = ?",
+                id,
+                c.l());
+        jdbc.update(
+                "update crew_run_participation set runner = true where post_id = ? and member_id ="
+                        + " ?",
+                id,
+                c.a());
+
+        CrewRunDetailView v = tx.execute(status -> schedules.detail(c.b(), id));
+        assertThat(v.attendees())
+                .extracting(CrewRunDetailView.Attendee::memberId)
+                .containsExactly(c.l(), c.a(), c.b());
+        assertThat(v.attendees())
+                .extracting(CrewRunDetailView.Attendee::distance)
+                .containsExactly(Distance.ofMeters(3_200), null, null);
     }
 
     @Test

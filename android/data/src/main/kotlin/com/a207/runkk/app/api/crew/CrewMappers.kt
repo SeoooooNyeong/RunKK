@@ -82,7 +82,8 @@ internal fun CrewRunDetailResponse.toDomain(): CrewRunDetail = CrewRunDetail(
             isAuthor = it.author,
             isMe = it.me,
             faceKey = it.faceKey,
-            shownGender = enumByName<Gender>(it.shownGender)
+            shownGender = enumByName<Gender>(it.shownGender),
+            distance = it.distanceMeters?.let(::Distance)
         )
     }
 )
