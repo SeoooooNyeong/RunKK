@@ -25,7 +25,7 @@ class SelfieJobControllerTest extends WebTestSupport {
     void authenticatedAsyncFlowAppliesOnlyOnce() throws Exception {
         Session user = signUp();
         var queued = new FaceJob("http-job-1", FaceJob.Status.QUEUED, null, null);
-        when(gateway.submit(eq(user.memberId()), any())).thenReturn(queued);
+        when(gateway.submit(eq(user.memberId()), any(), anyInt())).thenReturn(queued);
         mvc.perform(as(user, multipart("/api/v1/avatar/selfie/jobs").file(image(JPEG))))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("FACE_CONSENT_REQUIRED"));
@@ -76,7 +76,7 @@ class SelfieJobControllerTest extends WebTestSupport {
     void failedJobIs200AndNotReadyResultIs409() throws Exception {
         Session user = signUp();
         mvc.perform(as(user, put("/api/v1/me/consents/FACE_TRANSFER"))).andExpect(status().isOk());
-        when(gateway.submit(eq(user.memberId()), any()))
+        when(gateway.submit(eq(user.memberId()), any(), anyInt()))
                 .thenReturn(new FaceJob("http-job-2", FaceJob.Status.RUNNING, null, null));
         mvc.perform(as(user, multipart("/api/v1/avatar/selfie").file(image(JPEG))))
                 .andExpect(status().isAccepted());
@@ -105,7 +105,7 @@ class SelfieJobControllerTest extends WebTestSupport {
         mvc.perform(as(user, get("/api/v1/avatar/selfie/jobs/current")))
                 .andExpect(status().isNoContent());
         mvc.perform(as(user, put("/api/v1/me/consents/FACE_TRANSFER"))).andExpect(status().isOk());
-        when(gateway.submit(eq(user.memberId()), any()))
+        when(gateway.submit(eq(user.memberId()), any(), anyInt()))
                 .thenReturn(new FaceJob("http-job-3", FaceJob.Status.QUEUED, null, null));
         mvc.perform(as(user, multipart("/api/v1/avatar/selfie/jobs").file(image(JPEG))))
                 .andExpect(status().isAccepted());

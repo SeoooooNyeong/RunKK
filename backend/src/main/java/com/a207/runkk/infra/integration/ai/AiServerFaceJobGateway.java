@@ -45,13 +45,18 @@ public class AiServerFaceJobGateway implements FaceJobGateway {
     }
 
     @Override
-    public FaceJob submit(long memberId, byte[] image) {
+    public FaceJob submit(long memberId, byte[] image, int attempt) {
         requireMember(memberId);
+        if (attempt < 1 || attempt > 20) throw new IllegalArgumentException("시도 번호 오류");
         FaceJob job =
                 exchange(
                         client.faces()
                                 .post()
-                                .uri("/users/{id}/faces/jobs", memberId)
+                                .uri(
+                                        attempt == 1
+                                                ? "/users/{id}/faces/jobs"
+                                                : "/users/{id}/faces/jobs?attempt=" + attempt,
+                                        memberId)
                                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                                 .body(image),
                         202,

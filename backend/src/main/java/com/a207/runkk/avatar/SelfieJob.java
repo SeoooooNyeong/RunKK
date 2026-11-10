@@ -69,6 +69,11 @@ public class SelfieJob {
         finished = true;
     }
 
+    /** 결과가 불명확하게 실패로 끝낸 작업을 ai가 뒤에 성공으로 회수했다. 다시 진행 중으로 두고 결과를 받아 끝낸다(DV-성-9). */
+    void reopen() {
+        finished = false;
+    }
+
     void missing() {
         jobId = null;
         status = null;
@@ -104,5 +109,9 @@ public class SelfieJob {
 
     LocalDateTime attemptedAt() {
         return attemptedAt;
+    }
+
+    String errorCode() {
+        return errorCode;
     }
 }

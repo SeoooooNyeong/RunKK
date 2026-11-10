@@ -46,6 +46,11 @@ Node 22, `npm ci --omit=dev`, 비루트 `node`, `/app/data` 볼륨, 외부 포�
 같은 프로세스에서 같은 사용자·요청 ID의 동시 접수도 같은 작업을 돌려준다. 입력이 다르면 409 `IDEMPOTENCY_CONFLICT`다.
 생성 전에 반환된 409 `GENERATION_BUSY`만 다시 대기한다. 그 밖의 409와 불명확한 결과·시간 초과는 자동 재생성하지 않는다.
 시간 초과 작업은 `FAILED` + `UPSTREAM_TIMEOUT`이다. 콜백 미설정 완료 작업은 `notification.status=NOT_CONFIGURED`, `attempts=0`이다.
+생성 제한은 `generationTimeoutMs`(기본 15분) 하나다. 작업이 같은 프로세스의 `/generate`를 부를 때 전역 fetch(undici)를 쓰지 않는다.
+undici의 응답 머리·본문 대기 기본값이 300초라 5분 넘는 생성이 `GENERATION_OUTCOME_UNKNOWN`으로 끊겼기 때문이다(DV-성-9, 2026-11-10).
+`GENERATION_OUTCOME_UNKNOWN`·`UPSTREAM_TIMEOUT`으로 끝난 작업은 상태·결과 조회 때 그 뒤 저장된 최근 머리를 회수해 `SUCCEEDED`로 바꾼다
+(머리가 작업 시작 뒤 저장됐고, 다른 작업이 그 머리를 갖지 않았고, 그사이 같은 사용자의 다른 생성이 시작되지 않았을 때만). 다시 생성하지 않는다.
+같은 `clientRequestId` 재전송은 계속 기존 작업을 돌려준다. 사용자가 명시적으로 다시 시도할 때는 상위 API가 새 요청 ID를 보낸다.
 새 사유 코드는 추가하지 않았다. 기존 `SELFIE_QUALITY_REJECTED`, `FACE_ASSETS_INCOMPLETE`, `STORAGE_FAILED`,
 `GENERATION_OUTCOME_UNKNOWN`, `GENERATION_INTERRUPTED` 등은 작업 상태 200의 `error.code`에 담긴다.
 

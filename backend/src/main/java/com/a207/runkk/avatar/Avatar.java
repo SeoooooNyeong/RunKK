@@ -148,6 +148,11 @@ public class Avatar {
         pendingFaceRequest = requestId;
     }
 
+    /** 이 셀카 요청의 결과를 아직 얼굴에 반영할 수 있는가(그 뒤 기본 캐릭터를 고르거나 새 셀카를 보내지 않았다). */
+    boolean awaitsFaceJob(String requestId) {
+        return requestId.equals(pendingFaceRequest);
+    }
+
     /** 진행 중이던 셀카 요청을 반영하지 않고 끝낸다(한도를 넘어 결과를 버릴 때). */
     void endFaceJob(String requestId) {
         if (requestId.equals(pendingFaceRequest)) pendingFaceRequest = null;

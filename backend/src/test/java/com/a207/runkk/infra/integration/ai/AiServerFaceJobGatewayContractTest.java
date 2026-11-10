@@ -104,10 +104,26 @@ class AiServerFaceJobGatewayContractTest {
     }
 
     private static Object invoke(AiServerFaceJobGateway gateway, String endpoint, String jobId) {
-        if (endpoint.startsWith("POST")) return gateway.submit(42, SELFIE);
+        if (endpoint.startsWith("POST")) return gateway.submit(42, SELFIE, 1);
         if (endpoint.endsWith("/result")) return gateway.result(42, jobId);
         if (endpoint.endsWith("/latest")) return gateway.latest(42);
         return gateway.status(42, jobId);
+    }
+
+    @Test
+    void explicitRetryAttemptIsSentAsQuery() {
+        // DV-성-9: 명시적 재시도는 ai가 새 멱등 키를 쓰도록 attempt를 붙인다(1이면 붙이지 않는다)
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs?attempt=2"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().bytes(SELFIE))
+                .andRespond(
+                        withStatus(HttpStatusCode.valueOf(202))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"jobId\":\"job-2\",\"status\":\"QUEUED\"}"));
+        assertThat(f.gateway.submit(42, SELFIE, 2).jobId()).isEqualTo("job-2");
+        f.server.verify();
     }
 
     @Test
