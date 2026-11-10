@@ -235,7 +235,10 @@ class CrewFindViewModel internal constructor(private val crews: CrewRepository, 
         if (code == invite.code) st else st.copy(invite = InviteSheetState(code = code))
     }
 
-    /** "확인": 코드로 크루를 조회한다. 없거나 만료면 칸 오류(NOT_FOUND), 찾으면 미리보기(FOUND). 가입은 하지 않는다. */
+    /**
+     * "확인": 코드로 크루를 조회한다. 없거나 만료면 칸 오류(NOT_FOUND), 시도 제한이면 칸 아래 기다리라는 안내(LIMITED),
+     * 찾으면 미리보기(FOUND). 가입은 하지 않는다. 시트 안 오류는 스낵바로 띄우지 않는다(시트·키보드에 가려 보이지 않음).
+     */
     fun onInviteConfirm() {
         val invite = _state.value.invite ?: return
         if (!invite.isCodeComplete || invite.isBusy) return
@@ -250,8 +253,8 @@ class CrewFindViewModel internal constructor(private val crews: CrewRepository, 
                         invite = now.copy(isBusy = false, step = InviteStep.FOUND, preview = r.value)
                     )
 
-                    r is Outcome.Failure && r.error == AppError.Rejected(INVALID_CODE) ->
-                        st.copy(invite = now.copy(isBusy = false, step = InviteStep.NOT_FOUND, preview = null))
+                    r is Outcome.Failure && inviteErrorStep(r.error) != null ->
+                        st.copy(invite = now.copy(isBusy = false, step = inviteErrorStep(r.error)!!, preview = null))
 
                     r is Outcome.Failure -> st.copy(
                         invite = now.copy(isBusy = false),
@@ -283,25 +286,28 @@ class CrewFindViewModel internal constructor(private val crews: CrewRepository, 
                 }
 
                 is Outcome.Failure -> _state.update { st ->
-                    // 미리보기 뒤 코드가 재발급·만료됐으면 다시 입력 단계의 오류로 보인다.
-                    val invalid = result.error == AppError.Rejected(INVALID_CODE)
+                    // 미리보기 뒤 코드가 재발급·만료됐거나 시도 제한이면 다시 입력 단계의 칸 아래 안내로 보인다.
+                    val errorStep = inviteErrorStep(result.error)
                     st.copy(
                         invite = st.invite?.let {
-                            if (invalid) {
-                                it.copy(
-                                    isBusy = false,
-                                    step = InviteStep.NOT_FOUND,
-                                    preview = null
-                                )
+                            if (errorStep != null) {
+                                it.copy(isBusy = false, step = errorStep, preview = null)
                             } else {
                                 it.copy(isBusy = false)
                             }
                         },
-                        message = if (invalid) null else CrewErrorText.of(result.error)
+                        message = if (errorStep != null) null else CrewErrorText.of(result.error)
                     )
                 }
             }
         }
+    }
+
+    /** 시트 안 칸 아래에 보일 초대 코드 오류 단계. 그 밖의 실패는 null(스낵바). */
+    private fun inviteErrorStep(error: AppError): InviteStep? = when (error) {
+        AppError.Rejected(INVALID_CODE) -> InviteStep.NOT_FOUND
+        AppError.Rejected(TOO_MANY_ATTEMPTS) -> InviteStep.LIMITED
+        else -> null
     }
 
     // 대기 중인 내 가입 신청(FR-143)
@@ -350,6 +356,7 @@ class CrewFindViewModel internal constructor(private val crews: CrewRepository, 
     private companion object {
         const val KEYWORD_MAX = 20
         const val INVALID_CODE = "INVALID_CODE"
+        const val TOO_MANY_ATTEMPTS = "TOO_MANY_ATTEMPTS"
         const val ASCII_LIMIT = 128
     }
 }

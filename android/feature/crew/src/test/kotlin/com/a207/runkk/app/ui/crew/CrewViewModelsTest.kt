@@ -214,14 +214,29 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 기다리라고 안내한다`() {
+    fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 시트 안 칸 아래에 기다리라고 안내한다(DV-성-1)`() {
         repo.fail["preview"] = AppError.Rejected("TOO_MANY_ATTEMPTS")
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()
         vm.onInviteCode("AB12CD")
         vm.onInviteConfirm()
-        assertEquals(UiText.Res(R.string.crew_error_too_many_attempts), vm.state.value.message)
+        assertEquals(InviteStep.LIMITED, vm.state.value.invite?.step)
+        assertNull(vm.state.value.message, "스낵바는 시트·키보드에 가리므로 띄우지 않는다")
+        vm.onInviteCode("AB12C")
         assertEquals(InviteStep.ENTERING, vm.state.value.invite?.step)
+    }
+
+    @Test
+    fun `가입하기에서 시도 제한(TOO_MANY_ATTEMPTS)이 와도 시트 안에 안내한다(DV-성-1)`() {
+        val vm = CrewFindViewModel(repo)
+        vm.onInviteOpen()
+        vm.onInviteCode("AB12CD")
+        vm.onInviteConfirm()
+        repo.fail["invite"] = AppError.Rejected("TOO_MANY_ATTEMPTS")
+        vm.onInviteSubmit()
+        assertEquals(InviteStep.LIMITED, vm.state.value.invite?.step)
+        assertNull(vm.state.value.invite?.preview)
+        assertNull(vm.state.value.message)
     }
 
     @Test

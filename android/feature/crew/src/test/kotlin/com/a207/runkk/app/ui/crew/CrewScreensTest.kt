@@ -181,6 +181,17 @@ class CrewScreensTest {
     }
 
     @Test
+    fun `초대 코드 - 너무 많이 틀리면 칸 아래 같은 자리에 시도 제한 안내를 보인다(DV-성-1)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                InviteSheetContent(InviteSheetState(code = "ZZZZZZ", step = InviteStep.LIMITED), CrewFindActions())
+            }
+        }
+        compose.onNodeWithText("초대 코드를 너무 많이 틀렸어요. 10분 뒤 다시 시도해 주세요").assertExists()
+        compose.onNodeWithText("일치하는 크루가 없어요. 초대 코드를 다시 확인해 주세요.").assertDoesNotExist()
+    }
+
+    @Test
     fun `크루 찾기 - 대기 중인 내 가입 신청을 보이고 취소를 묻는다(FR-143)`() {
         val request = com.a207.runkk.app.domain.crew.MyCrew.PendingJoin(91, 12, "저녁런 클럽", start)
         compose.setContent {

@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.crew
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -63,12 +64,16 @@ internal fun CrewInviteSheet(invite: InviteSheetState, actions: CrewFindActions)
 @Composable
 internal fun InviteSheetContent(invite: InviteSheetState, actions: CrewFindActions) {
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        val isError = invite.step == InviteStep.NOT_FOUND
+        val errorRes = when (invite.step) {
+            InviteStep.NOT_FOUND -> R.string.crew_invite_not_found
+            InviteStep.LIMITED -> R.string.crew_error_too_many_attempts
+            else -> null
+        }
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            InviteCodeField(invite.code, isError, actions.onInviteCode, actions.onInviteConfirm)
-            if (isError) {
+            InviteCodeField(invite.code, errorRes, actions.onInviteCode, actions.onInviteConfirm)
+            if (errorRes != null) {
                 Text(
-                    stringResource(R.string.crew_invite_not_found),
+                    stringResource(errorRes),
                     style = RunkkTextStyles.text(13, lineHeight = 16),
                     color = RunkkColors.TextPrimary,
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
@@ -100,9 +105,10 @@ internal fun InviteSheetContent(invite: InviteSheetState, actions: CrewFindActio
 
 /** 입력칸 하나를 여섯 칸(44x56, 간격 8, 모서리 12)으로 그린다. 보조 기술에는 "초대 코드" 입력칸 하나로 읽힌다. */
 @Composable
-private fun InviteCodeField(code: String, isError: Boolean, onCode: (String) -> Unit, onDone: () -> Unit) {
+private fun InviteCodeField(code: String, @StringRes errorRes: Int?, onCode: (String) -> Unit, onDone: () -> Unit) {
     val label = stringResource(R.string.crew_invite_field)
-    val errorText = stringResource(R.string.crew_invite_not_found)
+    val isError = errorRes != null
+    val errorText = errorRes?.let { stringResource(it) }.orEmpty()
     val spoken = stringResource(R.string.crew_invite_field_state, code.toList().joinToString(" "), code.length)
     BasicTextField(
         value = code,
