@@ -29,7 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.AvatarStageBackdrop
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkIcons
@@ -168,7 +168,7 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
                 .background(RunkkColors.SurfaceHigh),
             contentAlignment = Alignment.Center
         ) {
-            if (!isLocked) AvatarBackdrop(key, modifier = Modifier.matchParentSize(), stage)
+            if (!isLocked) AvatarStageBackdrop(key, modifier = Modifier.matchParentSize(), stage)
             if (isLocked) {
                 Icon(
                     RunkkIcons.Lock,
