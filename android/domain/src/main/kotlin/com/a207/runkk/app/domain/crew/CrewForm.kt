@@ -11,5 +11,7 @@ data class CrewForm(
     val intro: String?,
     val tags: Set<String>,
     val visibility: CrewVisibility,
-    val joinPolicy: JoinPolicy
+    val joinPolicy: JoinPolicy,
+    /** 로고 주소(POST /crew-logos가 준 /api/v1/crew-logos/{id}), 없으면 null(contract-W4 6·8절). */
+    val logoUrl: String? = null
 )

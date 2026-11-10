@@ -8,5 +8,7 @@ internal data class CrewFormDto(
     val intro: String?,
     val tags: Set<String>,
     val visibility: String,
-    val joinPolicy: String
+    val joinPolicy: String,
+    /** https 또는 POST /crew-logos가 준 /api/v1/crew-logos/{id}(contract-W4 8절). 없으면 바꾸지 않는다. */
+    val logoUrl: String? = null
 )

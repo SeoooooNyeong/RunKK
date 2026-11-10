@@ -47,12 +47,15 @@ import com.a207.runkk.app.api.crew.CreatedResponse
 import com.a207.runkk.app.api.crew.CrewDetailResponse
 import com.a207.runkk.app.api.crew.CrewFormDto
 import com.a207.runkk.app.api.crew.CrewListResponse
+import com.a207.runkk.app.api.crew.CrewLogoResponse
 import com.a207.runkk.app.api.crew.CrewMembersResponse
 import com.a207.runkk.app.api.crew.CrewProfileRequest
 import com.a207.runkk.app.api.crew.CrewRankingResponse
 import com.a207.runkk.app.api.crew.CrewRunResultResponse
 import com.a207.runkk.app.api.crew.GoalRequest
 import com.a207.runkk.app.api.crew.InviteCodeResponse
+import com.a207.runkk.app.api.crew.InvitePreviewRequest
+import com.a207.runkk.app.api.crew.InvitePreviewResponse
 import com.a207.runkk.app.api.crew.JoinRequestBody
 import com.a207.runkk.app.api.crew.JoinResponse
 import com.a207.runkk.app.api.crew.LeaderRequest
@@ -313,6 +316,7 @@ class ServerContractTest {
         request(CrewFormDto.serializer(), "CrewDtos.CrewFormRequest")
         request(LeaderRequest.serializer(), "CrewDtos.LeaderRequest")
         request(JoinRequestBody.serializer(), "CrewDtos.JoinRequestBody")
+        request(InvitePreviewRequest.serializer(), "CrewDtos.InvitePreviewRequest")
         request(CrewProfileRequest.serializer(), "CrewDtos.CrewProfileRequest")
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
@@ -382,6 +386,10 @@ class ServerContractTest {
         response(JoinResponse.serializer(), "CrewDtos.JoinResponse")
         response(CrewDetailResponse.serializer(), "CrewDtos.CrewDetailResponse")
         response(MyCrewResponse.serializer(), "CrewDtos.MyCrewResponse")
+        // contract-W4(S15P31A207-295): 최근 크루런, 초대 코드 미리보기, 크루 로고
+        response(CrewDetailResponse.RecentCrewRun.serializer(), "CrewDtos.CrewDetailResponse.RecentCrewRun")
+        response(InvitePreviewResponse.serializer(), "CrewDtos.InvitePreviewResponse")
+        response(CrewLogoResponse.serializer(), "CrewDtos.CrewLogoResponse")
         response(InboxResponse.serializer(), "InboxView")
         response(UploadResponse.serializer(), "RunController.UploadResponse")
         response(DisposalOrderResponse.serializer(), "DisposalOrderView")
