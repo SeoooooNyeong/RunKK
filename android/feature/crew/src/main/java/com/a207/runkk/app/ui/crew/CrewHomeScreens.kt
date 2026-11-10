@@ -77,10 +77,10 @@ fun CrewHomeRoute(
     report: CrewReportViewModel = hiltViewModel()
 ) {
     LaunchedEffect(key) { viewModel.bind(key, initialTab) }
-    // 관리·일정·목표 화면에서 돌아오면 크루 정보와 지금 탭을 다시 읽는다.
+    // 관리·일정·목표 화면에서 돌아오면 크루 정보와 지금 탭을 다시 읽는다. 멈추면 크루런 1초 갱신을 멈춘다.
     LifecycleResumeEffect(viewModel) {
         viewModel.onResumed()
-        onPauseOrDispose {}
+        onPauseOrDispose { viewModel.onPaused() }
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val reportState by report.state.collectAsStateWithLifecycle()

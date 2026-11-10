@@ -362,6 +362,39 @@ class CrewHomeViewModelTest {
     }
 
     @Test
+    fun `1초 갱신은 크루런 탭이 보이고 홈 쪽이며 화면이 RESUMED일 때만 돈다(리뷰 M3)`() = main.runVmTest { vms ->
+        clock.now = beforeMeet(40)
+        val vm = vms.track(vm())
+        vm.onTab(CrewTab.SCHEDULE)
+        val shown = vm.state.value.scheduleNow
+
+        vm.onTab(CrewTab.RACE)
+        clock.now = clock.now.plusSeconds(5)
+        advanceTimeBy(5_100)
+        assertEquals(shown, vm.state.value.scheduleNow, "레이스 탭이면 갱신하지 않는다")
+
+        vm.onTab(CrewTab.SCHEDULE)
+        val back = vm.state.value.scheduleNow
+        assertEquals(clock.now, back, "크루런 탭으로 돌아오면 바로 지금 시각으로 맞춘다")
+        vm.onPage(CrewHomePage.INFO)
+        clock.now = clock.now.plusSeconds(5)
+        advanceTimeBy(5_100)
+        assertEquals(back, vm.state.value.scheduleNow, "크루 정보 쪽이면 갱신하지 않는다")
+
+        vm.onPage(CrewHomePage.HOME)
+        vm.onPaused()
+        val paused = vm.state.value.scheduleNow
+        clock.now = clock.now.plusSeconds(5)
+        advanceTimeBy(5_100)
+        assertEquals(paused, vm.state.value.scheduleNow, "화면이 멈추면 갱신하지 않는다")
+
+        vm.onResumed()
+        clock.now = clock.now.plusSeconds(1)
+        advanceTimeBy(1_100)
+        assertEquals(clock.now, vm.state.value.scheduleNow, "다시 RESUMED면 1초마다 센다")
+    }
+
+    @Test
     fun `참석 칩을 끄면 응답을 거두고 목록을 다시 읽는다(W6 참석 취소)`() = main.runVmTest { vms ->
         clock.now = beforeMeet(40)
         val vm = vms.track(vm())

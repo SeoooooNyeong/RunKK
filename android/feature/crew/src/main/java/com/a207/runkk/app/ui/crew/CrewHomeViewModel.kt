@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -57,9 +58,19 @@ class CrewHomeViewModel @Inject constructor(
     private val _state = MutableStateFlow(CrewHomeUiState())
     val state: StateFlow<CrewHomeUiState> = _state.asStateFlow()
 
+    /** 화면이 RESUMED인가(LifecycleResumeEffect가 알린다). 시험처럼 알리지 않으면 RESUMED로 본다. */
+    private val isResumed = MutableStateFlow(true)
+
     init {
+        // 대기실 단추·남은 시간 1초 갱신은 크루런 탭이 보이고(홈 쪽) 화면이 RESUMED일 때만 돈다(리뷰 M3). 그 밖에는 한 번만 정한다.
         viewModelScope.launch {
-            _state.map { it.crewRuns }.distinctUntilChanged().collectLatest(::watchLobbies)
+            combine(
+                _state.map { it.crewRuns }.distinctUntilChanged(),
+                _state.map { it.tab == CrewTab.SCHEDULE && it.page == CrewHomePage.HOME }.distinctUntilChanged(),
+                isResumed
+            ) { runs, isScheduleShown, resumed -> runs to (isScheduleShown && resumed) }
+                .distinctUntilChanged()
+                .collectLatest { (runs, isTicking) -> watchLobbies(runs, isTicking) }
         }
     }
 
@@ -85,11 +96,17 @@ class CrewHomeViewModel @Inject constructor(
 
     /** 화면에 돌아올 때(관리·모집에서 복귀) 크루 정보와 지금 탭을 다시 읽는다. 처음 표시는 bind가 읽는다. */
     fun onResumed() {
+        isResumed.value = true
         if (resumedOnce && bound != null) {
             loadDetail()
             refresh()
         }
         resumedOnce = true
+    }
+
+    /** 화면이 멈췄다(ON_PAUSE·떠남). 크루런 1초 갱신을 멈춘다. */
+    fun onPaused() {
+        isResumed.value = false
     }
 
     /** 크루 정보(이름·인원·내 역할). 실패하면 이름 칸을 비워 두고 안내한다(탭 내용은 따로 읽는다). */
@@ -596,17 +613,18 @@ class CrewHomeViewModel @Inject constructor(
     }
 
     /**
-     * 모집글마다 대기실 단추 상태를 정하고, 시각이 지나 바뀔 수 있는 글(열리기 전·열림)이 남아 있는 동안 1초마다 다시 정한다.
-     * 목록을 다시 받으면 collectLatest가 이 반복을 새로 시작한다. 강조 카드의 남은 시간을 위해 지금 서버 시각(scheduleNow)도 함께 갱신한다.
+     * 모집글마다 대기실 단추 상태를 정하고, [isTicking]이면 시각이 지나 바뀔 수 있는 글(열리기 전·열림)이 남아 있는 동안 1초마다
+     * 다시 정한다. 목록·탭·쪽·화면 상태가 바뀌면 collectLatest가 이 반복을 새로 시작한다. 강조 카드의 남은 시간을 위해 지금 서버
+     * 시각(scheduleNow)도 함께 갱신한다.
      */
-    private suspend fun watchLobbies(runs: PostList?) {
+    private suspend fun watchLobbies(runs: PostList?, isTicking: Boolean) {
         val infos = runs?.posts.orEmpty().mapNotNull { post -> post.crewRun?.let { post.postId to it } }
         while (true) {
             val now = serverClock.now()
             val entries = infos.associate { (postId, info) -> postId to LobbyAvailability.of(info, now) }
             // 강조 카드의 남은 시간(F-11)도 같은 서버 시각으로 1초마다 센다.
             _state.update { it.copy(lobbyEntries = entries, scheduleNow = now) }
-            if (entries.values.all { it == LobbyAvailability.Closed }) return
+            if (!isTicking || entries.values.all { it == LobbyAvailability.Closed }) return
             delay(LOBBY_TICK_MILLIS)
         }
     }
