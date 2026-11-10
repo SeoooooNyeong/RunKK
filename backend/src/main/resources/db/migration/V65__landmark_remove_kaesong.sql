@@ -8,17 +8,27 @@ DECLARE
 BEGIN
     -- (1) 운영 기준값 LANDMARKS 행이 있으면 key가 KAESONG인 원소를 빼고, CHUNCHEON 원소가 없을 때만 춘천을 거리 순 자리
     -- (150km보다 먼 첫 원소 앞, 없으면 끝)에 넣는다. 150km 원소가 이미 있으면 거리 오름차순 검사가 깨지므로 넣지 않는다.
-    -- 행이 없으면 코드 기본값이 쓰이므로 아무것도 하지 않는다. 내용이 바뀐 때만 version을 올린다.
-    WITH src AS (SELECT a.elem,
+    -- 행이 없거나 값이 JSON 객체가 아니거나 landmarks가 배열이 아니면 아무것도 하지 않는다. 내용이 바뀐 때만 version을 올린다.
+    -- 다른 키의 행(JSON이 아닐 수 있다)에 ::jsonb 캐스트가 돌지 않게 LANDMARKS 행만 먼저 고르고(MATERIALIZED), JSON 객체인지 본
+    -- 뒤에 캐스트한다(리뷰 R2-16).
+    WITH picked AS MATERIALIZED (SELECT setting_key, setting_value
+                                 FROM operation_setting
+                                 WHERE setting_key = 'LANDMARKS'),
+         target AS MATERIALIZED (SELECT setting_key,
+                                        CASE WHEN setting_value IS JSON OBJECT THEN setting_value::jsonb END AS value
+                                 FROM picked),
+         valid AS (SELECT setting_key, value
+                   FROM target
+                   WHERE value IS NOT NULL
+                     AND jsonb_typeof(value -> 'landmarks') = 'array'),
+         src AS (SELECT a.elem,
                         a.ord::NUMERIC AS pos,
                         CASE
                             WHEN jsonb_typeof(a.elem -> 'distance' -> 'meters') = 'number'
                                 THEN (a.elem -> 'distance' ->> 'meters')::NUMERIC
                             END        AS meters
-                 FROM operation_setting o,
-                      jsonb_array_elements(o.setting_value::jsonb -> 'landmarks') WITH ORDINALITY AS a(elem, ord)
-                 WHERE o.setting_key = 'LANDMARKS'
-                   AND jsonb_typeof(o.setting_value::jsonb -> 'landmarks') = 'array'),
+                 FROM valid v,
+                      jsonb_array_elements(v.value -> 'landmarks') WITH ORDINALITY AS a(elem, ord)),
          kept AS (SELECT elem, pos, meters
                   FROM src
                   WHERE NOT (jsonb_typeof(elem) = 'object' AND elem ->> 'key' = 'KAESONG')),
@@ -36,14 +46,16 @@ BEGIN
                                      WHERE (jsonb_typeof(elem) = 'object' AND elem ->> 'key' = 'CHUNCHEON')
                                         OR meters = 150000)),
          rebuilt AS (SELECT COALESCE(jsonb_agg(x.elem ORDER BY x.pos), '[]'::jsonb) AS landmarks
-                     FROM (SELECT elem, pos FROM kept UNION ALL SELECT elem, pos FROM added) x)
+                     FROM (SELECT elem, pos FROM kept UNION ALL SELECT elem, pos FROM added) x),
+         changed AS (SELECT v.setting_key, v.value || jsonb_build_object('landmarks', r.landmarks) AS value
+                     FROM valid v,
+                          rebuilt r
+                     WHERE r.landmarks IS DISTINCT FROM v.value -> 'landmarks')
     UPDATE operation_setting s
-    SET setting_value = (s.setting_value::jsonb || jsonb_build_object('landmarks', rebuilt.landmarks))::text,
+    SET setting_value = c.value::text,
         version       = s.version + 1
-    FROM rebuilt
-    WHERE s.setting_key = 'LANDMARKS'
-      AND jsonb_typeof(s.setting_value::jsonb -> 'landmarks') = 'array'
-      AND rebuilt.landmarks IS DISTINCT FROM s.setting_value::jsonb -> 'landmarks';
+    FROM changed c
+    WHERE s.setting_key = c.setting_key;
     GET DIAGNOSTICS setting_rows = ROW_COUNT;
 
     -- (2) 지운 북한 도시 키는 해금도 남기지 않는다(FR-201 예외). 남겨 두면 BackgroundService가 표에 없는 키를 목록 끝에 계속 보인다.
