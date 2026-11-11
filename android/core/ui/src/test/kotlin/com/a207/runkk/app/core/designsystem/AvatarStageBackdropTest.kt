@@ -12,9 +12,9 @@ class AvatarStageBackdropTest {
     }
 
     @Test
-    fun `단계 키는 화면 전체 배경과 같은 단계 그림이다`() {
-        assertEquals(R.drawable.avatar_backdrop_domestic, avatarStageBackdropRes("CHUNCHEON", isDark = true))
-        assertEquals(R.drawable.avatar_backdrop_east_asia, avatarStageBackdropRes("TOKYO", isDark = false))
+    fun `도시 키는 도시 그림, 그림 없는 키는 화면 전체 배경과 같은 단계 그림이다`() {
+        assertEquals(R.drawable.avatar_backdrop_chuncheon, avatarStageBackdropRes("CHUNCHEON", isDark = true))
+        assertEquals(R.drawable.avatar_backdrop_tokyo, avatarStageBackdropRes("TOKYO", isDark = false))
         assertEquals(
             R.drawable.avatar_backdrop_intercontinental,
             avatarStageBackdropRes("LM_9", "INTERCONTINENTAL", false)
