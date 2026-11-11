@@ -11,7 +11,7 @@ import androidx.compose.ui.res.painterResource
 /**
  * 아바타 랜드마크 배경(FR-201, FR-202, D-107). 고른 배경 키로 그림을 찾아 아바타·프로필·러닝 카드 뒤에 깐다.
  * 장식 그림이라 보조 기술에는 알리지 않는다(이름은 화면이 글자로 보인다).
- * [backgroundKey]가 null이면 기본 배경, 모르는 키는 [stage](서버 단계 이름)별 기본 그림, 단계도 모르면 기본 배경이다.
+ * [backgroundKey]가 null이면 기본 배경, 기본 키는 도시 그림, 모르는 키는 [stage](서버 단계 이름)별 기본 그림, 단계도 모르면 기본 배경이다.
  * 칸에 맞춰 자를 때 [alignment] 기준으로 남긴다(납작한 칸은 바닥이 보이게 아래 기준을 넘긴다).
  */
 @Composable
@@ -37,11 +37,16 @@ fun AvatarBackdrop(
     )
 }
 
-/** 배경 키 → 그림 리소스. Compose 밖(공유 카드 비트맵)에서도 쓴다. */
+/**
+ * 배경 키 → 그림 리소스. Compose 밖(공유 카드 비트맵)에서도 쓴다. 기본 키는 도시마다 제 그림([임시:D-성-186]), 그림이 없는 키(운영
+ * 기준값이 더한 LM_n)는 단계 그림이다.
+ */
 @DrawableRes
 fun avatarBackdropRes(backgroundKey: String?, stage: String? = null): Int {
     if (backgroundKey == null) return R.drawable.avatar_backdrop_default
-    return when (STAGE_OF_KEY[backgroundKey] ?: stage) {
+    CITY_BACKDROPS[backgroundKey]?.let { return it }
+    // 그림이 없는 키(운영 기준값이 더한 LM_n)는 목록의 단계로 찾는다
+    return when (stage) {
         DOMESTIC -> R.drawable.avatar_backdrop_domestic
         EAST_ASIA -> R.drawable.avatar_backdrop_east_asia
         INTERCONTINENTAL -> R.drawable.avatar_backdrop_intercontinental
@@ -53,18 +58,28 @@ private const val DOMESTIC = "DOMESTIC"
 private const val EAST_ASIA = "EAST_ASIA"
 private const val INTERCONTINENTAL = "INTERCONTINENTAL"
 
-/** D-107 (1) 기본 키(개인 단계 22개, 개성 대신 춘천 D-성-129) → 단계. 운영 기준값이 더한 키(LM_n)는 목록의 stage로 찾는다. */
-private val STAGE_OF_KEY: Map<String, String> =
-    listOf("INCHEON", "CHUNCHEON", "DAEJEON", "JEONJU", "YEOSU", "BUSAN", "JEJU").associateWith { DOMESTIC } +
-        listOf("BEIJING", "TOKYO", "TAIPEI", "HONG_KONG", "HANOI", "BANGKOK").associateWith { EAST_ASIA } +
-        listOf(
-            "KUALA_LUMPUR",
-            "HONOLULU",
-            "SYDNEY",
-            "LONDON",
-            "PARIS",
-            "LOS_ANGELES",
-            "NEW_YORK",
-            "SANTIAGO",
-            "EARTH_LAP"
-        ).associateWith { INTERCONTINENTAL }
+/** [임시:D-성-186] 기본 키(개인 단계 22개) → 도시 그림(무대 규격 1080×1200, 바닥선 아래 18%). */
+private val CITY_BACKDROPS: Map<String, Int> = mapOf(
+    "INCHEON" to R.drawable.avatar_backdrop_incheon,
+    "CHUNCHEON" to R.drawable.avatar_backdrop_chuncheon,
+    "DAEJEON" to R.drawable.avatar_backdrop_daejeon,
+    "JEONJU" to R.drawable.avatar_backdrop_jeonju,
+    "YEOSU" to R.drawable.avatar_backdrop_yeosu,
+    "BUSAN" to R.drawable.avatar_backdrop_busan,
+    "JEJU" to R.drawable.avatar_backdrop_jeju,
+    "BEIJING" to R.drawable.avatar_backdrop_beijing,
+    "TOKYO" to R.drawable.avatar_backdrop_tokyo,
+    "TAIPEI" to R.drawable.avatar_backdrop_taipei,
+    "HONG_KONG" to R.drawable.avatar_backdrop_hong_kong,
+    "HANOI" to R.drawable.avatar_backdrop_hanoi,
+    "BANGKOK" to R.drawable.avatar_backdrop_bangkok,
+    "KUALA_LUMPUR" to R.drawable.avatar_backdrop_kuala_lumpur,
+    "HONOLULU" to R.drawable.avatar_backdrop_honolulu,
+    "SYDNEY" to R.drawable.avatar_backdrop_sydney,
+    "LONDON" to R.drawable.avatar_backdrop_london,
+    "PARIS" to R.drawable.avatar_backdrop_paris,
+    "LOS_ANGELES" to R.drawable.avatar_backdrop_los_angeles,
+    "NEW_YORK" to R.drawable.avatar_backdrop_new_york,
+    "SANTIAGO" to R.drawable.avatar_backdrop_santiago,
+    "EARTH_LAP" to R.drawable.avatar_backdrop_earth_lap
+)
