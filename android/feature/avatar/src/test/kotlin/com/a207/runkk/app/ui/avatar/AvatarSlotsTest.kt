@@ -124,6 +124,22 @@ class AvatarSlotsTest {
     }
 
     @Test
+    fun `러닝 중 칸은 준비가 8초 넘게 끝나지 않으면(성별을 모름 등) 로딩 표시 대신 지금 달리기 그림을 보인다(D-성-181, 리뷰 U-11)`() {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(LocalSlotAvatarPose provides AvatarSlotPose.RUN) {
+                    Box(Modifier.size(88.dp)) { entry.slots.getValue(SlotKey.RUN_AVATAR)() }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(7_900)
+        compose.onAllNodesWithTag(RUN_AVATAR_FALLBACK_TAG).assertCountEqualsTo(0, "8초 전에는 기다린다")
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag(RUN_AVATAR_FALLBACK_TAG).assertExists()
+    }
+
+    @Test
     fun `러닝 중 칸은 준비에 실패하면 로딩 표시를 거두고 지금 달리기 그림을 보인다(D-성-181)`() {
         repo.avatarResult = Outcome.Failure(AppError.Network)
         gender.value = Gender.MALE
