@@ -271,7 +271,7 @@ def _collar_target(solid: np.ndarray, body: Image.Image | None) -> tuple[np.ndar
 
 
 def line_collar(
-    image: Image.Image, body: Image.Image | None = None, region: np.ndarray | None = None
+    image: Image.Image, body: Image.Image | None = None, region: np.ndarray | None = None, shade: bool = True
 ) -> tuple[Image.Image, int]:
     """칼라·후드 안 빈 곳([fill_collar]와 같은 칸, 또는 [region])을 안감 색으로 메운다. 색은 둘레의 밝은 천(외곽선 제외)에서 매끄럽게 이어
     지고(줄무늬·네모 경계 없음), 둘레에서 멀수록 [LINING_SHADE]까지, 목 구멍 바로 옆은 [LINING_NECK_SHADE]까지 부드럽게 어둡다.
@@ -317,13 +317,14 @@ def line_collar(
     for d in range(1, int(LINING_DEPTH) + 1):
         depth[inside] = d
         inside = _filter(inside, ImageFilter.MinFilter(3))
-    shade = 1.0 - (1.0 - LINING_SHADE) * np.clip(depth / LINING_DEPTH, 0, 1)
+    shade = 1.0 - (1.0 - LINING_SHADE) * np.clip(depth / LINING_DEPTH, 0, 1) if shade else np.ones(target.shape)
     near_neck = np.zeros(target.shape)
     grown = opening.copy()
     for d in range(3, 0, -1):
         grown = _filter(grown, ImageFilter.MaxFilter(3))
         near_neck[grown & target & (near_neck == 0)] = d
-    shade *= 1.0 - (1.0 - LINING_NECK_SHADE) * near_neck / 3
+    if region is None:
+        shade *= 1.0 - (1.0 - LINING_NECK_SHADE) * near_neck / 3
     original = array[target].copy()
     cover = original[:, 3:4] / 255.0
     array[target, :3] = original[:, :3] * cover + (color[target] * shade[target][:, None]) * (1 - cover)

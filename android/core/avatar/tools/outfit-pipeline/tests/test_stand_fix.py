@@ -148,3 +148,20 @@ def test_committed_shoes_need_no_cover_outside_the_bare_foot(key: str) -> None:
     layer = Image.open(OUTFITS / key / f"female_stand{spec.EXTENSION}")
     region = exposed_feet(layer, body)
     assert (body[region][:, 3] >= 128).all()
+
+
+def test_close_side_skin_covers_bare_strips_beside_and_below_a_sleeveless_top() -> None:
+    from outfit_pipeline.stand_fix import close_side_skin
+
+    body = np.zeros((768, 512, 4), np.uint8)
+    body[150:330, 110:402] = (240, 200, 180, 255)  # 맨몸 몸통
+    body[150:330, 110:114] = (60, 30, 16, 255)  # 왼쪽 몸통 옆 외곽선
+    top = np.zeros((768, 512, 4), np.uint8)
+    top[150:291, 117:395] = (120, 200, 170, 255)  # 맨몸보다 좁은 민소매, 밑단 y 290
+    out, count = close_side_skin(Image.fromarray(top, "RGBA"), Image.fromarray(body, "RGBA"))
+    array = np.array(out)
+    assert count > 0
+    assert array[250, 115, 3] == 255  # 옆 맨살 띠는 천으로
+    assert array[250, 112, 3] == 0  # 몸통 옆 외곽선은 맨몸 그대로(상의 옆 외곽선)
+    assert array[293, 150, 3] == 255 and array[293, 150, :3].tolist() == [120, 200, 170]  # 밑단 아래 하의 허리 위 맨살
+    assert array[300, 150, 3] == 0  # 하의 허리(y 296) 아래는 그대로

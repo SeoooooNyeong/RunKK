@@ -76,7 +76,8 @@ def cover_feet(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, int]
     background = ~solid & ~region & (skin[..., 3] < SOLID)
     edge = _grow(background, 2 * EDGE + 1)
     keep_body = region & (skin[..., :3].astype(int).mean(axis=-1) < INK) & edge
-    out, _ = line_collar(Image.fromarray(shoe, "RGBA"), region=region & ~keep_body)
+    # 그늘 없이(신발 옆은 안감이 아니다: 그늘을 넣으면 lime_runner 바깥 아래에 짙은 쐐기로 보였다, 판정 round4)
+    out, _ = line_collar(Image.fromarray(shoe, "RGBA"), region=region & ~keep_body, shade=False)
     array = np.array(out)
     array[keep_body] = skin[keep_body]
     return Image.fromarray(array, "RGBA"), int(region.sum())

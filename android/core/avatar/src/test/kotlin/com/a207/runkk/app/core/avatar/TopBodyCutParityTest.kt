@@ -141,4 +141,22 @@ class TopBodyCutParityTest {
         val bare = cut(2 until 6)
         assertEquals(List(6) { skin }, (20 until 26).map { bare[5 * width + it] }, "민소매: 그대로")
     }
+
+    @Test
+    fun `배경에 닿지 않게 지운 맨몸 덩어리는 되살린다(파이프라인 cut_py restore_enclosed와 같다)`() {
+        val width = 12
+        val height = 12
+        val skin = 0xFFF6CDBE.toInt()
+        val cloth = 0xFF3C383D.toInt()
+        val before = IntArray(width * height) { i -> if (i % width in 1..10 && i / width in 1..10) skin else 0 }
+        val top = IntArray(width * height) { i -> if (i / width in 1..2 && i % width in 1..10) cloth else 0 }
+        val after = before.copyOf()
+        after[5 * width + 5] = 0 // 맨몸 안 구멍: 배경에 닿지 않는다
+        after[6 * width + 5] = 0
+        after[8 * width + 1] = 0 // 가장자리: 배경에 닿는다
+        TopBodyCut.restoreEnclosed(before, after, top, width, height)
+        assertEquals(skin, after[5 * width + 5])
+        assertEquals(skin, after[6 * width + 5])
+        assertEquals(0, after[8 * width + 1])
+    }
 }

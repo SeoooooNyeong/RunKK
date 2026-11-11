@@ -128,6 +128,7 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
     original = b.copy()
     b[rim] = 0
     b = close_slits(original, b)
+    b = restore_enclosed(original, b, top_alpha)
     # 남은 부스러기: 상의에서 RIM_PX 안에만 있는 작은 덩어리(CRUMB_PX 이하)
     from outfit_pipeline.build import _components
 
@@ -169,4 +170,49 @@ def close_slits(before: np.ndarray, after: np.ndarray) -> np.ndarray:
                 around += padded[1 + dy : 1 + dy + height, 1 + dx : 1 + dx + width]
     restore = removed & _sandwiched(kept) & (around <= 2)
     out[restore] = before[restore]
+    return out
+
+
+def restore_enclosed(before: np.ndarray, after: np.ndarray, top: np.ndarray) -> np.ndarray:
+    """띠 판정이 지운 맨몸 가운데 상의 밖이면서 배경(맨몸도 상의도 없는 곳, 텍스처 가장자리 너머 포함)에 8방향으로 닿지 않는 덩어리를
+    되살린다(앱 TopBodyCut.restoreEnclosed). 자르기는 상의와 배경 사이 테두리를 지우는 것이라, 배경과 떨어진 곳을 지우면 맨몸 안에 배경이
+    비치는 구멍만 생겼다(판정 round4: crew 소매 끝 아래 팔에 비스듬한 하늘색 틈)."""
+    removed = (before[..., 3] > 0) & (after[..., 3] == 0) & ~top
+    if not removed.any():
+        return after
+    background = np.pad((before[..., 3] == 0) & ~top, 1, constant_values=True)
+    height, width = removed.shape
+    touch = np.zeros_like(removed)
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            touch |= background[1 + dy : 1 + dy + height, 1 + dx : 1 + dx + width]
+    out = after.copy()
+    for piece in _components8(removed):
+        if not touch[piece[:, 0], piece[:, 1]].any():
+            out[piece[:, 0], piece[:, 1]] = before[piece[:, 0], piece[:, 1]]
+    return out
+
+
+def _components8(mask: np.ndarray) -> list[np.ndarray]:
+    from collections import deque
+
+    height, width = mask.shape
+    seen = np.zeros_like(mask)
+    out = []
+    for y, x in zip(*np.nonzero(mask), strict=True):
+        if seen[y, x]:
+            continue
+        queue = deque([(int(y), int(x))])
+        seen[y, x] = True
+        points = []
+        while queue:
+            cy, cx = queue.popleft()
+            points.append((cy, cx))
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < height and 0 <= nx < width and mask[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        queue.append((ny, nx))
+        out.append(np.array(points))
     return out
