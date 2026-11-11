@@ -1,4 +1,4 @@
-"""규격 검사(5.5 항목, OUTFIT_SPEC.md 6절 열다섯 항목). 같은 검사를 앱 단위 시험 OutfitAssetSpecTest가 빌드 때 다시 한다."""
+"""규격 검사(5.5 항목, OUTFIT_SPEC.md 6절 열여섯 항목). 같은 검사를 앱 단위 시험 OutfitAssetSpecTest가 빌드 때 다시 한다."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from outfit_pipeline.body import (
     waist_tufts_mask,
     wisp_layer,
 )
+from outfit_pipeline.holes import hole_mask
 from outfit_pipeline.masks import load_mask
 from outfit_pipeline.skin import count_exposed
 
@@ -57,7 +58,33 @@ def template_for(file_name: str, part: str, male_top_surface: int) -> str:
     return f"{gender}_{slot}"
 
 
-def check_layer(path: Path, part: str, template: str, masks_dir: Path, wisps: bool | None = None) -> list[Problem]:
+def hole_area(masks_dir: Path, file_name: str, part: str, male_top_surface: int) -> Image.Image:
+    """16번 구멍을 따지는(메우는) 곳: 그 슬롯 남녀 템플릿 허용 영역의 교집합. 남녀가 한 파일을 함께 쓸 수 있어 메운 픽셀이 어느 쪽 허용
+    영역도 벗어나지 않게 한다."""
+    _, rest = file_name.split("_", 1)
+    area = None
+    for gender in spec.GENDERS:
+        mask = load_mask(masks_dir, template_for(f"{gender}_{rest}", part, male_top_surface), part)
+        area = mask if area is None else ImageChops.multiply(area, mask)
+    assert area is not None
+    if rest.startswith("run_leg"):
+        from outfit_pipeline.hip import hip_box
+
+        area = area.copy()
+        area.paste(
+            0, hip_box()
+        )  # 엉덩이 잇기 칸은 등 아래를 일부러 깎는다(판정 round3 C, 다리 메시는 이 칸을 쓰지 않는다)
+    return area
+
+
+def check_layer(
+    path: Path,
+    part: str,
+    template: str,
+    masks_dir: Path,
+    wisps: bool | None = None,
+    holes_in: Image.Image | None = None,
+) -> list[Problem]:
     problems: list[Problem] = []
     slot = spec.SLOTS[spec.TEMPLATES[template].slot]
     image = Image.open(path)
@@ -67,6 +94,10 @@ def check_layer(path: Path, part: str, template: str, masks_dir: Path, wisps: bo
     if image.mode != "RGBA":
         problems.append(Problem(2, str(path), f"mode {image.mode} != RGBA"))
         return problems
+    if part == "TOP":
+        from outfit_pipeline.cut import take_marks
+
+        image, _ = take_marks(image)  # 자르기 표지(알파 1)는 옷이 아니라 맨몸을 지우는 표시다(stand_fix.mark_body_cut)
     alpha = image.getchannel("A").point(lambda v: 255 if v else 0)
     allowed = load_mask(masks_dir, template, part)
     uv = load_mask(masks_dir, template)
@@ -80,7 +111,8 @@ def check_layer(path: Path, part: str, template: str, masks_dir: Path, wisps: bo
     if outside:
         problems.append(Problem(4, str(path), f"alpha outside UV area at {outside}"))
     coverage = sum(alpha.histogram()[1:]) / (slot.width * slot.height)
-    if coverage < spec.MIN_COVERAGE:
+    empty_ok = path.parent.name in spec.EMPTY_RUN_ARM_KEYS and "run_arm" in path.name
+    if coverage < spec.MIN_COVERAGE and not empty_ok:
         problems.append(Problem(4, str(path), f"coverage {coverage:.4f} < {spec.MIN_COVERAGE}"))
     # 9번: 옷 레이어에 드러난 맨살이 없다(피부는 맨몸 바탕에서만 와 러닝량 톤이 걸린다, [임시:D-성-174]).
     skin = count_exposed(image)
@@ -94,6 +126,10 @@ def check_layer(path: Path, part: str, template: str, masks_dir: Path, wisps: bo
     # 14번: 하의 레이어에 위·아래가 천인 세로 4px 이하 틈이 없다(밑단 안감 사이로 맨몸이 살색 점선으로 보였다, [임시:D-성-185]).
     if part == "BOTTOM" and (seams := int(seam_mask(image).sum())):
         problems.append(Problem(14, str(path), f"{seams} pixel(s) in thin vertical gaps of the garment"))
+    # 16번: 옷 실루엣 안에 구멍(둘러싸인 반투명·투명 픽셀, 굵은 천 사이 좁은 트임)이 없다(폴로 단추 자리로 맨몸이 갈색 점으로 비쳤다).
+    holes = int((hole_mask(image) & (np.array(allowed if holes_in is None else holes_in) > 0)).sum())
+    if holes:
+        problems.append(Problem(16, str(path), f"{holes} hole pixel(s) inside the garment"))
     # 12번: 하의 서기 레이어의 허리 겹침 띠에 하의 본체와 떨어진 조각이 없다([임시:D-성-185]).
     if part == "BOTTOM" and spec.TEMPLATES[template].slot == "stand" and (loose := int(waist_tufts_mask(image).sum())):
         problems.append(Problem(12, str(path), f"{loose} loose pixel(s) above the waistband"))
@@ -142,7 +178,14 @@ def check_bundle(outfits_dir: Path, entry: dict, masks_dir: Path) -> list[Proble
             problems.append(Problem(rule, key, f"missing {name} ({path.name})"))
             continue
         # 함께 쓰는 파일은 그 이름(성별) 템플릿으로도 검사한다(남자 서기는 남자 표면 마스크).
-        problems += check_layer(path, part, template_for(f"{name}{spec.EXTENSION}", part, surface), masks_dir)
+        file_name = f"{name}{spec.EXTENSION}"
+        problems += check_layer(
+            path,
+            part,
+            template_for(file_name, part, surface),
+            masks_dir,
+            holes_in=hole_area(masks_dir, file_name, part, surface),
+        )
     for alias, target in shared.items():
         if not spec.FILE_PATTERN.match(f"{alias}{spec.EXTENSION}") or (folder / f"{alias}{spec.EXTENSION}").is_file():
             problems.append(Problem(6, key, f"shared entry {alias} -> {target} must name a missing file"))

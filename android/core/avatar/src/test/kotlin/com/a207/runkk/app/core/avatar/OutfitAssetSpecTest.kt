@@ -72,13 +72,17 @@ class OutfitAssetSpecTest {
         var drawn = 0
         for (y in 0 until image.height) {
             for (x in 0 until image.width) {
-                if (image.getPixel(x, y) ushr 24 == 0) continue
+                val alpha = image.getPixel(x, y) ushr 24
+                // 상의 자르기 표지(알파 1)는 옷이 아니라 맨몸을 지우는 표시다(TopBodyCut.takeMarks, 파이프라인 check.py와 같다)
+                if (alpha == 0 || (bundle.part == OutfitPart.TOP && alpha == TopBodyCut.MARK_ALPHA)) continue
                 drawn++
                 check(on(uv, x, y)) { "4번 UV 밖 ($x, $y) ${file.path} $gender" }
                 check(on(allowed, x, y)) { "3번 금지 영역 ($x, $y) ${file.path} $gender" }
             }
         }
-        assertTrue(drawn >= image.width * image.height / 100, "4번 1% 이상 ${file.path}")
+        // 소매 없는 상의의 달리기 팔은 비어 있다(파이프라인 spec.EMPTY_RUN_ARM_KEYS, 판정 round3)
+        val emptyOk = file.parentFile?.name == "top_lime_singlet" && "run_arm" in file.name
+        assertTrue(emptyOk || drawn >= image.width * image.height / 100, "4번 1% 이상 ${file.path}")
         listOf(image, allowed, uv).forEach(Bitmap::recycle)
     }
 
@@ -162,6 +166,12 @@ class OutfitAssetSpecTest {
             val bitmap = read(file)
             val pixels = IntArray(bitmap.width * bitmap.height)
             bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            // 상의 자르기 표지(알파 1)는 옷이 아니다(TopBodyCut.takeMarks, 파이프라인 check.py와 같다)
+            if (catalog.bundle(OutfitPart.TOP, file.parentFile!!.name)?.assetKey ==
+                file.parentFile!!.name
+            ) {
+                TopBodyCut.takeMarks(pixels)
+            }
             // 갈색 실오라기는 맨팔이 옷 가장자리에 닿는 반팔·민소매 상의(base_top 제외)의 서기·달리기 몸통만 본다(파이프라인 body.wisp_layer와 같다)
             val folder = file.parentFile!!.name
             val bundle = catalog.bundle(OutfitPart.TOP, folder)?.takeIf { it.assetKey == folder }
@@ -246,6 +256,39 @@ class OutfitAssetSpecTest {
             StrayPixels.seams(pixels, bitmap.width, bitmap.height).also { bitmap.recycle() }
         }.filterValues { it > 0 }
         assertEquals(emptyMap(), found, "밑단 안감 사이 맨몸 점선([임시:D-성-185])")
+    }
+
+    @Test
+    fun `16 옷 실루엣 안에 구멍(둘러싸인 반투명·투명 픽셀, 굵은 천 사이 좁은 트임)이 없다`() {
+        val found = mutableMapOf<String, Int>()
+        bundles.forEach { bundle ->
+            genders.forEach { gender ->
+                slotsOf(bundle.part).forEach { slot ->
+                    val file = File(assets, bundle.file(gender, slot, AvatarBodyShape.BASE))
+                    val template = templateOf(gender, slot, bundle)
+                    val image = read(file)
+                    // 남녀가 한 파일을 함께 쓸 수 있어 두 템플릿 허용 영역의 교집합 안만 센다(파이프라인 hole_area와 같다)
+                    val allowed = genders.map {
+                        read(File(masks, "${templateOf(it, slot, bundle)}_${bundle.part}.png"))
+                    }
+                    val pixels = IntArray(image.width * image.height)
+                    image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
+                    val holes = StrayPixels.holes(pixels, image.width, image.height)
+                    // 달리기 다리의 엉덩이 잇기 칸(남녀 x 88~167, y 0~95)은 등 아래를 일부러 깎는다(파이프라인 hip.hip_box, 판정 round3 C)
+                    val hip = slot == OutfitSlot.RUN_LEG
+                    val count = holes.indices.count { i ->
+                        val x = i % image.width
+                        val y = i / image.width
+                        val inHip = hip && x in 88 until 168 && y in 0 until 96
+                        holes[i] && !inHip && allowed.all { on(it, x, y) }
+                    }
+                    if (count > 0) found["${file.parentFile!!.name}/${file.name} $template"] = count
+                    image.recycle()
+                    allowed.forEach { it.recycle() }
+                }
+            }
+        }
+        assertEquals(emptyMap(), found, "옷 안 구멍으로 맨몸·배경이 비친다(폴로 단추 자리)")
     }
 
     @Test

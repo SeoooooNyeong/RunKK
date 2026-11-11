@@ -17,7 +17,28 @@ TORSO = 255
 FULL_CUT = 240
 LEG_GUARD = 14  # 다리 윗부분으로 지키는 엉덩이 옆 칸 맨 아래 행 수
 HIP = 230  # 엉덩이 옆: 옷이 그 행에 걸친 가로 범위 밖만 지운다
+# 칼라 옆 칸(값 → 짝 어깨 띠 값): 짝 어깨 띠를 상의가 덮을 때(ARM_COVERED 넘게)만, 띠 판정 없이 상의 밖을 모두 지운다(판정 round1~3 B:
+# 칼라 양옆 어깨 윗선이 비스듬한 가는 선이라 띠 판정(상의와 배경이 반대 방향)에 걸리지 않고 짙은 획으로 떴다). 민소매는 그대로
+NECK_SIDES = {221: 220, 181: 180}
+# 자르기 표지: 상의 레이어의 알파가 정확히 이 값인 픽셀은 옷이 아니라 「이 자리 맨몸을 지운다」는 세트별 표시다(판정 round6: lime_singlet
+# 밑단 옆 짙은 획). 상의 서기 레이어의 옷 픽셀 알파는 8 이상이라 겹치지 않는다. 앱 `TopBodyCut.MARK_ALPHA`와 같다
+MARK_ALPHA = 1
 _FAR = 10**6
+
+
+def take_marks(top: Image.Image) -> tuple[Image.Image, np.ndarray]:
+    """[top]에서 자르기 표지(알파 [MARK_ALPHA]) 픽셀을 떼어 낸다. (표지를 투명으로 바꾼 상의, 표지 칸). 앱 `TopBodyCut.takeMarks`와 같다."""
+    array = np.array(top.convert("RGBA"))
+    marks = array[..., 3] == MARK_ALPHA
+    array[marks] = 0
+    return Image.fromarray(array, "RGBA"), marks
+
+
+def cut_marks(body: Image.Image, marks: np.ndarray) -> Image.Image:
+    """[marks] 칸의 맨몸을 지운다(투명). 앱 `TopBodyCut.cutMarks`와 같다."""
+    array = np.array(body.convert("RGBA"))
+    array[marks] = 0
+    return Image.fromarray(array, "RGBA")
 
 
 def _nearest(source: np.ndarray, steps: int) -> tuple[np.ndarray, np.ndarray]:
@@ -66,7 +87,7 @@ def _leg_span(skin: np.ndarray, hip: np.ndarray) -> np.ndarray:
         return out
     xs = np.flatnonzero(skin[rows[-1] + 1])
     if len(xs):
-        out[rows[-1] + 1 - LEG_GUARD : rows[-1] + 1, xs[0] : xs[-1] + 1] = True
+        out[max(0, rows[-1] + 1 - LEG_GUARD) : rows[-1] + 1, xs[0] : xs[-1] + 1] = True  # 음수면 맨 뒤로 감긴다
     return out
 
 
@@ -80,11 +101,18 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
     skin = b[..., 3] > 0
     area_on = labels >= 128
     for value in np.unique(labels):
-        if value < 128 or value in (TORSO, FULL_CUT, HIP):
+        if value < 128 or value in (TORSO, FULL_CUT, HIP) or int(value) in NECK_SIDES:
             continue
         band = (labels == value) & skin
         if band.sum() and (band & top_alpha).sum() / band.sum() <= ARM_COVERED:
             area_on &= labels != value
+    neck_sides = np.zeros_like(area_on)
+    for side, shoulder in NECK_SIDES.items():
+        band = (labels == shoulder) & skin
+        if band.sum() and (band & top_alpha).sum() / band.sum() > ARM_COVERED:
+            neck_sides |= labels == side
+        else:
+            area_on &= labels != side
     background = ~skin & ~top_alpha
     steps = RIM_PX + 3
     ty, tx = _nearest(top_alpha, steps)
@@ -110,13 +138,17 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
     with np.errstate(invalid="ignore", divide="ignore"):
         cosine = (vty * vby + vtx * vbx) / (to_top * to_bg)
     rim = candidate & (to_top + to_bg <= RIM_PX + 2) & (cosine < OPPOSITE)
-    rim |= skin & (labels == FULL_CUT) & ~inside & ~top_alpha  # 달리기 몸통: 상의 밖은 모두
+    forced = skin & (labels == FULL_CUT) & ~inside & ~top_alpha  # 달리기 몸통: 상의 밖은 모두
+    forced |= skin & neck_sides & ~inside & ~top_alpha  # 어깨를 덮는 상의의 칼라 옆: 상의 밖은 모두
     # 엉덩이 옆: 옷이 있는 행의 가로 범위 밖, 그리고 칸 바로 아래 행 다리의 가로 범위 밖(옛 반바지 실루엣 테두리)
     hip = skin & (labels == HIP) & ~inside & ~top_alpha & ~_within_row_span(top_alpha) & top_alpha.any(axis=1)[:, None]
-    rim |= hip & ~_leg_span(skin, labels == HIP)
+    forced |= hip & ~_leg_span(skin, labels == HIP)
+    rim |= forced
     original = b.copy()
     b[rim] = 0
     b = close_slits(original, b)
+    # 모두 지우는 칸(240·230·칼라 옆)은 상의 밖을 일부러 다 지운 곳이라 갇혀 있어도 되살리지 않는다(코드 리뷰)
+    b = restore_enclosed(original, b, top_alpha, keep=forced)
     # 남은 부스러기: 상의에서 RIM_PX 안에만 있는 작은 덩어리(CRUMB_PX 이하)
     from outfit_pipeline.build import _components
 
@@ -158,4 +190,54 @@ def close_slits(before: np.ndarray, after: np.ndarray) -> np.ndarray:
                 around += padded[1 + dy : 1 + dy + height, 1 + dx : 1 + dx + width]
     restore = removed & _sandwiched(kept) & (around <= 2)
     out[restore] = before[restore]
+    return out
+
+
+def restore_enclosed(
+    before: np.ndarray, after: np.ndarray, top: np.ndarray, keep: np.ndarray | None = None
+) -> np.ndarray:
+    """띠 판정이 지운 맨몸 가운데 상의 밖이면서 배경(맨몸도 상의도 없는 곳, 텍스처 가장자리 너머 포함)에 8방향으로 닿지 않는 덩어리를
+    되살린다(앱 TopBodyCut.restoreEnclosed). 자르기는 상의와 배경 사이 테두리를 지우는 것이라, 배경과 떨어진 곳을 지우면 맨몸 안에 배경이
+    비치는 구멍만 생겼다(판정 round4: crew 소매 끝 아래 팔에 비스듬한 하늘색 틈). [keep] 픽셀(모두 지우는 칸이 지운 것)은 덩어리에 들어도
+    되살리지 않는다(덩어리 판정은 그대로)."""
+    removed = (before[..., 3] > 0) & (after[..., 3] == 0) & ~top
+    if not removed.any():
+        return after
+    background = np.pad((before[..., 3] == 0) & ~top, 1, constant_values=True)
+    height, width = removed.shape
+    touch = np.zeros_like(removed)
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            touch |= background[1 + dy : 1 + dy + height, 1 + dx : 1 + dx + width]
+    out = after.copy()
+    for piece in _components8(removed):
+        if not touch[piece[:, 0], piece[:, 1]].any():
+            if keep is not None:
+                piece = piece[~keep[piece[:, 0], piece[:, 1]]]
+            out[piece[:, 0], piece[:, 1]] = before[piece[:, 0], piece[:, 1]]
+    return out
+
+
+def _components8(mask: np.ndarray) -> list[np.ndarray]:
+    from collections import deque
+
+    height, width = mask.shape
+    seen = np.zeros_like(mask)
+    out = []
+    for y, x in zip(*np.nonzero(mask), strict=True):
+        if seen[y, x]:
+            continue
+        queue = deque([(int(y), int(x))])
+        seen[y, x] = True
+        points = []
+        while queue:
+            cy, cx = queue.popleft()
+            points.append((cy, cx))
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    ny, nx = cy + dy, cx + dx
+                    if 0 <= ny < height and 0 <= nx < width and mask[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        queue.append((ny, nx))
+        out.append(np.array(points))
     return out

@@ -107,6 +107,15 @@ CUT_SLOTS = ("stand", "run_body", "run_arm")  # 상의 자르기 칸이 있는 �
 NECK_CHEST = (196, 0, 317, 110)  # 서기 아틀라스에서 자르지 않는 목·가슴 위(x0, y0, x1, y1)
 # 맨 위 줄 목 둘레(머리 아래라 보이지 않고, 깃 옆 조각을 자르면 머리와 몸 사이가 비어 보인다)
 NECK_TOP = (176, 0, 337, 14)
+# 맨 위 줄 목 둘레 가운데 목 기둥(holes.NECK_COLUMN x 217~295) 밖 양옆(x0, x1, 위 NECK_TOP 행): 칼라 옆 칸 값(CUT_LEFT_NECK_SIDE·
+# CUT_RIGHT_NECK_SIDE)으로 둔다. 짝 어깨 띠를 상의가 덮을 때만 상의 밖 맨몸을 모두 지운다(cut.NECK_SIDES). 칼라가 맨몸 목보다 좁고
+# 어깨선이 낮은 상의(바람막이)에서 이 칸의 맨몸 어깨 윗선이 칼라 양옆에 짙은 획으로 떴다(판정 round1~3 B). 민소매 맨어깨는 그대로다
+NECK_SIDES = ((176, 217), (296, 337))
+# 서기 맨몸 아틀라스의 맨발 칸(x0, y0, x1, y1): 비운다. 앱은 신발 칸을 늘 신발로 채운다(AvatarOutfit.shoes 0 = base_shoes, 해제도 0,
+# OutfitLayerComposer는 묶음이 없으면 base_* 파일). 그래서 맨발은 보일 일이 없고, 신발보다 넓은 맨발 실루엣이 신발 옆 살구색 테두리·큰
+# 외곽선으로만 보였다(판정 round2~5 lime_runner). 신발마다 제 외곽선이 실루엣이 된다. 위 끝은 모든 신발이 다리 폭을 덮기 시작하는 행
+BARE_FEET = (96, 640, 421, 768)
+CUT_LEFT_NECK_SIDE, CUT_RIGHT_NECK_SIDE = 221, 181
 # 서기 허리 밴드(맨몸 바탕의 속옷 허리선, 상의 밑단과 하의 허리 사이): 피부가 아니라 자르지 않는다. 자르면 밑단과 허리 사이가 비었다
 STAND_WAIST = (100, 296, 412, 322)
 RUN_NECK = (100, 0, 200, 40)  # 달리기 몸통의 목 조각
@@ -192,3 +201,11 @@ def stand_template(gender: str, male_top_surface: int) -> str:
 def save_webp(image, path) -> None:
     """무손실 WebP로 쓴다(알파 0 픽셀의 색은 0으로 비운 뒤)."""
     image.save(path, "WEBP", lossless=True, quality=100, method=6, exact=False)
+
+
+# 생성 그림의 그림자·배경이 신발 외곽선 밖에 불투명한 잔상 띠로 남은 신발(판정 round1 D, `outfit_pipeline.shoes`). 외곽선이 부드러운
+# 다른 신발에 쓰면 외곽선까지 지워져 확인된 것만 둔다.
+SHOE_GHOST_KEYS = ("shoes_high_top", "shoes_lime_runner")
+
+# 소매가 없어 달리기 팔 레이어가 비어 있는 상의(판정 round3: 딸려 온 맨몸 팔 외곽선 조각을 지우면 비는 게 맞다). 4번 1% 이상에서 뺀다.
+EMPTY_RUN_ARM_KEYS = ("top_lime_singlet",)

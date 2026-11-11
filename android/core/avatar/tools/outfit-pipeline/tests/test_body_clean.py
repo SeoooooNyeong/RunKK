@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import shutil
 from pathlib import Path
 
@@ -187,6 +188,52 @@ def test_fill_pinholes_closes_small_holes_inside_the_body_only() -> None:
     assert tuple(out[30, 30]) == SKIN and out[25, 20, 3] == 0 and out[5, 5, 3] == 0
 
 
+def test_square_waist_sides_continues_the_hip_edge_up_to_the_waist() -> None:
+    """허리를 맨몸 실루엣까지만 늘리면 하의 원래 허리(y 약 320)와 3~8px 계단(홈)이 생겨 밑단 옆에 짙은 획·홈으로 보였다(판정 round1 A):
+    계단 아래 행의 옆 가장자리(외곽선 포함)를 위로 이어 붙인다."""
+    from outfit_pipeline.body import square_waist_sides
+
+    array = np.zeros((768, 512, 4), np.uint8)
+    array[296:320, 116:395] = (80, 80, 90, 255)  # 맨몸 실루엣까지 늘린 허리
+    array[320:400, 110:403] = (80, 80, 90, 255)  # 하의 본체(더 넓다)
+    array[320:400, 110:113] = (40, 30, 30, 255)  # 왼쪽 외곽선
+    array[320:400, 400:403] = (40, 30, 30, 255)  # 오른쪽 외곽선
+    out = np.array(square_waist_sides(Image.fromarray(array, "RGBA"))[0])
+    assert (out[296:320, 110:113, :3] == (40, 30, 30)).all() and (out[296:320, 400:403, 3] == 255).all()
+    assert out[296:320, 113:116, 3].min() == 255 and out[296:400, 105:110, 3].max() == 0
+
+
+@pytest.mark.parametrize("key", [k for k in spec.LEGACY_KEYS["BOTTOM"]])
+def test_committed_bottom_waist_sides_have_no_steps(key: str) -> None:
+    alpha = np.array(Image.open(OUTFITS / key / f"female_stand{spec.EXTENSION}"))[..., 3] >= 128
+    left = [int(np.nonzero(alpha[y])[0].min()) for y in range(296, 340)]
+    right = [int(np.nonzero(alpha[y])[0].max()) for y in range(296, 340)]
+    steps = [abs(a - b) for side in (left, right) for a, b in itertools.pairwise(side)]
+    assert max(steps) <= 2, (left, right)
+
+
+def test_parallel_wisps_beside_the_outline_are_dropped_but_the_outline_stays() -> None:
+    """손 외곽선 바깥 1~3px 틈 너머 나란한 가는 획(털처럼 삐친 선, 판정 round1 E)은 지우고 외곽선·안티앨리어싱은 그대로 둔다."""
+    from outfit_pipeline.body import parallel_wisps
+
+    array = np.zeros((60, 60, 4), np.uint8)
+    array[10:50, 20:40] = (230, 200, 190, 255)  # 손
+    array[10:50, 20:23] = (80, 50, 40, 255)  # 외곽선
+    array[10:50, 19] = (80, 50, 40, 120)  # 안티앨리어싱
+    array[15:45, 16] = (70, 45, 40, 230)  # 나란한 가는 획(틈 x 17~18)
+    mask = parallel_wisps(array)
+    assert mask[15:45, 16].all() and not mask[:, 19:].any()
+
+
+def test_committed_stand_body_has_no_parallel_wisps() -> None:
+    from outfit_pipeline.body import parallel_wisps
+
+    body = np.array(Image.open(OUTFITS / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}").convert("RGBA"))
+    # 승인 원본에서 지킨 외곽선(17번 기준)은 남는다: 원본 순서로 지우면 바로 앞 획에 가려 털로 보이지 않던 픽셀
+    reference = np.array(Image.open(spec.outline_reference_path("female_stand"))) > 0
+    assert int((parallel_wisps(body) & ~reference).sum()) == 0
+
+
 def test_check_reports_a_bottom_that_stops_below_the_waist(tmp_path: Path) -> None:
     from outfit_pipeline.check import check_bundle, read_index
 
@@ -345,3 +392,35 @@ def test_hip_cut_keeps_the_top_of_the_leg_below_the_zone() -> None:
     out = np.array(apply(body, top, area))
     assert out[10, 4, 3] == 0  # 다리 범위 밖 옛 실루엣은 지운다
     assert out[10, 11, 3] == 255  # 다리 범위 안(다리 윗부분)은 남긴다
+
+
+def test_cover_run_leg_hides_the_body_leg_and_outlines_the_garment() -> None:
+    """긴 하의 달리기 다리: 맨몸 다리가 하의보다 넓은 곳(무릎 겹침, 뒤 허벅지)의 피부를 하의 색으로 덮고, 배경과 맞닿은 하의 가장자리는
+    짙은 외곽선으로 칠한다(판정 round1 C: 레깅스 무릎 피부 쐐기, wide·jogger 외곽선 없음)."""
+    from outfit_pipeline.body import cover_run_leg
+
+    body = np.zeros((700, 256, 4), np.uint8)
+    body[0:690, 40:200] = (240, 200, 185, 255)
+    body[0:690, 40:44] = (70, 45, 40, 255)  # 맨몸 외곽선
+    body[0:690, 196:200] = (70, 45, 40, 255)
+    garment = np.zeros_like(body)
+    garment[0:600, 60:230] = (200, 180, 140, 255)  # 앞은 다리보다 넓고 뒤는 좁은 바지
+    out = np.array(cover_run_leg(Image.fromarray(garment, "RGBA"), Image.fromarray(body, "RGBA"))[0])
+    assert (out[10:590, 44:60, 3] == 255).all()  # 뒤 허벅지 피부를 덮었다
+    assert out[300, 228, :3].mean() < 110 and out[300, 120, :3].mean() > 150  # 배경 쪽 가장자리만 짙다
+    assert out[650, 100, 3] == 0  # 바지 밑단 아래 다리는 그대로
+
+
+def test_top_side_meets_the_torso_outline_in_arm_bands() -> None:
+    """민소매처럼 몸통보다 좁은 상의: 팔 띠 높이에서 맨몸 몸통 옆 외곽선(팔과 틈으로 떨어진 조각)과 상의 옆 가장자리 사이 1~8px 틈을
+    상의 천으로 메워 그 외곽선이 상의 외곽선이 되게 한다(판정 round1 A: 밑단 옆에 짙은 세로 선이 매달려 보였다)."""
+    from outfit_pipeline.body import meet_torso_outline
+
+    body = np.zeros((768, 512, 4), np.uint8)
+    body[270:300, 40:110] = (240, 200, 185, 255)  # 왼팔
+    body[270:300, 116:121] = (60, 40, 35, 255)  # 몸통 옆 외곽선(팔과 6px 틈)
+    top = np.zeros_like(body)
+    top[250:300, 126:390] = (120, 200, 170, 255)  # 상의(외곽선과 5px 틈)
+    out = np.array(meet_torso_outline(Image.fromarray(top, "RGBA"), Image.fromarray(body, "RGBA"))[0])
+    assert (out[280, 121:126, 3] == 255).all() and out[280, 115, 3] == 0
+    assert out[260, 121, 3] == 0  # 외곽선이 없는 행은 그대로

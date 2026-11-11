@@ -13,6 +13,11 @@ package com.a207.runkk.app.core.avatar
  */
 internal object StrayPixels {
     private const val SOLID = 128
+    private const val HOLE_PAD = 8
+    private const val HOLE_EDGE = 3
+    private const val HOLE_RIM = 2
+    private const val HOLE_SEE_THROUGH = 200
+    private const val HOLE_SURROUND = 48
     private const val NEUTRAL = 25
     private const val ROOT_ROW = 330
     private const val WISP_DARK = 140
@@ -53,6 +58,94 @@ internal object StrayPixels {
         val solid = BooleanArray(pixels.size) { pixels[it] ushr 24 >= SOLID }
         val keep = grow(grow(shrink(solid, width, height), width, height), width, height)
         return BooleanArray(pixels.size) { solid[it] && keep[it] }
+    }
+
+    /**
+     * 옷 실루엣 안의 구멍(파이프라인 `outfit_pipeline/holes.py`의 hole_mask와 같다). 텍스처 가장자리 너머도 바깥으로 보도록 투명하게
+     * 8px 덧대고 계산한다. 씨앗: (1) 굵은 천(7x7 열기) 안에서 5x5로 닫은 옷으로 둘러싸인(바깥과 4px 이하 틈으로만 이어진) 빈 곳 가운데
+     * 바깥에서 1px 넘게 떨어진 알파 128 미만 픽셀(굵은 천이 네 방향 가운데 셋 이상에서 48px 안), (2) 7x7로 닫으면 메워지는 바깥과 이어진 빈 곳 가운데 왼쪽·오른쪽 8px 안에 모두 굵은 천이
+     * 있는 알파 128 미만 픽셀(좁은 트임). 텍스처 가장자리 3px 안은 씨앗이 아니다. 구멍 = 씨앗 + 씨앗 둘레 2px 안의 알파 128~199 테두리.
+     */
+    fun holes(pixels: IntArray, width: Int, height: Int): BooleanArray {
+        val w = width + 2 * HOLE_PAD
+        val h = height + 2 * HOLE_PAD
+        val alpha = IntArray(w * h)
+        for (y in 0 until height) {
+            for (x in 0 until width) alpha[(y + HOLE_PAD) * w + x + HOLE_PAD] = pixels[y * width + x] ushr 24
+        }
+        val solid = BooleanArray(alpha.size) { alpha[it] >= SOLID }
+        fun apply(mask: BooleanArray, times: Int, op: (BooleanArray) -> BooleanArray): BooleanArray {
+            var out = mask
+            repeat(times) { out = op(out) }
+            return out
+        }
+        val g = { m: BooleanArray -> grow(m, w, h) }
+        val sh = { m: BooleanArray -> shrink(m, w, h) }
+        val thick = apply(apply(solid, 3, sh), 3, g)
+        val sealedClose = apply(apply(solid, 2, g), 2, sh)
+        val sealed = BooleanArray(alpha.size) { solid[it] || sealedClose[it] }
+        val filled = fillHoles(sealed, w, h)
+        val body = fillHoles(g(thick), w, h)
+        val nearOutside = g(BooleanArray(alpha.size) { !filled[it] })
+        val closed = apply(apply(solid, 3, g), 3, sh)
+        val inner = HOLE_PAD + HOLE_EDGE
+        val seeds = BooleanArray(alpha.size) { i ->
+            val x = i % w
+            val y = i / w
+            if (solid[i] || x < inner || x >= w - inner || y < inner || y >= h - inner) return@BooleanArray false
+            if (filled[i] && body[i] && !nearOutside[i]) {
+                // 굵은 천이 네 방향 가운데 셋 이상에서 48px 안에 있어야 한다(밑단 아래 늘어진 끈 사이 틈은 빼고)
+                val sides = listOf(-1 to 0, 1 to 0, 0 to -1, 0 to 1).count { (dy, dx) ->
+                    (1..HOLE_SURROUND).any { d ->
+                        val nx = x + dx * d
+                        val ny = y + dy * d
+                        nx in 0 until w && ny in 0 until h && thick[ny * w + nx]
+                    }
+                }
+                return@BooleanArray sides >= 3
+            }
+            if (!closed[i] || filled[i]) return@BooleanArray false
+            val row = i - x
+            val left = (1..8).any { d -> x - d >= 0 && thick[row + x - d] }
+            val right = (1..8).any { d -> x + d < w && thick[row + x + d] }
+            left && right
+        }
+        val near = apply(seeds, HOLE_RIM, g)
+        return BooleanArray(width * height) { i ->
+            val p = (i / width + HOLE_PAD) * w + i % width + HOLE_PAD
+            seeds[p] || (near[p] && solid[p] && alpha[p] < HOLE_SEE_THROUGH)
+        }
+    }
+
+    /** [mask]의 빈 곳 가운데 그림 밖(가장자리)과 4방향으로 이어지지 않은 곳을 채운 것. */
+    private fun fillHoles(mask: BooleanArray, width: Int, height: Int): BooleanArray {
+        val outside = BooleanArray(mask.size)
+        val queue = IntArray(mask.size)
+        var tail = 0
+        fun visit(i: Int) {
+            if (!mask[i] && !outside[i]) {
+                outside[i] = true
+                queue[tail++] = i
+            }
+        }
+        for (x in 0 until width) {
+            visit(x)
+            visit((height - 1) * width + x)
+        }
+        for (y in 0 until height) {
+            visit(y * width)
+            visit(y * width + width - 1)
+        }
+        var head = 0
+        while (head < tail) {
+            val i = queue[head++]
+            val x = i % width
+            if (x > 0) visit(i - 1)
+            if (x < width - 1) visit(i + 1)
+            if (i >= width) visit(i - width)
+            if (i < (height - 1) * width) visit(i + width)
+        }
+        return BooleanArray(mask.size) { !outside[it] }
     }
 
     /** 고립 점(8방향 덩어리가 40픽셀보다 작거나 알파 128 이상이 없는 것). */

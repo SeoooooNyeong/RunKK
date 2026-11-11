@@ -10,7 +10,8 @@ import kotlin.math.hypot
  * 규칙: 자르기 칸(알파 128 이상) 안의 상의 밖(옷으로 둘러싸인 빈 곳은 옷으로 친다) 맨몸 픽셀 p가 상의와 배경(맨몸도 상의도 없는 곳)
  * 사이에 낀 띠이면 지운다. 띠 = 가장 가까운 상의까지 거리 a, 가장 가까운 배경까지 거리 b가 a + b ≤ [RIM_PX] + 2이고, 두 방향이 서로
  * 반대(코사인 < [OPPOSITE])인 곳. 소매 끝 바로 아래 팔 윤곽은 상의가 위, 배경이 옆이라 반대가 아니어서 남는다.
- * 자르기 칸의 알파 240은 띠 판정 없이 상의 밖을 모두 지우는 곳(달리기 몸통)이다. 팔 띠(알파 128~239, 값마다 한 띠)는 상의가 그 띠의 맨몸을 [ARM_COVERED]보다 많이 덮을 때(긴소매)만 자른다. 반팔·민소매는
+ * 자르기 칸의 알파 240은 띠 판정 없이 상의 밖을 모두 지우는 곳(달리기 몸통)이다. 알파 221·181(칼라 옆 칸)은 짝 어깨 띠(220·180)를
+ * 상의가 덮을 때만 그렇게 지운다. 팔 띠(알파 128~239, 값마다 한 띠)는 상의가 그 띠의 맨몸을 [ARM_COVERED]보다 많이 덮을 때(긴소매)만 자른다. 반팔·민소매는
  * 몸통 옆에 붙은 팔도 띠처럼 보이므로 그대로 둔다(팔 안쪽 윤곽 보존).
  */
 internal object TopBodyCut {
@@ -27,6 +28,30 @@ internal object TopBodyCut {
     private const val HIP_ALPHA = 230
     private const val LEG_GUARD = 14
 
+    /**
+     * 칼라 옆 칸(알파 → 짝 어깨 띠 알파): 짝 어깨 띠를 상의가 [ARM_COVERED]보다 많이 덮을 때만 띠 판정 없이 상의 밖을 모두 지운다. 칼라
+     * 양옆 어깨 윗선은 비스듬한 가는 선이라 띠 판정에 걸리지 않고 짙은 획으로 떴다(판정 round1~3 B). 민소매 맨어깨는 그대로다. cut.py와 같다.
+     */
+    private val NECK_SIDES = mapOf(221 to 220, 181 to 180)
+
+    /**
+     * 자르기 표지 알파. 상의 레이어에서 알파가 정확히 이 값인 픽셀은 옷이 아니라 「이 상의를 입으면 이 자리 맨몸을 지운다」는 세트별 표시다
+     * (판정 round6: lime_singlet 밑단 양옆 짙은 획, 파이프라인 `stand_fix.mark_body_cut`). 상의 레이어의 옷 픽셀 알파는 8 이상이다. cut.py와 같다.
+     */
+    const val MARK_ALPHA = 1
+
+    /** [top]에서 자르기 표지 픽셀을 떼어 내(투명으로) 그 칸을 돌려준다. cut.py `take_marks`와 같다. */
+    fun takeMarks(top: IntArray): BooleanArray {
+        val marks = BooleanArray(top.size) { top[it] ushr 24 == MARK_ALPHA }
+        for (i in top.indices) if (marks[i]) top[i] = 0
+        return marks
+    }
+
+    /** [marks] 칸의 맨몸을 지운다. cut.py `cut_marks`와 같다. */
+    fun cutMarks(skin: IntArray, marks: BooleanArray) {
+        for (i in skin.indices) if (marks[i]) skin[i] = 0
+    }
+
     /** [skin]·[top]·[area]는 같은 크기의 ARGB 픽셀. [skin]에서 지울 픽셀을 0으로 바꾼다. */
     fun apply(skin: IntArray, top: IntArray, area: IntArray, width: Int, height: Int) {
         val size = width * height
@@ -39,6 +64,8 @@ internal object TopBodyCut {
         val before = skin.copyOf()
         val span = rowSpans(isTop, width, height)
         val leg = legSpan(skin, area, width, height)
+        // 모두 지우는 칸(240·230·칼라 옆)이 지운 픽셀: 상의 밖을 일부러 다 지운 곳이라 갇혀 있어도 되살리지 않는다(코드 리뷰)
+        val forced = BooleanArray(size)
         for (i in 0 until size) {
             val band = area[i] ushr 24
             if (skin[i] ushr 24 == 0 || band < CUT_ALPHA || band in skipped || !outside[i]) continue
@@ -49,14 +76,78 @@ internal object TopBodyCut {
                 val y = i / width
                 val row = span[y]
                 val legTop = leg != null && y >= leg.second && x in leg.first
-                if (row != null && x !in row && !legTop) skin[i] = 0
+                if (row != null && x !in row && !legTop) {
+                    skin[i] = 0
+                    forced[i] = true
+                }
                 continue
             }
-            // 달리기 몸통(240): 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다
-            if (band == FULL_CUT_ALPHA || isRim(i, nearestTop[i], nearestBackground[i], width, height)) skin[i] = 0
+            // 달리기 몸통(240): 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다. 어깨를 덮는 상의의 칼라 옆 칸도 같다
+            if (band == FULL_CUT_ALPHA || band in NECK_SIDES) {
+                skin[i] = 0
+                forced[i] = true
+            } else if (isRim(i, nearestTop[i], nearestBackground[i], width, height)) {
+                skin[i] = 0
+            }
         }
         closeSlits(before, skin, width, height)
+        restoreEnclosed(before, skin, top, width, height, forced)
         dropCrumbs(skin, top, area, outside, nearestTop, skipped, width, height)
+    }
+
+    /**
+     * 지운 맨몸 가운데 상의 밖이면서 배경(맨몸도 상의도 없는 곳, 텍스처 가장자리 너머 포함)에 8방향으로 닿지 않는 덩어리를 되살린다.
+     * 자르기는 상의와 배경 사이 테두리를 지우는 것이라, 배경과 떨어진 곳을 지우면 맨몸 안에 배경이 비치는 구멍만 생겼다(판정 round4: crew 소매
+     * 끝 아래 팔의 비스듬한 틈). [keep] 픽셀(모두 지우는 칸이 지운 것)은 덩어리에 들어도 되살리지 않는다(덩어리 판정은 그대로). 파이프라인
+     * `cut.restore_enclosed`와 같다.
+     */
+    fun restoreEnclosed(
+        before: IntArray,
+        skin: IntArray,
+        top: IntArray,
+        width: Int,
+        height: Int,
+        keep: BooleanArray? = null
+    ) {
+        val size = width * height
+        val removed = BooleanArray(size) { before[it] ushr 24 != 0 && skin[it] ushr 24 == 0 && top[it] ushr 24 == 0 }
+        fun background(x: Int, y: Int): Boolean {
+            if (x !in 0 until width || y !in 0 until height) return true
+            val i = y * width + x
+            return before[i] ushr 24 == 0 && top[i] ushr 24 == 0
+        }
+        val seen = BooleanArray(size)
+        val queue = IntArray(size)
+        for (start in 0 until size) {
+            if (!removed[start] || seen[start]) continue
+            var head = 0
+            var tail = 0
+            seen[start] = true
+            queue[tail++] = start
+            var touches = false
+            while (head < tail) {
+                val i = queue[head++]
+                val x = i % width
+                val y = i / width
+                for (dy in -1..1) {
+                    for (dx in -1..1) {
+                        if (dx == 0 && dy == 0) continue
+                        val nx = x + dx
+                        val ny = y + dy
+                        if (background(nx, ny)) touches = true
+                        if (nx !in 0 until width || ny !in 0 until height) continue
+                        val n = ny * width + nx
+                        if (removed[n] && !seen[n]) {
+                            seen[n] = true
+                            queue[tail++] = n
+                        }
+                    }
+                }
+            }
+            if (!touches) {
+                for (k in 0 until tail) if (keep == null || !keep[queue[k]]) skin[queue[k]] = before[queue[k]]
+            }
+        }
     }
 
     /**
@@ -212,16 +303,20 @@ internal object TopBodyCut {
         val covered = mutableMapOf<Int, Int>()
         for (i in area.indices) {
             val band = area[i] ushr 24
-            // 몸통(255)과 모두 지우는 칸(240)은 팔 띠가 아니다(cut.py와 같다)
+            // 몸통(255)과 모두 지우는 칸(240), 칼라 옆 칸(짝 어깨 띠로 본다)은 팔 띠가 아니다(cut.py와 같다)
             if (band < CUT_ALPHA || band == TORSO_ALPHA || band == FULL_CUT_ALPHA || band == HIP_ALPHA ||
-                skin[i] ushr 24 == 0
+                band in NECK_SIDES || skin[i] ushr 24 == 0
             ) {
                 continue
             }
             total[band] = (total[band] ?: 0) + 1
             if (top[i] ushr 24 != 0) covered[band] = (covered[band] ?: 0) + 1
         }
-        return total.filter { (band, count) -> (covered[band] ?: 0).toDouble() / count <= ARM_COVERED }.keys
+        fun uncovered(band: Int): Boolean {
+            val count = total[band] ?: return true
+            return (covered[band] ?: 0).toDouble() / count <= ARM_COVERED
+        }
+        return total.keys.filter(::uncovered).toSet() + NECK_SIDES.filterValues(::uncovered).keys
     }
 
     /** 픽셀마다 [source]에서 가장 가까운 픽셀 번호(8방향 원점 전파, 근사). 없으면 -1. */

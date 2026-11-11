@@ -29,6 +29,49 @@ class TopBodyCutParityTest {
         assertEquals(0, differs, "남은 맨몸 픽셀이 cut.py와 다르다")
     }
 
+    /** 칼라 옆 칸(221·181) 픽스처와 승인 묶음의 실제 서기 조합(파이썬 `_nearest`는 근사, 앱은 BFS)도 cut.py와 같은 픽셀을 지운다. */
+    @Test
+    fun `칼라 옆 칸과 실제 서기 조합도 파이프라인 cut_py와 같은 픽셀을 지운다`() {
+        for (prefix in listOf("neck_", "real_top_dawn_windbreaker_", "real_top_crew_tee_")) {
+            val body = pixels("${prefix}body")
+            val top = pixels("${prefix}top")
+            val area = pixels("${prefix}area")
+            val expected = pixels("${prefix}expected")
+            TopBodyCut.apply(body.first, top.first, area.first, body.second, body.third)
+            val differs = body.first.indices.count {
+                (body.first[it] ushr 24 != 0) != (expected.first[it] ushr 24 != 0)
+            }
+            assertEquals(0, differs, "$prefix 남은 맨몸 픽셀이 cut.py와 다르다")
+        }
+    }
+
+    /**
+     * 모두 지우는 칸(240) 안의 맨몸은 배경에 닿지 않아도 되살리지 않는다(코드 리뷰: restoreEnclosed가 240·230·칼라 옆 칸 픽셀까지 되살렸다).
+     * 맨몸 x 1..48, y 1..6, 240 칸 x 3..4, y 2..5(둘레가 맨몸이라 배경에 닿지 않고, 상의에서 [TopBodyCut.RIM_PX]보다 멀어 부스러기로
+     * 지우지 않는다), 상의 x 44..46. 파이프라인
+     * `test_full_cut_cell_is_not_restored`와 같은 입력·기댓값이다.
+     */
+    @Test
+    fun `모두 지우는 칸의 맨몸은 갇혀 있어도 되살리지 않는다(파이프라인 cut_py와 같다)`() {
+        val width = 50
+        val height = 8
+        val skin = 0xFFF6CDBE.toInt()
+        val body = IntArray(width * height) { i -> if (i % width in 1..48 && i / width in 1..6) skin else 0 }
+        val top = IntArray(width * height) { i ->
+            if (i % width in 44..46 &&
+                i / width in 1..6
+            ) {
+                0xFF3C5078.toInt()
+            } else {
+                0
+            }
+        }
+        val area = IntArray(width * height) { i -> if (i % width in 3..4 && i / width in 2..5) 240 shl 24 else 0 }
+        TopBodyCut.apply(body, top, area, width, height)
+        val removed = body.indices.filter { body[it] ushr 24 == 0 && it % width in 1..48 && it / width in 1..6 }
+        assertEquals((2..5).flatMap { y -> (3..4).map { x -> y * width + x } }, removed)
+    }
+
     @Test
     fun `띠 판정이 한 줄 걸러 지워 남긴 1px 줄도 지운다(파이프라인 close_slits와 같다)`() {
         val skin = 0xFFFAD2C0.toInt()
@@ -106,5 +149,57 @@ class TopBodyCutParityTest {
             height
         )
             .also { bitmap.recycle() }
+    }
+
+    @Test
+    fun `칼라 옆 칸은 짝 어깨 띠를 상의가 덮을 때만 상의 밖 맨몸을 모두 지운다(파이프라인 cut_py와 같다)`() {
+        val width = 40
+        val height = 20
+        val skin = 0xFFF6CDBE.toInt()
+        val cloth = 0xFF3C383D.toInt()
+        val area = IntArray(width * height) { i ->
+            when (i % width) {
+                in 0 until 20 -> 220 shl 24
+                in 20 until 30 -> 221 shl 24
+                else -> 0
+            }
+        }
+        fun cut(shoulder: IntRange): IntArray {
+            val body = IntArray(width * height) { i -> if (i % width in 2 until 38) skin else 0 }
+            val top = IntArray(width * height) { i ->
+                if (i % width in shoulder ||
+                    i % width in 26 until 30
+                ) {
+                    cloth
+                } else {
+                    0
+                }
+            }
+            TopBodyCut.apply(body, top, area, width, height)
+            return body
+        }
+        val sleeved = cut(2 until 20)
+        assertEquals(List(6) { 0 }, (20 until 26).map { sleeved[5 * width + it] }, "어깨를 덮는 상의: 칼라 옆 맨몸을 지운다")
+        assertEquals(List(8) { skin }, (30 until 38).map { sleeved[5 * width + it] }, "칸 밖은 그대로")
+        val bare = cut(2 until 6)
+        assertEquals(List(6) { skin }, (20 until 26).map { bare[5 * width + it] }, "민소매: 그대로")
+    }
+
+    @Test
+    fun `배경에 닿지 않게 지운 맨몸 덩어리는 되살린다(파이프라인 cut_py restore_enclosed와 같다)`() {
+        val width = 12
+        val height = 12
+        val skin = 0xFFF6CDBE.toInt()
+        val cloth = 0xFF3C383D.toInt()
+        val before = IntArray(width * height) { i -> if (i % width in 1..10 && i / width in 1..10) skin else 0 }
+        val top = IntArray(width * height) { i -> if (i / width in 1..2 && i % width in 1..10) cloth else 0 }
+        val after = before.copyOf()
+        after[5 * width + 5] = 0 // 맨몸 안 구멍: 배경에 닿지 않는다
+        after[6 * width + 5] = 0
+        after[8 * width + 1] = 0 // 가장자리: 배경에 닿는다
+        TopBodyCut.restoreEnclosed(before, after, top, width, height)
+        assertEquals(skin, after[5 * width + 5])
+        assertEquals(skin, after[6 * width + 5])
+        assertEquals(0, after[8 * width + 1])
     }
 }

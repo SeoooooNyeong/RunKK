@@ -6,6 +6,7 @@ import json
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -174,9 +175,16 @@ def test_cut_matches_app_fixture() -> None:
     """앱 TopBodyCutParityTest와 같은 픽스처: 파이프라인 cut.py 결과가 expected.png와 같다(Kotlin도 같은 파일과 비교한다)."""
     import numpy as np
 
-    from tests.make_topcut_fixture import OUT, expected
+    from outfit_pipeline.cut import apply
+    from tests.make_topcut_fixture import OUT, expected, sets
 
     assert np.array_equal(np.array(expected()), np.array(Image.open(OUT / "expected.png").convert("RGBA")))
+    # 칼라 옆 칸(221·181) 픽스처와 승인 묶음의 실제 조합도 같은 파일과 비교한다
+    for prefix, images in sets().items():
+        saved = [np.array(Image.open(OUT / f"{prefix}{n}.png").convert("RGBA")) for n in ("body", "top", "area")]
+        assert all(np.array_equal(np.array(i), s) for i, s in zip(images, saved, strict=True)), prefix
+        want = np.array(Image.open(OUT / f"{prefix}expected.png").convert("RGBA"))[..., 3] > 0
+        assert np.array_equal(np.array(apply(*images))[..., 3] > 0, want), prefix
 
 
 def test_skin_rule_counts_only_skin_that_touches_empty_space() -> None:
@@ -227,4 +235,96 @@ def test_check_reports_exposed_skin(tmp_path: Path) -> None:
     path = tmp_path / "female_stand.webp"
     spec.save_webp(Image.fromarray(layer, "RGBA"), path)
     problems = check_layer(path, "TOP", template_for(path.name, "TOP", 1), MASKS)
-    assert [p.rule for p in problems] == [9]
+    # 붙인 사각형이 옷 가장자리에 좁은 틈을 만들면 16번(구멍)도 함께 나올 수 있다
+    rules = {p.rule for p in problems}
+    assert 9 in rules and rules <= {9, 16}
+
+
+def test_neck_side_cut_removes_skin_outside_sleeved_tops_only() -> None:
+    """칼라 옆 칸(221·181)은 짝 어깨 띠(220·180)를 상의가 덮을 때만 상의 밖 맨몸을 모두 지운다(판정 round1~3 B: windbreaker 칼라 옆 획).
+    앱 TopBodyCutParityTest의 같은 이름 시험과 같은 입력·기대값."""
+    import numpy as np
+
+    from outfit_pipeline.cut import apply
+
+    width, height = 40, 20
+    labels = np.zeros((height, width), np.uint8)
+    labels[:, 0:20] = 220
+    labels[:, 20:30] = 221
+    area = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    area.putalpha(Image.fromarray(labels))
+
+    def cut(shoulder: tuple[int, int]) -> np.ndarray:
+        body = np.zeros((height, width, 4), np.uint8)
+        body[:, 2:38] = (246, 205, 190, 255)
+        top = np.zeros((height, width, 4), np.uint8)
+        top[:, shoulder[0] : shoulder[1]] = (60, 56, 61, 255)
+        top[:, 26:30] = (60, 56, 61, 255)
+        return np.array(apply(Image.fromarray(body, "RGBA"), Image.fromarray(top, "RGBA"), area))[..., 3]
+
+    sleeved = cut((2, 20))
+    assert (sleeved[5, 20:26] == 0).all() and (sleeved[5, 30:38] == 255).all()
+    assert (cut((2, 6))[5, 20:26] == 255).all()
+
+
+def test_stand_cut_area_marks_neck_sides() -> None:
+    """서기 자르기 칸: 맨 위 목 둘레(NECK_TOP 행) 가운데 목 기둥 밖 양옆이 칼라 옆 칸 값이다."""
+    import numpy as np
+
+    from outfit_pipeline.build import cut_area
+    from outfit_pipeline.cli import RAW
+
+    area = np.array(cut_area(RAW, "stand"))
+    (l0, l1), (r0, r1) = spec.NECK_SIDES
+    assert (area[: spec.NECK_TOP[3], l0:l1] == spec.CUT_LEFT_NECK_SIDE).all()
+    assert (area[: spec.NECK_TOP[3], r0:r1] == spec.CUT_RIGHT_NECK_SIDE).all()
+    assert (area[: spec.NECK_TOP[3], l1:r0] == 0).all()  # 목 기둥은 자르지 않는다
+    assert area[spec.NECK_TOP[3] + 2, l0] == spec.CUT_LEFT_SHOULDER
+
+
+def test_restore_enclosed_keeps_holes_away_from_the_background() -> None:
+    """앱 TopBodyCutParityTest의 같은 시험과 같은 입력·기대값(판정 round4 crew 소매 끝 아래 틈)."""
+    import numpy as np
+
+    from outfit_pipeline.cut import restore_enclosed
+
+    before = np.zeros((12, 12, 4), np.uint8)
+    before[1:11, 1:11] = (246, 205, 190, 255)
+    top = np.zeros((12, 12), bool)
+    top[1:3, 1:11] = True
+    after = before.copy()
+    after[5, 5] = 0
+    after[6, 5] = 0
+    after[8, 1] = 0
+    out = restore_enclosed(before, after, top)
+    assert out[5, 5, 3] == 255 and out[6, 5, 3] == 255
+    assert out[8, 1, 3] == 0
+
+
+def test_full_cut_cell_is_not_restored() -> None:
+    """모두 지우는 칸(240) 안의 맨몸은 배경에 닿지 않아도 되살리지 않는다(앱 TopBodyCutParityTest와 같은 입력·기댓값). 칸은 상의에서
+    RIM_PX보다 멀어 부스러기 지우기에 걸리지 않는다."""
+    from outfit_pipeline.cut import apply
+
+    width, height = 50, 8
+    body = np.zeros((height, width, 4), np.uint8)
+    body[1:7, 1:49] = (246, 205, 190, 255)
+    top = np.zeros_like(body)
+    top[1:7, 44:47] = (60, 80, 120, 255)
+    area = np.zeros((height, width, 4), np.uint8)
+    area[2:6, 3:5, 3] = 240
+    out = np.array(apply(Image.fromarray(body, "RGBA"), Image.fromarray(top, "RGBA"), Image.fromarray(area, "RGBA")))
+    removed = [(y, x) for y in range(1, 7) for x in range(1, 49) if out[y, x, 3] == 0]
+    assert removed == [(y, x) for y in range(2, 6) for x in (3, 4)]
+
+
+def test_leg_span_does_not_wrap_when_the_hip_cell_starts_near_the_top() -> None:
+    """엉덩이 옆 칸 맨 아래 행이 LEG_GUARD보다 위에 있어도 시작 행이 음수로 돌아 감기지 않는다(맨 위 행부터 지킨다)."""
+    from outfit_pipeline.cut import _leg_span
+
+    skin = np.zeros((10, 6), bool)
+    skin[:, 1:5] = True
+    hip = np.zeros_like(skin)
+    hip[0:6] = True  # 칸 맨 아래 행 5, 다리 행 6
+    out = _leg_span(skin, hip)
+    assert out[0:6, 1:5].all() and not out[6:].any() and not out[:, 0].any()

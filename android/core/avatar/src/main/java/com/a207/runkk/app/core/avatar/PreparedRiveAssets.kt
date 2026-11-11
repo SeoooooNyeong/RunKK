@@ -29,11 +29,15 @@ internal class PreparedRiveAssets(
     companion object {
         /**
          * 방금 읽은 riv 바이트에서 검수용 바탕(DV-성-3, [RivReviewBackground])과 내장 바닥 그림자([RivGroundShadow],
-         * [임시:D-성-107])를 투명하게 한다. [riv] 배열을 바로 고치고 그것을 돌려준다.
+         * [임시:D-성-107])를 투명하게 하고, 달리기 엉덩이 잇기 메시가 쓸 텍스처 칸을 옮긴다([RivHipConnection]). [riv] 배열을 바로 고치고
+         * 그것을 돌려준다.
          */
         fun hideBuiltInShapes(riv: ByteArray): ByteArray = riv.also {
             RivReviewBackground.hideInPlace(it)
             RivGroundShadow.hideInPlace(it)
+            RivHipConnection.retargetInPlace(it)
+            // 남자 서기 긴소매 메시 팔·몸통 이음매(판정 round3 소매 이음새 틈)
+            RivSleeveSeam.closeInPlace(it)
         }
 
         /** 막는 읽기다. IO 스레드에서 부른다. */

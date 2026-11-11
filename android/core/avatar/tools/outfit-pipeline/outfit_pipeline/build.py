@@ -18,18 +18,26 @@ from outfit_pipeline.body import (
     bare_hips,
     close_seams,
     close_side_gaps,
+    cover_run_leg,
     drop_dust,
     drop_gap_fragments,
     drop_strays,
     elbow_tail_mask,
     extend_waist,
     fill_pinholes,
+    meet_torso_outline,
     smooth_sleeve_line,
+    square_waist_sides,
     trim_waist,
     wisp_layer,
+    wisp_strokes,
 )
-from outfit_pipeline.check import Problem, check_bundle, template_for
+from outfit_pipeline.check import Problem, check_bundle, hole_area, template_for
+from outfit_pipeline.hip import carve_hip, finish_run_leg, paint_hip, round_hip_corner
+from outfit_pipeline.holes import fill_garment_holes
 from outfit_pipeline.masks import load_mask
+from outfit_pipeline.run import finish_run_layer
+from outfit_pipeline.shoes import drop_ghost, drop_pieces
 from outfit_pipeline.skin import strip_skin
 
 ALPHA_FLOOR = 8  # 이보다 옅은 알파는 잡티로 보고 0
@@ -350,8 +358,24 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
         layer, _ = strip_skin(clip(to_slot(Image.open(path), slot), load_mask(masks_dir, template, part)))
         wisps = wisp_layer(asset_key, name)
         layer, _ = drop_strays(layer, garment=wisps, thin=True)
+        stand_body = target.parent / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}"
+        if part == "TOP" and match.group(2) == "stand" and stand_body.is_file():
+            layer, _ = meet_torso_outline(layer, Image.open(stand_body))  # 판정 round1 A
         if part == "BOTTOM":
             layer = tidy_bottom(layer, target.parent / spec.BODY_FOLDER, wisps, match.group(2) == "stand")
+        if part == "SHOES":
+            layer, _ = drop_pieces(layer)
+        run_leg = target.parent / spec.BODY_FOLDER / f"female_run_leg{spec.EXTENSION}"
+        layer = finish_run_layer(
+            layer, asset_key, part, match.group(2), Image.open(run_leg) if run_leg.is_file() else None
+        )
+        if asset_key in spec.SHOE_GHOST_KEYS:
+            # 생성 그림자 잔상(판정 round1 D). 되풀이하면 더 깎이므로 원본에서 만들 때 한 번만 지운다(clean-body에서는 하지 않는다)
+            layer, _ = drop_ghost(layer)
+            layer, _ = strip_skin(layer)  # 잔상 밖 테두리가 떨어지면 남은 연한 살구색 테두리가 맨살로 드러난다
+            layer, _ = drop_strays(layer, thin=True)
+            layer, _ = drop_pieces(layer)
+        layer = fill_layer_holes(layer, masks_dir, f"{name}{spec.EXTENSION}", part, surface)
         spec.save_webp(layer, target / f"{name}{spec.EXTENSION}")
         names.append(name)
         if match.group(3):
@@ -396,6 +420,11 @@ def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
             x0, y0, x1, y1 = box
             region = array[y0:y1, x0:x1]
             region[region > 0] = value
+        (l0, l1), (r0, r1) = spec.NECK_SIDES
+        for (x0, x1), value in (((l0, l1), spec.CUT_LEFT_NECK_SIDE), ((r0, r1), spec.CUT_RIGHT_NECK_SIDE)):
+            array[: spec.NECK_TOP[3], x0:x1] = (
+                value  # 칼라 옆 칸(어깨를 덮는 상의만 상의 밖을 모두 지운다, 판정 round1~3 B)
+            )
         return Image.fromarray(array, "L")
     area = Image.new("L", (slot.width, slot.height), spec.CUT_ALL if slot_name == "run_body" else spec.CUT_TORSO)
     if slot_name == "run_body":
@@ -468,21 +497,28 @@ def strip_bundles(outfits_dir: Path) -> dict[str, int]:
 
 def clean_body(slot_name: str, image: Image.Image) -> tuple[Image.Image, Image.Image | None]:
     """맨몸 바탕 정리([임시:D-성-184]·[임시:D-성-185], `outfit_pipeline.body`): 부스러기를 지우고, 서기는 소매 밑단 줄을 펴고 허리·엉덩이
-    속옷을 맨몸으로 바꾼다. (맨몸, 서기면 기본 하의로 옮길 허리 밴드 레이어)."""
+    속옷을 맨몸으로 바꾸고 외곽선 밖 나란한 가는 획을 지운다. (맨몸, 서기면 기본 하의로 옮길 허리 밴드 레이어)."""
     # 맨몸 외곽선과 그 안티에일리어싱은 승인 원본 그대로 둔다(검수: 외곽선을 다시 그리거나 3x3로 깎으면 실기기에서 팔이 울퉁불퉁했다).
     # 고립 점만 지우고, 서기는 팔 안쪽 피부의 소매 줄, 팔꿈치 꼬리 조각, 허리·엉덩이 안쪽 속옷, 팔과 몸통 사이 떨어진 조각만 고친다
     if slot_name != "stand":
         # 달리기 슬롯(옆모습)은 3x3 굵은 실루엣 밖 1~2px 털도 지운다: 남기면 긴소매 소매 끝 옆 손목에서 상의 자르기가 빗살을 남겼다
         image, _ = drop_strays(image.convert("RGBA"), thin=True)
+        if slot_name == "run_leg":
+            image = round_hip_corner(carve_hip(paint_hip(image)))  # 엉덩이 잇기 칸·뒷면 둥근 모서리(판정 round1~3 C)
         return image, None
     image, _ = drop_dust(image.convert("RGBA"))
     from outfit_pipeline.cli import RAW
 
     array = np.array(smooth_sleeve_line(image, Image.open(RAW / "avatar_legacy_standing_body.png")))
     array[elbow_tail_mask(array)] = 0
+    # 외곽선 바깥에 나란히 뜬 가는 획(손 외곽 털, 판정 round1 E)만 지운다. 외곽선 자체는 그대로
+    array[wisp_strokes(array)] = 0
     image, band = bare_hips(Image.fromarray(array, "RGBA"))
     image, _ = drop_dust(drop_gap_fragments(image))
     return fill_pinholes(image), band
+
+
+LONG_LEG_ROW = 500  # 달리기 다리 하의가 이 행 아래까지 내려오면 긴 하의(레깅스·조거·와이드)
 
 
 def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stand: bool = True) -> Image.Image:
@@ -498,6 +534,7 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
             layer, _ = trim_waist(layer)
             if body is not None:
                 layer, _ = extend_waist(layer, body)
+                layer, _ = square_waist_sides(layer)
                 layer, _ = close_side_gaps(layer, body)
         if np.array_equal(before, np.array(layer)):
             break
@@ -505,6 +542,17 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
     layer, _ = drop_strays(layer, garment=wisps, thin=True)
     if stand:
         layer, _ = trim_waist(layer)
+    else:
+        leg = body_folder / f"female_run_leg{spec.EXTENSION}"
+        # 천이 넓게(40px 이상) 있는 행만 센다(반바지 레이어에 딸려 온 다리 외곽선 가는 줄은 발목까지 내려간다)
+        rows = np.nonzero(((np.array(layer.convert("RGBA"))[..., 3] >= 128).sum(axis=1)) >= 40)[0]
+        if leg.is_file() and len(rows) and rows.max() >= LONG_LEG_ROW:
+            # 긴 하의: 맨몸 다리 피부를 덮고 배경 쪽 가장자리에 외곽선(판정 round1 C)
+            layer, _ = cover_run_leg(layer, Image.open(leg))
+            layer, _ = close_seams(layer)
+            layer, _ = drop_strays(layer, garment=wisps, thin=True)
+        # 엉덩이 잇기 칸·엉덩이 뒷면 둥근 모서리·긴 하의 다리 외곽선(판정 round1~3 C, outfit_pipeline/hip.py)
+        layer = finish_run_leg(layer, Image.open(leg) if leg.is_file() else None)
     return layer
 
 
@@ -555,8 +603,20 @@ def clean_assets(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str,
             wisps = wisp_layer(bundle.name, path.name)
             before = np.array(Image.open(path).convert("RGBA"))
             layer, _ = drop_strays(Image.open(path), garment=wisps, thin=True)
-            if spec.part_of_key(bundle.name) == "BOTTOM":
+            part = spec.part_of_key(bundle.name)
+            if part == "BOTTOM":
                 layer = tidy_bottom(layer, folder, wisps, path.stem.split("_", 1)[1] == "stand")
+            if part == "SHOES":
+                layer, _ = drop_pieces(layer)
+            run_leg = folder / f"female_run_leg{spec.EXTENSION}"
+            layer = finish_run_layer(
+                layer, bundle.name, part, path.stem.split("_", 1)[1], Image.open(run_leg) if run_leg.is_file() else None
+            )
+            stand_body = folder / f"female_stand{spec.EXTENSION}"
+            if part == "TOP" and path.stem.split("_", 1)[1] == "stand" and stand_body.is_file():
+                layer, _ = meet_torso_outline(layer, Image.open(stand_body))
+            surface = spec.default_male_top_surface(bundle.name)
+            layer = fill_layer_holes(layer, masks_dir, path.name, part, surface)
             count = int((np.array(layer) != before).any(axis=2).sum())
             if count:
                 spec.save_webp(layer, path)
@@ -566,3 +626,40 @@ def clean_assets(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str,
         if stand.is_file() and (touched or bundle.name == spec.LEGACY_KEYS["BOTTOM"][0]):
             spec.save_webp(make_shop(Image.open(stand).convert("RGBA")), bundle / spec.SHOP_FILE)
     return changed
+
+
+def fill_layer_holes(layer: Image.Image, masks_dir: Path, file_name: str, part: str, surface: int) -> Image.Image:
+    """옷 레이어의 구멍을 메우고(`outfit_pipeline.holes`) 메운 픽셀은 16번 검사 영역(`hole_area`, 남녀 템플릿 허용 영역의 교집합)
+    안에만 남긴다. 메운 색이 맨살 색(검사 9번)이면 둘레 7x7의 맨살이 아닌 천 색 가운데값으로 바꾼다(후드 안감처럼 살구색 천 옆).
+    영역 밖을 되돌리면 새 트임이 생길 수 있어 영역 안 구멍이 없어질 때까지(최대 3번) 되풀이한다. 하의는 메운 뒤 세로 틈(검사 14번)을 닫는다."""
+    from outfit_pipeline.holes import hole_mask
+    from outfit_pipeline.skin import skin_mask
+
+    area = np.array(hole_area(masks_dir, file_name, part, surface)) > 0
+    original = np.array(layer.convert("RGBA"))
+    current = layer
+    for _ in range(3):
+        filled, count = fill_garment_holes(current)
+        if not count:
+            break
+        before = np.array(current.convert("RGBA"))
+        array = np.array(filled)
+        added = (before[..., 3] < 255) & (array[..., 3] == 255)
+        outside = added & ~area
+        array[outside] = before[outside]
+        skin = skin_mask(array) & added & area
+        if skin.any():
+            cloth = (array[..., 3] >= 250) & ~skin_mask(array)
+            for y, x in zip(*np.nonzero(skin), strict=True):
+                y0, y1, x0, x1 = max(0, y - 3), y + 4, max(0, x - 3), x + 4
+                near = cloth[y0:y1, x0:x1]
+                if near.any():
+                    array[y, x, :3] = np.median(array[y0:y1, x0:x1][near][:, :3], axis=0)
+        current = Image.fromarray(array, "RGBA")
+        if part == "BOTTOM":
+            current, _ = close_seams(current)
+        if not (hole_mask(np.array(current)) & area).any():
+            break
+    if np.array_equal(np.array(current.convert("RGBA")), original):
+        return layer
+    return current

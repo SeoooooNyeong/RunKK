@@ -173,6 +173,9 @@ def _leg_colors(array: np.ndarray) -> np.ndarray:
     return smooth.round().clip(0, 255).astype(np.uint8)
 
 
+HIP_HOLE_X = (110, 403)  # 엉덩이 구멍으로 메우는 x 범위(팔과 엉덩이 사이 틈은 빼고)
+
+
 def bare_hips(image: Image.Image) -> tuple[Image.Image, Image.Image]:
     """서기 맨몸의 허리·엉덩이 속옷을 맨몸으로 바꾼다. (맨몸, 기본 하의로 옮길 허리 밴드 레이어)."""
     array = _rgba(image).copy()
@@ -184,6 +187,9 @@ def bare_hips(image: Image.Image) -> tuple[Image.Image, Image.Image]:
     band[waist] = array[waist]
     # 몸 안에 갇힌 반투명 구멍(옛 밑단 선 사이)도 피부로 채운다
     holes = zone & (array[..., 3] < SOLID) & ~_near_outside(array[..., 3], 0)
+    # 팔과 엉덩이 사이 틈(x 110 밖)은 구멍이 아니다: 메우면 팔 가장자리가 승인 그림과 달라지고 팔과 몸 사이가 피부로 이어졌다
+    holes[:, : HIP_HOLE_X[0]] = False
+    holes[:, HIP_HOLE_X[1] :] = False
     inner = under | holes
     colors = _leg_colors(array)
     x0 = spec.STAND_HIPS[0]
@@ -327,6 +333,51 @@ def trim_waist(image: Image.Image) -> tuple[Image.Image, int]:
 def _body_inside(body: Image.Image) -> np.ndarray:
     solid = _rgba(body)[..., 3] >= SOLID
     return solid & _thick(solid, 3)
+
+
+WAIST_STEP = 3  # 허리 옆 가장자리가 한 행에 이보다 많이 바깥으로 뛰면 계단(홈)으로 본다
+WAIST_SIDE_ROWS = (296, 345)  # 허리 옆 계단을 찾는 행 범위
+WAIST_EDGE_AA = 2  # 이어 붙일 때 가장자리 밖으로 함께 옮기는 안티앨리어싱 폭
+
+
+def square_waist_sides(image: Image.Image) -> tuple[Image.Image, int]:
+    """하의 서기 허리 옆 계단을 없앤다(판정 round1 A): 허리를 맨몸 실루엣까지만 늘리면 하의 원래 허리 높이에서 옆 가장자리가 3~8px 바깥으로
+    뛰어 밑단 옆에 홈과 짙은 획으로 보였다. 가장자리가 [WAIST_STEP]px 넘게 바깥으로 뛰는 행을 찾아 그 행의 옆 가장자리(외곽선·안티앨리어싱
+    포함, 바깥 2px까지)를 위쪽 행(y 296부터)에 그대로 이어 붙인다. (레이어, 더한 픽셀 수)."""
+    array = np.array(image.convert("RGBA"))
+    solid = array[..., 3] >= 128
+    y0, y1 = WAIST_SIDE_ROWS
+    added = 0
+    for sign in (1, -1):  # 1 = 왼쪽, -1 = 오른쪽
+
+        def edge(y: int, sign: int = sign) -> int | None:
+            xs = np.nonzero(solid[y])[0]
+            if len(xs) == 0:
+                return None
+            return int(xs.min()) if sign == 1 else int(xs.max())
+
+        step_row = None
+        for y in range(y0 + 1, y1):
+            a, b = edge(y - 1), edge(y)
+            if a is not None and b is not None and (a - b) * sign > WAIST_STEP:
+                step_row = y
+                break
+        if step_row is None:
+            continue
+        source = array[step_row]
+        outer = edge(step_row)
+        assert outer is not None
+        start = outer - WAIST_EDGE_AA * sign  # 바깥 안티앨리어싱은 2px까지만(더 옅은 끝은 팔 가장자리에 겹친다)
+        for y in range(y0, step_row):
+            inner = edge(y)
+            if inner is None or (inner - outer) * sign <= 0:
+                continue
+            xs = range(start, inner) if sign == 1 else range(inner + 1, start + 1)
+            for x in xs:
+                if source[x, 3] > array[y, x, 3]:
+                    array[y, x] = source[x]
+                    added += 1
+    return Image.fromarray(array, "RGBA"), added
 
 
 def extend_waist(image: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
@@ -530,6 +581,64 @@ def dust_mask(rgba: np.ndarray | Image.Image) -> np.ndarray:
     return out
 
 
+WISP_EMPTY = 24  # 획 바깥(투명)으로 보는 알파 상한
+WISP_INK = 40  # 획·틈을 가르는 알파
+WISP_MAX = 3  # 획·틈의 최대 폭(px)
+WISP_SOLID = 3  # 틈 너머 실루엣으로 보는 알파 128 이상 연속 폭
+
+
+def parallel_wisps(rgba: np.ndarray) -> np.ndarray:
+    """외곽선 바깥에 나란히 떠 있는 가는 획(판정 round1 E: 손 외곽에 털처럼 삐친 선). 가로·세로 줄마다 바깥에서 안으로
+    투명(알파 < [WISP_EMPTY]) → 획(알파 ≥ [WISP_INK], 1~[WISP_MAX]px) → 틈(알파 < [WISP_INK], 1~[WISP_MAX]px) → 실루엣(그다음 [WISP_SOLID]+1px 가운데
+    [WISP_SOLID]px 이상이 알파 128 이상)인 곳의 획. 외곽선과 그 안티앨리어싱은 실루엣 쪽이라 남는다."""
+    alpha = rgba[..., 3].astype(int)
+    mask = np.zeros(alpha.shape, bool)
+
+    def scan(line: np.ndarray) -> np.ndarray:
+        out = np.zeros(len(line), bool)
+        n = len(line)
+        for i in range(1, n):
+            if line[i - 1] >= WISP_EMPTY or line[i] < WISP_INK:
+                continue
+            j = i
+            while j < n and line[j] >= WISP_INK and j - i < WISP_MAX + 1:
+                j += 1
+            if j - i > WISP_MAX or j >= n:
+                continue
+            k = j
+            while k < n and line[k] < WISP_INK and k - j < WISP_MAX + 1:
+                k += 1
+            ahead = line[k : k + WISP_SOLID + 1]  # 외곽선 안티앨리어싱 1px을 건너 실루엣
+            if 1 <= k - j <= WISP_MAX and len(ahead) > WISP_SOLID and int((ahead >= 128).sum()) >= WISP_SOLID:
+                out[i:j] = True
+        return out
+
+    for y in range(alpha.shape[0]):
+        if alpha[y].any():
+            mask[y] |= scan(alpha[y]) | scan(alpha[y][::-1])[::-1]
+    for x in range(alpha.shape[1]):
+        if alpha[:, x].any():
+            mask[:, x] |= scan(alpha[:, x]) | scan(alpha[:, x][::-1])[::-1]
+    return mask
+
+
+def wisp_strokes(rgba: np.ndarray) -> np.ndarray:
+    """지울 손 외곽 털 전체: [parallel_wisps]를 지우면 그 뒤에 있던 획이 새로 드러날 수 있어 더 없을 때까지(최대 3번) 지우고, 그 뒤
+    고립 점이 된 조각([dust_mask])까지 더한 것."""
+    array = rgba.copy()
+    removed = np.zeros(array.shape[:2], bool)
+    for _ in range(3):
+        mask = parallel_wisps(array)
+        if not mask.any():
+            break
+        array[mask] = 0
+        removed |= mask
+    if removed.any():
+        dust = dust_mask(array) & ~dust_mask(rgba)
+        removed |= dust
+    return removed
+
+
 def drop_dust(image: Image.Image) -> tuple[Image.Image, int]:
     array = _rgba(image).copy()
     mask = dust_mask(array)
@@ -557,12 +666,14 @@ def body_outline(rgba: np.ndarray | Image.Image) -> np.ndarray:
 
 
 def outline_reference(original: Image.Image, thin: bool = False) -> np.ndarray:
-    """정리 전 맨몸(승인 원본)에서 지켜야 할 외곽선: [body_outline]에서 고립 점·팔꿈치 꼬리·팔과 몸통 사이 떨어진 조각을 뺀 것. [thin]이면
+    """정리 전 맨몸(승인 원본)에서 지켜야 할 외곽선: [body_outline]에서 고립 점·팔꿈치 꼬리·팔과 몸통 사이 떨어진 조각, 서기는 외곽선 밖 나란한 가는 획을 뺀 것. [thin]이면
     (달리기 슬롯) 3x3 굵은 실루엣 밖 털도 뺀다."""
     array = _rgba(original)
     keep = body_outline(array) & ~dust_mask(array) & ~elbow_tail_mask(array)
     if thin:
         keep &= ~_thin_mask(array)
+    else:
+        keep &= ~wisp_strokes(array)  # 서기 손 외곽 털(판정 round1 E)은 지키지 않는다
     fragments = np.array(drop_gap_fragments(Image.fromarray(array, "RGBA")))[..., 3] == 0
     return keep & ~(fragments & (array[..., 3] > 0))
 
@@ -572,3 +683,104 @@ def outline_breaks(image: Image.Image | np.ndarray, reference: np.ndarray) -> np
     array = _rgba(image)
     kept = (array[..., 3] >= SOLID) & (array[..., :3].astype(int).mean(axis=2) < 140)
     return reference & ~kept
+
+
+LEG_OUTLINE = (70, 48, 40)  # 달리기 다리 하의 외곽선 색(맨몸 다리 외곽선과 같은 짙은 갈색)
+LEG_OUTLINE_PX = 3  # 배경과 맞닿은 하의 가장자리에 칠하는 외곽선 폭(맨몸 다리 외곽선 약 4px과 비슷하게)
+LEG_INK = 75  # 이보다 어두운 가장자리 픽셀은 이미 외곽선으로 보고 칠하지 않는다
+LEG_DARK = 110  # 이보다 어두운 맨몸 픽셀은 맨몸 외곽선으로 보고 덮지 않는다(하의 외곽선 노릇을 한다)
+LEG_HEM_SKIP = 6  # 하의 밑단 위 이 행 수는 덮지 않는다(밑단 아래 다리와 이어지는 곳)
+
+
+def cover_run_leg(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
+    """긴 하의 달리기 다리 레이어(판정 round1 C): 하의가 있는 행에서 맨몸 다리 피부가 하의 밖으로 나온 곳(레깅스 무릎 겹침 사이 피부 쐐기,
+    뒤 허벅지)을 가까운 하의 색으로 덮고(맨몸 외곽선은 덮지 않아 하의 외곽선이 된다), 배경과 맞닿은 하의 가장자리 [LEG_OUTLINE_PX]px은
+    짙은 외곽선 색으로 칠한다(wide·jogger는 외곽선이 옅어 바지 전체에 외곽선이 없어 보였다). (레이어, 바꾼 픽셀 수)."""
+    array = _rgba(layer).astype(np.float64)
+    skin = _rgba(body)
+    garment = array[..., 3] >= 128
+    rows = np.nonzero(garment.sum(axis=1) >= 40)[0]  # 천이 넓게 있는 행(가는 외곽선 줄은 빼고)
+    if len(rows) == 0:
+        return layer, 0
+    in_rows = np.zeros(garment.shape, bool)
+    in_rows[rows.min() : rows.max() - LEG_HEM_SKIP] = True
+    body_solid = skin[..., 3] >= 128
+    body_dark = skin[..., :3].astype(int).mean(axis=-1) < LEG_DARK
+    todo = body_solid & ~body_dark & ~garment & in_rows
+    changed = int(todo.sum())
+    known = garment.copy()
+    while todo.any():
+        grown = []
+        for y, x in zip(*np.nonzero(todo), strict=True):
+            around = [
+                array[ny, nx, :3]
+                for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1))
+                if 0 <= ny < known.shape[0] and 0 <= nx < known.shape[1] and known[ny, nx]
+            ]
+            if around:
+                grown.append((y, x, np.mean(around, axis=0)))
+        if not grown:
+            break
+        for y, x, color in grown:
+            array[y, x, :3] = color
+            array[y, x, 3] = 255
+            known[y, x] = True
+            todo[y, x] = False
+    covered = array[..., 3] >= 128
+    background = ~covered & ~(body_solid & in_rows)
+    # 텍스처 왼쪽·오른쪽 가장자리 너머도 배경이다(바지가 텍스처 끝 가까이 닿아 메시 가장자리에서 외곽선 없이 잘렸다)
+    padded = np.pad(background, ((0, 0), (LEG_OUTLINE_PX, LEG_OUTLINE_PX)), constant_values=True)
+    grown = Image.fromarray((padded * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(2 * LEG_OUTLINE_PX + 1))
+    near = (np.array(grown) > 0)[:, LEG_OUTLINE_PX:-LEG_OUTLINE_PX]
+    edge = covered & near & in_rows & (array[..., :3].mean(axis=-1) >= LEG_INK)
+    array[edge, :3] = array[edge, :3] * 0.2 + np.array(LEG_OUTLINE) * 0.8
+    changed += int(edge.sum())
+    return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), changed
+
+
+TORSO_GAP_ALPHA = 64  # 팔 띠에서 팔과 몸통 조각을 가르는 틈의 알파 상한
+TORSO_GAP_MAX = 8  # 상의 옆 가장자리와 몸통 옆 외곽선 사이를 메우는 최대 폭
+
+
+def meet_torso_outline(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
+    """서기 상의 레이어(판정 round1 A): 팔 띠(x < 145·x ≥ 367, y 185~301) 행마다 맨몸에서 바깥부터 처음 덩어리(팔) 뒤 틈 너머 조각(몸통 옆
+    외곽선)을 찾고, 상의 옆 가장자리와 그 조각 사이 1~[TORSO_GAP_MAX]px을 상의 가장자리 안쪽 천 색으로 메운다. 민소매는 팔 띠를
+    자르지 않아 몸통 옆 외곽선이 상의와 떨어져 밑단 옆에 짙은 세로 선으로 매달렸다. 메우면 그 외곽선이 상의 외곽선이 된다.
+    (레이어, 메운 픽셀 수)."""
+    array = _rgba(layer).copy()
+    alpha = _rgba(body)[..., 3] >= TORSO_GAP_ALPHA
+    solid = array[..., 3] >= SOLID
+    added = 0
+    for box, outward in ((spec.STAND_LEFT_ARM, True), (spec.STAND_RIGHT_ARM, False)):
+        x0, y0, x1, y1 = box
+        for y in range(y0, y1):
+            xs = range(x0, x1) if outward else range(x1 - 1, x0 - 1, -1)
+            state, sliver = 0, None  # 0 팔 앞, 1 팔, 2 틈, 3 몸통 조각
+            for x in xs:
+                on = alpha[y, x]
+                if state == 0 and on:
+                    state = 1
+                elif state == 1 and not on:
+                    state = 2
+                elif state == 2 and on:
+                    state = 3
+                elif state == 3 and not on:
+                    sliver = x  # 조각 바로 바깥(상의 쪽) 첫 픽셀
+                    break
+            if sliver is None:
+                continue
+            step = 1 if outward else -1
+            edge = None
+            for d in range(TORSO_GAP_MAX + 1):
+                x = sliver + d * step
+                if 0 <= x < solid.shape[1] and solid[y, x]:
+                    edge = x
+                    break
+            if edge is None or edge == sliver:
+                continue
+            fabric = array[y, min(max(edge + 2 * step, 0), solid.shape[1] - 1)].copy()
+            for x in range(sliver, edge, step):
+                array[y, x] = fabric
+                array[y, x, 3] = 255
+                added += 1
+    return Image.fromarray(array, "RGBA"), added
