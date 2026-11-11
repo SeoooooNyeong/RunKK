@@ -272,11 +272,16 @@ CARVE_FULL = 0.5  # 이 높이 아래에서는 [CARVE_BACK]까지 깎는다
 CARVE_BACK = -0.35  # 타원 가로 위치(-1 등 끝 ~ 1 앞 끝)가 이보다 등 쪽이면 깎는다(화면 블록의 곧은 뒷면·뒤 허리 모서리)
 
 
-MALE_CARVE = 0.8  # 남자 칸 등 아래 사분면에서 이보다 바깥만 깎는다
-# 남자 칸 등 외곽선 띠(타원 반지름 비율). 바깥 끝까지 칠한다: 0.93에서 멈추면 외곽선 밖에 천 띠가 남았다(round6).
-MALE_RIM = (0.8, 1.02)
-# 남자 칸 등 외곽선 둘레 각(도): 등 가운데부터 상의 밑단 아래 위 끝까지(215에서 멈추면 위 끝에 단차, round6).
-MALE_ARC = (150, 250)
+# 남자 칸 등 뒤 모양(각도는 타원 중심에서 잰 도: 90 = 아래, 180 = 등, 270 = 위). 등 아래 사분면은 90도에서 반지름 비율 [MALE_CARVE]까지
+# 깎고 180도로 갈수록 메시 끝(1.0)까지 부드럽게 넓히며, 등 가운데부터 위는 메시 끝까지 남긴다. 판정 round6~7: 사분면을 곧게 깎고
+# 외곽선을 반지름 띠로만 칠해 180도에서 바깥 끝이 0.9 → 1.02로 뛰어 단차가 났고, 띠가 250도에서 멈춰 위 모서리 천이 외곽선 밖에 남았다.
+# 90도 근처를 이보다 더 깎으면 여자 리그 앞 다리 메시가 쌍선형으로 섞어 읽는 칸 아래 끝 몇 텍셀이 바뀌어 여자 달리기가 달라졌다.
+MALE_CARVE = 0.9
+# 남자 칸 등 외곽선: 남긴 모양 가장자리에서 안쪽 [MALE_OUTLINE_PX] 텍셀을 이 둘레 각 사이에 칠한다. 양 끝 [MALE_ARC_FADE]도는 두께를
+# 0까지 줄인다(아래 끝은 다리 메시 안으로 들어가는 곳이라 끝이 뚝 끊기면 옷 안쪽 호로 보였다, 위 끝은 상의 밑단 아래).
+MALE_ARC = (130, 290)
+MALE_ARC_FADE = 25
+MALE_OUTLINE_PX = 3
 
 
 def _ellipse_axes(height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
@@ -284,12 +289,27 @@ def _ellipse_axes(height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
     return (xx - (width - 1) / 2) / (width / 2), (yy - (height - 1) / 2) / (height / 2)
 
 
+def _male_back(height: int, width: int, nx: np.ndarray, ny: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """남자 칸에서 깎을 곳과 등 외곽선 띠([MALE_CARVE], [MALE_ARC] 설명)."""
+    radius = np.sqrt(nx * nx + ny * ny)
+    angle = np.degrees(np.arctan2(ny, nx)) % 360
+    s = np.clip((angle - 90) / 90, 0, 1)
+    limit = np.where(angle <= 180, MALE_CARVE + (1 - MALE_CARVE) * s * s * (3 - 2 * s), 1.0)
+    cut = (nx < 0) & (radius > limit)
+    # 각도 방향으로 텍셀 한 칸이 반지름 비율로 얼마인지(가로 반지름 width/2, 세로 height/2)
+    ray = np.hypot(width / 2 * np.cos(np.radians(angle)), height / 2 * np.sin(np.radians(angle)))
+    lo, hi = MALE_ARC
+    fade = np.clip((angle - lo) / MALE_ARC_FADE, 0, 1) * np.clip((hi - angle) / MALE_ARC_FADE, 0, 1)
+    band = ~cut & (fade > 0) & (radius > limit - MALE_OUTLINE_PX / ray * fade)
+    return cut, band
+
+
 def carve_hip(layer: Image.Image) -> Image.Image:
     """엉덩이 잇기 칸(남녀 각각)의 등 쪽(높이 -0.2부터 0.5까지 등 끝에서 가로 -0.35로 부드럽게 들어오는 곡선보다 등 쪽)과 등 아래 사분면
     바깥을 투명하게 깎는다(판정 round3~5 C). 메시가 타원이어도 뼈 변형으로 화면에서는 각진 블록이라 텍스처 알파로 깎는다. 둘레 외곽선은
     그리지 않는다: 픽셀 좌표 부호 렌더로 보니 남녀 모두 뒤 실루엣의 대부분은 다리 메시 윗부분(텍스처 왼쪽 위 x 7~57, y 54~246)이 만들고
-    이 메시의 등 쪽은 그 안쪽에 겹쳐, 둘레 외곽선이 옷 안쪽 호로 떠 보였다(round3, round6 남자 칸 시험). 남녀 칸은 나뉘어 있어(TARGET_TOPS)
-    성별마다 다르게 깎을 수 있다."""
+    이 메시의 등 쪽은 그 안쪽에 겹쳐, 둘레 외곽선이 옷 안쪽 호로 떠 보였다(round3). 남녀 칸은 나뉘어 있어(TARGET_TOPS) 성별마다 다르게
+    깎는다: 남자 리그에서는 이 메시가 등 뒤 실루엣을 만들어 등 둘레에 외곽선을 입힌다([_male_back])."""
     array = np.array(layer.convert("RGBA"))
     x0, y0, x1, y1 = SOURCE
     height, width = y1 - y0, x1 - x0
@@ -298,17 +318,16 @@ def carve_hip(layer: Image.Image) -> Image.Image:
     t = np.clip((ny - CARVE_TOP) / (CARVE_FULL - CARVE_TOP), 0, 1)
     boundary = -1 + (CARVE_BACK + 1) * (1 - (1 - t) ** 2)
     quadrant = (nx < 0) & (ny > 0) & (radius > CARVE)
-    # 남자 리그는 이 메시 등 아래 사분면 뒤에 다리가 덜 와서, 여자와 같이 깎으면 배경 삼각형이 비쳤다: 모서리만 조금 깎는다
-    cuts = {"female": (nx < boundary) | quadrant, "male": (nx < 0) & (ny > 0) & (radius > MALE_CARVE)}
-    angle = np.degrees(np.arctan2(ny, nx)) % 360
-    rim = (radius <= MALE_RIM[1] ** 2) & (radius > MALE_RIM[0] ** 2) & (angle >= MALE_ARC[0]) & (angle <= MALE_ARC[1])
+    # 남자 리그는 이 메시 등 아래 사분면 뒤에 다리가 덜 와서, 여자와 같이 깎으면 배경 삼각형이 비쳤다: 등 아래만 조금 깎고 외곽선을 입힌다
+    male_cut, male_band = _male_back(height, width, nx, ny)
+    cuts = {"female": (nx < boundary) | quadrant, "male": male_cut}
     for gender, top in TARGET_TOPS.items():
         region = array[top : top + height, x0:x1]
         if not (region[..., 3] > 0).any():
             continue
         region[cuts[gender]] = 0
         if gender == "male":
-            band = rim & ~cuts[gender] & (region[..., 3] > 0)
+            band = male_band & (region[..., 3] > 0)
             region[band, :3] = CORNER_OUTLINE
             region[band, 3] = 255
     return Image.fromarray(array, "RGBA")

@@ -13,6 +13,7 @@ from PIL import Image
 from outfit_pipeline import spec
 from outfit_pipeline.cli import OUTFITS, RAW
 from outfit_pipeline.hip import (
+    CORNER_OUTLINE,
     CORNER_ROWS,
     SOURCE,
     TARGET_TOPS,
@@ -108,6 +109,47 @@ def test_carve_hip_opens_the_back_bottom_corner() -> None:
     for top in TARGET_TOPS.values():
         assert out[top + (y1 - y0) - 2, x0 + 2, 3] == 0  # 등 아래 모서리는 깎였다
         assert out[top + 2, x1 - 3, 3] == 255  # 앞 위는 그대로
+
+
+def _male_back_rays(out: np.ndarray) -> dict[int, tuple[float, np.ndarray]]:
+    """남자 칸 타원 중심에서 등 쪽 각도(도, 180 = 등, 270 = 위)마다 가장 바깥 불투명 픽셀의 반지름 비율과 색."""
+    x0, y0, x1, y1 = SOURCE
+    height, width = y1 - y0, x1 - x0
+    region = out[TARGET_TOPS["male"] : TARGET_TOPS["male"] + height, x0:x1]
+    rays = {}
+    for angle in range(95, 270, 5):
+        last = (0.0, region[height // 2, width // 2])
+        for step in range(1, 241):
+            r = step / 200
+            x = (width - 1) / 2 + r * (width / 2) * np.cos(np.radians(angle))
+            y = (height - 1) / 2 + r * (height / 2) * np.sin(np.radians(angle))
+            ix, iy = round(x), round(y)
+            if not (0 <= ix < width and 0 <= iy < height):
+                break
+            if region[iy, ix, 3] >= 128:
+                last = (r, region[iy, ix])
+        rays[angle] = last
+    return rays
+
+
+def test_male_hip_back_is_one_smooth_outlined_curve() -> None:
+    """판정 round6~7: 남자 칸 등 외곽선이 중간에 끊겨 단차가 났고(leggings·wide_pants 같은 모양), 외곽선 밖 위 모서리에 천이 남았다."""
+    layer = np.zeros((768, 256, 4), np.uint8)
+    x0, y0, x1, y1 = SOURCE
+    for top in TARGET_TOPS.values():
+        layer[top : top + (y1 - y0), x0:x1] = (200, 180, 140, 255)
+    out = np.array(carve_hip(Image.fromarray(layer, "RGBA")))
+    rays = _male_back_rays(out)
+    radii = [rays[a][0] for a in sorted(rays)]
+    # 등 아래에서 위로 갈수록 바깥 끝이 커지고(픽셀 반올림 흔들림만, 계단 없이) 등 가운데부터 위까지는 메시 끝에 닿는다
+    assert all(-0.04 <= b - a <= 0.06 for a, b in itertools.pairwise(radii)), radii
+    assert all(rays[a][0] >= 0.95 for a in range(180, 270, 5))
+    # 등 둘레 바깥 끝은 외곽선 색
+    for angle in range(160, 270, 5):
+        assert tuple(int(c) for c in rays[angle][1][:3]) == CORNER_OUTLINE, angle
+    # 타원 밖 위 등 모서리(메시 밖이지만 쌍선형 표본에 섞인다)에 천이 없다
+    assert out[TARGET_TOPS["male"], x0, 3] == 0
+    assert out[TARGET_TOPS["male"] + 2, x0 + 6, 3] == 0
 
 
 def test_outline_leg_edge_paints_the_body_outline_on_long_bottoms() -> None:
