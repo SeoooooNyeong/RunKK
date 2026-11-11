@@ -41,6 +41,7 @@ class MyAvatarStoreTest {
     private val loggedIn = MutableStateFlow(true)
     private var loggedOutCleanups = 0
     private var resumes = 0
+    private var checks = 0
 
     private fun TestScope.store() = MyAvatarStore(
         avatars = repo,
@@ -54,7 +55,8 @@ class MyAvatarStoreTest {
         scope = backgroundScope,
         loggedIn = loggedIn,
         onLoggedOut = { loggedOutCleanups++ },
-        resumeSelfie = { resumes++ }
+        resumeSelfie = { resumes++ },
+        checkPending = { checks++ }
     )
 
     @Test
@@ -78,6 +80,20 @@ class MyAvatarStoreTest {
         store.warm()
         runCurrent()
         assertIs<MyAvatarState.Ready>(store.state.value)
+    }
+
+    @Test
+    fun `checkSelfie는 기기 작업을 직접 확인하고, 로그아웃 상태면 묻지 않는다(임시 D-성-188)`() = runTest {
+        val store = store()
+        store.checkSelfie()
+        runCurrent()
+        assertEquals(1, checks)
+
+        loggedIn.value = false
+        runCurrent()
+        store.checkSelfie()
+        runCurrent()
+        assertEquals(1, checks)
     }
 
     @Test

@@ -150,8 +150,12 @@ class FakeAccountRepository : AccountRepository {
 
     var faceResult: Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> = Outcome.Success(emptyList())
 
+    /** 얼굴 층 받기를 붙잡아 두는 문(받는 중 상태 시험). null이면 바로 돌려준다. */
+    var faceGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun faceLayers(faceKey: String?): Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> {
         calls += "face:$faceKey"
+        faceGate?.await()
         return faceResult
     }
 }

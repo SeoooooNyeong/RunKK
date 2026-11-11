@@ -212,6 +212,10 @@ internal class FakeFollower : SelfieJobFollower {
     override fun cancel() {
         calls += "cancel"
     }
+
+    override suspend fun checkNow() {
+        calls += "check"
+    }
 }
 
 /** 보낸 사진 한 장(메모리). */
@@ -501,6 +505,13 @@ class AvatarSetupViewModelTest {
         assertTrue(presence.isVisible)
         model.onScreenHidden()
         assertFalse(presence.isVisible)
+    }
+
+    @Test
+    fun `화면이 보이면 기기에 남은 작업을 워커와 따로 한 번 직접 확인한다(임시 D-성-188)`() {
+        val model = vm()
+        model.onScreenVisible()
+        assertEquals(1, follower.calls.count { it == "check" })
     }
 }
 

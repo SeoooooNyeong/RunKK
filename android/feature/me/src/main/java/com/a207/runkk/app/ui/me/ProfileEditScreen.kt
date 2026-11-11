@@ -232,7 +232,13 @@ private fun ProfileAvatar(state: ProfileEditUiState) {
                 .background(RunkkColors.SurfacePressed),
             contentAlignment = Alignment.Center
         ) {
-            RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(AVATAR_SIZE), state.faceLayers)
+            RunkkAvatar(
+                state.faceKey,
+                AvatarExpression.FACE,
+                Modifier.size(AVATAR_SIZE),
+                state.faceLayers,
+                isFaceLoading = state.isFacePending
+            )
         }
     }
 }

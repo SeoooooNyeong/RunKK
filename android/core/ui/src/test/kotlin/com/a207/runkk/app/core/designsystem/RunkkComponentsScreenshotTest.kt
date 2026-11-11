@@ -169,6 +169,34 @@ class RunkkComponentsScreenshotTest {
         }
     }
 
+    /**
+     * 프로필 원의 셀카 머리 구도([임시:D-성-189]): 기본 머리와 셀카 머리(도형 픽스처: 캔버스 가운데 작은 머리·짧은 목)를 견준다. 셀카 머리도
+     * 기본 머리와 같은 크기·자리이고 목이 원 아래 가장자리까지 이어진다. 성별마다 위 줄 기본 머리, 아래 줄 셀카 머리(44·88·120dp).
+     */
+    @Test
+    fun avatarSelfieHeadPortraits() = compose.captureRunkkScreen("designsystem_avatar_selfie_head_portraits") {
+        val layers = SelfieHeadFixture.layers
+        Column(
+            Modifier.fillMaxSize().background(RunkkColors.Background).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            AvatarCharacter.entries.forEach { character ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                    listOf(44, 88, 120).forEach { size ->
+                        val circle = Modifier.size(size.dp).clip(CircleShape).background(RunkkColors.SurfacePressed)
+                        RunkkAvatarPortrait(RunkkAvatarArt.DEFAULT_FACE_KEY, emptyList(), circle, character)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                    listOf(44, 88, 120).forEach { size ->
+                        val circle = Modifier.size(size.dp).clip(CircleShape).background(RunkkColors.SurfacePressed)
+                        RunkkAvatarPortrait("head:1:job-1", layers, circle, character)
+                    }
+                }
+            }
+        }
+    }
+
     /** 피그마 맞춤 W1 공통 부품(라이트·다크, S15P31A207-292). */
     @Test
     fun figmaPartsLight() = compose.captureRunkkScreen("designsystem_figma_parts_light", isDarkTheme = false) {

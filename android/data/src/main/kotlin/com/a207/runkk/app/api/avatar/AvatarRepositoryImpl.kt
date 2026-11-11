@@ -16,6 +16,7 @@ import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundChoice
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.PendingSelfiePhoto
 import com.a207.runkk.app.domain.avatar.SelfieFailure
 import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieJob
@@ -43,9 +44,27 @@ constructor(
     private val faces: FaceImageSource,
     private val pending: PendingSelfieStore,
     private val progress: SelfieProgressHub,
+    private val photo: PendingSelfiePhoto,
     private val clock: Clock
 ) : AvatarRepository {
-    override suspend fun avatar(): Outcome<Avatar> = ApiErrorMapper.call { api.avatar().toDomain() }
+    override suspend fun avatar(): Outcome<Avatar> {
+        val result = ApiErrorMapper.call { api.avatar().toDomain() }
+        result.getOrNull()?.faceKey?.let { settleIfApplied(it) }
+        return result
+    }
+
+    /**
+     * 내 얼굴이 이미 남긴 작업의 셀카 머리("head:{회원ID}:{작업ID}")면 그 작업은 끝나 적용됐다([임시:D-성-188]). 워커가 돌지 못했어도
+     * (네트워크 제약) 만드는 중 표시를 끄고 기기 작업·보낸 사진을 지우고 성공으로 둔다. 알림은 내지 않는다(화면이 바뀐 얼굴을 보인다).
+     */
+    private suspend fun settleIfApplied(faceKey: String) {
+        val jobId = pending.load() ?: return
+        if (!faceKey.startsWith(HEAD_PREFIX) || faceKey.substringAfterLast(':') != jobId) return
+        forget(jobId)
+        forgetFailure(jobId)
+        progress.succeeded(jobId, faceKey)
+        photo.clear()
+    }
 
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
@@ -185,6 +204,7 @@ constructor(
     }
 
     private companion object {
+        const val HEAD_PREFIX = "head:"
         const val SELFIE_PART = "selfie"
         const val SELFIE_FILE = "selfie.jpg"
         val JPEG = "image/jpeg".toMediaType()

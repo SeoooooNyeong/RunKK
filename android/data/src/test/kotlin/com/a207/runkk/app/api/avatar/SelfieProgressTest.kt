@@ -36,7 +36,8 @@ class SelfieProgressTest {
     private val store = MemoryStore()
     private val tokens = TestTokens(jwtOf("7"))
     private val hub = SelfieProgressHub(store, SelfMember(tokens))
-    private val repository = AvatarRepositoryImpl(api.retrofit.create(), api.faces, store, hub, clock)
+    private val photo = MemoryPhoto()
+    private val repository = AvatarRepositoryImpl(api.retrofit.create(), api.faces, store, hub, photo, clock)
 
     @AfterTest
     fun tearDown() = api.close()
@@ -94,6 +95,35 @@ class SelfieProgressTest {
         repository.chooseDefault("FOX")
         assertNull(store.load())
         assertEquals(SelfieProgress.None, repository.selfieProgress().first())
+    }
+
+    @Test
+    fun `아바타 얼굴이 이미 남긴 작업의 셀카 머리면 만드는 중을 끄고 기기 작업과 사진을 지운다(임시 D-성-188)`() = runTest {
+        store.save("job-1", 1_000L)
+        hub.sync()
+        photo.save(byteArrayOf(1))
+        assertEquals(SelfieProgress.Working("job-1", 1_000L), repository.selfieProgress().first())
+
+        api.reply("""{"faceKey":"head:1:job-1","bodyShape":"STAGE4","skinTone":"DAYTIME"}""")
+        repository.avatar()
+
+        assertNull(store.load(), "워커가 돌지 못했어도 기기 작업을 정리한다")
+        assertEquals(SelfieProgress.Succeeded("job-1", "head:1:job-1"), repository.selfieProgress().first())
+        assertNull(photo.saved, "보낸 사진도 지운다")
+    }
+
+    @Test
+    fun `아바타 얼굴이 다른 작업의 머리면 남긴 작업은 그대로 만드는 중이다`() = runTest {
+        store.save("job-2", 1_000L)
+        hub.sync()
+        photo.save(byteArrayOf(1))
+
+        api.reply("""{"faceKey":"head:7:job-1","bodyShape":"STAGE4","skinTone":"DAYTIME"}""")
+        repository.avatar()
+
+        assertEquals("job-2", store.load())
+        assertEquals(SelfieProgress.Working("job-2", 1_000L), repository.selfieProgress().first())
+        assertTrue(photo.saved != null)
     }
 }
 
@@ -157,7 +187,7 @@ class WorkManagerSelfieJobFollowerTest {
             context,
             Configuration.Builder().setExecutor(SynchronousExecutor()).build()
         )
-        val follower = WorkManagerSelfieJobFollower(context)
+        val follower = WorkManagerSelfieJobFollower(context) { error("이 시험은 직접 확인을 부르지 않는다") }
         follower.follow("job-1")
         val first = works().single { !it.state.isFinished }
         assertTrue(first.constraints.requiredNetworkType == androidx.work.NetworkType.CONNECTED)

@@ -55,6 +55,8 @@ class ProfileEditViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         faceKey = me.faceKey,
+                        // 얼굴 층을 받을 때까지 기본 머리를 보이지 않는다([임시:D-성-190]).
+                        isFaceLoading = me.faceKey != null && it.faceLayers.isEmpty(),
                         nickname = me.displayName,
                         intro = me.intro.orEmpty(),
                         ageBand = me.ageBand,
@@ -71,8 +73,8 @@ class ProfileEditViewModel @Inject constructor(
             }
             // 아바타 꾸미기가 열렸을 때 쓰는 얼굴 층. 못 읽으면 기본 얼굴이다.
             val faceKey = _state.value.faceKey ?: return@launch
-            val face = account.faceLayers(faceKey).getOrNull().orEmpty()
-            _state.update { it.copy(faceLayers = face) }
+            val face = account.faceLayers(faceKey).getOrNull()
+            _state.update { it.copy(faceLayers = face ?: it.faceLayers, isFaceLoading = false) }
         }
     }
 
