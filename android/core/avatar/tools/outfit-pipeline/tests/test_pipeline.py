@@ -328,3 +328,17 @@ def test_leg_span_does_not_wrap_when_the_hip_cell_starts_near_the_top() -> None:
     hip[0:6] = True  # 칸 맨 아래 행 5, 다리 행 6
     out = _leg_span(skin, hip)
     assert out[0:6, 1:5].all() and not out[6:].any() and not out[:, 0].any()
+
+
+def test_drop_faint_clears_nearly_transparent_pixels() -> None:
+    """합성 텍스처의 알파 1~15 픽셀은 비운다(RGB 0). 앱 OutfitLayerComposer.dropFaint와 같다."""
+    from outfit_pipeline.cut import FAINT_ALPHA, drop_faint
+
+    a = np.zeros((1, 4, 4), np.uint8)
+    a[0, 0] = (255, 255, 255, 1)
+    a[0, 1] = (200, 100, 50, FAINT_ALPHA - 1)
+    a[0, 2] = (200, 100, 50, FAINT_ALPHA)
+    a[0, 3] = (10, 20, 30, 255)
+    out = np.array(drop_faint(Image.fromarray(a, "RGBA")))
+    assert out[0, 0].tolist() == [0, 0, 0, 0] and out[0, 1].tolist() == [0, 0, 0, 0]
+    assert out[0, 2].tolist() == [200, 100, 50, FAINT_ALPHA] and out[0, 3].tolist() == [10, 20, 30, 255]

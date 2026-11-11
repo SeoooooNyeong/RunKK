@@ -30,6 +30,11 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
                 asset.assignPng(defaultStandingBody)
                 return true
             }
+            if (name == MaleSelectedBody.ASSET) {
+                // 내장 기본 옷 몸은 그리지 않는다(D-성-115): 투명으로 바꿔 아틀라스 표면 빈 곳으로 비치지 않게 한다
+                asset.assignPng(MaleSelectedBody.transparentPng)
+                return true
+            }
         } else if (name == FULLNESS) {
             check(inBandBytes.isNotEmpty()) { "embedded fullness overlay missing" }
             fullnessAsset = asset

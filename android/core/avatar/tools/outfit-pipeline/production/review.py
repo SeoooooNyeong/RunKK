@@ -96,7 +96,9 @@ def compose(index: dict, gender: str, slot: str, chosen: dict, amount: int) -> I
         out.alpha_composite(tone(body, amount))
     for _, layer in layers:
         out.alpha_composite(layer)
-    return out
+    from outfit_pipeline.cut import drop_faint
+
+    return drop_faint(out)  # 거의 투명한 픽셀은 비운다(앱 OutfitLayerComposer와 같다)
 
 
 def clear_work(work: Path, root: Path) -> None:

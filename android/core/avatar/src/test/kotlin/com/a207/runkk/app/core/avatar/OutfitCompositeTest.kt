@@ -170,6 +170,57 @@ class OutfitCompositeTest {
         out.recycle()
     }
 
+    /**
+     * 실기기 판정(남자 러닝량 100 싱글렛 옆 틈 흰 조각): Rive에 넣는 합성 텍스처에 거의 투명한데 색이 밝은 픽셀(미리곱으로 읽으면 밝게 뜬다)이
+     * 없고, 옆 틈 칸(서기 x 80~159·352~431, y 150~309)의 상의 밖 맨몸 픽셀 가운데 톤을 받은 피부보다 훨씬 밝은 것이 없다. 상의 7벌 × 남녀 ×
+     * 러닝량 0·50·100(밝기는 러닝량 100만).
+     */
+    @Test
+    fun `서기 합성 텍스처에 거의 투명한 밝은 픽셀과 옆 틈의 톤 밖 밝은 맨몸이 없다(상의 7벌 × 남녀 × 러닝량 0·50·100)`() {
+        val keys = OutfitCatalog.LEGACY_KEYS.getValue(OutfitPart.TOP)
+        val slot = OutfitSlot.STAND
+        val faint = mutableListOf<String>()
+        val bright = mutableListOf<String>()
+        for (gender in AvatarGender.entries) {
+            for (id in keys.indices) {
+                val outfit = AvatarOutfit(top = id)
+                val top = decodeLayer(slot, gender, outfit, onlyTop = true)
+                for (amount in listOf(0, 50, 100)) {
+                    val composed = compose(slot, gender, outfit, amount)
+                    val out = IntArray(slot.width * slot.height)
+                    composed.getPixels(out, 0, slot.width, 0, 0, slot.width, slot.height)
+                    composed.recycle()
+                    val low = out.count {
+                        val a = it ushr 24
+                        a in 1 until OutfitLayerComposer.FAINT_ALPHA
+                    }
+                    if (low > 0) faint += "${keys[id]} $gender $amount: $low"
+                    // 러닝량 100: 옆 틈 칸의 상의 밖 픽셀(불투명)은 톤을 받은 흰색(255 × 행렬) 밝기를 넘지 않는다(넘으면 톤 밖 픽셀)
+                    if (amount != 100) continue
+                    val m = SkinToneFilter.matrix(amount)
+                    val ceiling =
+                        luma(Color.rgb((255 * m[0]).toInt(), (255 * m[6]).toInt(), (255 * m[12]).toInt())) + 20
+                    val over = (150 until 310).flatMap { y ->
+                        ((80 until 160) + (352 until 432)).map { x -> y * slot.width + x }
+                    }.count { top[it] ushr 24 == 0 && out[it] ushr 24 >= 128 && luma(out[it]) > ceiling }
+                    if (over > 0) bright += "${keys[id]} $gender $amount: $over"
+                }
+            }
+        }
+        assertEquals(emptyList(), faint, "알파 1~15 픽셀")
+        assertEquals(emptyList(), bright, "옆 틈의 톤 밖 밝은 맨몸")
+    }
+
+    @Test
+    fun `남자 내장 기본 옷 몸 자리에 넣는 그림은 같은 크기의 완전 투명이다`() {
+        val bitmap = decode(MaleSelectedBody.transparentPng)
+        assertEquals(MaleSelectedBody.WIDTH to MaleSelectedBody.HEIGHT, bitmap.width to bitmap.height)
+        val pixels = IntArray(bitmap.width * bitmap.height)
+        bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+        bitmap.recycle()
+        assertTrue(pixels.all { it == 0 })
+    }
+
     @Test
     fun `자르기 표지 - 상의 알파 1 칸의 맨몸만 지우고 표지는 옷으로 치지 않는다`() {
         // 맨몸: x 2..17, y 2..17. 상의: x 6..13, y 4..15. 표지: (3, 10) 한 칸(상의 밖, 띠 자르기 칸 밖이라 표지가 없으면 남는다)
