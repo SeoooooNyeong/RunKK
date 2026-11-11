@@ -13,11 +13,15 @@ from outfit_pipeline import spec
 from outfit_pipeline.body import (
     bare_hips,
     close_seams,
+    close_side_gaps,
     count_strays,
+    drop_gap_fragments,
     drop_strays,
     extend_waist,
     fill_pinholes,
     seam_mask,
+    side_gap_mask,
+    smooth_elbow,
     smooth_sleeve_line,
     trim_waist,
     underwear_mask,
@@ -89,8 +93,8 @@ def test_smooth_sleeve_line_removes_the_hem_line_across_the_bare_arm() -> None:
 
 def test_cut_area_cuts_rims_around_the_hips_but_not_the_waistband() -> None:
     area = cut_area(RAW, "stand")
-    assert area.getpixel((110, 360)) == spec.CUT_TORSO  # 엉덩이 옆(하의 밖 옛 반바지 테두리)
-    assert area.getpixel((400, 360)) == spec.CUT_TORSO
+    assert area.getpixel((110, 360)) == spec.CUT_HIP  # 엉덩이 옆(하의 밖 옛 반바지 테두리)
+    assert area.getpixel((400, 360)) == spec.CUT_HIP
     assert area.getpixel((256, 380)) == 0  # 가랑이·허벅지는 자르지 않는다(점점이 비었다)
     assert area.getpixel((256, 310)) == 0  # 허리 밴드는 자르지 않는다(밑단과 허리 사이 구멍)
     assert area.getpixel((40, 350)) == 0  # 손 칸
@@ -237,3 +241,107 @@ def test_close_seams_fills_thin_vertical_gaps_between_cloth_only() -> None:
 def test_committed_bottoms_have_no_thin_gaps(key: str) -> None:
     for name in ("female_stand", "female_run_leg"):
         assert int(seam_mask(Image.open(OUTFITS / key / f"{name}.webp")).sum()) == 0
+
+
+def test_drop_gap_fragments_removes_dark_slivers_between_arm_and_torso() -> None:
+    size = (spec.SLOTS["stand"].height, spec.SLOTS["stand"].width, 4)
+    array = np.zeros(size, np.uint8)
+    array[150:300, 60:141] = SKIN  # 왼팔
+    array[150:300, 141:145] = (60, 30, 18, 255)  # 팔 안쪽 외곽선(남긴다)
+    array[170:186, 150:153] = (60, 30, 18, 255)  # 팔과 몸통 사이 틈의 짙은 조각(외곽선과 떨어진 덩어리)
+    array[150:300, 145:147] = (60, 30, 18, 255)  # 두꺼운 외곽선 끝(본체와 이어져 남는다)
+    out = np.array(drop_gap_fragments(Image.fromarray(array, "RGBA")))
+    assert out[170:186, 150:153, 3].max() == 0
+    assert (out[150:300, 141:147, 3] == 255).all() and (out[200, 100] == SKIN).all()
+
+
+def test_smooth_elbow_straightens_the_outline_jog_at_the_sleeve_seam() -> None:
+    size = (spec.SLOTS["stand"].height, spec.SLOTS["stand"].width, 4)
+    array = np.zeros(size, np.uint8)
+    edges = {y: 90 - (y - 130) // 6 for y in range(130, 200)}
+    for y, edge in edges.items():
+        array[y, edge : edge + 5] = (60, 30, 18, 255)
+        array[y, edge + 5 : 140] = SKIN
+    for y in range(160, 166):  # 소매 이음새에서 3px 안으로 꺾인 얇은 외곽선
+        array[y, : edges[y] + 3] = 0
+        array[y, edges[y] + 3] = (60, 30, 18, 255)
+        array[y, edges[y] + 4 : edges[y] + 6] = SKIN
+    out = np.array(smooth_elbow(Image.fromarray(array, "RGBA")))
+    for y in range(156, 172):
+        first = int(np.argmax(out[y, :, 3] >= 128))
+        assert abs(first - edges[y]) <= 1
+        assert out[y, first : first + 4, :3].mean() < 90  # 외곽선이 이어진다
+        assert out[y, first + 7, 0] > 200  # 안은 피부
+
+
+def test_close_side_gaps_fills_the_slit_between_shorts_and_liner() -> None:
+    size = (spec.SLOTS["stand"].height, spec.SLOTS["stand"].width, 4)
+    body = np.zeros(size, np.uint8)
+    body[300:430, 100:412] = SKIN
+    layer = np.zeros(size, np.uint8)
+    layer[320:395, 104:400] = (60, 56, 61, 255)  # 바지
+    layer[399:404, 104:140] = (40, 36, 41, 255)  # 떨어진 안감 밑단(4px 트임)
+    layer[395:399, 104:110] = (60, 56, 61, 255)  # 트임 바깥 끝은 닫혀 있다
+    image, base = Image.fromarray(layer, "RGBA"), Image.fromarray(body, "RGBA")
+    assert int(side_gap_mask(image, base).sum()) > 0
+    out, filled = close_side_gaps(image, base)
+    assert filled > 0 and side_gap_mask(out, base).sum() == 0
+    assert np.array(out)[397, 120, 3] == 255 and np.array(out)[410, 120, 3] == 0
+
+
+@pytest.mark.parametrize("key", spec.LEGACY_KEYS["BOTTOM"])
+def test_committed_bottoms_have_no_side_gaps(key: str) -> None:
+    body = Image.open(OUTFITS / spec.BODY_FOLDER / "female_stand.webp")
+    assert int(side_gap_mask(Image.open(OUTFITS / key / "female_stand.webp"), body).sum()) == 0
+
+
+def test_committed_stand_body_has_no_gap_fragments_or_elbow_jog() -> None:
+    body = Image.open(OUTFITS / spec.BODY_FOLDER / "female_stand.webp").convert("RGBA")
+    assert np.array_equal(np.array(drop_gap_fragments(body)), np.array(body))
+    solid = np.array(body)[..., 3] >= 128
+    y0, y1 = 150, 178
+    for left in (True, False):
+
+        def edge(y: int, left: bool = left) -> int:
+            xs = np.flatnonzero(solid[y, :145] if left else solid[y, 367:])
+            return int(xs[0]) if left else 367 + int(xs[-1])
+
+        for y in range(y0, y1 + 1):  # 팔 바깥 외곽선이 소매 이음새에서 꺾이지 않는다
+            line = edge(y0) + (edge(y1) - edge(y0)) * (y - y0) / (y1 - y0)
+            assert abs(edge(y) - line) <= 1.5, (left, y, edge(y), line)
+
+
+def test_hip_cut_removes_only_body_outside_the_clothes_row_span() -> None:
+    """엉덩이 옆 칸(230): 옷이 그 행에 걸친 가로 범위 밖만 지운다. 범위 안(밑단 옆 트임 아래 다리)과 옷이 없는 행은 남긴다(앱 TopBodyCut과 같다)."""
+    from outfit_pipeline.cut import apply
+
+    body = Image.new("RGBA", (40, 30), (0, 0, 0, 0))
+    body.paste(SKIN, (2, 0, 38, 30))
+    top = Image.new("RGBA", (40, 30), (0, 0, 0, 0))
+    top.paste((60, 56, 61, 255), (8, 0, 32, 20))  # 하의(맨몸보다 좁다)
+    top.paste((0, 0, 0, 0), (12, 16, 18, 20))  # 밑단 옆 트임(아래로 열림)
+    area = Image.new("RGBA", (40, 30), (0, 0, 0, 0))
+    labels = Image.new("L", (40, 30), spec.CUT_HIP)
+    area.putalpha(labels)
+    out = np.array(apply(body, top, area))
+    assert out[10, 3, 3] == 0 and out[10, 35, 3] == 0  # 하의 옆(가로 범위 밖) 맨몸은 지운다
+    assert out[18, 14, 3] == 255  # 트임 아래 맨몸(가로 범위 안)은 남긴다
+    assert out[25, 3, 3] == 255  # 하의가 없는 행(다리)은 남긴다
+
+
+def test_hip_cut_keeps_the_top_of_the_leg_below_the_zone() -> None:
+    """엉덩이 옆 칸 바로 아래 행 다리의 가로 범위 안은 옷 범위 밖이어도 남긴다(밑단 모서리 아래 다리 윗부분)."""
+    from outfit_pipeline.cut import apply
+
+    body = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+    body.paste(SKIN, (2, 0, 38, 20))  # 옛 반바지 실루엣(넓다)
+    body.paste(SKIN, (10, 20, 30, 40))  # 다리
+    top = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+    top.paste((60, 56, 61, 255), (14, 0, 26, 18))  # 하의(밑단 쪽이 좁다)
+    area = Image.new("RGBA", (40, 40), (0, 0, 0, 0))
+    labels = Image.new("L", (40, 40), 0)
+    labels.paste(spec.CUT_HIP, (0, 0, 40, 20))
+    area.putalpha(labels)
+    out = np.array(apply(body, top, area))
+    assert out[10, 4, 3] == 0  # 다리 범위 밖 옛 실루엣은 지운다
+    assert out[10, 11, 3] == 255  # 다리 범위 안(다리 윗부분)은 남긴다

@@ -1,4 +1,4 @@
-"""규격 검사(5.5 항목, OUTFIT_SPEC.md 6절 열네 항목). 같은 검사를 앱 단위 시험 OutfitAssetSpecTest가 빌드 때 다시 한다."""
+"""규격 검사(5.5 항목, OUTFIT_SPEC.md 6절 열다섯 항목). 같은 검사를 앱 단위 시험 OutfitAssetSpecTest가 빌드 때 다시 한다."""
 
 from __future__ import annotations
 
@@ -9,7 +9,15 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 from outfit_pipeline import spec
-from outfit_pipeline.body import count_strays, seam_mask, underwear_mask, waist_gap, waist_tufts_mask, wisp_layer
+from outfit_pipeline.body import (
+    count_strays,
+    seam_mask,
+    side_gap_mask,
+    underwear_mask,
+    waist_gap,
+    waist_tufts_mask,
+    wisp_layer,
+)
 from outfit_pipeline.masks import load_mask
 from outfit_pipeline.skin import count_exposed
 
@@ -147,6 +155,11 @@ def check_bundle(outfits_dir: Path, entry: dict, masks_dir: Path) -> list[Proble
         and (gap := waist_gap(Image.open(stand), Image.open(body)))
     ):
         problems.append(Problem(13, str(stand), f"{gap} body pixel(s) uncovered between y 296 and the waistband"))
+    # 15번: 하의 서기 엉덩이 옆 칸에 맨몸 실루엣 안 트임(7px로 닫으면 메워지는 빈 곳)이 없다(상의 자르기가 그 밑 맨몸을 지워 배경이 비쳤다).
+    if part == "BOTTOM" and stand.is_file() and body.is_file():
+        side = int(side_gap_mask(Image.open(stand), Image.open(body)).sum())
+        if side:
+            problems.append(Problem(15, str(stand), f"{side} body pixel(s) in side slits of the bottom"))
     if not (folder / spec.SHOP_FILE).is_file():
         problems.append(Problem(1, key, f"missing {spec.SHOP_FILE}"))
     total = 0

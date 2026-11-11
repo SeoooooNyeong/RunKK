@@ -345,3 +345,118 @@ def close_seams(image: Image.Image) -> tuple[Image.Image, int]:
         array[y, x] = array[above, x] * (1 - t) + array[below, x] * t
         array[y, x, 3] = 255
     return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), len(ys)
+
+
+GAP_ZONES = ((140, 150, 166, 300), (346, 150, 372, 300))  # 서기 팔과 몸통 사이 틈(겨드랑이~허리 옆)
+GAP_PIECE = 200  # 틈 안에 따로 떨어진 불투명 덩어리(4방향, 알파 250 이상)가 이보다 작으면 조각
+
+
+def drop_gap_fragments(image: Image.Image) -> Image.Image:
+    """서기 맨몸의 팔과 몸통 사이 틈([GAP_ZONES]) 안에 따로 떨어진 작은 불투명 덩어리(옛 반팔·몸통 가장자리의 짙은 선 조각, 팔 외곽선과
+    반투명 1px로만 닿는다)를 지운다. 팔·몸통 본체는 큰 덩어리라 남는다([임시:D-성-184])."""
+    from outfit_pipeline.build import _components
+
+    array = _rgba(image).copy()
+    zone = np.zeros(array.shape[:2], bool)
+    for box in GAP_ZONES:
+        zone |= _zone(array.shape, box)
+    flat_zone = zone.reshape(-1)
+    flat = array.reshape(-1, 4)
+    for piece in _components(array[..., 3] >= 250):
+        if len(piece) < GAP_PIECE and flat_zone[piece].all():
+            flat[piece] = 0
+    return Image.fromarray(array, "RGBA")
+
+
+ELBOW_ROWS = (150, 178)  # 서기 팔 바깥 외곽선이 소매 이음새에서 꺾인 행(위 그림 도구 팔 ↔ 아래 승인 팔)
+OUTLINE_PX = 5
+SKIN_REACH = 12
+
+
+def _arm_edge(solid: np.ndarray, y: int, x_lo: int, x_hi: int, left: bool) -> int | None:
+    xs = np.flatnonzero(solid[y, x_lo:x_hi])
+    if not len(xs):
+        return None
+    return x_lo + int(xs[0] if left else xs[-1])
+
+
+def smooth_elbow(image: Image.Image) -> Image.Image:
+    """서기 맨몸 팔 바깥 외곽선을 소매 이음새([ELBOW_ROWS])에서 곧게 잇는다: 위·아래 끝 행의 가장자리 사이를 직선으로 잇고, 그 자리에
+    끝 행 외곽선 색 [OUTLINE_PX]px, 안쪽에 남은 옛 외곽선 꼬리는 그 행의 피부색으로 바꾼다. 민소매에서 팔꿈치 위 외곽선 꼬리로 보였다."""
+    array = _rgba(image).copy()
+    solid = array[..., 3] >= SOLID
+    lum = array[..., :3].astype(int).mean(axis=2)
+    y0, y1 = ELBOW_ROWS
+    sides = ((True, 0, spec.STAND_LEFT_ARM[2]), (False, spec.STAND_RIGHT_ARM[0], array.shape[1]))
+    for left, x_lo, x_hi in sides:
+        top = _arm_edge(solid, y0, x_lo, x_hi, left)
+        bottom = _arm_edge(solid, y1, x_lo, x_hi, left)
+        if top is None or bottom is None:
+            continue
+        step = 1 if left else -1
+        ends = []
+        for y in (*range(y0 - 4, y0 + 1), *range(y1, y1 + 5)):
+            e = _arm_edge(solid, y, x_lo, x_hi, left)
+            if e is not None:
+                ends += [array[y, e + step * k, :3] for k in range(1, OUTLINE_PX - 1)]
+        outline = np.median(np.array(ends), axis=0).astype(np.uint8)
+        for y in range(y0 + 1, y1):
+            e = round(top + (bottom - top) * (y - y0) / (y1 - y0))
+            outside = range(e - 6, e) if left else range(e + 1, e + 7)
+            for x in outside:
+                array[y, x] = 0
+            for k in range(OUTLINE_PX):
+                array[y, e + step * k, :3] = outline
+                array[y, e + step * k, 3] = 255
+            inner = [e + step * k for k in range(OUTLINE_PX, OUTLINE_PX + SKIN_REACH)]
+            skin_x = next((x for x in inner if array[y, x, 3] >= 250 and lum[y, x] >= 180), None)
+            if skin_x is None:
+                continue
+            for x in inner:
+                if x == skin_x:
+                    break
+                array[y, x] = array[y, skin_x]
+    return Image.fromarray(array, "RGBA")
+
+
+SIDE_CLOSE = 7  # 하의 엉덩이 옆 칸·허리에서 이 폭으로 닫아 메우는 트임(밑단 옆 안감 사이, 허리 옆 구멍)
+SIDE_WAIST = (100, 296, 412, 330)  # 허리(겹침 띠와 허리 밴드 아래 몇 행)
+
+
+def side_gap_mask(image: Image.Image, body: Image.Image) -> np.ndarray:
+    """하의 서기 레이어의 엉덩이 옆 칸(`spec.STAND_HIP_CUTS`)과 허리([SIDE_WAIST])에서 [SIDE_CLOSE]px로 닫으면 메워지는 맨몸 실루엣 안
+    빈 곳(밑단 옆 트임, 허리 옆 구멍). 그 밑 맨몸이 배경(자르기)이나 살색 조각으로 비쳤다([임시:D-성-185])."""
+    array = _rgba(image)
+    solid = array[..., 3] >= SOLID
+    mask = Image.fromarray((solid * 255).astype(np.uint8))
+    closed = np.array(mask.filter(ImageFilter.MaxFilter(SIDE_CLOSE)).filter(ImageFilter.MinFilter(SIDE_CLOSE))) > 0
+    zone = np.zeros(solid.shape, bool)
+    for box in (*spec.STAND_HIP_CUTS, SIDE_WAIST):
+        zone |= _zone(array.shape, box)
+    return zone & closed & ~solid & (_rgba(body)[..., 3] >= SOLID)
+
+
+def close_side_gaps(image: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
+    """[side_gap_mask]를 이웃 천 색으로 바깥에서 안으로 메운다. (레이어, 메운 픽셀 수)."""
+    array = _rgba(image).astype(np.float64)
+    todo = side_gap_mask(image, body)
+    total = int(todo.sum())
+    height, width = todo.shape
+    while todo.any():
+        solid = array[..., 3] >= SOLID
+        done = []
+        for y, x in zip(*np.nonzero(todo), strict=True):
+            near = [
+                array[ny, nx]
+                for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1))
+                if 0 <= ny < height and 0 <= nx < width and solid[ny, nx]
+            ]
+            if near:
+                done.append((y, x, np.mean(near, axis=0)))
+        if not done:
+            break
+        for y, x, color in done:
+            array[y, x] = color
+            array[y, x, 3] = 255
+            todo[y, x] = False
+    return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), total

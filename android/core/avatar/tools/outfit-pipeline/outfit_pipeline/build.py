@@ -17,9 +17,12 @@ from outfit_pipeline import spec
 from outfit_pipeline.body import (
     bare_hips,
     close_seams,
+    close_side_gaps,
+    drop_gap_fragments,
     drop_strays,
     extend_waist,
     fill_pinholes,
+    smooth_elbow,
     smooth_sleeve_line,
     trim_waist,
     wisp_layer,
@@ -380,10 +383,15 @@ def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
         # 엉덩이(하의 칸 위쪽): 하의 밖으로 비치는 맨몸 테두리도 지운다(하의는 옷으로 친다, [임시:D-성-185])
         hips = Image.new("L", area.size, 0)
         for box in spec.STAND_HIP_CUTS:
-            hips.paste(spec.CUT_TORSO, box)
+            hips.paste(spec.CUT_HIP, box)
         area = ImageChops.lighter(area, ImageChops.subtract(hips, zones["HANDS"]))
         array = np.array(area)
-        for box, value in ((spec.STAND_LEFT_ARM, spec.CUT_LEFT_ARM), (spec.STAND_RIGHT_ARM, spec.CUT_RIGHT_ARM)):
+        for box, value in (
+            (spec.STAND_LEFT_ARM, spec.CUT_LEFT_ARM),
+            (spec.STAND_RIGHT_ARM, spec.CUT_RIGHT_ARM),
+            (spec.STAND_LEFT_SHOULDER, spec.CUT_LEFT_SHOULDER),
+            (spec.STAND_RIGHT_SHOULDER, spec.CUT_RIGHT_SHOULDER),
+        ):
             x0, y0, x1, y1 = box
             region = array[y0:y1, x0:x1]
             region[region > 0] = value
@@ -463,8 +471,8 @@ def clean_body(slot_name: str, image: Image.Image) -> tuple[Image.Image, Image.I
     image, _ = drop_strays(image.convert("RGBA"))
     if slot_name != "stand":
         return image, None
-    image, band = bare_hips(smooth_sleeve_line(image))
-    image, _ = drop_strays(image)
+    image, band = bare_hips(smooth_sleeve_line(smooth_elbow(image)))
+    image, _ = drop_strays(drop_gap_fragments(image))
     return fill_pinholes(image), band
 
 
@@ -481,6 +489,7 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
             layer, _ = trim_waist(layer)
             if body is not None:
                 layer, _ = extend_waist(layer, body)
+                layer, _ = close_side_gaps(layer, body)
         if np.array_equal(before, np.array(layer)):
             break
     return layer

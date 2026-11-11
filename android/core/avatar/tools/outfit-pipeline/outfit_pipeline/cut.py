@@ -15,6 +15,7 @@ CRUMB_PX = 80
 ARM_COVERED = 0.6  # 팔 띠는 상의가 그 띠 맨몸을 이만큼 넘게 덮을 때(긴소매)만 자른다
 TORSO = 255
 FULL_CUT = 240
+HIP = 230  # 엉덩이 옆: 옷이 그 행에 걸친 가로 범위 밖만 지운다
 _FAR = 10**6
 
 
@@ -46,6 +47,27 @@ def _nearest(source: np.ndarray, steps: int) -> tuple[np.ndarray, np.ndarray]:
     return oy, ox
 
 
+def _within_row_span(mask: np.ndarray) -> np.ndarray:
+    """행마다 [mask]의 맨 왼쪽~맨 오른쪽 사이(그 행에 [mask]가 없으면 False)."""
+    xs = np.arange(mask.shape[1])
+    has = mask.any(axis=1)
+    first = np.where(has, mask.argmax(axis=1), mask.shape[1])
+    last = np.where(has, mask.shape[1] - 1 - mask[:, ::-1].argmax(axis=1), -1)
+    return (xs[None, :] >= first[:, None]) & (xs[None, :] <= last[:, None])
+
+
+def _leg_span(skin: np.ndarray, hip: np.ndarray) -> np.ndarray:
+    """엉덩이 옆 칸 바로 아래 행의 맨몸(다리) 맨 왼쪽~맨 오른쪽 열(모든 행에 같은 열 마스크, 없으면 모두 False)."""
+    out = np.zeros_like(skin)
+    rows = np.flatnonzero(hip.any(axis=1))
+    if not len(rows) or rows[-1] + 1 >= skin.shape[0]:
+        return out
+    xs = np.flatnonzero(skin[rows[-1] + 1])
+    if len(xs):
+        out[:, xs[0] : xs[-1] + 1] = True
+    return out
+
+
 def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image:
     from outfit_pipeline.build import _fill_holes
 
@@ -56,7 +78,7 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
     skin = b[..., 3] > 0
     area_on = labels >= 128
     for value in np.unique(labels):
-        if value < 128 or value in (TORSO, FULL_CUT):
+        if value < 128 or value in (TORSO, FULL_CUT, HIP):
             continue
         band = (labels == value) & skin
         if band.sum() and (band & top_alpha).sum() / band.sum() <= ARM_COVERED:
@@ -66,7 +88,7 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
     ty, tx = _nearest(top_alpha, steps)
     by, bx = _nearest(background, steps)
     yy, xx = np.mgrid[0 : b.shape[0], 0 : b.shape[1]]
-    candidate = skin & area_on & ~inside & (ty >= 0)
+    candidate = skin & area_on & (labels != HIP) & ~inside & (ty >= 0)
     vty, vtx = (ty - yy).astype(float), (tx - xx).astype(float)
     vby = np.where(by >= 0, by - yy, 0).astype(float)
     vbx = np.where(by >= 0, bx - xx, 10**6).astype(float)
@@ -87,13 +109,16 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
         cosine = (vty * vby + vtx * vbx) / (to_top * to_bg)
     rim = candidate & (to_top + to_bg <= RIM_PX + 2) & (cosine < OPPOSITE)
     rim |= skin & (labels == FULL_CUT) & ~inside & ~top_alpha  # 달리기 몸통: 상의 밖은 모두
+    # 엉덩이 옆: 옷이 있는 행의 가로 범위 밖, 그리고 칸 바로 아래 행 다리의 가로 범위 밖(옛 반바지 실루엣 테두리)
+    hip = skin & (labels == HIP) & ~inside & ~top_alpha & ~_within_row_span(top_alpha) & top_alpha.any(axis=1)[:, None]
+    rim |= hip & ~_leg_span(skin, labels == HIP)
     original = b.copy()
     b[rim] = 0
     b = close_slits(original, b)
     # 남은 부스러기: 상의에서 RIM_PX 안에만 있는 작은 덩어리(CRUMB_PX 이하)
     from outfit_pipeline.build import _components
 
-    exposed = (b[..., 3] > 0) & area_on & ~inside & ~top_alpha
+    exposed = (b[..., 3] > 0) & area_on & (labels != HIP) & ~inside & ~top_alpha
     near = (ty >= 0) & (to_top <= RIM_PX)
     for piece in _components(exposed):
         if len(piece) <= CRUMB_PX and near.reshape(-1)[piece].all():

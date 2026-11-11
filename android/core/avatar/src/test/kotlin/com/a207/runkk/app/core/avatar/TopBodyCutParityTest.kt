@@ -49,6 +49,51 @@ class TopBodyCutParityTest {
         assertEquals((1..5).map { skin }, (1..5).map { slit[3 * 7 + it] })
     }
 
+    @Test
+    fun `엉덩이 옆 칸은 옷이 그 행에 걸친 가로 범위 밖 맨몸만 지운다(파이프라인 cut_py와 같다)`() {
+        val width = 40
+        val height = 30
+        val skin = 0xFFF6CDBE.toInt()
+        val cloth = 0xFF3C383D.toInt()
+        val body = IntArray(width * height) { i -> if (i % width in 2 until 38) skin else 0 }
+        val top = IntArray(width * height) { i ->
+            val x = i % width
+            val y = i / width
+            if (x in 8 until 32 && y < 20 && !(x in 12 until 18 && y >= 16)) cloth else 0
+        }
+        val area = IntArray(width * height) { 230 shl 24 }
+        TopBodyCut.apply(body, top, area, width, height)
+        assertEquals(0, body[10 * width + 3] ushr 24, "하의 옆(가로 범위 밖)")
+        assertEquals(0, body[10 * width + 35] ushr 24, "하의 옆(가로 범위 밖)")
+        assertEquals(255, body[18 * width + 14] ushr 24, "트임 아래(가로 범위 안)")
+        assertEquals(255, body[25 * width + 3] ushr 24, "하의가 없는 행")
+    }
+
+    @Test
+    fun `엉덩이 옆 칸 바로 아래 행 다리의 가로 범위 안은 남긴다(파이프라인 cut_py와 같다)`() {
+        val width = 40
+        val height = 40
+        val skin = 0xFFF6CDBE.toInt()
+        val body = IntArray(width * height) { i ->
+            val x = i % width
+            val y = i / width
+            if ((y < 20 && x in 2 until 38) || (y >= 20 && x in 10 until 30)) skin else 0
+        }
+        val top = IntArray(width * height) { i ->
+            if (i % width in 14 until 26 &&
+                i / width < 18
+            ) {
+                0xFF3C383D.toInt()
+            } else {
+                0
+            }
+        }
+        val area = IntArray(width * height) { i -> if (i / width < 20) 230 shl 24 else 0 }
+        TopBodyCut.apply(body, top, area, width, height)
+        assertEquals(0, body[10 * width + 4] ushr 24, "다리 범위 밖 옛 실루엣")
+        assertEquals(255, body[10 * width + 11] ushr 24, "다리 범위 안")
+    }
+
     private fun pixels(name: String): Triple<IntArray, Int, Int> {
         val bitmap = BitmapFactory.decodeFile(File(root, "$name.png").path)
         val width = bitmap.width

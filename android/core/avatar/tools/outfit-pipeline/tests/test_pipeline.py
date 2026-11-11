@@ -155,7 +155,8 @@ def test_webp_is_lossless(tmp_path: Path) -> None:
 def test_cut_area_keeps_hands_and_neck() -> None:
     area = cut_area(RAW, "stand")
     assert area.getpixel((256, 150)) == spec.CUT_TORSO  # 몸통
-    assert area.getpixel((120, 60)) == spec.CUT_TORSO  # 어깨
+    assert area.getpixel((120, 60)) == spec.CUT_LEFT_SHOULDER  # 어깨(덮인 몫으로 자르는 띠, 민소매는 맨어깨)
+    assert area.getpixel((400, 60)) == spec.CUT_RIGHT_SHOULDER
     assert area.getpixel((256, 40)) == 0  # 목·가슴 위
     assert area.getpixel((40, 350)) == 0  # 손 칸
     assert area.getpixel((256, 500)) == 0  # 하의 칸
