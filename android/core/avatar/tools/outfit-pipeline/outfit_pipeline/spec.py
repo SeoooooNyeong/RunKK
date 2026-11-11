@@ -192,3 +192,8 @@ def stand_template(gender: str, male_top_surface: int) -> str:
 def save_webp(image, path) -> None:
     """무손실 WebP로 쓴다(알파 0 픽셀의 색은 0으로 비운 뒤)."""
     image.save(path, "WEBP", lossless=True, quality=100, method=6, exact=False)
+
+
+# 생성 그림의 그림자·배경이 신발 외곽선 밖에 불투명한 잔상 띠로 남은 신발(판정 round1 D, `outfit_pipeline.shoes`). 외곽선이 부드러운
+# 다른 신발에 쓰면 외곽선까지 지워져 확인된 것만 둔다.
+SHOE_GHOST_KEYS = ("shoes_high_top", "shoes_lime_runner")

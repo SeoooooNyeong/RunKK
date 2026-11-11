@@ -249,6 +249,34 @@ class OutfitAssetSpecTest {
     }
 
     @Test
+    fun `16 옷 실루엣 안에 구멍(둘러싸인 반투명·투명 픽셀, 굵은 천 사이 좁은 트임)이 없다`() {
+        val found = mutableMapOf<String, Int>()
+        bundles.forEach { bundle ->
+            genders.forEach { gender ->
+                slotsOf(bundle.part).forEach { slot ->
+                    val file = File(assets, bundle.file(gender, slot, AvatarBodyShape.BASE))
+                    val template = templateOf(gender, slot, bundle)
+                    val image = read(file)
+                    // 남녀가 한 파일을 함께 쓸 수 있어 두 템플릿 허용 영역의 교집합 안만 센다(파이프라인 hole_area와 같다)
+                    val allowed = genders.map {
+                        read(File(masks, "${templateOf(it, slot, bundle)}_${bundle.part}.png"))
+                    }
+                    val pixels = IntArray(image.width * image.height)
+                    image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
+                    val holes = StrayPixels.holes(pixels, image.width, image.height)
+                    val count = holes.indices.count { i ->
+                        holes[i] && allowed.all { on(it, i % image.width, i / image.width) }
+                    }
+                    if (count > 0) found["${file.parentFile!!.name}/${file.name} $template"] = count
+                    image.recycle()
+                    allowed.forEach { it.recycle() }
+                }
+            }
+        }
+        assertEquals(emptyMap(), found, "옷 안 구멍으로 맨몸·배경이 비친다(폴로 단추 자리)")
+    }
+
+    @Test
     fun `17 맨몸 바탕 외곽선은 정리 전 원본처럼 이어진다`() {
         // 기준: tools/outfit-pipeline/templates/masks/body_outline_<파일>.png(정리 전 승인 원본의 외곽선에서 고립 점·팔꿈치 꼬리·틈 조각을 뺀 것)
         val found = listOf("stand", "run_body", "run_arm", "run_leg").associateWith { slot ->
