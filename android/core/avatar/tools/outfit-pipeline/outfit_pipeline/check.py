@@ -67,6 +67,13 @@ def hole_area(masks_dir: Path, file_name: str, part: str, male_top_surface: int)
         mask = load_mask(masks_dir, template_for(f"{gender}_{rest}", part, male_top_surface), part)
         area = mask if area is None else ImageChops.multiply(area, mask)
     assert area is not None
+    if rest.startswith("run_leg"):
+        from outfit_pipeline.hip import hip_box
+
+        area = area.copy()
+        area.paste(
+            0, hip_box()
+        )  # 엉덩이 잇기 칸은 등 아래를 일부러 깎는다(판정 round3 C, 다리 메시는 이 칸을 쓰지 않는다)
     return area
 
 

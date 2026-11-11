@@ -11,10 +11,11 @@ riv 파일은 승인본(SHA 시험) 그대로 두고, 앱은 읽은 바이트에
 
 from __future__ import annotations
 
+import math
 import struct
 
 import numpy as np
-from PIL import Image, ImageDraw
+from PIL import Image
 
 from outfit_pipeline.riv import NAME, PARENT_ID, VERTEX_V, _varuint
 from outfit_pipeline.riv_schema import PROPERTY_FORMAT
@@ -24,10 +25,12 @@ SOURCE = (88, 160, 168, 208)  # 원래 메시가 쓰던 텍스처 칸(x0, y0, x1
 TARGET_TOP = 24  # 옮길 칸 위 끝(텍스처 y). 아래 끝은 TARGET_TOP + 48
 HEIGHT = 768
 V_SHIFT = (SOURCE[1] - TARGET_TOP) / HEIGHT  # 꼭짓점 v에서 뺄 값(160 → 24)
-OUTLINE = (70, 48, 40)
-OUTLINE_PX = 3
-ARC = (100, 235)  # 외곽선을 그리는 타원 둘레 각(도, x 오른쪽 0, y 아래로 커짐): 위 → 등 쪽 → 엉덩이 아래 뒤
 _TOC_FORMAT = ("u", "s", "f", "c")
+
+
+def hip_box() -> tuple[int, int, int, int]:
+    """엉덩이 잇기 메시가 쓰는 칸(x0, y0, x1, y1, 끝 제외)."""
+    return (SOURCE[0], TARGET_TOP, SOURCE[2], TARGET_TOP + SOURCE[3] - SOURCE[1])
 
 
 def vertex_v_offsets(data: bytes) -> list[tuple[int, float]]:
@@ -113,29 +116,55 @@ def retarget(data: bytes) -> bytes:
 
 
 def paint_hip(layer: Image.Image) -> Image.Image:
-    """달리기 다리 레이어의 옮긴 칸(y [TARGET_TOP]~+48)에 원래 조각(SOURCE)을 그대로 옮기고, 메시 타원(u 0.344~0.656, 칸 높이) 둘레
-    [OUTLINE_PX]px 가운데 등 쪽([ARC])을 짙은 외곽선으로 칠한다. 원래 조각이 비어 있으면(하의가 없는 곳) 그대로 둔다."""
+    """달리기 다리 레이어의 옮긴 칸(y [TARGET_TOP]~+48)에 원래 조각(SOURCE)을 그대로 옮긴다. 원래 조각이 비어 있으면(하의가 없는
+    곳) 그대로 둔다. 타원 둘레에 외곽선은 그리지 않는다: 엉덩이 뒷면 실루엣은 다리 메시 윗부분(텍스처 y 약 100~280 왼쪽 가장자리)이
+    만들고 이 메시는 그 안쪽에 겹쳐, 타원 외곽선이 옷 안쪽에 짙은 호로 떠 보였다(판정 round3). 뒷면 모양은 [round_hip_corner]가 다룬다."""
     array = np.array(layer.convert("RGBA"))
     x0, y0, x1, y1 = SOURCE
     patch = array[y0:y1, x0:x1].copy()
     if not (patch[..., 3] > 0).any():
         return layer
-    height = y1 - y0
-    array[TARGET_TOP : TARGET_TOP + height, x0:x1] = patch
-    ring = Image.new("L", (x1 - x0, height), 0)
-    draw = ImageDraw.Draw(ring)
-    draw.ellipse((0, 0, x1 - x0 - 1, height - 1), fill=255)
-    inner = Image.new("L", ring.size, 0)
-    ImageDraw.Draw(inner).ellipse((OUTLINE_PX, OUTLINE_PX, x1 - x0 - 1 - OUTLINE_PX, height - 1 - OUTLINE_PX), fill=255)
-    band = (np.array(ring) > 0) & ~(np.array(inner) > 0)
-    # 외곽선은 뒤쪽(텍스처 왼쪽, 화면에서 등 쪽) 둘레만: 위에서 등을 돌아 엉덩이 아래 뒤까지([ARC] 도). 앞·아래 가운데는 허벅지로
-    # 이어지는 곳이라 선을 그리면 엉덩이에 타원 무늬로 보였다
-    yy, xx = np.mgrid[0:height, 0 : x1 - x0]
-    angle = np.degrees(np.arctan2(yy - (height - 1) / 2, xx - (x1 - x0 - 1) / 2)) % 360
-    band &= (angle >= ARC[0]) & (angle <= ARC[1])
-    target = array[TARGET_TOP : TARGET_TOP + height, x0:x1]
-    target[band, :3] = OUTLINE
-    target[band, 3] = 255
+    array[TARGET_TOP : TARGET_TOP + (y1 - y0), x0:x1] = patch
+    return Image.fromarray(array, "RGBA")
+
+
+# 엉덩이 뒷면 모서리(판정 round3 C): 다리 메시는 맨몸 다리 실루엣 모양이라 화면 뒷면 실루엣은 텍스처의 맨몸 다리 왼쪽 가장자리를 따른다
+# (실측: 텍스처 행마다 화면 뒷면 경계의 x가 맨몸 다리 왼쪽 끝과 같다). 맨몸·하의 다리 텍스처 윗부분은 y 약 170~255에서 x 1~3으로
+# 곧게 내려오다 y 264에서 x 11로 10px 꺾여, 엉덩이가 곧은 뒷면과 각진 아랫모서리의 블록으로 보였다. 그 사이를 둥근 곡선으로 깎는다.
+CORNER_ROWS = (170, 266)  # 깎는 행(위 끝은 곧은 뒷면 가운데, 아래 끝은 허벅지가 x 11에서 시작하는 행)
+CORNER_X = (2, 12)  # 곡선이 지나는 x(위 끝 → 아래 끝, 아래 끝은 허벅지 가장자리)
+CORNER_OUTLINE = (70, 45, 40)  # 맨몸 다리 외곽선 색
+CORNER_OUTLINE_PX = 5
+
+
+def corner_edge(y: int) -> float:
+    """[CORNER_ROWS] 안 행 [y]의 새 뒷면 x: 위에서는 곧은 뒷면에 붙고 아래로 갈수록 빨리 안으로 들어가는 둥근 곡선(사분 타원)."""
+    top, bottom = CORNER_ROWS
+    t = (y - top) / (bottom - top)
+    return CORNER_X[0] + (CORNER_X[1] - CORNER_X[0]) * (1 - math.sqrt(max(0.0, 1 - t * t)))
+
+
+def round_hip_corner(layer: Image.Image) -> Image.Image:
+    """달리기 다리 레이어(맨몸·하의)의 엉덩이 뒷면 모서리를 둥글게 깎고, 깎은 행의 새 가장자리 [CORNER_OUTLINE_PX]px을 짙은 외곽선으로
+    칠한다(그 행에 불투명 픽셀이 있을 때만). 깎은 곳은 투명해 그 뒤 배경이 보인다."""
+    array = np.array(layer.convert("RGBA"))
+    top, bottom = CORNER_ROWS
+    for y in range(top, bottom):
+        edge = corner_edge(y)
+        solid = np.nonzero(array[y, :, 3] >= 128)[0]
+        if len(solid) == 0 or solid.min() > 64:
+            continue
+        cut = math.floor(edge)
+        if solid.min() >= cut + CORNER_OUTLINE_PX:
+            continue  # 이미 곡선보다 안쪽(외곽선이 따로 있다)
+        array[y, :cut] = 0
+        # 경계 픽셀은 소수 부분만큼 반투명(곡선이 계단으로 보이지 않게). 다시 돌려도 같도록 원래 알파가 아니라 255에서 정한다
+        frac = edge - cut
+        if array[y, cut, 3] > 0:
+            array[y, cut, 3] = min(int(array[y, cut, 3]), round(255 * (1 - frac)))
+        band = slice(cut, cut + CORNER_OUTLINE_PX)
+        opaque = array[y, band, 3] > 0
+        array[y, band][opaque, :3] = CORNER_OUTLINE
     return Image.fromarray(array, "RGBA")
 
 
@@ -150,3 +179,72 @@ def retarget_rml(text: str) -> str:
         return f'v="{float(match.group(1)) - V_SHIFT!r}"'
 
     return text[:start] + re.sub(r'v="([0-9.eE+-]+)"', shift, text[start:end]) + text[end:]
+
+
+LEG_EDGE_PX = 7  # 맨몸 다리 외곽선으로 보는 가장자리 폭
+LEG_DARK = 110
+LONG_ROW = 500  # 천이 넓게(40px 이상) 이 행 아래까지 있으면 긴 하의
+
+
+def outline_leg_edge(layer: Image.Image, body: Image.Image) -> Image.Image:
+    """긴 하의 달리기 다리(판정 round3: wide·jogger 외곽선 없음, leggings 무릎 비침): 다리 메시는 맨몸 다리 실루엣 모양이라 하의가 그보다
+    넓은 곳은 화면에 나오지 않고, 실루엣 가장자리에는 하의 천이 나온다(하의 자체 외곽선은 메시 밖이라 안 보였다). 하의가 있는 행(밑단 위)에서
+    맨몸 다리 외곽선 픽셀(실루엣 가장자리 [LEG_EDGE_PX]px 안의 짙은 픽셀) 위의 하의 픽셀을 그 외곽선 색으로 바꿔 하의 외곽선으로 쓴다."""
+    array = np.array(layer.convert("RGBA"))
+    skin = np.array(body.convert("RGBA"))
+    garment = array[..., 3] >= 128
+    rows = np.nonzero(garment.sum(axis=1) >= 40)[0]
+    if len(rows) == 0 or rows.max() < LONG_ROW:
+        return layer
+    solid = skin[..., 3] >= 128
+    from PIL import ImageFilter
+
+    outside = Image.fromarray(((~solid) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(2 * LEG_EDGE_PX + 1))
+    edge = solid & (np.array(outside) > 0) & (skin[..., :3].astype(int).mean(axis=-1) < LEG_DARK)
+    edge[: rows.min()] = False
+    edge[rows.max() - 6 :] = False
+    target = edge & garment
+    array[target, :3] = skin[target, :3]
+    return Image.fromarray(array, "RGBA")
+
+
+def finish_run_leg(layer: Image.Image, body: Image.Image | None) -> Image.Image:
+    """달리기 다리 하의 레이어 마무리(판정 round1~3 C): 엉덩이 잇기 칸(등 아래 모서리 깎음), 엉덩이 뒷면 둥근 모서리, 긴 하의는 맨몸 다리
+    외곽선."""
+    from outfit_pipeline.body import close_seams
+
+    layer = round_hip_corner(carve_hip(paint_hip(layer)))
+    if body is not None:
+        layer = outline_leg_edge(layer, body)
+    # 깎은 뒷면 끝 픽셀이 세로 틈(검사 14번)이 되지 않게 닫는다
+    return close_seams(layer)[0]
+
+
+BACK_ARC = (150, 250)  # 등 쪽 외곽선을 칠하는 타원 둘레 각(도, x 오른쪽 0, y 아래로 커짐): 등 가운데 아래 → 등 위
+BACK_PX = 4
+CARVE = 0.42  # 엉덩이 잇기 타원의 등 아래 사분면에서 (x/rx)²+(y/ry)²가 이보다 크면 깎는다(화면 블록의 등 아래 모서리)
+
+
+def carve_hip(layer: Image.Image) -> Image.Image:
+    """엉덩이 잇기 칸(TARGET)의 등 아래 사분면 바깥을 투명하게 깎아 화면 블록의 등 아래 모서리를 없앤다(판정 round3 C: 뒷면이 곧게
+    내려와 허벅지에서 각지게 꺾임). 메시가 타원이어도 뼈 변형으로 화면에서는 각진 블록이라 텍스처 알파로 깎는다. 깎은 자리에는 그 뒤
+    다리 메시 윗부분(외곽선이 있는 하의 엉덩이)이 보여 실루엣이 다리로 이어진다. 깎은 경계에 외곽선을 그리면 옷 안쪽 호로 떠 보여 그리지
+    않고, 깎지 않은 등 쪽 둘레만 외곽선을 칠한다."""
+    array = np.array(layer.convert("RGBA"))
+    x0, y0, x1, y1 = SOURCE
+    height = y1 - y0
+    region = array[TARGET_TOP : TARGET_TOP + height, x0:x1]
+    if not (region[..., 3] > 0).any():
+        return layer
+    yy, xx = np.mgrid[0:height, 0 : x1 - x0]
+    nx = (xx - (x1 - x0 - 1) / 2) / ((x1 - x0) / 2)
+    ny = (yy - (height - 1) / 2) / (height / 2)
+    region[(nx < 0) & (ny > 0) & (nx * nx + ny * ny > CARVE)] = 0
+    # 등 쪽 가장자리(타원 둘레 [BACK_ARC] 도, 깎지 않은 곳)는 화면 블록의 뒷면 실루엣이라 짙은 외곽선을 칠한다
+    radius = np.sqrt(nx * nx + ny * ny)
+    angle = np.degrees(np.arctan2(ny, nx)) % 360
+    back = (radius <= 1) & (radius > 1 - BACK_PX / ((x1 - x0) / 2)) & (angle >= BACK_ARC[0]) & (angle <= BACK_ARC[1])
+    back &= region[..., 3] > 0
+    region[back, :3] = CORNER_OUTLINE
+    region[back, 3] = 255
+    return Image.fromarray(array, "RGBA")

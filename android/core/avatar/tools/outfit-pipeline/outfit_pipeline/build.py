@@ -33,7 +33,7 @@ from outfit_pipeline.body import (
     wisp_strokes,
 )
 from outfit_pipeline.check import Problem, check_bundle, hole_area, template_for
-from outfit_pipeline.hip import paint_hip
+from outfit_pipeline.hip import carve_hip, finish_run_leg, paint_hip, round_hip_corner
 from outfit_pipeline.holes import fill_garment_holes
 from outfit_pipeline.masks import load_mask
 from outfit_pipeline.shoes import drop_ghost, drop_pieces
@@ -494,7 +494,7 @@ def clean_body(slot_name: str, image: Image.Image) -> tuple[Image.Image, Image.I
         # 달리기 슬롯(옆모습)은 3x3 굵은 실루엣 밖 1~2px 털도 지운다: 남기면 긴소매 소매 끝 옆 손목에서 상의 자르기가 빗살을 남겼다
         image, _ = drop_strays(image.convert("RGBA"), thin=True)
         if slot_name == "run_leg":
-            image = paint_hip(image)  # 엉덩이 잇기 메시 칸(판정 round1 C)
+            image = round_hip_corner(carve_hip(paint_hip(image)))  # 엉덩이 잇기 칸·뒷면 둥근 모서리(판정 round1~3 C)
         return image, None
     image, _ = drop_dust(image.convert("RGBA"))
     from outfit_pipeline.cli import RAW
@@ -533,8 +533,6 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
     if stand:
         layer, _ = trim_waist(layer)
     else:
-        # 달리기 엉덩이 잇기 메시가 쓰는 칸(판정 round1 C, outfit_pipeline/hip.py)
-        layer = paint_hip(layer)
         leg = body_folder / f"female_run_leg{spec.EXTENSION}"
         # 천이 넓게(40px 이상) 있는 행만 센다(반바지 레이어에 딸려 온 다리 외곽선 가는 줄은 발목까지 내려간다)
         rows = np.nonzero(((np.array(layer.convert("RGBA"))[..., 3] >= 128).sum(axis=1)) >= 40)[0]
@@ -543,6 +541,8 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
             layer, _ = cover_run_leg(layer, Image.open(leg))
             layer, _ = close_seams(layer)
             layer, _ = drop_strays(layer, garment=wisps, thin=True)
+        # 엉덩이 잇기 칸·엉덩이 뒷면 둥근 모서리·긴 하의 다리 외곽선(판정 round1~3 C, outfit_pipeline/hip.py)
+        layer = finish_run_leg(layer, Image.open(leg) if leg.is_file() else None)
     return layer
 
 
