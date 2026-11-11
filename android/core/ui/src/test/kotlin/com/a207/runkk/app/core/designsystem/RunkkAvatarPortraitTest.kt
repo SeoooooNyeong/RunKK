@@ -172,6 +172,35 @@ class RunkkAvatarPortraitTest {
         compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertExists()
     }
 
+    @Test
+    fun `기본 머리 그림은 프로필 원 목표 구도다 - 머리가 크고 정수리가 위 끝에 닿으며 목이 아래 끝까지 이어진다(임시 D-성-189)`() {
+        val resources = org.robolectric.RuntimeEnvironment.getApplication().resources
+        AvatarCharacter.entries.forEach { character ->
+            val bitmap = android.graphics.BitmapFactory.decodeResource(
+                resources,
+                RunkkAvatarArt.defaultHeadOf(character)
+            )
+            val size = bitmap.width
+            fun alpha(x: Int, y: Int) = android.graphics.Color.alpha(bitmap.getPixel(x, y))
+            fun span(y: Int): Int {
+                var left = size / 2
+                var right = size / 2
+                while (left > 0 && alpha(left - 1, y) >= 128) left--
+                while (right < size - 1 && alpha(right + 1, y) >= 128) right++
+                return right - left + 1
+            }
+            val crown = (0 until size).first { y -> (0 until size).any { alpha(it, y) >= 128 } }
+            assertTrue(crown <= size * .02f, "$character 정수리가 위 끝에 닿는다: $crown")
+            assertTrue(alpha(size / 2, size - 1) >= 200, "$character 목이 아래 끝까지 이어진다")
+            assertTrue(span(size - 1) < size * .3f, "$character 아래 끝은 목 폭이다: ${span(size - 1)}")
+            val widest = (size * 15 / 100 until size * 7 / 10).maxOf { y ->
+                (0 until size).count { alpha(it, y) >= 128 }
+            }
+            assertTrue(widest >= size * .85f, "$character 머리 너비가 원 지름의 약 90퍼센트다: $widest")
+            bitmap.recycle()
+        }
+    }
+
     private fun defaultHeadTag(character: AvatarCharacter): String = runkkAvatarDefaultHeadTag(character)
 
     private fun show(

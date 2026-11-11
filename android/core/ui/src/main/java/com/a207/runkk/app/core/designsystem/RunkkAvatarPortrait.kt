@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -26,7 +27,7 @@ import kotlin.math.roundToInt
  * - "default:<DefaultCharacter>": 어느 기본 캐릭터 값이든 표시 성별의 기본 머리 그림이다([임시:D-성-180], [임시:D-성-187]). 동물 그림은
  *   그리지 않는다. 서버 값은 그대로 받는다.
  * - "selfie:…"·"head:…": 서버 부위 PNG(FaceImageSource가 받은 층, [RunkkAvatarFace]). 셀카 머리("head:…")는 기본 머리 그림과 같은
- *   구도로 맞추고 목을 원 아래 가장자리까지 잇는다([PortraitHeadFrame], [임시:D-성-189]). 받는 중이면 중립 자리, 받지 못했거나 깨졌으면
+ *   프로필 원 목표 구도(머리를 크게, 짧은 목이 원 아래 가장자리에서 잘림)로 맞춘다([PortraitHeadFrame], [임시:D-성-189]). 받는 중이면 중립 자리, 받지 못했거나 깨졌으면
  *   기본 머리다([임시:D-성-190]).
  * - 없음: 기본 머리.
  */
@@ -43,8 +44,9 @@ object RunkkAvatarArt {
     val DEFAULT_FACE_KEY: String = defaultKey("RABBIT")
 
     /**
-     * 표시 성별의 기본 머리 그림(512×512, Rive 기본 머리 정면 face + eyes_open + hair를 얼굴 가운데 정사각으로 자른 것). `:core:ui`가
-     * `:core:avatar` 자산에 기대지 않게 drawable로 둔다. 내장 머리 그림이 바뀌면 생성 스크립트로 다시 만든다.
+     * 표시 성별의 기본 머리 그림(512×512): Rive 기본 머리 정면 face + eyes_open + hair를 프로필 원 목표 구도(정수리 -5%, 턱 86%, 목 가운데
+     * 50%, [PortraitHeadFrame.TARGET])에 놓고 목 가운데 줄을 아래 끝까지 늘린 것이다(셀카 머리와 같은 자리, [임시:D-성-189]). `:core:ui`가
+     * `:core:avatar` 자산에 기대지 않게 drawable로 둔다. 내장 머리 그림이 바뀌면 core/ui/tools/default-head/make_default_heads.py로 다시 만든다.
      */
     @DrawableRes
     fun defaultHeadOf(character: AvatarCharacter): Int = when (character) {
@@ -73,7 +75,7 @@ fun RunkkAvatarPortrait(
     Box(modifier, contentAlignment = Alignment.Center) {
         when {
             isSelfie && faceKey.startsWith(HEAD_PREFIX) ->
-                SelfieHead(faceLayers, character, Modifier.fillMaxSize().testTag(RUNKK_AVATAR_FACE_TAG)) {
+                SelfieHead(faceLayers, Modifier.fillMaxSize().testTag(RUNKK_AVATAR_FACE_TAG)) {
                     DefaultHead(character)
                 }
 
@@ -90,17 +92,13 @@ fun RunkkAvatarPortrait(
 }
 
 /**
- * 셀카 머리 세 층(얼굴·눈·헤어)을 기본 머리 그림 구도([PortraitHeadFrame])로 그린다. 목 끝이 상자 바닥에 닿지 않으면 목 줄을 바닥까지
- * 이어 그린다(얼굴 층 아래). 구도를 정하지 못하면 캔버스를 상자에 맞춰 그대로 그리고, 그림 하나라도 읽지 못하면 [fallback]이다.
+ * 셀카 머리 세 층(얼굴·눈·헤어)을 프로필 원 목표 구도([PortraitHeadFrame], 기본 머리 그림과 같다)로 그린다. 목 끝이 상자 바닥에 닿지
+ * 않으면 얼굴 층은 목 가운데 줄 위만 그리고 그 줄을 바닥까지 늘린다. 구도를 정하지 못하면 캔버스를 상자에 맞춰 그대로 그리고, 그림 하나라도
+ * 읽지 못하면 [fallback]이다.
  */
 @Composable
-private fun SelfieHead(
-    layers: List<FaceLayer>,
-    character: AvatarCharacter,
-    modifier: Modifier,
-    fallback: @Composable () -> Unit
-) {
-    val head = remember(layers, character) { SelfieHeadArt.of(layers, character) }
+private fun SelfieHead(layers: List<FaceLayer>, modifier: Modifier, fallback: @Composable () -> Unit) {
+    val head = remember(layers) { SelfieHeadArt.of(layers) }
     if (head == null) {
         fallback()
         return
@@ -124,12 +122,18 @@ private fun DrawScope.drawHead(head: SelfieHeadArt) {
         val y = top + frame.dy * side
         val scale = frame.scale * side
         val row = frame.neckRow
-        if (image === head.face && row != null) drawNeck(image, row, x, y + row * scale, top + side, scale)
-        drawLayer(image, x, y, scale)
+        if (image === head.face && row != null) {
+            // 목 줄 위만 그리고(목 끝 외곽선은 그리지 않는다) 그 줄을 상자 바닥까지 늘린다.
+            val cut = y + row * scale
+            clipRect(bottom = cut) { drawLayer(image, x, y, scale) }
+            drawNeck(image, row, x, cut, top + side, scale)
+        } else {
+            drawLayer(image, x, y, scale)
+        }
     }
 }
 
-/** 얼굴 층의 목 줄 [row]를 [from]부터 상자 바닥 [to]까지 늘려 그린다(얼굴 층이 그 위를 덮는다). */
+/** 얼굴 층의 목 줄 [row]를 [from]부터 상자 바닥 [to]까지 목 폭 그대로 늘려 그린다. */
 private fun DrawScope.drawNeck(face: ImageBitmap, row: Int, x: Float, from: Float, to: Float, scale: Float) {
     val start = from.roundToInt()
     val end = to.roundToInt()

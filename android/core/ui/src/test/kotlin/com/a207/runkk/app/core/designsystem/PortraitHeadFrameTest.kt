@@ -1,61 +1,51 @@
 package com.a207.runkk.app.core.designsystem
 
 import kotlin.math.abs
-import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.Test
 
 /**
- * 프로필 원의 셀카 머리 구도([임시:D-성-189]): 셀카 머리 층(1024 캔버스, 얼굴·짧은 목)을 기본 머리 그림과 같은 크기·자리(정수리·턱·가운데)에
- * 맞추고, 목이 원 아래 가장자리에 닿지 않으면 목 끝 줄을 아래로 이어 상자 바닥에서 잘리게 한다. 픽셀 배열만 다루는 계산을 시험한다.
+ * 프로필 원의 셀카 머리 구도([임시:D-성-189]): 셀카 머리 층(1024 캔버스, 얼굴·짧은 목)을 프로필 원 목표 구도([PortraitHeadFrame.TARGET],
+ * 정수리는 위 끝에서 살짝 잘리고 턱은 86%, 가운데)에 맞추고, 목은 턱과 목 끝 사이 가운데 줄부터 상자 바닥까지 목 폭 그대로 늘린다
+ * (그 아래 목 끝 외곽선은 그리지 않는다). 기본 머리 그림도 같은 구도다. 픽셀 배열만 다루는 계산을 시험한다.
  */
 class PortraitHeadFrameTest {
     @Test
-    fun `정수리·턱·가운데를 기본 머리 그림 구도에 맞춘다(남녀 각각)`() {
-        for (character in AvatarCharacter.entries) {
-            val frame = assertNotNotNull(PortraitHeadFrame.of(face(), hair(), SIZE, SIZE, character))
-            val reference = PortraitHeadFrame.referenceOf(character)
-            assertNear(reference.crownY, frame.mapY(CROWN.toFloat()), "$character 정수리")
-            assertNear(reference.chinY, frame.mapY(CHIN.toFloat()), "$character 턱")
-            assertNear(reference.centerX, frame.mapX(CENTER), "$character 가운데")
-        }
+    fun `정수리·턱·가운데를 남녀 같은 목표 구도에 맞춘다(정수리 -5퍼센트, 턱 86퍼센트, 가운데)`() {
+        val target = PortraitHeadFrame.TARGET
+        assertNear(-.05f, target.crownY, "정수리는 원 위 끝에서 살짝 잘린다")
+        assertNear(.86f, target.chinY, "턱은 원 높이 86퍼센트")
+        assertNear(.5f, target.centerX, "가운데")
+        val frame = assertNotNotNull(PortraitHeadFrame.of(face(), hair(), SIZE, SIZE))
+        assertNear(target.crownY, frame.mapY(CROWN.toFloat()), "정수리")
+        assertNear(target.chinY, frame.mapY(CHIN.toFloat()), "턱")
+        assertNear(target.centerX, frame.mapX(CENTER), "가운데")
     }
 
     @Test
-    fun `짧은 목은 끝 줄을 상자 바닥까지 이어 목이 원 아래 가장자리에서 잘린다`() {
-        val frame = assertNotNotNull(PortraitHeadFrame.of(face(), hair(), SIZE, SIZE, AvatarCharacter.MALE))
+    fun `짧은 목은 턱과 목 끝 사이 가운데 줄부터 바닥까지 잇고 목 끝 줄(외곽선)은 그리지 않는다`() {
+        val frame = assertNotNotNull(PortraitHeadFrame.of(face(), hair(), SIZE, SIZE))
         assertTrue(frame.mapY(NECK_BOTTOM.toFloat()) < 1f, "시험 자료의 목은 상자 바닥에 닿지 않는다")
-        val row = assertNotNotNull(frame.neckRow, "목 끝 줄을 잇는다")
-        assertTrue(row in CHIN until NECK_BOTTOM, "이을 줄은 턱 아래 목 안이다: $row")
+        val row = assertNotNotNull(frame.neckRow, "목을 잇는다")
+        val middle = (CHIN + NECK_BOTTOM) / 2
+        assertTrue(abs(row - middle) <= 1, "이을 줄은 턱과 목 끝 사이 가운데다: $row")
+        assertTrue(row < NECK_BOTTOM - 10, "목 끝 외곽선 줄은 늘리는 줄 아래라 그리지 않는다")
     }
 
     @Test
     fun `목이 이미 상자 바닥을 넘으면 잇지 않는다`() {
-        val frame =
-            assertNotNotNull(PortraitHeadFrame.of(face(neckBottom = 920), hair(), SIZE, SIZE, AvatarCharacter.MALE))
-        assertTrue(frame.mapY(920f) >= 1f)
+        val frame = assertNotNotNull(PortraitHeadFrame.of(face(neckBottom = 880), hair(), SIZE, SIZE))
+        assertTrue(frame.mapY(880f) >= 1f)
         assertNull(frame.neckRow)
     }
 
     @Test
     fun `목을 찾지 못하거나 층이 비었으면 구도를 정하지 않는다(그림을 그대로 맞춘다)`() {
         val noNeck = IntArray(SIZE * SIZE).also { fill(it, 312..712, 300 until 750) }
-        assertNull(PortraitHeadFrame.of(noNeck, hair(), SIZE, SIZE, AvatarCharacter.MALE))
-        assertNull(PortraitHeadFrame.of(face(), IntArray(SIZE * SIZE), SIZE, SIZE, AvatarCharacter.MALE))
-    }
-
-    @Test
-    fun `기준 구도는 기본 머리 그림에서 잰 값이다(턱은 상자의 79퍼센트 안팎, 정수리는 위 끝 안팎)`() {
-        val male = PortraitHeadFrame.referenceOf(AvatarCharacter.MALE)
-        val female = PortraitHeadFrame.referenceOf(AvatarCharacter.FEMALE)
-        listOf(male, female).forEach {
-            assertTrue(it.chinY in .78f..0.80f, "턱 ${it.chinY}")
-            assertTrue(it.crownY in -.03f..0.03f, "정수리 ${it.crownY}")
-            assertTrue(it.centerX in .49f..0.51f, "가운데 ${it.centerX}")
-        }
-        assertEquals(male.chinY, PortraitHeadFrame.referenceOf(AvatarCharacter.MALE).chinY)
+        assertNull(PortraitHeadFrame.of(noNeck, hair(), SIZE, SIZE))
+        assertNull(PortraitHeadFrame.of(face(), IntArray(SIZE * SIZE), SIZE, SIZE))
     }
 
     private fun <T : Any> assertNotNotNull(value: T?, message: String = "구도를 정한다"): T = assertNotNull(value, message)
