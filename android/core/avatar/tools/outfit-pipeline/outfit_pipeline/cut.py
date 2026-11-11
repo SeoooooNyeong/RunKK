@@ -87,7 +87,7 @@ def _leg_span(skin: np.ndarray, hip: np.ndarray) -> np.ndarray:
         return out
     xs = np.flatnonzero(skin[rows[-1] + 1])
     if len(xs):
-        out[rows[-1] + 1 - LEG_GUARD : rows[-1] + 1, xs[0] : xs[-1] + 1] = True
+        out[max(0, rows[-1] + 1 - LEG_GUARD) : rows[-1] + 1, xs[0] : xs[-1] + 1] = True  # 음수면 맨 뒤로 감긴다
     return out
 
 
@@ -138,15 +138,17 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
     with np.errstate(invalid="ignore", divide="ignore"):
         cosine = (vty * vby + vtx * vbx) / (to_top * to_bg)
     rim = candidate & (to_top + to_bg <= RIM_PX + 2) & (cosine < OPPOSITE)
-    rim |= skin & (labels == FULL_CUT) & ~inside & ~top_alpha  # 달리기 몸통: 상의 밖은 모두
-    rim |= skin & neck_sides & ~inside & ~top_alpha  # 어깨를 덮는 상의의 칼라 옆: 상의 밖은 모두
+    forced = skin & (labels == FULL_CUT) & ~inside & ~top_alpha  # 달리기 몸통: 상의 밖은 모두
+    forced |= skin & neck_sides & ~inside & ~top_alpha  # 어깨를 덮는 상의의 칼라 옆: 상의 밖은 모두
     # 엉덩이 옆: 옷이 있는 행의 가로 범위 밖, 그리고 칸 바로 아래 행 다리의 가로 범위 밖(옛 반바지 실루엣 테두리)
     hip = skin & (labels == HIP) & ~inside & ~top_alpha & ~_within_row_span(top_alpha) & top_alpha.any(axis=1)[:, None]
-    rim |= hip & ~_leg_span(skin, labels == HIP)
+    forced |= hip & ~_leg_span(skin, labels == HIP)
+    rim |= forced
     original = b.copy()
     b[rim] = 0
     b = close_slits(original, b)
-    b = restore_enclosed(original, b, top_alpha)
+    # 모두 지우는 칸(240·230·칼라 옆)은 상의 밖을 일부러 다 지운 곳이라 갇혀 있어도 되살리지 않는다(코드 리뷰)
+    b = restore_enclosed(original, b, top_alpha, keep=forced)
     # 남은 부스러기: 상의에서 RIM_PX 안에만 있는 작은 덩어리(CRUMB_PX 이하)
     from outfit_pipeline.build import _components
 
@@ -191,10 +193,13 @@ def close_slits(before: np.ndarray, after: np.ndarray) -> np.ndarray:
     return out
 
 
-def restore_enclosed(before: np.ndarray, after: np.ndarray, top: np.ndarray) -> np.ndarray:
+def restore_enclosed(
+    before: np.ndarray, after: np.ndarray, top: np.ndarray, keep: np.ndarray | None = None
+) -> np.ndarray:
     """띠 판정이 지운 맨몸 가운데 상의 밖이면서 배경(맨몸도 상의도 없는 곳, 텍스처 가장자리 너머 포함)에 8방향으로 닿지 않는 덩어리를
     되살린다(앱 TopBodyCut.restoreEnclosed). 자르기는 상의와 배경 사이 테두리를 지우는 것이라, 배경과 떨어진 곳을 지우면 맨몸 안에 배경이
-    비치는 구멍만 생겼다(판정 round4: crew 소매 끝 아래 팔에 비스듬한 하늘색 틈)."""
+    비치는 구멍만 생겼다(판정 round4: crew 소매 끝 아래 팔에 비스듬한 하늘색 틈). [keep] 픽셀(모두 지우는 칸이 지운 것)은 덩어리에 들어도
+    되살리지 않는다(덩어리 판정은 그대로)."""
     removed = (before[..., 3] > 0) & (after[..., 3] == 0) & ~top
     if not removed.any():
         return after
@@ -207,6 +212,8 @@ def restore_enclosed(before: np.ndarray, after: np.ndarray, top: np.ndarray) -> 
     out = after.copy()
     for piece in _components8(removed):
         if not touch[piece[:, 0], piece[:, 1]].any():
+            if keep is not None:
+                piece = piece[~keep[piece[:, 0], piece[:, 1]]]
             out[piece[:, 0], piece[:, 1]] = before[piece[:, 0], piece[:, 1]]
     return out
 

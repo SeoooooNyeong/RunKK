@@ -151,6 +151,7 @@ def compose_stand(outfits_dir: Path, gender: str, chosen: dict[str, str]) -> Ima
         marks = None
         if top is not None:
             top, marks = take_marks(top)  # 세트별 자르기 표지(앱 TopBodyCut.takeMarks와 같다)
+            layers["TOP"] = top  # 표지는 그리지도 않는다
         if top is not None and "BOTTOM" in layers:
             merged = layers["BOTTOM"].copy()
             merged.alpha_composite(top)

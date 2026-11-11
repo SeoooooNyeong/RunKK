@@ -64,6 +64,8 @@ internal object TopBodyCut {
         val before = skin.copyOf()
         val span = rowSpans(isTop, width, height)
         val leg = legSpan(skin, area, width, height)
+        // 모두 지우는 칸(240·230·칼라 옆)이 지운 픽셀: 상의 밖을 일부러 다 지운 곳이라 갇혀 있어도 되살리지 않는다(코드 리뷰)
+        val forced = BooleanArray(size)
         for (i in 0 until size) {
             val band = area[i] ushr 24
             if (skin[i] ushr 24 == 0 || band < CUT_ALPHA || band in skipped || !outside[i]) continue
@@ -74,27 +76,39 @@ internal object TopBodyCut {
                 val y = i / width
                 val row = span[y]
                 val legTop = leg != null && y >= leg.second && x in leg.first
-                if (row != null && x !in row && !legTop) skin[i] = 0
+                if (row != null && x !in row && !legTop) {
+                    skin[i] = 0
+                    forced[i] = true
+                }
                 continue
             }
             // 달리기 몸통(240): 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다. 어깨를 덮는 상의의 칼라 옆 칸도 같다
-            if (band == FULL_CUT_ALPHA || band in NECK_SIDES ||
-                isRim(i, nearestTop[i], nearestBackground[i], width, height)
-            ) {
+            if (band == FULL_CUT_ALPHA || band in NECK_SIDES) {
+                skin[i] = 0
+                forced[i] = true
+            } else if (isRim(i, nearestTop[i], nearestBackground[i], width, height)) {
                 skin[i] = 0
             }
         }
         closeSlits(before, skin, width, height)
-        restoreEnclosed(before, skin, top, width, height)
+        restoreEnclosed(before, skin, top, width, height, forced)
         dropCrumbs(skin, top, area, outside, nearestTop, skipped, width, height)
     }
 
     /**
      * 지운 맨몸 가운데 상의 밖이면서 배경(맨몸도 상의도 없는 곳, 텍스처 가장자리 너머 포함)에 8방향으로 닿지 않는 덩어리를 되살린다.
      * 자르기는 상의와 배경 사이 테두리를 지우는 것이라, 배경과 떨어진 곳을 지우면 맨몸 안에 배경이 비치는 구멍만 생겼다(판정 round4: crew 소매
-     * 끝 아래 팔의 비스듬한 틈). 파이프라인 `cut.restore_enclosed`와 같다.
+     * 끝 아래 팔의 비스듬한 틈). [keep] 픽셀(모두 지우는 칸이 지운 것)은 덩어리에 들어도 되살리지 않는다(덩어리 판정은 그대로). 파이프라인
+     * `cut.restore_enclosed`와 같다.
      */
-    fun restoreEnclosed(before: IntArray, skin: IntArray, top: IntArray, width: Int, height: Int) {
+    fun restoreEnclosed(
+        before: IntArray,
+        skin: IntArray,
+        top: IntArray,
+        width: Int,
+        height: Int,
+        keep: BooleanArray? = null
+    ) {
         val size = width * height
         val removed = BooleanArray(size) { before[it] ushr 24 != 0 && skin[it] ushr 24 == 0 && top[it] ushr 24 == 0 }
         fun background(x: Int, y: Int): Boolean {
@@ -131,7 +145,7 @@ internal object TopBodyCut {
                 }
             }
             if (!touches) {
-                for (k in 0 until tail) skin[queue[k]] = before[queue[k]]
+                for (k in 0 until tail) if (keep == null || !keep[queue[k]]) skin[queue[k]] = before[queue[k]]
             }
         }
     }

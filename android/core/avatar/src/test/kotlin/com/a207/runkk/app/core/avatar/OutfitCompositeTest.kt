@@ -181,7 +181,7 @@ class OutfitCompositeTest {
         }
         val area = png(20, 20) { }
         val out = decode(OutfitLayerComposer.compose(body, listOf(OutfitPart.TOP to top), 0, 20, 20, area))
-        assertTrue(Color.alpha(out.getPixel(3, 10)) <= TopBodyCut.MARK_ALPHA, "표지 칸 맨몸은 지운다")
+        assertEquals(0, Color.alpha(out.getPixel(3, 10)), "표지 칸 맨몸은 지우고 표지도 그리지 않는다")
         assertEquals(255, Color.alpha(out.getPixel(3, 9)), "표지 옆 맨몸은 남는다")
         assertEquals(255, Color.alpha(out.getPixel(4, 10)), "자르기 칸 밖 맨몸은 남는다")
         assertEquals(Color.BLUE, out.getPixel(9, 10), "상의")
@@ -198,7 +198,22 @@ class OutfitCompositeTest {
                 assertEquals(0, marks.size, "$key 에는 표지가 없다(crew·base 등은 그대로)")
                 return@forEachIndexed
             }
-            assertTrue(marks.size > 100, "singlet 표지 ${marks.size}칸")
+            // BitmapFactory로 읽어도(앱 읽기와 같다) 표지가 그대로 남는다: 파이프라인 표지 칸 그림(PNG)의 흰 칸은 모두 표지이거나(맨몸 위)
+            // 불투명 천이다(stand_fix가 표지 뒤 옆선을 이은 칸). 표지가 읽기에서 섞이거나 빠지면 알파 0이나 다른 값이 된다
+            val template = javax.imageio.ImageIO.read(
+                File("tools/outfit-pipeline/templates/marks/${key}__female_stand.png")
+            )
+            val width = template.width
+            val white = (0 until template.height).flatMap { y ->
+                (0 until width).filter { x -> template.raster.getSample(x, y, 0) > 0 }.map { x -> y * width + x }
+            }
+            assertTrue(marks.size > 700, "singlet 표지 ${marks.size}칸")
+            assertTrue(marks.all { it in white.toSet() }, "표지는 표지 칸 그림 안에만")
+            assertEquals(
+                emptyList(),
+                white.filter { top[it] ushr 24 != TopBodyCut.MARK_ALPHA && top[it] ushr 24 < 128 },
+                "표지 칸 그림의 흰 칸이 읽은 뒤 표지도 천도 아니다"
+            )
             val skin = pixels(File(root, "outfits/body/female_stand.webp").readBytes())
             assertTrue(marks.all { skin[it] ushr 24 != 0 }, "표지는 맨몸이 있는 칸에만")
             for (gender in AvatarGender.entries) {
@@ -206,8 +221,8 @@ class OutfitCompositeTest {
                 val out = IntArray(composed.width * composed.height)
                 composed.getPixels(out, 0, composed.width, 0, 0, composed.width, composed.height)
                 composed.recycle()
-                val left = marks.count { out[it] ushr 24 > TopBodyCut.MARK_ALPHA }
-                assertEquals(0, left, "$gender singlet 서기 합성에서 표지 칸에 맨몸이 남지 않는다")
+                val left = marks.count { out[it] ushr 24 != 0 }
+                assertEquals(0, left, "$gender singlet 서기 합성에서 표지 칸에 맨몸도 표지도 남지 않는다")
             }
         }
     }

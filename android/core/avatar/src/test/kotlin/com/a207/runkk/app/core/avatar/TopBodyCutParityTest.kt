@@ -29,6 +29,49 @@ class TopBodyCutParityTest {
         assertEquals(0, differs, "남은 맨몸 픽셀이 cut.py와 다르다")
     }
 
+    /** 칼라 옆 칸(221·181) 픽스처와 승인 묶음의 실제 서기 조합(파이썬 `_nearest`는 근사, 앱은 BFS)도 cut.py와 같은 픽셀을 지운다. */
+    @Test
+    fun `칼라 옆 칸과 실제 서기 조합도 파이프라인 cut_py와 같은 픽셀을 지운다`() {
+        for (prefix in listOf("neck_", "real_top_dawn_windbreaker_", "real_top_crew_tee_")) {
+            val body = pixels("${prefix}body")
+            val top = pixels("${prefix}top")
+            val area = pixels("${prefix}area")
+            val expected = pixels("${prefix}expected")
+            TopBodyCut.apply(body.first, top.first, area.first, body.second, body.third)
+            val differs = body.first.indices.count {
+                (body.first[it] ushr 24 != 0) != (expected.first[it] ushr 24 != 0)
+            }
+            assertEquals(0, differs, "$prefix 남은 맨몸 픽셀이 cut.py와 다르다")
+        }
+    }
+
+    /**
+     * 모두 지우는 칸(240) 안의 맨몸은 배경에 닿지 않아도 되살리지 않는다(코드 리뷰: restoreEnclosed가 240·230·칼라 옆 칸 픽셀까지 되살렸다).
+     * 맨몸 x 1..48, y 1..6, 240 칸 x 3..4, y 2..5(둘레가 맨몸이라 배경에 닿지 않고, 상의에서 [TopBodyCut.RIM_PX]보다 멀어 부스러기로
+     * 지우지 않는다), 상의 x 44..46. 파이프라인
+     * `test_full_cut_cell_is_not_restored`와 같은 입력·기댓값이다.
+     */
+    @Test
+    fun `모두 지우는 칸의 맨몸은 갇혀 있어도 되살리지 않는다(파이프라인 cut_py와 같다)`() {
+        val width = 50
+        val height = 8
+        val skin = 0xFFF6CDBE.toInt()
+        val body = IntArray(width * height) { i -> if (i % width in 1..48 && i / width in 1..6) skin else 0 }
+        val top = IntArray(width * height) { i ->
+            if (i % width in 44..46 &&
+                i / width in 1..6
+            ) {
+                0xFF3C5078.toInt()
+            } else {
+                0
+            }
+        }
+        val area = IntArray(width * height) { i -> if (i % width in 3..4 && i / width in 2..5) 240 shl 24 else 0 }
+        TopBodyCut.apply(body, top, area, width, height)
+        val removed = body.indices.filter { body[it] ushr 24 == 0 && it % width in 1..48 && it / width in 1..6 }
+        assertEquals((2..5).flatMap { y -> (3..4).map { x -> y * width + x } }, removed)
+    }
+
     @Test
     fun `띠 판정이 한 줄 걸러 지워 남긴 1px 줄도 지운다(파이프라인 close_slits와 같다)`() {
         val skin = 0xFFFAD2C0.toInt()
