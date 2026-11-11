@@ -106,8 +106,8 @@ def test_stand_fix_is_stable_on_the_committed_assets(tmp_path) -> None:
     assert fix_stand(tmp_path / "outfits", RAW, MASKS) == {}
 
 
-# 원본 그림의 뒤꿈치·발목 모양으로 원래 있던 옆 가장자리 계단(판정 round3 원본에서 잰 수). 나머지 신발은 계단이 없어야 한다
-SHOE_EDGE_STEPS = {"shoes_high_top": 1, "shoes_lime_runner": 2}
+# 원본 그림의 뒤꿈치·발목 모양으로 원래 있던 옆 가장자리 계단(승인 생성 원본에서 잰 수). 나머지 신발은 계단이 없어야 한다
+SHOE_EDGE_STEPS = {"shoes_high_top": 5, "shoes_lime_runner": 4}
 
 
 def _edge_steps(array: np.ndarray) -> int:
@@ -165,3 +165,49 @@ def test_close_side_skin_covers_bare_strips_beside_and_below_a_sleeveless_top() 
     assert array[250, 112, 3] == 0  # 몸통 옆 외곽선은 맨몸 그대로(상의 옆 외곽선)
     assert array[293, 150, 3] == 255 and array[293, 150, :3].tolist() == [120, 200, 170]  # 밑단 아래 하의 허리 위 맨살
     assert array[300, 150, 3] == 0  # 하의 허리(y 296) 아래는 그대로
+
+
+def test_drop_side_fragments_removes_detached_pieces_below_the_hem_beside_the_hips() -> None:
+    from outfit_pipeline.stand_fix import drop_side_fragments
+
+    layer = np.zeros((768, 512, 4), np.uint8)
+    layer[100:296, 150:362] = (250, 250, 250, 255)  # 상의 본체
+    layer[304:320, 112:120] = (40, 30, 25, 255)  # 밑단 아래 옆 조각(기본 반바지 옆 외곽선)
+    layer[300:320, 200:260] = (250, 250, 250, 255)  # 밑단 아래 가운데(본체와 떨어졌지만 옆 칸 밖)
+    out, count = drop_side_fragments(Image.fromarray(layer, "RGBA"))
+    array = np.array(out)
+    assert count == 16 * 8
+    assert array[310, 115, 3] == 0 and array[310, 230, 3] == 255 and array[200, 200, 3] == 255
+
+
+def test_close_hem_slit_joins_the_hanging_flap_to_the_hem() -> None:
+    from outfit_pipeline.stand_fix import close_hem_slit
+
+    layer = np.zeros((768, 512, 4), np.uint8)
+    layer[300:404, 116:300] = (50, 50, 55, 255)  # 반바지
+    layer[392:404, 100:110] = (50, 50, 55, 255)  # 처진 앞판 끝
+    layer[392:404, 110:116] = 0  # 그 사이 트임
+    out, count = close_hem_slit(Image.fromarray(layer, "RGBA"))
+    array = np.array(out)
+    assert count > 0 and (array[396, 110:116, 3] == 255).all()
+
+
+def test_solid_hem_corner_paints_light_specks_inside_the_hem_outline() -> None:
+    from outfit_pipeline.stand_fix import solid_hem_corner
+
+    layer = np.zeros((768, 512, 4), np.uint8)
+    layer[200:296, 150:400] = (250, 250, 250, 255)
+    layer[288:296, 380:392] = (50, 40, 35, 255)  # 밑단 모서리 외곽선 띠
+    layer[292, 385] = (250, 250, 250, 255)  # 띠 안 흰 점
+    out, count = solid_hem_corner(Image.fromarray(layer, "RGBA"))
+    array = np.array(out)
+    assert count == 1 and array[292, 385, :3].mean() < 100
+    assert array[250, 300, :3].tolist() == [250, 250, 250]
+
+
+def test_committed_stand_body_has_no_bare_feet() -> None:
+    """앱은 신발 칸을 늘 신발로 채우므로(base_shoes) 서기 맨몸의 맨발 칸은 비어 있다: 신발마다 제 외곽선이 실루엣이다(판정 round5 lime_runner)."""
+    body = np.array(Image.open(OUTFITS / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}").convert("RGBA"))
+    x0, y0, x1, y1 = spec.BARE_FEET
+    assert (body[y0:y1, x0:x1, 3] == 0).all()
+    assert (body[y0 - 20 : y0, x0:x1, 3] > 0).any()  # 그 위 다리(신발 목 위)는 남는다

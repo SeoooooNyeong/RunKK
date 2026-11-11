@@ -4,7 +4,8 @@
 2. 긴소매 상의 서기 레이어의 칼라·후드 안 빈 곳을 안감 색으로 메운다(`holes.line_collar`).
 3. 반팔·민소매 상의 서기 레이어의 몸통 옆 외곽선 밖 밝은 점을 외곽선 색으로 칠하고([solid_side_outline]), 민소매는 몸통 옆 맨살 띠와
    밑단 아래 맨살을 덮는다([close_side_skin]).
-4. 신발 서기 레이어의 외곽선 밖 회색 띠를 지우고(`feet.drop_halo`) 맨발 실루엣을 덮게 한다(`feet.cover_feet`).
+4. 신발 서기 레이어의 외곽선 밖 회색 띠를 지운다(`feet.drop_halo`). 맨몸 서기 아틀라스의 맨발 칸은 비운다([clear_bare_feet]):
+   신발이 늘 덮으므로 신발마다 제 외곽선이 실루엣이다(맨발을 신발로 덮던 `feet.cover_feet`는 쓰지 않는다).
 2·4 뒤에 새로 갇힌 좁은 틈은 검사 16번 규칙으로 메운다(`build.fill_layer_holes`).
 바뀐 묶음은 상점 그림도 다시 만든다.
 """
@@ -61,7 +62,7 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
 
     from outfit_pipeline.body import drop_strays, wisp_layer
     from outfit_pipeline.build import cut_area, fill_layer_holes, make_shop
-    from outfit_pipeline.feet import HALO_LIGHT, HALO_LIGHT_BY_KEY, cover_feet, drop_halo
+    from outfit_pipeline.feet import HALO_LIGHT, HALO_LIGHT_BY_KEY, drop_halo
     from outfit_pipeline.holes import line_collar
 
     changed: dict[str, int] = {}
@@ -76,14 +77,22 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
         changed[f"{spec.BODY_FOLDER}/{name}"] = (
             int((before != np.array(area)).sum()) if before is not None else area.size[0] * area.size[1]
         )
-    body = Image.open(folder / f"female_stand{spec.EXTENSION}").convert("RGBA")
+    body_path = folder / f"female_stand{spec.EXTENSION}"
+    body = Image.open(body_path).convert("RGBA")
+    cleared, count = clear_bare_feet(body)
+    if count:
+        spec.save_webp(cleared, body_path)
+        changed[f"{spec.BODY_FOLDER}/{body_path.name}"] = count
+        body = cleared
     short = [k for k in spec.LEGACY_KEYS["TOP"] if spec.default_male_top_surface(k) == 1]
     jobs = (
         [(key, line_collar) for key in COLLAR_KEYS]
         + [(key, solid_side_outline) for key in short]
         + [(key, close_side_skin) for key in SIDE_SKIN_KEYS]
+        + [(key, drop_side_fragments) for key in spec.LEGACY_KEYS["TOP"]]
+        + [(key, solid_hem_corner) for key in short]
+        + [(key, close_hem_slit) for key in SLIT_KEYS]
         + [(key, partial(drop_halo, light=HALO_LIGHT_BY_KEY.get(key, HALO_LIGHT))) for key in spec.LEGACY_KEYS["SHOES"]]
-        + [(key, cover_feet) for key in spec.LEGACY_KEYS["SHOES"]]
     )
     # 한 단계가 다른 단계의 결과를 바꿀 수 있어(회색 띠를 지우면 맨발이 새로 드러난다) 더 바뀌지 않을 때까지(최대 [PASSES]번) 되풀이한다
     for _ in range(PASSES):
@@ -188,3 +197,100 @@ def close_side_skin(layer: Image.Image, body: Image.Image) -> tuple[Image.Image,
                     array[y, x, 3] = 255
                     changed += 1
     return Image.fromarray(array, "RGBA"), changed
+
+
+# 상의 밑단 아래 옆 조각(판정 round4: wide_pants 오른쪽 허리 고리, base 남자 체형 100 오른쪽 허리 홈). 표지 색 렌더로 보니 두 획 모두
+# base_top 서기 레이어의 x 112~119·394~402, y 304~319 짙은 세로 조각이었다. 승인 기본 텍스처에서 뽑을 때 기본 반바지 옆 외곽선이 상의 칸
+# (y 319까지)에 걸려 상의 레이어로 딸려 왔고, 기본 반바지는 같은 자리에 제 외곽선이 있어 그 조합에서만 가려졌다. 다른 하의와 입으면 허리 옆에
+# 떠 있는 고리·홈으로 보였다. 상의 본체와 떨어진 조각 가운데 밑단 아래(y [FRAGMENT_TOP] 이상) 옆 칸에만 있는 것을 지운다.
+FRAGMENT_TOP = 296
+FRAGMENT_SIDES = ((0, 150), (362, 512))  # spec.STAND_HIP_CUTS와 같은 엉덩이 옆 칸 x
+FRAGMENT_MAX = 400
+
+
+def drop_side_fragments(layer: Image.Image, _body: Image.Image | None = None) -> tuple[Image.Image, int]:
+    """서기 상의 레이어에서 본체와 떨어진 밑단 아래 옆 조각을 지운다. (레이어, 지운 픽셀 수)."""
+    from outfit_pipeline.render_check import _components8
+
+    array = np.array(layer.convert("RGBA"))
+    pieces = sorted(_components8(array[..., 3] > 0), key=len, reverse=True)
+    changed = 0
+    for piece in pieces[1:]:
+        ys, xs = piece[:, 0], piece[:, 1]
+        side = any(x0 <= xs.min() and xs.max() < x1 for x0, x1 in FRAGMENT_SIDES)
+        if len(piece) <= FRAGMENT_MAX and ys.min() >= FRAGMENT_TOP and side:
+            array[ys, xs] = 0
+            changed += len(piece)
+    return Image.fromarray(array, "RGBA"), changed
+
+
+# running_shorts 옆트임 너덜거림(판정 round2~4). 표지 색 렌더로 보니 하의 레이어 자체의 그림이었다: 밑단 옆(아틀라스 y 392~404)에서 앞판 끝이
+# 따로 떨어져 아래로 처지고(x 100~109·406~412) 그 사이 5~7px이 비어 맨다리 외곽선과 함께 들쭉날쭉한 홈으로 보였다. 그 행마다 옆 칸에서
+# 맨 바깥 천과 안쪽 천 사이 [SLIT_MAX]px 이하 빈 곳을 이웃 천 색(행 가운데값)으로 메워 밑단을 한 줄로 잇는다.
+SLIT_KEYS = ("bottom_running_shorts",)
+SLIT_ROWS = (388, 408)
+SLIT_SIDES = ((90, 130), (384, 424))
+SLIT_MAX = 10
+
+
+def close_hem_slit(layer: Image.Image, _body: Image.Image | None = None) -> tuple[Image.Image, int]:
+    """하의 서기 레이어 밑단 옆트임의 빈 곳을 메운다. (레이어, 메운 픽셀 수)."""
+    array = np.array(layer.convert("RGBA"))
+    solid = array[..., 3] >= 128
+    changed = 0
+    for x0, x1 in SLIT_SIDES:
+        for y in range(*SLIT_ROWS):
+            xs = np.nonzero(solid[y, x0:x1])[0] + x0
+            if len(xs) < 2:
+                continue
+            gap = [x for x in range(xs.min(), xs.max()) if not solid[y, x]]
+            if not gap or len(gap) > SLIT_MAX:
+                continue
+            color = np.median(array[y, xs][:, :3], axis=0).round().astype(np.uint8)
+            for x in gap:
+                array[y, x, :3] = color
+                array[y, x, 3] = 255
+            changed += len(gap)
+    return Image.fromarray(array, "RGBA"), changed
+
+
+# 밑단 모서리 외곽선 안의 흰 점(판정 round4: base 남자 체형 100 오른쪽 허리 홈 옆 밝은 「U」 조각). 표지 색 렌더로 보니 base_top 밑단 모서리
+# 짙은 외곽선 띠(아틀라스 x 380~389, y 288~296) 안에 박힌 흰 천 픽셀이었다. 체형 100에서 늘면 외곽선 사이 밝은 홈으로 보였다. 옆 칸(엉덩이 옆
+# x)의 밑단 행에서 4방향 이웃 가운데 셋 이상이 짙은 상의 픽셀인 밝은 픽셀을 그 이웃 색으로 칠한다(되풀이: 붙은 점 두세 개).
+HEM_SPECK_ROWS = (280, 300)
+
+
+def solid_hem_corner(layer: Image.Image, _body: Image.Image | None = None) -> tuple[Image.Image, int]:
+    """반팔·민소매 서기 상의 밑단 모서리 외곽선 안의 밝은 점을 외곽선 색으로 칠한다. (레이어, 칠한 픽셀 수)."""
+    array = np.array(layer.convert("RGBA"))
+    y0, y1 = HEM_SPECK_ROWS
+    changed = 0
+    for _ in range(3):
+        solid = array[..., 3] >= 128
+        lum = array[..., :3].astype(int).mean(axis=-1)
+        dark = solid & (lum < SIDE_DARK)
+        paint = []
+        for x0, x1 in FRAGMENT_SIDES:
+            for y in range(y0, y1):
+                for x in range(max(x0, 1), min(x1, array.shape[1] - 1)):
+                    if not solid[y, x] or lum[y, x] < SIDE_DARK + SIDE_LIGHT:
+                        continue
+                    around = [(y + dy, x + dx) for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)) if dark[y + dy, x + dx]]
+                    if len(around) >= 3:
+                        paint.append((y, x, np.mean([array[p][:3] for p in around], axis=0)))
+        if not paint:
+            break
+        for y, x, color in paint:
+            array[y, x, :3] = color.round().astype(np.uint8)
+        changed += len(paint)
+    return Image.fromarray(array, "RGBA"), changed
+
+
+def clear_bare_feet(body: Image.Image) -> tuple[Image.Image, int]:
+    """서기 맨몸 아틀라스의 맨발 칸(spec.BARE_FEET)을 비운다(신발이 늘 덮는다). (맨몸, 비운 픽셀 수)."""
+    array = np.array(body.convert("RGBA"))
+    x0, y0, x1, y1 = spec.BARE_FEET
+    region = array[y0:y1, x0:x1]
+    count = int((region[..., 3] > 0).sum())
+    region[...] = 0
+    return Image.fromarray(array, "RGBA"), count
