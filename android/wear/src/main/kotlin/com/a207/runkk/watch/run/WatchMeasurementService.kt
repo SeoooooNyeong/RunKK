@@ -248,7 +248,9 @@ class WatchMeasurementService : LifecycleService() {
             gateway: LocalWatchGateway,
             clock: Clock
         ): Outcome.Failure = coroutineScope {
-            launch(start = CoroutineStart.UNDISPATCHED) { source.locations().collect(tracker::onLocationSample) }
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                source.locations().collect { tracker.onLocationSample(it, stabilize = true) }
+            }
             launch(start = CoroutineStart.UNDISPATCHED) {
                 source.heartRates().collect { gateway.offerHeartRates(listOf(it)) }
             }

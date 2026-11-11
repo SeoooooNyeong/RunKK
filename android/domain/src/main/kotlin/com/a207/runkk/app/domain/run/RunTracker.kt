@@ -38,7 +38,7 @@ constructor(
     private val lock = Any()
     private var session: RunSession? = null
     private var locationFilter = LocationFilter()
-    private var phoneLocationFilter = LocationFilter(isStabilizationEnabled = true)
+    private var stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
 
     /** 마지막으로 끝난 러닝(늦게 온 심박을 이 기록에 덧붙인다, FR-043). lock 안에서만 쓴다. */
     private var lastFinished: FinishedWindow? = null
@@ -141,7 +141,7 @@ constructor(
                     session = fresh
                     unclaimedEnd = null
                     locationFilter = LocationFilter()
-                    phoneLocationFilter = LocationFilter(isStabilizationEnabled = true)
+                    stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
                     coach.begin(spec.mode)
                     noticeGap = null
                     _progress.value = RunProgress.INITIAL
@@ -163,16 +163,15 @@ constructor(
         return Outcome.Success(Unit)
     }
 
-    fun onLocationSample(s: LocationSample) = acceptLocationSample(s, fromPhone = false)
+    fun onPhoneLocationSample(s: LocationSample) = onLocationSample(s, stabilize = true)
 
-    fun onPhoneLocationSample(s: LocationSample) = acceptLocationSample(s, fromPhone = true)
-
-    private fun acceptLocationSample(s: LocationSample, fromPhone: Boolean) {
+    fun onLocationSample(s: LocationSample, stabilize: Boolean = false) {
         synchronized(lock) {
             val active = session?.takeIf { it.isActive } ?: return
-            val filter = if (fromPhone && active.spec.mode == RunMode.FREE) {
+            val isFreeRun = active.spec.mode == RunMode.FREE && !active.spec.isOfflineBattle
+            val filter = if (stabilize && isFreeRun) {
                 if (active.isPaused) return
-                phoneLocationFilter
+                stabilizedLocationFilter
             } else {
                 locationFilter
             }
@@ -329,7 +328,7 @@ constructor(
                 val active = session?.takeIf { it.isActive } ?: return
                 if (!change(active, now)) return
                 if (active.spec.mode == RunMode.FREE) {
-                    phoneLocationFilter = LocationFilter(isStabilizationEnabled = true)
+                    stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
                 }
                 active to active.tick(now).also(::emitProgress)
             }
