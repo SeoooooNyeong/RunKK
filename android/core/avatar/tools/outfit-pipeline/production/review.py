@@ -82,6 +82,7 @@ def compose(index: dict, gender: str, slot: str, chosen: dict, amount: int) -> I
             from outfit_pipeline.cut import cut_marks, take_marks
 
             top, marks = take_marks(top)  # 세트별 자르기 표지(앱 TopBodyCut.takeMarks와 같다)
+            layers = [(part, top if part == "TOP" else layer) for part, layer in layers]  # 표지는 그리지도 않는다
         bottom = next((layer for part, layer in layers if part == "BOTTOM"), None)
         if top is not None and bottom is not None:  # 앱과 같이 하의 허리도 옷으로 친다
             merged = bottom.copy()

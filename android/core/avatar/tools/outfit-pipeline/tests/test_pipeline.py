@@ -6,6 +6,7 @@ import json
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
 from PIL import Image
 
@@ -174,9 +175,16 @@ def test_cut_matches_app_fixture() -> None:
     """앱 TopBodyCutParityTest와 같은 픽스처: 파이프라인 cut.py 결과가 expected.png와 같다(Kotlin도 같은 파일과 비교한다)."""
     import numpy as np
 
-    from tests.make_topcut_fixture import OUT, expected
+    from outfit_pipeline.cut import apply
+    from tests.make_topcut_fixture import OUT, expected, sets
 
     assert np.array_equal(np.array(expected()), np.array(Image.open(OUT / "expected.png").convert("RGBA")))
+    # 칼라 옆 칸(221·181) 픽스처와 승인 묶음의 실제 조합도 같은 파일과 비교한다
+    for prefix, images in sets().items():
+        saved = [np.array(Image.open(OUT / f"{prefix}{n}.png").convert("RGBA")) for n in ("body", "top", "area")]
+        assert all(np.array_equal(np.array(i), s) for i, s in zip(images, saved, strict=True)), prefix
+        want = np.array(Image.open(OUT / f"{prefix}expected.png").convert("RGBA"))[..., 3] > 0
+        assert np.array_equal(np.array(apply(*images))[..., 3] > 0, want), prefix
 
 
 def test_skin_rule_counts_only_skin_that_touches_empty_space() -> None:
@@ -291,3 +299,32 @@ def test_restore_enclosed_keeps_holes_away_from_the_background() -> None:
     out = restore_enclosed(before, after, top)
     assert out[5, 5, 3] == 255 and out[6, 5, 3] == 255
     assert out[8, 1, 3] == 0
+
+
+def test_full_cut_cell_is_not_restored() -> None:
+    """모두 지우는 칸(240) 안의 맨몸은 배경에 닿지 않아도 되살리지 않는다(앱 TopBodyCutParityTest와 같은 입력·기댓값). 칸은 상의에서
+    RIM_PX보다 멀어 부스러기 지우기에 걸리지 않는다."""
+    from outfit_pipeline.cut import apply
+
+    width, height = 50, 8
+    body = np.zeros((height, width, 4), np.uint8)
+    body[1:7, 1:49] = (246, 205, 190, 255)
+    top = np.zeros_like(body)
+    top[1:7, 44:47] = (60, 80, 120, 255)
+    area = np.zeros((height, width, 4), np.uint8)
+    area[2:6, 3:5, 3] = 240
+    out = np.array(apply(Image.fromarray(body, "RGBA"), Image.fromarray(top, "RGBA"), Image.fromarray(area, "RGBA")))
+    removed = [(y, x) for y in range(1, 7) for x in range(1, 49) if out[y, x, 3] == 0]
+    assert removed == [(y, x) for y in range(2, 6) for x in (3, 4)]
+
+
+def test_leg_span_does_not_wrap_when_the_hip_cell_starts_near_the_top() -> None:
+    """엉덩이 옆 칸 맨 아래 행이 LEG_GUARD보다 위에 있어도 시작 행이 음수로 돌아 감기지 않는다(맨 위 행부터 지킨다)."""
+    from outfit_pipeline.cut import _leg_span
+
+    skin = np.zeros((10, 6), bool)
+    skin[:, 1:5] = True
+    hip = np.zeros_like(skin)
+    hip[0:6] = True  # 칸 맨 아래 행 5, 다리 행 6
+    out = _leg_span(skin, hip)
+    assert out[0:6, 1:5].all() and not out[6:].any() and not out[:, 0].any()

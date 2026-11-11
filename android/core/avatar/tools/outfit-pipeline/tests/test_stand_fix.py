@@ -267,3 +267,104 @@ def test_cut_marks_remove_the_body_under_marks_only() -> None:
     body = np.full((4, 4, 4), 200, np.uint8)
     out = np.array(cut_marks(Image.fromarray(body, "RGBA"), marks))
     assert out[1, 1, 3] == 0 and (out[..., 3] > 0).sum() == 15
+
+
+def _hashes(root) -> dict[str, str]:
+    import hashlib
+
+    return {
+        str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest()
+        for p in sorted(root.rglob("*"))
+        if p.is_file()
+    }
+
+
+def test_stand_fix_rewrites_no_file_on_the_committed_assets(tmp_path) -> None:
+    """이미 만든 묶음에 다시 걸면 어떤 파일도 다시 쓰지 않는다(바뀐 수 {}만 보면 표지를 떼었다 다시 찍는 쓰기를 못 본다)."""
+    import shutil
+
+    from outfit_pipeline.cli import MASKS
+    from outfit_pipeline.stand_fix import fix_stand
+
+    shutil.copytree(OUTFITS, tmp_path / "outfits")
+    before = _hashes(tmp_path / "outfits")
+    fix_stand(tmp_path / "outfits", RAW, MASKS)
+    assert _hashes(tmp_path / "outfits") == before
+
+
+def test_stand_fix_keeps_cut_marks_on_disk_when_interrupted(tmp_path, monkeypatch) -> None:
+    """중간에 멈춰도(예외·Ctrl-C) 디스크의 상의 레이어에서 자르기 표지가 빠지지 않는다(표지는 메모리에서만 뗀다)."""
+    import shutil
+
+    from outfit_pipeline import stand_fix
+    from outfit_pipeline.cli import MASKS
+    from outfit_pipeline.cut import MARK_ALPHA
+
+    shutil.copytree(OUTFITS, tmp_path / "outfits")
+    path = tmp_path / "outfits" / "top_lime_singlet" / f"female_stand{spec.EXTENSION}"
+    marks = int((np.array(Image.open(path).convert("RGBA"))[..., 3] == MARK_ALPHA).sum())
+
+    def boom(layer, body):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(stand_fix, "close_side_skin", boom)
+    with pytest.raises(KeyboardInterrupt):
+        stand_fix.fix_stand(tmp_path / "outfits", RAW, MASKS)
+    assert int((np.array(Image.open(path).convert("RGBA"))[..., 3] == MARK_ALPHA).sum()) == marks > 0
+
+
+def test_stand_fix_raises_when_it_does_not_converge(tmp_path, monkeypatch) -> None:
+    """[PASSES]번 되풀이해도 계속 바뀌면(다시 걸면 또 바뀐다) 조용히 끝내지 않고 예외를 낸다."""
+    import shutil
+
+    from outfit_pipeline import stand_fix
+    from outfit_pipeline.cli import MASKS
+
+    shutil.copytree(OUTFITS, tmp_path / "outfits")
+    flip = {"value": 0}
+
+    def toggle(layer, body):
+        # 상의 한가운데 천 픽셀의 색을 번갈아 바꾼다(부스러기 정리에 지워지지 않는 바뀜)
+        array = np.array(layer.convert("RGBA"))
+        flip["value"] = 255 - flip["value"]
+        array[200, 256, :3] = (flip["value"], 0, 0)
+        return Image.fromarray(array, "RGBA"), 1
+
+    monkeypatch.setattr(stand_fix, "close_side_skin", toggle)
+    with pytest.raises(RuntimeError, match="converge"):
+        stand_fix.fix_stand(tmp_path / "outfits", RAW, MASKS)
+
+
+def test_close_side_skin_covers_the_right_side_too() -> None:
+    """오른쪽(inward=-1) 가지: 맨몸보다 좁은 민소매의 오른쪽 몸통 옆 맨살 띠도 천으로 덮고 외곽선은 남긴다."""
+    from outfit_pipeline.stand_fix import close_side_skin
+
+    body = np.zeros((768, 512, 4), np.uint8)
+    body[150:330, 110:402] = (240, 200, 180, 255)  # 맨몸 몸통
+    body[150:330, 398:402] = (60, 30, 16, 255)  # 오른쪽 몸통 옆 외곽선
+    top = np.zeros((768, 512, 4), np.uint8)
+    top[150:291, 117:395] = (120, 200, 170, 255)  # 밑단 y 290
+    out, count = close_side_skin(Image.fromarray(top, "RGBA"), Image.fromarray(body, "RGBA"))
+    array = np.array(out)
+    assert count > 0
+    assert array[250, 396, 3] == 255  # 오른쪽 옆 맨살 띠는 천으로
+    assert array[250, 399, 3] == 0  # 오른쪽 몸통 옆 외곽선은 맨몸 그대로
+
+
+def test_extend_side_edge_fills_the_sliver_beside_the_right_side_outline() -> None:
+    """lime_singlet 오른쪽 밑단 옆 1~2열(남자 체형 100 메시 조각이 그리는 곳)을 바로 왼쪽 상의 외곽선 색으로 잇는다(판정 round7 1px 세로 선)."""
+    from outfit_pipeline.stand_fix import SLIVER_ROWS, SLIVER_X, extend_side_edge
+
+    body = np.zeros((768, 512, 4), np.uint8)
+    body[250:300, 370:410] = (240, 200, 180, 255)
+    top = np.zeros((768, 512, 4), np.uint8)
+    top[250:300, 370 : SLIVER_X[0]] = (45, 85, 67, 255)
+    top[SLIVER_ROWS[0], SLIVER_X[0]] = (0, 0, 0, 1)  # 자르기 표지 자리도 천으로
+    out, count = extend_side_edge(Image.fromarray(top, "RGBA"), Image.fromarray(body, "RGBA"))
+    array = np.array(out)
+    rows, cols = range(*SLIVER_ROWS), range(*SLIVER_X)
+    assert count == len(rows) * len(cols)
+    assert all(array[y, x].tolist() == [45, 85, 67, 255] for y in rows for x in cols)
+    assert array[SLIVER_ROWS[1], SLIVER_X[0], 3] == 0 and array[SLIVER_ROWS[0], SLIVER_X[1], 3] == 0
+    again, none = extend_side_edge(out, Image.fromarray(body, "RGBA"))
+    assert none == 0 and np.array_equal(np.array(again), array)

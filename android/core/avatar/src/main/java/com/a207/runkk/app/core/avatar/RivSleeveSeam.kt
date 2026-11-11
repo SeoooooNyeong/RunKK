@@ -2,7 +2,10 @@ package com.a207.runkk.app.core.avatar
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.security.MessageDigest
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
+import timber.log.Timber
 
 /**
  * 남자 서기 긴소매 메시(Image 「Long sleeve wardrobe top」)의 팔·몸통 이음매를 닫는다(판정 round3 소매 이음새 틈). 승인 riv는 팔 띠와
@@ -10,12 +13,22 @@ import kotlin.math.abs
  * 체형 애니메이션 x 키 모두) 두 띠 사이로 배경이 가는 세로 줄로 비쳤다. 몸통 쪽 값([TARGETS])을 짝인 팔 쪽 값([SOURCES])으로 바꾼다.
  * 무게가 같아 어느 프레임·체형에서도 함께 움직인다. 파일은 승인본(SHA 시험) 그대로 두고 읽은 바이트에서 바꾼다([RivHipConnection]과 같은
  * 방식). 위치 표는 파이프라인 `outfit_pipeline/seam.py`의 `copy_pairs`가 riv에서 찾은 값이고(파이썬 시험이 이 표와 맞는지 본다), 값이
- * 승인 범위(절댓값 [MIN_ABS]~[MAX_ABS], 짝 차 [MAX_GAP] 이하)가 아니면 그 파일은 그대로 둔다.
+ * 승인 범위(절댓값 [MIN_ABS]~[MAX_ABS], 짝 차 [MAX_GAP] 이하)가 아니면 그 파일은 그대로 둔다. 범위만으로는 다시 내보낸 riv에서 엉뚱한
+ * 값을 덮거나 조용히 건너뛸 수 있어, 승인본 지문(바이트 길이 [APPROVED_SIZE], 고칠 자리 값의 SHA-256 [APPROVED_SHA256])이 같을 때만
+ * 고친다. 다르면 고치지 않고 한 번만 로그를 남긴다.
  */
 internal object RivSleeveSeam {
     private const val MIN_ABS = 25f
     private const val MAX_ABS = 40f
     private const val MAX_GAP = 1.5f
+
+    /** 승인 avatar_male_idle.riv의 바이트 길이. 앞선 바로 고치기([RivReviewBackground] 등)는 길이를 바꾸지 않는다. */
+    internal const val APPROVED_SIZE = 5_341_144
+
+    /** 승인 avatar_male_idle.riv에서 [SOURCES]·[TARGETS]·[OVERLAP_TARGETS] 자리 4바이트씩을 차례로 이은 값의 SHA-256([fingerprint]). */
+    internal const val APPROVED_SHA256 = "17d38d3e84ef2d6d9d91f9d42d22c52d07fdef7f7b1cdcb7f2b268bb89f27e53"
+
+    private val warned = AtomicBoolean(false)
 
     /** avatar_male_idle.riv 팔 쪽 꼭짓점 값 위치(바이트, float32 리틀엔디언: 바탕 x·y, 체형 base·medium·fuller x 키). */
     internal val SOURCES = intArrayOf(
@@ -73,10 +86,27 @@ internal object RivSleeveSeam {
 
     /** [riv]가 승인 남자 서기 riv면 이음매 몸통 쪽 꼭짓점 값을 팔 쪽 값으로 바꾸고 반팔 표면 겹침을 지킨다(바로 고친다). 아니면 그대로 둔다. */
     fun closeInPlace(riv: ByteArray) {
+        val sameSize = riv.size == APPROVED_SIZE
+        if (!sameSize && !matches(riv)) return // 남자 서기 riv가 아니다
+        if (!sameSize || fingerprint(riv) != APPROVED_SHA256) {
+            if (warned.compareAndSet(false, true)) {
+                Timber.w("male stand riv fingerprint differs from the approved original, sleeve seam not patched")
+            }
+            return
+        }
         if (!matches(riv) || !matchesOverlap(riv)) return
         val buffer = ByteBuffer.wrap(riv).order(ByteOrder.LITTLE_ENDIAN)
         SOURCES.indices.forEach { buffer.putFloat(TARGETS[it], buffer.getFloat(SOURCES[it])) }
         OVERLAP_TARGETS.indices.forEach { buffer.putFloat(OVERLAP_TARGETS[it], OVERLAP_VALUES[it]) }
+    }
+
+    /** [SOURCES]·[TARGETS]·[OVERLAP_TARGETS] 자리 4바이트씩을 차례로 이은 값의 SHA-256(소문자 16진). 자리가 파일 밖이면 빈 문자열. */
+    internal fun fingerprint(riv: ByteArray): String {
+        val offsets = SOURCES + TARGETS + OVERLAP_TARGETS
+        if (offsets.max() + 4 > riv.size) return ""
+        val digest = MessageDigest.getInstance("SHA-256")
+        offsets.forEach { digest.update(riv, it, 4) }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun matchesOverlap(riv: ByteArray): Boolean {

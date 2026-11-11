@@ -6,8 +6,8 @@
    밑단 아래 맨살을 덮는다([close_side_skin]).
 4. 신발 서기 레이어의 외곽선 밖 회색 띠를 지운다(`feet.drop_halo`). 맨몸 서기 아틀라스의 맨발 칸은 비운다([clear_bare_feet]):
    신발이 늘 덮으므로 신발마다 제 외곽선이 실루엣이다(맨발을 신발로 덮던 `feet.cover_feet`는 쓰지 않는다).
-5. 세트별 맨몸 자르기 표지(상의 레이어 알파 1)를 `templates/marks/`대로 찍는다([mark_body_cut], 판정 round6 singlet 밑단 옆 획). 다른 단계가
-   표지를 옷으로 보지 않게 처음에 떼고 끝에 다시 찍는다.
+5. 세트별 맨몸 자르기 표지(상의 레이어 알파 1)를 `templates/marks/`대로 찍는다([mark_body_cut], 판정 round6 singlet 밑단 옆 획). 다른 단계는
+   표지를 메모리에서만 뗀 레이어를 보고, 저장할 때 표지를 다시 찍는다(디스크에서 떼지 않는다). [PASSES]번 안에 수렴하지 않으면 예외.
 2·4 뒤에 새로 갇힌 좁은 틈은 검사 16번 규칙으로 메운다(`build.fill_layer_holes`).
 바뀐 묶음은 상점 그림도 다시 만든다.
 """
@@ -86,13 +86,14 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
         spec.save_webp(cleared, body_path)
         changed[f"{spec.BODY_FOLDER}/{body_path.name}"] = count
         body = cleared
-    # 자르기 표지(알파 1)는 다른 단계가 옷으로 보지 않게 먼저 떼고, 끝에 다시 찍는다([mark_body_cut])
-    marked = strip_marks(outfits_dir)
+    from outfit_pipeline.cut import take_marks
+
     short = [k for k in spec.LEGACY_KEYS["TOP"] if spec.default_male_top_surface(k) == 1]
     jobs = (
         [(key, line_collar) for key in COLLAR_KEYS]
         + [(key, solid_side_outline) for key in short]
         + [(key, close_side_skin) for key in SIDE_SKIN_KEYS]
+        + [(key, extend_side_edge) for key in SLIVER_KEYS]
         + [(key, drop_side_fragments) for key in spec.LEGACY_KEYS["TOP"]]
         + [(key, solid_hem_corner) for key in short]
         + [(key, close_hem_slit) for key in SLIT_KEYS]
@@ -105,7 +106,9 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
             path = outfits_dir / key / f"female_stand{spec.EXTENSION}"
             if not path.is_file():
                 continue
-            layer = Image.open(path).convert("RGBA")
+            # 자르기 표지(알파 1)는 다른 단계가 옷으로 보지 않게 메모리에서만 떼고, 저장할 때 다시 찍는다(디스크에서는 떼지 않는다: 중간에
+            # 멈춰도 표지가 빠진 레이어가 남지 않게)
+            layer, _ = take_marks(Image.open(path).convert("RGBA"))
             out, count = fix(layer, body)
             if count:
                 # 바꾼 가장자리에 남은 부스러기·가는 털(검사 10번)과 새로 갇힌 틈(검사 16번)은 build와 같은 규칙으로 정리한다
@@ -122,15 +125,43 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
                 if np.array_equal(cleaned, before):
                     continue
             if count and not np.array_equal(np.array(out), np.array(layer)):
-                spec.save_webp(out, path)
+                spec.save_webp(mark_body_cut(out, body, key, path.stem)[0], path)
                 spec.save_webp(make_shop(out), outfits_dir / key / spec.SHOP_FILE)
                 diff = int((np.array(out) != np.array(layer)).any(axis=2).sum())
                 changed[f"{key}/{path.name}"] = changed.get(f"{key}/{path.name}", 0) + diff
                 touched = True
         if not touched:
             break
-    put_marks(outfits_dir, body, marked, changed)
+    else:
+        # 다시 걸면 또 바뀐다(되풀이가 수렴하지 않았다): 조용히 끝내면 stand-fix가 멱등이 아니게 된다
+        raise RuntimeError(f"stand-fix did not converge in {PASSES} passes")
+    put_marks(outfits_dir, body, changed)
     return changed
+
+
+# lime_singlet 오른쪽 밑단 옆 조각(판정 round7: 남자 체형 100 몸통 오른쪽 (352~356, 548~578)의 1px 세로 선). 남자 메시의 가는 조각
+# 삼각형이 싱글렛 오른쪽 옆선 텍셀(x 391~393, y 280~288)과 그 오른쪽 맨몸을 함께 그린다. 맨몸을 자르기 표지로 지우자 옆선 텍셀만 떨어진
+# 선으로 남았고, 옆선 텍셀까지 지우면 같은 조각이 남자 체형 0 (337,568)에 다시 떨어진 선으로 보였다. 옆선 바로 오른쪽 2열을 옆선 색 천으로
+# 이어 조각이 상의 옆선에 붙게 한다(render-check 체형 0·100 남녀 모두 떠도는 조각 없음).
+SLIVER_KEYS = ("top_lime_singlet",)
+SLIVER_ROWS = (279, 290)
+SLIVER_X = (393, 395)
+
+
+def extend_side_edge(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
+    """[SLIVER_ROWS]·[SLIVER_X] 칸 가운데 맨몸이 있고 상의가 없는(자르기 표지 포함) 픽셀을 그 행에서 바로 왼쪽 상의 픽셀 색(불투명)으로
+    채운다. (레이어, 채운 픽셀 수)."""
+    array = np.array(layer.convert("RGBA"))
+    skin = np.array(body.convert("RGBA"))[..., 3] > 0
+    changed = 0
+    for y in range(*SLIVER_ROWS):
+        for x in range(*SLIVER_X):
+            if array[y, x, 3] > 1 or not skin[y, x] or array[y, x - 1, 3] < 128:
+                continue
+            array[y, x] = array[y, x - 1]
+            array[y, x, 3] = 255
+            changed += 1
+    return Image.fromarray(array, "RGBA"), changed
 
 
 MARKS = Path(__file__).resolve().parent.parent / "templates" / "marks"
@@ -156,45 +187,22 @@ def mark_body_cut(layer: Image.Image, body: Image.Image, key: str, file_stem: st
     return Image.fromarray(array, "RGBA"), int(put.sum())
 
 
-def strip_marks(outfits_dir: Path) -> dict[str, np.ndarray]:
-    """상의 서기 레이어에서 자르기 표지를 떼어 저장한다. 표지가 있던 레이어의 원래 픽셀(키 → 배열)."""
-    from outfit_pipeline.cut import take_marks
-
-    marked: dict[str, np.ndarray] = {}
+def put_marks(outfits_dir: Path, body: Image.Image, changed: dict[str, int]) -> None:
+    """[mark_body_cut]을 상의 서기 레이어마다 건다. 표지가 이미 맞으면 파일을 다시 쓰지 않는다. 바뀐 픽셀 수는 [changed]에 더한다."""
     for key in spec.LEGACY_KEYS["TOP"]:
         path = outfits_dir / key / f"female_stand{spec.EXTENSION}"
         if not path.is_file():
             continue
-        layer = Image.open(path).convert("RGBA")
-        stripped, marks = take_marks(layer)
-        if marks.any():
-            marked[key] = np.array(layer)
-            spec.save_webp(stripped, path)
-    return marked
-
-
-def put_marks(outfits_dir: Path, body: Image.Image, marked: dict[str, np.ndarray], changed: dict[str, int]) -> None:
-    """[mark_body_cut]을 상의 서기 레이어마다 건다. 바뀐 픽셀 수는 처음(표지를 떼기 전) 레이어와 견준다."""
-    for key in spec.LEGACY_KEYS["TOP"]:
-        path = outfits_dir / key / f"female_stand{spec.EXTENSION}"
-        if not path.is_file():
+        layer = np.array(Image.open(path).convert("RGBA"))
+        out = np.array(mark_body_cut(Image.fromarray(layer, "RGBA"), body, key, path.stem)[0])
+        before, after = layer.copy(), out.copy()
+        before[before[..., 3] == 0] = 0
+        after[after[..., 3] == 0] = 0
+        if np.array_equal(before, after):
             continue
-        layer = Image.open(path).convert("RGBA")
-        out, count = mark_body_cut(layer, body, key, path.stem)
-        final = np.array(out)
-        if count or key in marked:
-            spec.save_webp(out, path)
+        spec.save_webp(Image.fromarray(out, "RGBA"), path)
         name = f"{key}/{path.name}"
-        if key not in marked:
-            if count:
-                changed[name] = changed.get(name, 0) + count
-            continue
-        start, end = marked[key].copy(), final.copy()
-        start[start[..., 3] == 0] = 0
-        end[end[..., 3] == 0] = 0
-        diff = int((start != end).any(axis=2).sum())
-        if diff and name not in changed:
-            changed[name] = diff
+        changed[name] = changed.get(name, 0) + int((before != after).any(axis=2).sum())
 
 
 # 민소매 몸통 옆 맨살 띠(판정 round4 표지 색 렌더: singlet 밑단 옆 짧은 짙은 획 = 맨몸 아틀라스 x 100~124·376~392, y 256~295의 몸통 옆
@@ -298,6 +306,8 @@ def drop_side_fragments(layer: Image.Image, _body: Image.Image | None = None) ->
 # 맨 바깥 천과 안쪽 천 사이 [SLIT_MAX]px 이하 빈 곳을 이웃 천 색(행 가운데값)으로 메워 밑단을 한 줄로 잇는다.
 SLIT_KEYS = ("bottom_running_shorts",)
 SLIT_ROWS = (388, 408)
+# 옆트임을 찾는 좌우 창. 정확한 거울(512 - x: 382~422)이 아니라 2px 오른쪽이다: 생성 그림의 running_shorts는 좌우가 대칭이 아니라
+# 오른쪽 바깥 가장자리가 x 402~411(왼쪽 거울 405~410)이고, 창 40px 안에 양쪽 트임이 모두 들어 의도대로다
 SLIT_SIDES = ((90, 130), (384, 424))
 SLIT_MAX = 10
 
