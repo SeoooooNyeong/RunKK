@@ -6,14 +6,16 @@ import java.nio.ByteOrder
 /**
  * 달리기 엉덩이 잇기 메시(Image 「Cloth textured hip connection」, 타원 윤곽 꼭짓점 17개)가 하의 달리기 다리 텍스처(run_leg)의 어느 칸을
  * 쓸지 바꾼다(판정 round1 C). 승인 riv는 천 가운데 조각(v 약 0.209~0.271 = y 160~208)을 써서 엉덩이 뒷면에 외곽선이 없고, 같은 칸을
- * 앞 다리 메시도 허벅지에 써서 거기에 외곽선을 그릴 수 없었다. 꼭짓점 v만 [V_SHIFT](136/768)만큼 위로 옮겨, 다리 메시가 화면에 쓰지
- * 않는 칸(y 24~72)을 쓰게 한다. 하의 레이어는 그 칸에 원래 조각과 등 쪽 외곽선을 그려 둔다(파이프라인 `outfit_pipeline/hip.py`).
+ * 앞 다리 메시도 허벅지에 써서 거기에 외곽선을 그릴 수 없었다. 꼭짓점 v만 위로 옮겨 다리 메시가 화면에 쓰지 않는 칸을 쓰게 한다:
+ * 남녀 리그가 이 메시를 다르게 휘어 칸을 나눈다(여자 y 0~47 [FEMALE_V_SHIFT], 남자 y 48~95 [MALE_V_SHIFT]). 하의 레이어는 그 칸에
+ * 원래 조각을 옮기고 등 쪽을 깎아 둔다(파이프라인 `outfit_pipeline/hip.py`).
  * 파일은 승인본(SHA 시험) 그대로 두고 읽은 바이트에서 바꾼다([RivGroundShadow]와 같은 방식). 위치 표는 파이프라인
  * `vertex_v_offsets`가 riv에서 찾은 값이고(파이썬 시험이 이 표와 맞는지 본다), 바꾸기 전 값이 승인 범위(0.2~0.28)가 아니면 그 파일은
  * 그대로 둔다.
  */
 internal object RivHipConnection {
-    const val V_SHIFT = 0.17708333333333334f
+    const val FEMALE_V_SHIFT = 0.20833333333333334f
+    const val MALE_V_SHIFT = 0.14583333333333334f
 
     /** avatar_run_approved.riv(여자 달리기) 꼭짓점 v 위치(바이트, float32 리틀엔디언). */
     internal val FEMALE_OFFSETS = intArrayOf(
@@ -31,9 +33,10 @@ internal object RivHipConnection {
 
     /** [riv]가 승인 달리기 riv면 엉덩이 잇기 꼭짓점 v를 옮긴다(바로 고친다). 아니면 그대로 둔다. */
     fun retargetInPlace(riv: ByteArray) {
-        val offsets = listOf(FEMALE_OFFSETS, MALE_OFFSETS).firstOrNull { matches(riv, it) } ?: return
+        val (offsets, shift) = listOf(FEMALE_OFFSETS to FEMALE_V_SHIFT, MALE_OFFSETS to MALE_V_SHIFT)
+            .firstOrNull { matches(riv, it.first) } ?: return
         val buffer = ByteBuffer.wrap(riv).order(ByteOrder.LITTLE_ENDIAN)
-        offsets.forEach { buffer.putFloat(it, buffer.getFloat(it) - V_SHIFT) }
+        offsets.forEach { buffer.putFloat(it, buffer.getFloat(it) - shift) }
     }
 
     private fun matches(riv: ByteArray, offsets: IntArray): Boolean {

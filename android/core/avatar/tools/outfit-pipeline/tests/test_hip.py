@@ -15,8 +15,8 @@ from outfit_pipeline.cli import OUTFITS, RAW
 from outfit_pipeline.hip import (
     CORNER_ROWS,
     SOURCE,
-    TARGET_TOP,
-    V_SHIFT,
+    TARGET_TOPS,
+    V_SHIFTS,
     carve_hip,
     finish_run_leg,
     outline_leg_edge,
@@ -40,17 +40,18 @@ def test_app_table_matches_the_riv(riv: str, table: str) -> None:
     body = re.search(r"(?<![A-Z_])" + table + r" = intArrayOf\(([^)]*)\)", source)
     assert body is not None
     assert [int(x) for x in re.findall(r"\d+", body.group(1))] == [o for o, _ in offsets]
-    assert f"V_SHIFT = {V_SHIFT!r}f" in source
+    gender = "FEMALE" if "approved" in riv else "MALE"
+    assert f"{gender}_V_SHIFT = {V_SHIFTS[gender.lower()]!r}f" in source
 
 
 def test_retarget_moves_only_the_hip_vertex_v() -> None:
     data = (RAW / "avatar_run_approved.riv").read_bytes()
-    out = retarget(data)
+    out = retarget(data, "female")
     offsets = vertex_v_offsets(data)
     changed = {i for i in range(len(data)) if data[i] != out[i]}
     assert changed <= {o + k for o, _ in offsets for k in range(4)}
     for offset, value in offsets:
-        assert struct.unpack_from("<f", out, offset)[0] == pytest.approx(value - V_SHIFT, abs=1e-6)
+        assert struct.unpack_from("<f", out, offset)[0] == pytest.approx(value - V_SHIFTS["female"], abs=1e-6)
 
 
 def test_retarget_rml_shifts_only_the_hip_mesh() -> None:
@@ -58,8 +59,8 @@ def test_retarget_rml_shifts_only_the_hip_mesh() -> None:
         '<Image name="Other"><Mesh><ContourMeshVertex v="0.5" /></Mesh></Image>'
         '<Image name="Cloth textured hip connection"><Mesh><ContourMeshVertex u="0.5" v="0.24" /></Mesh></Image>'
     )
-    out = retarget_rml(text)
-    assert 'v="0.5"' in out and f'v="{0.24 - V_SHIFT!r}"' in out
+    out = retarget_rml(text, "male")
+    assert 'v="0.5"' in out and f'v="{0.24 - V_SHIFTS["male"]!r}"' in out
 
 
 def test_paint_hip_copies_the_patch_without_an_inner_arc() -> None:
@@ -67,7 +68,8 @@ def test_paint_hip_copies_the_patch_without_an_inner_arc() -> None:
     x0, y0, x1, y1 = SOURCE
     layer[y0:y1, x0:x1] = (200, 180, 140, 255)
     out = np.array(paint_hip(Image.fromarray(layer, "RGBA")))
-    assert (out[TARGET_TOP : TARGET_TOP + (y1 - y0), x0:x1] == layer[y0:y1, x0:x1]).all()
+    for top in TARGET_TOPS.values():
+        assert (out[top : top + (y1 - y0), x0:x1] == layer[y0:y1, x0:x1]).all()
 
 
 def test_round_hip_corner_rounds_the_back_and_outlines_the_new_edge() -> None:
@@ -100,10 +102,12 @@ def test_committed_run_legs_are_finished(key: str) -> None:
 def test_carve_hip_opens_the_back_bottom_corner() -> None:
     layer = np.zeros((768, 256, 4), np.uint8)
     x0, y0, x1, y1 = SOURCE
-    layer[TARGET_TOP : TARGET_TOP + (y1 - y0), x0:x1] = (200, 180, 140, 255)
+    for top in TARGET_TOPS.values():
+        layer[top : top + (y1 - y0), x0:x1] = (200, 180, 140, 255)
     out = np.array(carve_hip(Image.fromarray(layer, "RGBA")))
-    assert out[TARGET_TOP + (y1 - y0) - 2, x0 + 2, 3] == 0  # 등 아래 모서리는 깎였다
-    assert out[TARGET_TOP + 2, x1 - 3, 3] == 255  # 앞 위는 그대로
+    for top in TARGET_TOPS.values():
+        assert out[top + (y1 - y0) - 2, x0 + 2, 3] == 0  # 등 아래 모서리는 깎였다
+        assert out[top + 2, x1 - 3, 3] == 255  # 앞 위는 그대로
 
 
 def test_outline_leg_edge_paints_the_body_outline_on_long_bottoms() -> None:

@@ -266,12 +266,12 @@ class OutfitAssetSpecTest {
                     val pixels = IntArray(image.width * image.height)
                     image.getPixels(pixels, 0, image.width, 0, 0, image.width, image.height)
                     val holes = StrayPixels.holes(pixels, image.width, image.height)
-                    // 달리기 다리의 엉덩이 잇기 칸(x 88~167, y 24~71)은 등 아래를 일부러 깎는다(파이프라인 hip.hip_box, 판정 round3 C)
+                    // 달리기 다리의 엉덩이 잇기 칸(남녀 x 88~167, y 0~95)은 등 아래를 일부러 깎는다(파이프라인 hip.hip_box, 판정 round3 C)
                     val hip = slot == OutfitSlot.RUN_LEG
                     val count = holes.indices.count { i ->
                         val x = i % image.width
                         val y = i / image.width
-                        val inHip = hip && x in 88 until 168 && y in 24 until 72
+                        val inHip = hip && x in 88 until 168 && y in 0 until 96
                         holes[i] && !inHip && allowed.all { on(it, x, y) }
                     }
                     if (count > 0) found["${file.parentFile!!.name}/${file.name} $template"] = count

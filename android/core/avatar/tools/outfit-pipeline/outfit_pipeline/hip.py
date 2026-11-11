@@ -1,12 +1,13 @@
-"""달리기 엉덩이 잇기 메시(판정 round1 C).
+"""달리기 엉덩이 잇기 메시(판정 round1~5 C).
 
 승인 달리기 riv(avatar_run_approved, avatar_male_run)의 Image 「Cloth textured hip connection」은 타원 메시(윤곽 꼭짓점 16개)로 하의
 달리기 다리 텍스처(run_leg, 256x768)의 가운데 조각(u 0.344~0.656, v 약 0.209~0.271 = x 88~168, y 160~208)을 몸통과 다리 사이에
-붙인다. 그 조각은 천 가운데라 외곽선이 없고, 같은 자리를 앞쪽 다리 메시도 허벅지에 써서 거기에 외곽선을 그리면 허벅지에도 선이 생긴다.
+붙인다. 그 조각은 천 가운데라 외곽선이 없고, 같은 자리를 앞쪽 다리 메시도 허벅지에 써서 거기를 고치면 허벅지도 바뀐다.
 
-그래서 메시 v만 다리 메시가 화면에 쓰지 않는 칸(텍스처 위쪽 y 0~95, 몸통·엉덩이에 가려 보이지 않는다. 판정 렌더 4프레임 × 남녀로
-16x16 칸마다 실측)으로 옮기고([V_SHIFT]), 하의마다 그 칸에 원래 조각을 옮겨 그린 뒤 타원 둘레에 짙은 외곽선을 그린다([paint_hip]).
-riv 파일은 승인본(SHA 시험) 그대로 두고, 앱은 읽은 바이트에서 그 꼭짓점 v만 바꾼다(RivHipConnection, [vertex_v_offsets]로 만든 표).
+그래서 메시 v만 다리 메시가 화면에 쓰지 않는 칸(텍스처 위쪽 x 88~167, y 0~95: 판정 렌더 4프레임 × 남녀로 16x16 칸마다 실측)으로 옮기고,
+남녀 리그가 이 메시를 다르게 휘므로 칸을 나눈다(여자 y 0~47, 남자 y 48~95, [TARGET_TOPS]). 하의마다 두 칸에 원래 조각을 옮기고([paint_hip])
+등 쪽을 깎는다([carve_hip]). riv 파일은 승인본(SHA 시험) 그대로 두고, 앱은 읽은 바이트에서 그 꼭짓점 v만 바꾼다(RivHipConnection,
+[vertex_v_offsets]로 만든 표). 판정 렌더는 Rive 원본의 같은 꼭짓점을 옮긴다([retarget_rml]).
 """
 
 from __future__ import annotations
@@ -22,15 +23,19 @@ from outfit_pipeline.riv_schema import PROPERTY_FORMAT
 
 IMAGE_NAME = "Cloth textured hip connection"
 SOURCE = (88, 160, 168, 208)  # 원래 메시가 쓰던 텍스처 칸(x0, y0, x1, y1)
-TARGET_TOP = 24  # 옮길 칸 위 끝(텍스처 y). 아래 끝은 TARGET_TOP + 48
+# 옮길 칸 위 끝(텍스처 y, 아래 끝은 + 48). 남녀 리그가 이 메시를 다르게 휘어 화면에서 맡는 몫이 달라(여자는 다리 윗부분 안쪽에 겹치고
+# 남자는 뒤 실루엣을 만든다) 남녀 칸을 나눈다(판정 round5)
+TARGET_TOPS = {"female": 0, "male": 48}
+RIV_GENDER = {"avatar_run_approved.riv": "female", "avatar_male_run.riv": "male"}
 HEIGHT = 768
-V_SHIFT = (SOURCE[1] - TARGET_TOP) / HEIGHT  # 꼭짓점 v에서 뺄 값(160 → 24)
+V_SHIFTS = {g: (SOURCE[1] - top) / HEIGHT for g, top in TARGET_TOPS.items()}  # 꼭짓점 v에서 뺄 값
 _TOC_FORMAT = ("u", "s", "f", "c")
 
 
 def hip_box() -> tuple[int, int, int, int]:
-    """엉덩이 잇기 메시가 쓰는 칸(x0, y0, x1, y1, 끝 제외)."""
-    return (SOURCE[0], TARGET_TOP, SOURCE[2], TARGET_TOP + SOURCE[3] - SOURCE[1])
+    """엉덩이 잇기 메시가 쓰는 칸(남녀 둘을 덮는 상자, x0, y0, x1, y1, 끝 제외)."""
+    height = SOURCE[3] - SOURCE[1]
+    return (SOURCE[0], min(TARGET_TOPS.values()), SOURCE[2], max(TARGET_TOPS.values()) + height)
 
 
 def vertex_v_offsets(data: bytes) -> list[tuple[int, float]]:
@@ -107,16 +112,16 @@ def vertex_v_offsets(data: bytes) -> list[tuple[int, float]]:
     ]
 
 
-def retarget(data: bytes) -> bytes:
-    """엉덩이 잇기 메시 꼭짓점 v를 [V_SHIFT]만큼 위로 옮긴 riv 사본."""
+def retarget(data: bytes, gender: str) -> bytes:
+    """엉덩이 잇기 메시 꼭짓점 v를 그 성별 칸으로([V_SHIFTS]) 옮긴 riv 사본."""
     out = bytearray(data)
     for offset, value in vertex_v_offsets(data):
-        struct.pack_into("<f", out, offset, value - V_SHIFT)
+        struct.pack_into("<f", out, offset, value - V_SHIFTS[gender])
     return bytes(out)
 
 
 def paint_hip(layer: Image.Image) -> Image.Image:
-    """달리기 다리 레이어의 옮긴 칸(y [TARGET_TOP]~+48)에 원래 조각(SOURCE)을 그대로 옮긴다. 원래 조각이 비어 있으면(하의가 없는
+    """달리기 다리 레이어의 남녀 칸([TARGET_TOPS], 각 48행)에 원래 조각(SOURCE)을 그대로 옮긴다. 원래 조각이 비어 있으면(하의가 없는
     곳) 그대로 둔다. 타원 둘레에 외곽선은 그리지 않는다: 엉덩이 뒷면 실루엣은 다리 메시 윗부분(텍스처 y 약 100~280 왼쪽 가장자리)이
     만들고 이 메시는 그 안쪽에 겹쳐, 타원 외곽선이 옷 안쪽에 짙은 호로 떠 보였다(판정 round3). 뒷면 모양은 [round_hip_corner]가 다룬다."""
     array = np.array(layer.convert("RGBA"))
@@ -124,7 +129,8 @@ def paint_hip(layer: Image.Image) -> Image.Image:
     patch = array[y0:y1, x0:x1].copy()
     if not (patch[..., 3] > 0).any():
         return layer
-    array[TARGET_TOP : TARGET_TOP + (y1 - y0), x0:x1] = patch
+    for top in TARGET_TOPS.values():
+        array[top : top + (y1 - y0), x0:x1] = patch
     return Image.fromarray(array, "RGBA")
 
 
@@ -168,15 +174,15 @@ def round_hip_corner(layer: Image.Image) -> Image.Image:
     return Image.fromarray(array, "RGBA")
 
 
-def retarget_rml(text: str) -> str:
-    """Rive 원본(scene.rml)에서 엉덩이 잇기 메시 꼭짓점 v를 [V_SHIFT]만큼 옮긴다(판정 렌더가 앱과 같은 메시를 쓰게)."""
+def retarget_rml(text: str, gender: str) -> str:
+    """Rive 원본(scene.rml)에서 엉덩이 잇기 메시 꼭짓점 v를 그 성별 칸으로([V_SHIFTS]) 옮긴다(판정 렌더가 앱과 같은 메시를 쓰게)."""
     import re
 
     start = text.index(f'<Image name="{IMAGE_NAME}"')
     end = text.index("</Mesh>", start)
 
     def shift(match: re.Match[str]) -> str:
-        return f'v="{float(match.group(1)) - V_SHIFT!r}"'
+        return f'v="{float(match.group(1)) - V_SHIFTS[gender]!r}"'
 
     return text[:start] + re.sub(r'v="([0-9.eE+-]+)"', shift, text[start:end]) + text[end:]
 
@@ -266,23 +272,41 @@ CARVE_FULL = 0.5  # 이 높이 아래에서는 [CARVE_BACK]까지 깎는다
 CARVE_BACK = -0.35  # 타원 가로 위치(-1 등 끝 ~ 1 앞 끝)가 이보다 등 쪽이면 깎는다(화면 블록의 곧은 뒷면·뒤 허리 모서리)
 
 
+MALE_CARVE = 0.8  # 남자 칸 등 아래 사분면에서 이보다 바깥만 깎는다
+MALE_RIM = (0.8, 0.93)  # 남자 칸 등 외곽선 띠(타원 반지름 비율, 메시 윤곽 16각형 안쪽)
+MALE_ARC = (150, 215)  # 남자 칸 등 외곽선을 칠하는 둘레 각(도): 남자 리그에서 이 메시가 뒤 실루엣을 만드는 등 가운데
+
+
+def _ellipse_axes(height: int, width: int) -> tuple[np.ndarray, np.ndarray]:
+    yy, xx = np.mgrid[0:height, 0:width]
+    return (xx - (width - 1) / 2) / (width / 2), (yy - (height - 1) / 2) / (height / 2)
+
+
 def carve_hip(layer: Image.Image) -> Image.Image:
-    """엉덩이 잇기 칸(TARGET)의 등 쪽([CARVE_BACK]보다 등 쪽 전체와 등 아래 사분면 바깥)을 투명하게 깎는다(판정 round3·4 C). 메시가
-    타원이어도 뼈 변형으로 화면에서는 각진 블록이라, 그 등 쪽이 다리 윗부분보다 튀어나와 곧은 뒷면·각진 모서리·밝은 슬래브로 보였다.
-    깎은 자리에는 그 뒤 다리 메시 윗부분(맨몸 다리 외곽선을 입은 하의 엉덩이)이 보여 뒷면 실루엣이 다리로 이어진다. 깎은 경계와 둘레에는
-    외곽선을 그리지 않는다(옷 안쪽 호·짙은 쐐기로 떠 보였다)."""
+    """엉덩이 잇기 칸(남녀 각각)의 등 쪽(높이 -0.2부터 0.5까지 등 끝에서 가로 -0.35로 부드럽게 들어오는 곡선보다 등 쪽)과 등 아래 사분면
+    바깥을 투명하게 깎는다(판정 round3~5 C). 메시가 타원이어도 뼈 변형으로 화면에서는 각진 블록이라 텍스처 알파로 깎는다. 둘레 외곽선은
+    그리지 않는다: 픽셀 좌표 부호 렌더로 보니 남녀 모두 뒤 실루엣의 대부분은 다리 메시 윗부분(텍스처 왼쪽 위 x 7~57, y 54~246)이 만들고
+    이 메시의 등 쪽은 그 안쪽에 겹쳐, 둘레 외곽선이 옷 안쪽 호로 떠 보였다(round3, round6 남자 칸 시험). 남녀 칸은 나뉘어 있어(TARGET_TOPS)
+    성별마다 다르게 깎을 수 있다."""
     array = np.array(layer.convert("RGBA"))
     x0, y0, x1, y1 = SOURCE
-    height = y1 - y0
-    region = array[TARGET_TOP : TARGET_TOP + height, x0:x1]
-    if not (region[..., 3] > 0).any():
-        return layer
-    yy, xx = np.mgrid[0:height, 0 : x1 - x0]
-    nx = (xx - (x1 - x0 - 1) / 2) / ((x1 - x0) / 2)
-    ny = (yy - (height - 1) / 2) / (height / 2)
-    # 깎는 경계는 위로 갈수록 등 끝(-1)으로 부드럽게 물러나는 곡선이다: 맨 위까지 깎으면 상의 밑단과 다리 사이에 배경 삼각형이
-    # 뚫렸고, 곧은 세로선으로 깎다 위에서 멈추면 「ㄱ」자 홈이 생겼다(판정 round4)
+    height, width = y1 - y0, x1 - x0
+    nx, ny = _ellipse_axes(height, width)
+    radius = nx * nx + ny * ny
     t = np.clip((ny - CARVE_TOP) / (CARVE_FULL - CARVE_TOP), 0, 1)
     boundary = -1 + (CARVE_BACK + 1) * (1 - (1 - t) ** 2)
-    region[(nx < boundary) | ((nx < 0) & (ny > 0) & (nx * nx + ny * ny > CARVE))] = 0
+    quadrant = (nx < 0) & (ny > 0) & (radius > CARVE)
+    # 남자 리그는 이 메시 등 아래 사분면 뒤에 다리가 덜 와서, 여자와 같이 깎으면 배경 삼각형이 비쳤다: 모서리만 조금 깎는다
+    cuts = {"female": (nx < boundary) | quadrant, "male": (nx < 0) & (ny > 0) & (radius > MALE_CARVE)}
+    angle = np.degrees(np.arctan2(ny, nx)) % 360
+    rim = (radius <= MALE_RIM[1] ** 2) & (radius > MALE_RIM[0] ** 2) & (angle >= MALE_ARC[0]) & (angle <= MALE_ARC[1])
+    for gender, top in TARGET_TOPS.items():
+        region = array[top : top + height, x0:x1]
+        if not (region[..., 3] > 0).any():
+            continue
+        region[cuts[gender]] = 0
+        if gender == "male":
+            band = rim & ~cuts[gender] & (region[..., 3] > 0)
+            region[band, :3] = CORNER_OUTLINE
+            region[band, 3] = 255
     return Image.fromarray(array, "RGBA")
