@@ -23,6 +23,7 @@ internal object TopBodyCut {
     private const val ARM_COVERED = 0.6
     private const val TORSO_ALPHA = 255
     private const val FULL_CUT_ALPHA = 240
+    private const val SLIT_NEIGHBORS = 2
 
     /** [skin]·[top]·[area]는 같은 크기의 ARGB 픽셀. [skin]에서 지울 픽셀을 0으로 바꾼다. */
     fun apply(skin: IntArray, top: IntArray, area: IntArray, width: Int, height: Int) {
@@ -33,13 +34,53 @@ internal object TopBodyCut {
         val nearestTop = nearest(isTop, width, height)
         val nearestBackground = nearest(isBackground, width, height)
         val skipped = uncoveredArmBands(skin, top, area)
+        val before = skin.copyOf()
         for (i in 0 until size) {
             val band = area[i] ushr 24
             if (skin[i] ushr 24 == 0 || band < CUT_ALPHA || band in skipped || !outside[i]) continue
             // 달리기 몸통(240): 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다
             if (band == FULL_CUT_ALPHA || isRim(i, nearestTop[i], nearestBackground[i], width, height)) skin[i] = 0
         }
+        closeSlits(before, skin, width, height)
         dropCrumbs(skin, top, area, outside, nearestTop, skipped, width, height)
+    }
+
+    /**
+     * 띠 판정은 가까운 픽셀을 근사로 찾아 겨드랑이·소매 옆처럼 상의 가장자리와 배경이 비스듬히 만나는 곳에서 한 줄 걸러 지워 빗살을 남겼다.
+     * 메시가 늘면 점선으로 보였다([임시:D-성-184]). 먼저 지운 줄 사이에 낀 1px 맨몸 줄(위·아래 또는 왼쪽·오른쪽이 모두 지운 픽셀)을 지워 넓은
+     * 띠는 고르게 비우고, 그다음 남은 맨몸 사이에 낀 1px 틈 가운데 8방향 이웃에 지운 픽셀이 2개 이하인 것(맨몸 안의 줄 틈)을 되살린다.
+     * 파이프라인 `cut.close_slits`와 같다.
+     */
+    fun closeSlits(before: IntArray, skin: IntArray, width: Int, height: Int) {
+        fun removed(i: Int) = before[i] ushr 24 != 0 && skin[i] ushr 24 == 0
+        fun kept(i: Int) = skin[i] ushr 24 != 0
+        fun sandwiched(i: Int, test: (Int) -> Boolean): Boolean {
+            val x = i % width
+            val y = i / width
+            val vertical = y > 0 && y < height - 1 && test(i - width) && test(i + width)
+            val horizontal = x > 0 && x < width - 1 && test(i - 1) && test(i + 1)
+            return vertical || horizontal
+        }
+        skin.indices.filter { kept(it) && sandwiched(it, ::removed) }.forEach { skin[it] = 0 }
+        val restore = skin.indices.filter { i ->
+            if (!removed(i) || !sandwiched(i, ::kept)) return@filter false
+            val x = i % width
+            val y = i / width
+            var around = 0
+            for (dy in -1..1) {
+                for (dx in -1..1) {
+                    val nx = x + dx
+                    val ny = y + dy
+                    if ((dx != 0 || dy != 0) && nx in 0 until width && ny in 0 until height &&
+                        removed(ny * width + nx)
+                    ) {
+                        around++
+                    }
+                }
+            }
+            around <= SLIT_NEIGHBORS
+        }
+        restore.forEach { skin[it] = before[it] }
     }
 
     /**

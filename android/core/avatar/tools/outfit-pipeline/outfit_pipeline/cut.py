@@ -87,7 +87,9 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
         cosine = (vty * vby + vtx * vbx) / (to_top * to_bg)
     rim = candidate & (to_top + to_bg <= RIM_PX + 2) & (cosine < OPPOSITE)
     rim |= skin & (labels == FULL_CUT) & ~inside & ~top_alpha  # 달리기 몸통: 상의 밖은 모두
+    original = b.copy()
     b[rim] = 0
+    b = close_slits(original, b)
     # 남은 부스러기: 상의에서 RIM_PX 안에만 있는 작은 덩어리(CRUMB_PX 이하)
     from outfit_pipeline.build import _components
 
@@ -97,3 +99,36 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
         if len(piece) <= CRUMB_PX and near.reshape(-1)[piece].all():
             b.reshape(-1, 4)[piece] = 0
     return Image.fromarray(b, "RGBA")
+
+
+def _sandwiched(mask: np.ndarray) -> np.ndarray:
+    """위·아래 또는 왼쪽·오른쪽이 모두 [mask]인 픽셀."""
+    up = np.zeros_like(mask)
+    down = np.zeros_like(mask)
+    left = np.zeros_like(mask)
+    right = np.zeros_like(mask)
+    up[1:-1] = mask[:-2]
+    down[1:-1] = mask[2:]
+    left[:, 1:-1] = mask[:, :-2]
+    right[:, 1:-1] = mask[:, 2:]
+    return (up & down) | (left & right)
+
+
+def close_slits(before: np.ndarray, after: np.ndarray) -> np.ndarray:
+    """띠 판정이 한 줄 걸러 지워 남긴 빗살을 고른다(앱 TopBodyCut.closeSlits): 먼저 지운 줄 사이에 낀 1px 맨몸 줄을 지우고(넓은 띠는 고르게
+    비운다), 그다음 남은 맨몸 사이에 낀 1px 틈 가운데 8방향 이웃에 지운 픽셀이 2개 이하인 것(맨몸 안의 줄 틈)을 되살린다."""
+    out = after.copy()
+    removed = (before[..., 3] > 0) & (out[..., 3] == 0)
+    out[(out[..., 3] > 0) & _sandwiched(removed)] = 0
+    kept = out[..., 3] > 0
+    removed = (before[..., 3] > 0) & ~kept
+    around = np.zeros(kept.shape, int)
+    padded = np.pad(removed, 1)
+    height, width = kept.shape
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            if dy or dx:
+                around += padded[1 + dy : 1 + dy + height, 1 + dx : 1 + dx + width]
+    restore = removed & _sandwiched(kept) & (around <= 2)
+    out[restore] = before[restore]
+    return out

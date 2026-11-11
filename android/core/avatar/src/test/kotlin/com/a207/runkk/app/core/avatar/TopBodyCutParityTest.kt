@@ -29,6 +29,26 @@ class TopBodyCutParityTest {
         assertEquals(0, differs, "남은 맨몸 픽셀이 cut.py와 다르다")
     }
 
+    @Test
+    fun `띠 판정이 한 줄 걸러 지워 남긴 1px 줄도 지운다(파이프라인 close_slits와 같다)`() {
+        val skin = 0xFFFAD2C0.toInt()
+        val before = IntArray(7 * 7) { i -> if (i % 7 in 1..5 && i / 7 in 1..5) skin else 0 }
+        val after = before.copyOf()
+        for (x in 1..5) {
+            after[2 * 7 + x] = 0 // 빗살
+            after[4 * 7 + x] = 0
+        }
+        TopBodyCut.closeSlits(before, after, 7, 7)
+        assertEquals((1..5).map { 0 }, (1..5).map { after[3 * 7 + it] })
+        assertEquals((1..5).map { skin }, (1..5).map { after[1 * 7 + it] })
+
+        // 맨몸 안의 1px 줄 틈(위·아래가 두꺼운 맨몸)은 되살린다
+        val slit = before.copyOf()
+        for (x in 1..5) slit[3 * 7 + x] = 0
+        TopBodyCut.closeSlits(before, slit, 7, 7)
+        assertEquals((1..5).map { skin }, (1..5).map { slit[3 * 7 + it] })
+    }
+
     private fun pixels(name: String): Triple<IntArray, Int, Int> {
         val bitmap = BitmapFactory.decodeFile(File(root, "$name.png").path)
         val width = bitmap.width

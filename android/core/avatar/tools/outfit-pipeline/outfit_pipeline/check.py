@@ -1,4 +1,4 @@
-"""규격 검사(5.5 여덟 항목). 같은 검사를 앱 단위 시험 OutfitAssetSpecTest가 빌드 때 다시 한다."""
+"""규격 검사(5.5 항목, OUTFIT_SPEC.md 6절 열네 항목). 같은 검사를 앱 단위 시험 OutfitAssetSpecTest가 빌드 때 다시 한다."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 from outfit_pipeline import spec
+from outfit_pipeline.body import count_strays, seam_mask, underwear_mask, waist_gap, waist_tufts_mask, wisp_layer
 from outfit_pipeline.masks import load_mask
 from outfit_pipeline.skin import count_exposed
 
@@ -45,7 +46,7 @@ def template_for(file_name: str, part: str, male_top_surface: int) -> str:
     return f"{gender}_{slot}"
 
 
-def check_layer(path: Path, part: str, template: str, masks_dir: Path) -> list[Problem]:
+def check_layer(path: Path, part: str, template: str, masks_dir: Path, wisps: bool | None = None) -> list[Problem]:
     problems: list[Problem] = []
     slot = spec.SLOTS[spec.TEMPLATES[template].slot]
     image = Image.open(path)
@@ -74,6 +75,17 @@ def check_layer(path: Path, part: str, template: str, masks_dir: Path) -> list[P
     skin = count_exposed(image)
     if skin:
         problems.append(Problem(9, str(path), f"{skin} exposed skin pixel(s) in garment layer"))
+    # 10번: 굵은 실루엣 밖 부스러기(실루엣에서 뻗은 털, 떨어진 점)가 없다. 메시가 늘면 선으로 보인다([임시:D-성-184]).
+    garment = wisp_layer(path.parent.name, path.name) if wisps is None else wisps
+    strays = count_strays(image, garment=garment)
+    if strays:
+        problems.append(Problem(10, str(path), f"{strays} stray pixel(s) outside the solid silhouette"))
+    # 14번: 하의 레이어에 위·아래가 천인 세로 4px 이하 틈이 없다(밑단 안감 사이로 맨몸이 살색 점선으로 보였다, [임시:D-성-185]).
+    if part == "BOTTOM" and (seams := int(seam_mask(image).sum())):
+        problems.append(Problem(14, str(path), f"{seams} pixel(s) in thin vertical gaps of the garment"))
+    # 12번: 하의 서기 레이어의 허리 겹침 띠에 하의 본체와 떨어진 조각이 없다([임시:D-성-185]).
+    if part == "BOTTOM" and spec.TEMPLATES[template].slot == "stand" and (loose := int(waist_tufts_mask(image).sum())):
+        problems.append(Problem(12, str(path), f"{loose} loose pixel(s) above the waistband"))
     return problems
 
 
@@ -123,6 +135,18 @@ def check_bundle(outfits_dir: Path, entry: dict, masks_dir: Path) -> list[Proble
     for alias, target in shared.items():
         if not spec.FILE_PATTERN.match(f"{alias}{spec.EXTENSION}") or (folder / f"{alias}{spec.EXTENSION}").is_file():
             problems.append(Problem(6, key, f"shared entry {alias} -> {target} must name a missing file"))
+    # 13번: 하의 서기 허리가 겹침 띠 위(y 296)까지 맨몸 실루엣을 덮는다(상의 밑단 밑으로 들어간다, [임시:D-성-158]·[임시:D-성-185]).
+    stand, body = (
+        resolve(folder, "female_stand", shared),
+        outfits_dir / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}",
+    )
+    if (
+        part == "BOTTOM"
+        and stand.is_file()
+        and body.is_file()
+        and (gap := waist_gap(Image.open(stand), Image.open(body)))
+    ):
+        problems.append(Problem(13, str(stand), f"{gap} body pixel(s) uncovered between y 296 and the waistband"))
     if not (folder / spec.SHOP_FILE).is_file():
         problems.append(Problem(1, key, f"missing {spec.SHOP_FILE}"))
     total = 0
@@ -176,4 +200,13 @@ def check_body(outfits_dir: Path, shared: dict[str, str] | None = None) -> list[
             modes = ("RGBA", "RGB") if name.endswith("_cut") else ("RGBA",)
             if image.size != (slot.width, slot.height) or image.mode not in modes:
                 problems.append(Problem(2, str(path), f"body file must be {slot.width}x{slot.height} {modes}"))
+                continue
+            if name.endswith("_cut"):
+                continue
+            strays = count_strays(image)
+            if strays:
+                problems.append(Problem(10, str(path), f"{strays} stray pixel(s) outside the solid silhouette"))
+            # 11번: 서기 맨몸의 허리·엉덩이 칸에 속옷(무채색) 픽셀이 없다. 하의 밖으로 비치고 피부톤이 걸려 짙은 띠가 됐다([임시:D-성-185]).
+            if slot_name == "stand" and (under := int(underwear_mask(image).sum())):
+                problems.append(Problem(11, str(path), f"{under} underwear pixel(s) in the waist and hips"))
     return problems

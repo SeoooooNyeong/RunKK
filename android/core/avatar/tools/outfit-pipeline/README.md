@@ -7,6 +7,7 @@ cd android/core/avatar/tools/outfit-pipeline
 uv sync
 uv run outfit-pipeline uv-mask     # riv 메시 UV → templates/masks
 uv run outfit-pipeline templates   # 템플릿 11장
+uv run outfit-pipeline clean-body  # 맨몸·옷 레이어의 부스러기·허리 속옷·하의 허리를 정리(이미 만든 자산, 검사 10~14번)
 uv run outfit-pipeline check       # assets/outfits 규격 검사
 uv run pytest && uv run ruff check .
 ```
