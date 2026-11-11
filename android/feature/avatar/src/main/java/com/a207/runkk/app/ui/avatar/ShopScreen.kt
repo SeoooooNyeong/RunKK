@@ -182,14 +182,17 @@ private fun ShopStage(state: ShopUiState, actions: ShopActions) {
     }
 }
 
-/** 부위 칩(알약, 좌우 14·위아래 8, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 모자 부위는 꾸미기와 같이 「악세서리」다(사용자 결정, 실기기 DV3-5). */
+/**
+ * 부위 칩(알약, 좌우 14·위아래 8, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 칩은 상의·하의·신발 셋이다(모자
+ * 부위는 숨긴다, [임시:D-성-183]).
+ */
 @Composable
 private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {
     Row(
         modifier = Modifier.horizontalScroll(rememberScrollState()).selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        ItemSlot.entries.forEach { entry ->
+        VISIBLE_ITEM_SLOTS.forEach { entry ->
             val isSelected = entry == slot
             Box(
                 Modifier

@@ -34,7 +34,8 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * 칸 채움과 미리 준비(design-oo 05-30 [임시:D-성-100], [임시:D-성-104], [임시:D-성-106], 7절): ui.avatar가 홈·러닝 중 칸을 채우고, Overlay가
- * 로그인한 동안 저장소를 데워 두며 로그아웃(Overlay가 빠짐)에 비운다. 로딩 표시는 홈 칸에만 있고 러닝 중 칸은 지금 그림을 보인다.
+ * 로그인한 동안 저장소를 데워 두며 로그아웃(Overlay가 빠짐)에 비운다. 준비 전에는 홈·러닝 중 칸 모두 가운데 로딩 표시를 보이고, 러닝 중
+ * 칸은 준비에 실패했을 때만 지금 달리기 그림을 보인다([임시:D-성-181]).
  */
 @RunWith(RobolectricTestRunner::class)
 class AvatarSlotsTest {
@@ -49,7 +50,7 @@ class AvatarSlotsTest {
         myGender = gender,
         heads = headsOf(repo),
         preload = {},
-        prepare = {},
+        prepare = { _, _ -> },
         scope = scope
     )
     private val entry = AvatarFeatureEntry(store)
@@ -106,7 +107,8 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `러닝 중 칸은 준비 전이면 로딩 표시 없이 지금 달리기 그림을 보인다`() {
+    fun `러닝 중 칸은 준비 전이면 지금 달리기 그림 대신 가운데 로딩 표시를 보인다(D-성-181)`() {
+        compose.mainClock.autoAdvance = false
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CompositionLocalProvider(LocalSlotAvatarPose provides AvatarSlotPose.RUN) {
@@ -114,9 +116,28 @@ class AvatarSlotsTest {
                 }
             }
         }
+        compose.mainClock.advanceTimeBy(50)
+        compose.onAllNodesWithTag(AVATAR_LOADING_TAG).assertCountEqualsTo(0, "100ms 안에는 그리지 않는다")
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag(AVATAR_LOADING_TAG).assertExists()
+        compose.onAllNodesWithTag(RUN_AVATAR_FALLBACK_TAG).assertCountEqualsTo(0, "기존 그림이 먼저 보였다가 바뀌지 않는다")
+    }
+
+    @Test
+    fun `러닝 중 칸은 준비에 실패하면 로딩 표시를 거두고 지금 달리기 그림을 보인다(D-성-181)`() {
+        repo.avatarResult = Outcome.Failure(AppError.Network)
+        gender.value = Gender.MALE
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(LocalSlotAvatarPose provides AvatarSlotPose.RUN) {
+                    Box(Modifier.size(88.dp)) { entry.slots.getValue(SlotKey.RUN_AVATAR)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 2_000) { store.state.value is MyAvatarState.Failed }
         compose.mainClock.advanceTimeBy(500)
         compose.onNodeWithTag(RUN_AVATAR_FALLBACK_TAG).assertExists()
-        compose.onAllNodesWithTag(AVATAR_LOADING_TAG).assertCountEqualsTo(0, "러닝 중 칸은 로딩 표시 없음")
+        compose.onAllNodesWithTag(AVATAR_LOADING_TAG).assertCountEqualsTo(0, "실패면 로딩 표시 없음")
     }
 
     @Test

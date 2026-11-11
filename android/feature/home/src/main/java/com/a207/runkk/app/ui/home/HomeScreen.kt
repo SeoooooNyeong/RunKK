@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -719,9 +720,17 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
     } else {
         R.raw.home_jump_male
     }
-    // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 소리와 함께 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다)
+    // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 소리와 함께 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다).
+    // 열린 배포에서 눌러 이동할 때는 물결을 그리지 않는다([임시:D-성-182]).
+    val interaction = remember { MutableInteractionSource() }
     val press = if (isAvatarOpen) {
-        Modifier.clickable(role = Role.Button, onClickLabel = editLabel, onClick = onAvatar)
+        Modifier.clickable(
+            interactionSource = interaction,
+            indication = null,
+            role = Role.Button,
+            onClickLabel = editLabel,
+            onClick = onAvatar
+        )
     } else {
         Modifier.pointerInput(reduceMotion, jumpSound) {
             detectTapGestures {
@@ -784,18 +793,26 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
  * 바닥선·그림자·Rive 서기·로딩 표시를 그린다. 배경 사진은 홈이 화면 전체에 깔아 두므로 칸은 배경을 다시 그리지 않고 같은 바닥 규칙
  * (칸 위에서 342dp, 아래에서 [HOME_AVATAR_FLOOR_FROM_BOTTOM])만 쓴다. 칸 바닥선이 남은 자리 아래보다
  * [HOME_AVATAR_FLOOR_ABOVE_ROOM] 위에 오게 칸을 내리고, 남은 자리가 좁으면 칸 높이를 줄인다(바닥선은 칸 아래에서 같은 거리다).
- * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다. 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
+ * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다(물결 없음, [임시:D-성-182]). 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
  */
 @Composable
 private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
     val description = stringResource(R.string.home_avatar_description)
     val editLabel = stringResource(R.string.home_house_edit_avatar)
     val slot = LocalSlots.current[SlotKey.HOME_AVATAR].orEmpty()
+    val interaction = remember { MutableInteractionSource() }
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
         val drop = HOME_AVATAR_FLOOR_FROM_BOTTOM - HOME_AVATAR_FLOOR_ABOVE_ROOM
         val height = (maxHeight + drop).coerceIn(HOME_AVATAR_SLOT_MIN_HEIGHT, HOME_AVATAR_SLOT_HEIGHT)
+        // 아바타 그림을 누르면 물결(반투명 눌림)을 그리지 않는다. 단추 안내·누름 영역은 그대로다([임시:D-성-182]).
         val press = if (isAvatarOpen) {
-            Modifier.clickable(role = Role.Button, onClickLabel = editLabel, onClick = onAvatar)
+            Modifier.clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = editLabel,
+                onClick = onAvatar
+            )
         } else {
             Modifier
         }

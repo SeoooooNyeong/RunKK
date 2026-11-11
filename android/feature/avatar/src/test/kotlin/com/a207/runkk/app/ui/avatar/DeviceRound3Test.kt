@@ -63,13 +63,13 @@ class DeviceRound3Test {
     }
 
     @Test
-    fun `DV3-5 상점 넷째 탭은 꾸미기와 같이 악세서리다`() {
+    fun `DV3-5 상점 칩에 모자 부위 이름이 보이지 않는다(악세서리 숨김, D-성-183)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), ShopActions())
             }
         }
-        compose.onNodeWithText(text(R.string.avatar_slot_accessory)).assertExists()
+        compose.onNodeWithText(text(R.string.avatar_slot_accessory)).assertDoesNotExist()
         compose.onNodeWithText(text(R.string.avatar_slot_hat)).assertDoesNotExist()
     }
 
@@ -98,7 +98,7 @@ class DeviceRound3Test {
                 Text(figureDescription(state.avatar!!, state, isFallback = false))
             }
         }
-        compose.onNodeWithText(text(R.string.avatar_character_rabbit), substring = true).assertDoesNotExist()
+        compose.onNodeWithText(text(R.string.avatar_face_default), substring = true).assertDoesNotExist()
         compose.onNodeWithText(text(R.string.avatar_figure_rive), substring = true).assertExists()
     }
 
@@ -116,6 +116,6 @@ class DeviceRound3Test {
                 Text(figureDescription(state.avatar!!, state, isFallback = true))
             }
         }
-        compose.onNodeWithText(text(R.string.avatar_character_rabbit), substring = true).assertExists()
+        compose.onNodeWithText(text(R.string.avatar_face_default), substring = true).assertExists()
     }
 }

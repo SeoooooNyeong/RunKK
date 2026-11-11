@@ -19,10 +19,6 @@
     <string name="avatar_error_item_not_on_sale">지금은 팔지 않는 아이템이에요</string>
     <string name="avatar_error_already_owned">이미 가진 아이템이에요</string>
     <string name="avatar_error_insufficient_reward">리워드가 모자라요. 달리고 대결에서 이기면 모여요</string>
-    <string name="avatar_character_rabbit">토끼</string>
-    <string name="avatar_character_bear">곰</string>
-    <string name="avatar_character_fox">여우</string>
-    <string name="avatar_character_cat">고양이</string>
     <string name="avatar_slot_top">상의</string>
     <string name="avatar_slot_bottom">하의</string>
     <string name="avatar_slot_shoes">신발</string>
@@ -37,7 +33,7 @@
     <string name="avatar_decorate_title">꾸미기</string>
     <string name="avatar_decorate_load_failed">아바타를 불러오지 못했어요</string>
     <string name="avatar_face_selfie">셀카 SD 얼굴</string>
-    <string name="avatar_face_default">기본 캐릭터 %1$s</string>
+    <string name="avatar_face_default">기본 얼굴</string>
     <string name="avatar_face_none">얼굴 없음</string>
     <string name="avatar_item_wearing">입는 중</string>
     <string name="avatar_item_put_on">입기</string>

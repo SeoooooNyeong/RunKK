@@ -249,7 +249,7 @@ private fun UndoButton(isEnabled: Boolean, onClick: () -> Unit, modifier: Modifi
 @Composable
 private fun UnderlineTabs(state: AvatarUiState, actions: AvatarScreenActions) {
     Row(Modifier.fillMaxWidth().selectableGroup()) {
-        ItemSlot.entries.forEach { slot ->
+        VISIBLE_ITEM_SLOTS.forEach { slot ->
             UnderlineTab(
                 stringResource(slot.decorateLabelRes),
                 isSelected = !state.isBackgroundTab && state.slot == slot,
@@ -342,11 +342,12 @@ internal fun figureDescription(avatar: Avatar, state: AvatarUiState, isFallback:
     } else {
         stringResource(R.string.avatar_figure_rive)
     }
-    val slotLabels = ItemSlot.entries.associateWith { stringResource(it.decorateLabelRes) }
+    val slotLabels = VISIBLE_ITEM_SLOTS.associateWith { stringResource(it.decorateLabelRes) }
     val equipped = stringResource(R.string.avatar_figure_equipped_format)
     return buildString {
         append(base)
-        state.draft.forEach { (slot, id) ->
+        // 숨긴 부위(모자)는 그림에 없으므로 읽지 않는다([임시:D-성-183]).
+        state.draft.filterKeys { it in slotLabels }.forEach { (slot, id) ->
             state.items.firstOrNull { it.itemId == id }?.let {
                 append(String.format(equipped, slotLabels.getValue(slot), it.name))
             }
@@ -354,15 +355,12 @@ internal fun figureDescription(avatar: Avatar, state: AvatarUiState, isFallback:
     }
 }
 
-/** 얼굴 문구: 기본 캐릭터(faceKey "default:…")면 그 캐릭터, 셀카 얼굴("selfie:…", "head:…")이면 셀카, 아니면 없음. */
+/** 얼굴 문구: 기본 캐릭터(faceKey "default:…", 어느 값이든)면 「기본 얼굴」([임시:D-성-187]), 셀카 얼굴("selfie:…", "head:…")이면 셀카, 아니면 없음. */
 @Composable
-private fun faceLabel(avatar: Avatar): String {
-    val character = avatar.character
-    return when {
-        character != null -> stringResource(R.string.avatar_face_default, stringResource(character.labelRes))
-        avatar.isSelfieFace -> stringResource(R.string.avatar_face_selfie)
-        else -> stringResource(R.string.avatar_face_none)
-    }
+private fun faceLabel(avatar: Avatar): String = when {
+    avatar.isDefaultFace -> stringResource(R.string.avatar_face_default)
+    avatar.isSelfieFace -> stringResource(R.string.avatar_face_selfie)
+    else -> stringResource(R.string.avatar_face_none)
 }
 
 internal fun formatReward(value: Int?): String = value?.let { String.format(Locale.US, "%,d", it) } ?: "-"

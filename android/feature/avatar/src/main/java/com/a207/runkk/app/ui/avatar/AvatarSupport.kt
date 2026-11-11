@@ -12,9 +12,9 @@ import com.a207.runkk.app.domain.avatar.ItemSlot
 internal val Avatar.renderKey: String
     get() = faceKey ?: defaultCharacterId?.let(RunkkAvatarArt::defaultKey) ?: RunkkAvatarArt.DEFAULT_FACE_KEY
 
-/** 기본 캐릭터 얼굴이면 그 캐릭터, 셀카 얼굴·얼굴 없음·모르는 값이면 null. */
-internal val Avatar.character: DefaultCharacter?
-    get() = DefaultCharacter.ofFaceKey(renderKey)
+/** 기본 캐릭터 얼굴인가(어느 캐릭터 값이든 앱은 기본 얼굴 하나로 그린다, [임시:D-성-187]). 얼굴을 고르기 전도 기본 얼굴이다. */
+internal val Avatar.isDefaultFace: Boolean
+    get() = RunkkAvatarArt.isDefaultKey(renderKey)
 
 /** 셀카 얼굴인지(서버 SelfieFace.renderKey "selfie:…", 비동기 셀카 머리 "head:{회원ID}:{작업ID}"). */
 internal val Avatar.isSelfieFace: Boolean
@@ -32,6 +32,12 @@ internal val ItemSlot.labelRes: Int
         ItemSlot.SHOES -> R.string.avatar_slot_shoes
         ItemSlot.HAT -> R.string.avatar_slot_hat
     }
+
+/**
+ * 꾸미기 탭·상점 칩에 보이는 부위(한 곳의 목록, [임시:D-성-183]). 모자(「악세서리」) 부위는 숨긴다: Rive에 모자 층이 없어 입어도 그림이
+ * 바뀌지 않는다. 서버·상점 API·저장된 모자 착용은 그대로다(저장은 바뀐 부위만 보내므로 모자 착용을 건드리지 않는다).
+ */
+internal val VISIBLE_ITEM_SLOTS: List<ItemSlot> = listOf(ItemSlot.TOP, ItemSlot.BOTTOM, ItemSlot.SHOES)
 
 /** 꾸미기 탭 부위 문구: 모자 부위는 "악세서리"(사용자 결정 A2, FR-161 표시 이름), 나머지는 [labelRes]와 같다. */
 @get:StringRes

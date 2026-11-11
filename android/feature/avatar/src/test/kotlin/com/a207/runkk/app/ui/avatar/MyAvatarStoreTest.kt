@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.avatar
 
 import com.a207.runkk.app.core.avatar.AvatarBodyShape
 import com.a207.runkk.app.core.avatar.AvatarGender
+import com.a207.runkk.app.core.avatar.AvatarMotion
 import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
@@ -35,7 +36,7 @@ class MyAvatarStoreTest {
     private val repo = GatedAvatars()
     private val gender = MutableStateFlow<Gender?>(null)
     private val preloaded = mutableListOf<AvatarGender>()
-    private val prepared = mutableListOf<RiveAvatarLook>()
+    private val prepared = mutableListOf<Pair<RiveAvatarLook, AvatarMotion>>()
     private var prepareFailure: Exception? = null
     private val loggedIn = MutableStateFlow(true)
     private var loggedOutCleanups = 0
@@ -46,9 +47,9 @@ class MyAvatarStoreTest {
         myGender = gender,
         heads = headsOf(repo),
         preload = { preloaded += it },
-        prepare = { look ->
+        prepare = { look, motion ->
             prepareFailure?.let { throw it }
-            prepared += look
+            prepared += look to motion
         },
         scope = backgroundScope,
         loggedIn = loggedIn,
@@ -96,7 +97,7 @@ class MyAvatarStoreTest {
             myGender = gender,
             heads = headsOf(repo),
             preload = {},
-            prepare = {},
+            prepare = { _, _ -> },
             scope = backgroundScope,
             loggedIn = loggedIn
         )
@@ -143,7 +144,7 @@ class MyAvatarStoreTest {
     }
 
     @Test
-    fun `성별을 알면 riv를 미리 읽고 세 입력을 모아 서기 모습을 미리 준비한 뒤 Ready다`() = runTest {
+    fun `성별을 알면 riv를 미리 읽고 세 입력을 모아 서기 모습을 미리 준비한 뒤 Ready이고 이어서 달리기도 준비한다(D-성-181)`() = runTest {
         val store = store()
         store.warm()
         gender.value = Gender.FEMALE
@@ -156,8 +157,50 @@ class MyAvatarStoreTest {
         assertEquals(51, look.rive.runningAmount)
         assertEquals("INCHEON", look.backgroundKey)
         assertEquals(listOf(AvatarGender.FEMALE), preloaded)
-        assertEquals(listOf(look.rive), prepared, "칸에 넘길 것과 같은 모습을 미리 준비한다")
-        assertSame(look.rive, prepared.single())
+        assertEquals(
+            listOf(look.rive to AvatarMotion.STAND, look.rive to AvatarMotion.RUN),
+            prepared,
+            "칸에 넘길 것과 같은 모습을 서기 먼저, 달리기 다음으로 미리 준비한다"
+        )
+        prepared.forEach { assertSame(look.rive, it.first) }
+    }
+
+    @Test
+    fun `달리기 동작 준비는 Ready를 늦추지 않는다(서기만 끝나면 Ready, D-성-181)`() = runTest {
+        val running = CompletableDeferred<Unit>()
+        val store = MyAvatarStore(
+            avatars = repo,
+            myGender = gender,
+            heads = headsOf(repo),
+            preload = {},
+            prepare = { _, motion -> if (motion == AvatarMotion.RUN) running.await() },
+            scope = backgroundScope,
+            loggedIn = loggedIn
+        )
+        store.warm()
+        gender.value = Gender.MALE
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value, "달리기 준비가 끝나기 전에도 Ready다")
+        running.complete(Unit)
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value)
+    }
+
+    @Test
+    fun `달리기 동작 준비가 실패해도 Ready를 지킨다`() = runTest {
+        val store = MyAvatarStore(
+            avatars = repo,
+            myGender = gender,
+            heads = headsOf(repo),
+            preload = {},
+            prepare = { _, motion -> if (motion == AvatarMotion.RUN) throw IOException("run") },
+            scope = backgroundScope,
+            loggedIn = loggedIn
+        )
+        store.warm()
+        gender.value = Gender.MALE
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value)
     }
 
     @Test

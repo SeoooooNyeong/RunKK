@@ -29,15 +29,17 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
-import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.designsystem.runkkAvatarDefaultHeadTag
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
@@ -61,20 +63,29 @@ class MeScreensTest {
     val compose = createComposeRule()
 
     @Test
-    fun `프로필 원은 기본 캐릭터면 캐릭터 그림, 모르는 값이면 비운다`() {
+    fun `프로필 원은 기본 캐릭터 값이면 어느 값이든 내 성별의 기본 머리다(동물 그림 없음, D-성-180)`() {
         var faceKey by mutableStateOf<String?>("default:BEAR")
         compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                MeScreen(MeUiState(isLoading = false, profile = sampleProfile.copy(faceKey = faceKey)), onNavigate = {
-                }, onRetry = {})
+            CompositionLocalProvider(LocalAvatarCharacter provides AvatarCharacter.FEMALE) {
+                RunkkTheme(reduceMotion = true) {
+                    MeScreen(
+                        MeUiState(isLoading = false, profile = sampleProfile.copy(faceKey = faceKey)),
+                        onNavigate = {},
+                        onRetry = {}
+                    )
+                }
             }
         }
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertExists()
 
         faceKey = "default:DRAGON"
         compose.waitForIdle()
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertExists()
         compose.onNodeWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertDoesNotExist()
+
+        faceKey = null
+        compose.waitForIdle()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertExists()
     }
 
     @Test

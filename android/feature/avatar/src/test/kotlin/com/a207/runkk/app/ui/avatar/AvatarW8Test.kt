@@ -389,7 +389,7 @@ class AvatarW8ScreenTest {
     }
 
     @Test
-    fun `꾸미기 A안 - 모자 탭은 악세서리, 잠긴 배경은 남은 거리, 체형·피부색 칩과 빈 목록 문장 없음`() {
+    fun `꾸미기 A안 - 악세서리 탭 없음(D-성-183), 잠긴 배경은 남은 거리, 체형·피부색 칩과 빈 목록 문장 없음`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
@@ -408,7 +408,7 @@ class AvatarW8ScreenTest {
                 )
             }
         }
-        compose.onNodeWithText(text(R.string.avatar_slot_accessory)).assertExists()
+        compose.onNodeWithText(text(R.string.avatar_slot_accessory)).assertDoesNotExist()
         compose.onNode(hasStateDescription(text(R.string.avatar_background_locked, "전주", 113))).assertExists()
         compose.onNode(hasStateDescription(text(R.string.avatar_background_selected, "기본"))).assertExists()
         assertNoBodyOrSkinText()

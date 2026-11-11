@@ -1,20 +1,17 @@
 package com.a207.runkk.app.ui.avatar
 
-import androidx.annotation.StringRes
-import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
-
-/** 기본 캐릭터 얼굴 4종(FR-158). id는 서버 DefaultCharacter 이름이다. */
-enum class DefaultCharacter(@StringRes val labelRes: Int) {
-    RABBIT(R.string.avatar_character_rabbit),
-    BEAR(R.string.avatar_character_bear),
-    FOX(R.string.avatar_character_fox),
-    CAT(R.string.avatar_character_cat);
+/**
+ * 서버 기본 캐릭터 값(DefaultCharacter 4종, 서버 계약 그대로). 앱은 어느 값이든 기본 얼굴 하나(표시 성별의 기본 머리)로 그리고, 「기본 얼굴」을
+ * 고르면 [DEFAULT]를 저장한다([임시:D-성-187]). 동물 이름·그림은 보이지 않는다.
+ */
+enum class DefaultCharacter {
+    RABBIT,
+    BEAR,
+    FOX,
+    CAT;
 
     companion object {
-        fun of(id: String?): DefaultCharacter? = entries.firstOrNull { it.name == id }
-
-        /** 서버 얼굴 키("default:<이름>")의 캐릭터. 셀카 얼굴·모르는 값이면 null. */
-        fun ofFaceKey(faceKey: String?): DefaultCharacter? =
-            entries.firstOrNull { RunkkAvatarArt.defaultKey(it.name) == faceKey }
+        /** 「기본 얼굴」을 고를 때 서버에 저장하는 값(기본 캐릭터 1번, FR-155·FR-158). */
+        val DEFAULT: DefaultCharacter = RABBIT
     }
 }

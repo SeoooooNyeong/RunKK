@@ -6,7 +6,8 @@ data class AvatarSetupActions(
     val onSelfie: () -> Unit = {},
     val onAlbum: () -> Unit = {},
     val onFaceConsent: () -> Unit = {},
-    val onCharacter: (DefaultCharacter) -> Unit = {},
+    /** 「기본 얼굴」 칸([임시:D-성-187]). */
+    val onDefaultFace: () -> Unit = {},
     val onSave: () -> Unit = {},
     val onRepick: () -> Unit = {},
     val onStart: () -> Unit = {},

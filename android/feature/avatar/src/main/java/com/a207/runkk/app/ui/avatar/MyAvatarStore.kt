@@ -3,6 +3,7 @@ package com.a207.runkk.app.ui.avatar
 import android.content.Context
 import android.util.Log
 import com.a207.runkk.app.core.avatar.AvatarGender
+import com.a207.runkk.app.core.avatar.AvatarMotion
 import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.preloadRiveAvatar
 import com.a207.runkk.app.core.avatar.prepareRiveAvatarLook
@@ -43,7 +44,9 @@ import kotlinx.coroutines.launch
  *
  * - [warm]: 내 성별(`AccountRepository.myGender`)을 구독한다. 모르면(null) Loading에 머물고 그림을 고르지 않는다(FR-162 CR-86).
  *   알면 그 성별의 riv를 미리 읽고([preloadRiveAvatar]) 아바타·내 러너·상점 목록과 생성 머리를 모은 뒤 서기 모습을 미리 합성해
- *   ([prepareRiveAvatarLook]) Ready로 둔다. 성별이 바뀌면 앞 그림을 버리고 다시 준비한다.
+ *   ([prepareRiveAvatarLook]) Ready로 둔다. Ready 뒤에 같은 모습의 달리기 동작(motion = RUN)도 이어서 미리 합성해 측정 화면 칸이
+ *   Rive 파일 읽기·텍스처 합성을 기다리지 않게 한다([임시:D-성-181]). 달리기 준비는 Ready를 늦추지 않는다. 성별이 바뀌면 앞 그림을
+ *   버리고 다시 준비한다.
  * - 아바타나 내 러너를 못 읽으면 Failed다. 미리 읽기·미리 합성 실패는 준비 실패로 보지 않는다(뷰가 다시 읽고 합성하며, 그래도 안 되면
  *   칸이 성별 기본 그림으로 바꾼다).
  * - 한 번에 준비 작업 하나만 돈다. 새 [refresh]·성별 바뀜은 앞 작업을 취소하고 세대 번호를 올리며, 결과는 세대가 같을 때만 쓴다
@@ -56,7 +59,8 @@ class MyAvatarStore internal constructor(
     private val myGender: Flow<Gender?>,
     private val heads: SelfieHeads,
     private val preload: suspend (AvatarGender) -> Unit,
-    private val prepare: suspend (RiveAvatarLook) -> Unit,
+    /** 모습 미리 합성(동작별, [prepareRiveAvatarLook]). */
+    private val prepare: suspend (RiveAvatarLook, AvatarMotion) -> Unit,
     private val scope: CoroutineScope,
     /** 로그인 상태(SessionRepository.loggedIn). 참 → 거짓이면 비운다([임시:D-성-161], 리뷰 R2-7). */
     private val loggedIn: StateFlow<Boolean> = MutableStateFlow(true),
@@ -79,14 +83,15 @@ class MyAvatarStore internal constructor(
         myGender = accounts.myGender,
         heads = heads,
         preload = { gender -> preloadRiveAvatar(context, gender) },
-        prepare = { look ->
+        prepare = { look, motion ->
             prepareRiveAvatarLook(
                 context,
                 look.gender,
                 look.outfit,
                 look.bodyShape,
                 look.runningAmount,
-                look.headLayers
+                look.headLayers,
+                motion
             )
         },
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + LOG_FAILURE),
@@ -210,7 +215,10 @@ class MyAvatarStore internal constructor(
                     // 입력 읽기가 예외를 던져도 앱을 멈추지 않고 실패로 둔다(리뷰 R2-8).
                     MyAvatarState.Failed
                 }
-            if (mine == generation) _state.value = next
+            if (mine != generation) return@launch
+            _state.value = next
+            // 러닝 칸이 기다리지 않게 같은 모습의 달리기 동작도 미리 합성한다([임시:D-성-181]). 다음 준비가 이 작업을 취소한다.
+            if (next is MyAvatarState.Ready) quietly { prepare(next.look.rive, AvatarMotion.RUN) }
         }
     }
 
@@ -234,7 +242,7 @@ class MyAvatarStore internal constructor(
             headLayers = face.headLayers
         )
         riv.join()
-        quietly { prepare(rive) }
+        quietly { prepare(rive, AvatarMotion.STAND) }
         MyAvatarState.Ready(MyAvatarLook(rive, avatar.value.backgroundKey, avatar.value.faceKey, face.faceLayers))
     }
 

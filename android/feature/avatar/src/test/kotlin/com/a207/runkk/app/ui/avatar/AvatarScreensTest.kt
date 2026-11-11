@@ -1,9 +1,11 @@
 package com.a207.runkk.app.ui.avatar
 
 import android.graphics.Bitmap
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOff
@@ -18,13 +20,19 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
-import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.designsystem.runkkAvatarDefaultHeadTag
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import com.a207.runkk.app.domain.avatar.Shop
 import kotlin.test.assertEquals
@@ -59,34 +67,72 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `1 고르기 - 셀카 찍기, 앨범, 기본 얼굴 4종, 고른 기본 얼굴만 저장 단추를 보인다(J7)`() {
+    fun `1 고르기 - 셀카 찍기, 앨범, 「기본 얼굴」 칸 하나(동물 4종 없음), 이미 기본 얼굴이면 저장 단추가 없다(J7, D-성-187)`() {
         setup(
-            AvatarSetupUiState(isLoading = false, faceKey = "default:FOX", selected = DefaultCharacter.FOX),
+            AvatarSetupUiState(isLoading = false, faceKey = "default:FOX", isDefaultSelected = true),
             AvatarSetupActions(
                 onSelfie = { calls += "selfie" },
                 onAlbum = { calls += "album" },
-                onCharacter = { calls += it.name }
+                onDefaultFace = { calls += "default" }
             )
         )
         compose.onNodeWithText(str(R.string.avatar_setup_selfie_daily)).assertExists()
         compose.onNodeWithText(str(R.string.avatar_setup_save)).assertDoesNotExist()
         compose.onNodeWithText(str(R.string.avatar_setup_take_selfie)).performClick()
         compose.onNodeWithText(str(R.string.avatar_setup_pick_album)).performClick()
-        compose.onNodeWithContentDescription(str(R.string.avatar_character_bear)).performClick()
-        assertEquals(listOf("selfie", "album", "BEAR"), calls)
-        DefaultCharacter.entries.forEach {
-            compose.onAllNodesWithTag(runkkAvatarCharacterTag(it.name), useUnmergedTree = true).onFirst().assertExists()
-        }
+        val tile = str(R.string.avatar_setup_pick_label, str(R.string.avatar_setup_pick_character))
+        compose.onAllNodes(hasContentDescription(tile)).assertCountEquals(1)
+        compose.onNodeWithContentDescription(tile).assertIsSelected().performClick()
+        assertEquals(listOf("selfie", "album", "default"), calls)
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.RadioButton))
+            .assertCountEquals(1)
+        // 지금 얼굴 카드와 「기본 얼굴」 칸 모두 기본 머리다(남자 기본값)
+        compose.onAllNodesWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true)
+            .assertCountEquals(2)
     }
 
     @Test
-    fun `1 고르기 - 다른 기본 얼굴을 고르면 저장 단추가 뜨고 누르면 저장한다(FR-158)`() {
+    fun `1 고르기 - 기본 얼굴 칸과 미리보기는 내 성별의 기본 머리다(D-성-187)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalAvatarCharacter provides AvatarCharacter.FEMALE) {
+                RunkkTheme(reduceMotion = true) {
+                    AvatarSetupScreen(
+                        AvatarSetupUiState(isLoading = false, faceKey = "head:7:job-1", isDefaultSelected = true),
+                        AvatarSetupActions()
+                    )
+                }
+            }
+        }
+        compose.onAllNodesWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true)
+            .assertCountEquals(2)
+        compose.onAllNodesWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true)
+            .assertCountEquals(0)
+    }
+
+    @Test
+    fun `1 고르기 - 셀카 얼굴에서 기본 얼굴을 고르면 저장 단추가 뜨고 누르면 저장한다(FR-158)`() {
         setup(
-            AvatarSetupUiState(isLoading = false, faceKey = "default:FOX", selected = DefaultCharacter.BEAR),
+            AvatarSetupUiState(isLoading = false, faceKey = "head:7:job-1", isDefaultSelected = true),
             AvatarSetupActions(onSave = { calls += "save" })
         )
         compose.onNodeWithText(str(R.string.avatar_setup_save)).performClick()
         assertEquals(listOf("save"), calls)
+    }
+
+    @Test
+    fun `1 고르기 - 셀카 얼굴이면 미리보기에 받은 셀카 머리를 그리고 기본 얼굴 칸은 고르지 않은 상태다`() {
+        setup(
+            AvatarSetupUiState(
+                isLoading = false,
+                faceKey = "head:7:job-1",
+                faceLayers = FacePart.entries.map { FaceLayer(it, tinyPng) }
+            )
+        )
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithText(str(R.string.avatar_setup_save)).assertDoesNotExist()
+        compose.onNodeWithContentDescription(
+            str(R.string.avatar_setup_pick_label, str(R.string.avatar_setup_pick_character))
+        ).assertIsNotSelected()
     }
 
     @Test
@@ -187,7 +233,7 @@ class AvatarScreensTest {
         compose.onNodeWithContentDescription(
             str(
                 R.string.avatar_figure_description,
-                str(R.string.avatar_face_default, str(R.string.avatar_character_fox))
+                str(R.string.avatar_face_default)
             ) +
                 str(R.string.avatar_figure_equipped_format, str(R.string.avatar_slot_top), "라벤더 싱글렛")
         ).assertExists()
@@ -202,7 +248,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `꾸미기 - 기본 캐릭터 키(default)면 그 캐릭터로 읽고 체형 이름은 읽지 않는다(D-성-128)`() {
+    fun `꾸미기 - 기본 캐릭터 키(default)면 어느 값이든 「기본 얼굴」로 읽고 체형 이름은 읽지 않는다(D-성-128, D-성-187)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
@@ -217,7 +263,7 @@ class AvatarScreensTest {
         compose.onNodeWithContentDescription(
             str(
                 R.string.avatar_figure_description,
-                str(R.string.avatar_face_default, str(R.string.avatar_character_bear))
+                str(R.string.avatar_face_default)
             )
         ).assertExists()
     }
@@ -247,6 +293,42 @@ class AvatarScreensTest {
         assertTrue(jpeg.size in 1..SelfieEncoder.MAX_BYTES)
         assertEquals(0xFF.toByte(), jpeg[0])
         assertEquals(0xD8.toByte(), jpeg[1])
+    }
+
+    @Test
+    fun `악세서리(모자) 부위는 꾸미기 탭과 상점 칩에서 숨긴다(D-성-183)`() {
+        assertEquals(listOf(ItemSlot.TOP, ItemSlot.BOTTOM, ItemSlot.SHOES), VISIBLE_ITEM_SLOTS)
+        compose.setContent { RunkkTheme(reduceMotion = true) { AvatarScreen(decorating(), AvatarScreenActions()) } }
+        compose.onNodeWithText(str(R.string.avatar_slot_top)).assertExists()
+        compose.onNodeWithText(str(R.string.avatar_slot_shoes)).assertExists()
+        compose.onAllNodesWithText(str(R.string.avatar_slot_accessory)).assertCountEquals(0)
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).assertCountEquals(4)
+    }
+
+    @Test
+    fun `상점 칩은 상의·하의·신발 셋이다(D-성-183)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), ShopActions())
+            }
+        }
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).assertCountEquals(3)
+        compose.onAllNodesWithText(str(R.string.avatar_slot_accessory)).assertCountEquals(0)
+        compose.onAllNodesWithText(str(R.string.avatar_slot_hat)).assertCountEquals(0)
+    }
+
+    @Test
+    fun `꾸미기는 숨긴 모자 착용을 읽지 않는다(D-성-183)`() {
+        val withHat = avatar.copy(equipped = mapOf(ItemSlot.TOP to 1L, ItemSlot.HAT to 3L))
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                AvatarScreen(
+                    decorating().copy(avatar = withHat, draft = withHat.equipped),
+                    AvatarScreenActions()
+                )
+            }
+        }
+        compose.onNodeWithContentDescription("런 캡", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -311,7 +393,10 @@ class AvatarScreenshotTest {
 
     @Test
     fun setup() = compose.captureRunkkScreen("J7_avatar_face") {
-        AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), AvatarSetupActions())
+        AvatarSetupScreen(
+            AvatarSetupUiState(isLoading = false, faceKey = "default:FOX", isDefaultSelected = true),
+            AvatarSetupActions()
+        )
     }
 
     @Test
