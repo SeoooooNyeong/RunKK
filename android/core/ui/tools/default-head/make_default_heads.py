@@ -4,7 +4,9 @@ core/avatar 내장 기본 머리 정면 층(assets/avatars/{male,female}/face·e
 프로필 원 목표 구도(앱 PortraitHeadFrame.TARGET과 같다)에 놓는다.
 
 - 정수리(헤어 알파 128 이상 위 끝)는 상자 위 끝에서 -5%(살짝 잘림), 턱은 86%, 목 가운데는 50%. 머리 너비가 상자의 약 90%다.
-- 목은 턱과 목 끝 사이 가운데 줄을 상자 바닥까지 목 폭 그대로 늘린다. 그 아래 얼굴 층(목 끝 외곽선)은 그리지 않는다.
+- 원 안(avatar_default_head_*): 목은 턱과 목 끝 사이 가운데 줄을 상자 바닥까지 목 폭 그대로 늘린다. 그 아래 얼굴 층(목 끝
+  외곽선)은 그리지 않는다.
+- 원 밖(avatar_default_head_*_free, [임시:D-성-193]): 같은 구도에 목은 제 길이로 둥글게 끝난다(늘리지 않는다).
 
 실행: python make_default_heads.py (저장소 android/ 기준 경로를 쓴다, Pillow 필요)
 """
@@ -31,7 +33,7 @@ def neck_bottom(face: Image.Image) -> int:
     return face.getchannel("A").point(lambda a: 255 if a >= 200 else 0).getbbox()[3]
 
 
-def make(gender: str) -> Image.Image:
+def make(gender: str, in_circle: bool = True) -> Image.Image:
     face, eyes, hair = (Image.open(ASSETS / gender / f"{n}.png").convert("RGBA") for n in ("face", "eyes_open", "hair"))
     center_x, chin = CHIN[gender]
     crown = crown_of(hair)
@@ -43,9 +45,12 @@ def make(gender: str) -> Image.Image:
     # 상자 바닥까지 닿게 캔버스를 아래로 늘린 원본 좌표 높이.
     tall = max(face.height, int((SIZE - dy) / scale) + 2)
     canvas = Image.new("RGBA", (face.width, tall), (0, 0, 0, 0))
-    canvas.alpha_composite(face.crop((0, 0, face.width, row)), (0, 0))
-    strip = face.crop((0, row, face.width, row + 1)).resize((face.width, tall - row), Image.NEAREST)
-    canvas.alpha_composite(strip, (0, row))
+    if in_circle:
+        canvas.alpha_composite(face.crop((0, 0, face.width, row)), (0, 0))
+        strip = face.crop((0, row, face.width, row + 1)).resize((face.width, tall - row), Image.NEAREST)
+        canvas.alpha_composite(strip, (0, row))
+    else:
+        canvas.alpha_composite(face, (0, 0))
     canvas.alpha_composite(eyes, (0, 0))
     canvas.alpha_composite(hair, (0, 0))
     # 출력 (u, v) ← 원본 ((u - dx) / scale, (v - dy) / scale)
@@ -60,5 +65,7 @@ def make(gender: str) -> Image.Image:
 
 if __name__ == "__main__":
     for g in ("male", "female"):
-        make(g).save(OUT / f"avatar_default_head_{g}.webp", "WEBP", quality=92, method=6)
-        print(g, (OUT / f"avatar_default_head_{g}.webp").stat().st_size)
+        for in_circle, suffix in ((True, ""), (False, "_free")):
+            out = OUT / f"avatar_default_head_{g}{suffix}.webp"
+            make(g, in_circle).save(out, "WEBP", quality=92, method=6)
+            print(out.name, out.stat().st_size)

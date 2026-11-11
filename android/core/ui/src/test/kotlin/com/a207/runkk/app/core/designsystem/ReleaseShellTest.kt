@@ -136,7 +136,12 @@ class ReleaseShellTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) { RunkkAvatar("default:BEAR", AvatarExpression.JOY, Modifier.size(40.dp)) }
         }
-        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertExists()
+        // 얼굴 원이 아닌 장면은 원 밖 기본 머리다([임시:D-성-193]).
+        compose.onNodeWithTag(
+            runkkAvatarDefaultHeadTag(AvatarCharacter.MALE, isInCircle = false),
+            useUnmergedTree = true
+        )
+            .assertExists()
         compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "JOY", useUnmergedTree = true).assertDoesNotExist()
     }
 
