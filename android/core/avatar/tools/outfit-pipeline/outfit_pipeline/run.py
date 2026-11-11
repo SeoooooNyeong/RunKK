@@ -143,7 +143,8 @@ FIXES = Path(__file__).resolve().parent.parent / "templates" / "fixes"
 
 def apply_fix_mask(layer: Image.Image, key: str, file_stem: str) -> Image.Image:
     """손으로 정한 지울 칸(`templates/fixes/<key>__<file_stem>.png`, 흰색 = 지움)을 투명하게 한다. 자동 판별로 외곽선과 가르기 어려운
-    생성 잔상만 둔다(판정 round4: high_top 달리기 신발 끈 옆 검은 계단 그림자). 파일이 없으면 그대로."""
+    생성 잔상만 둔다(판정 round4: high_top 달리기 신발 끈 옆 검은 계단 그림자, round5: hoodie 달리기 몸통 후드
+    꼭대기 날개가 목 옆에 「ㅅ」자 뿔로 솟았다). 파일이 없으면 그대로."""
     path = FIXES / f"{key}__{file_stem}.png"
     if not path.is_file():
         return layer
@@ -157,7 +158,7 @@ def finish_run_layer(layer: Image.Image, key: str, part: str, slot: str, leg: Im
     """달리기 상의·하의 레이어 마무리(판정 round3): 상의 몸통·팔은 떨어진 조각을 지우고 몸통은 등 외곽선, 하의 다리는 허리끈 끝을 정리한
     뒤 맨몸 다리 외곽선을 다시 입힌다([leg] = 맨몸 달리기 다리, outfit_pipeline.hip.finish_run_leg)."""
     if part == "TOP" and slot in ("run_body", "run_arm"):
-        layer, _ = drop_loose_pieces(layer)
+        layer, _ = drop_loose_pieces(apply_fix_mask(layer, key, f"female_{slot}"))
         if slot == "run_body":
             layer, _ = outline_back(layer, key)
             if key in BACK_KEYS:

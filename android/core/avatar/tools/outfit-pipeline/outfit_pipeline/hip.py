@@ -24,7 +24,6 @@ IMAGE_NAME = "Cloth textured hip connection"
 SOURCE = (88, 160, 168, 208)  # 원래 메시가 쓰던 텍스처 칸(x0, y0, x1, y1)
 TARGET_TOP = 24  # 옮길 칸 위 끝(텍스처 y). 아래 끝은 TARGET_TOP + 48
 HEIGHT = 768
-TONE_BOX = (20, 140, 70, 250)  # 엉덩이 조각 색을 맞출 다리 윗부분 뒤쪽 천 칸(x0, y0, x1, y1)
 V_SHIFT = (SOURCE[1] - TARGET_TOP) / HEIGHT  # 꼭짓점 v에서 뺄 값(160 → 24)
 _TOC_FORMAT = ("u", "s", "f", "c")
 
@@ -125,16 +124,6 @@ def paint_hip(layer: Image.Image) -> Image.Image:
     patch = array[y0:y1, x0:x1].copy()
     if not (patch[..., 3] > 0).any():
         return layer
-    # 엉덩이 잇기 조각은 천 가운데라 다리 윗부분 뒤쪽보다 밝아 밝은 슬래브로 보였다(판정 round4 wide_pants): 다리 윗부분 뒤쪽 천의
-    # 평균 색에 맞춰 옮긴다(무늬·그늘 차이는 그대로)
-    tx0, ty0, tx1, ty1 = TONE_BOX
-    back = array[ty0:ty1, tx0:tx1]
-    cloth = back[..., 3] >= 250
-    opaque = patch[..., 3] >= 250
-    if cloth.sum() > 100 and opaque.sum() > 100:
-        shift = back[cloth][:, :3].astype(float).mean(axis=0) - patch[opaque][:, :3].astype(float).mean(axis=0)
-        patch = patch.copy()
-        patch[..., :3] = (patch[..., :3].astype(float) + shift).round().clip(0, 255).astype(np.uint8)
     array[TARGET_TOP : TARGET_TOP + (y1 - y0), x0:x1] = patch
     return Image.fromarray(array, "RGBA")
 
@@ -272,6 +261,8 @@ def finish_run_leg(layer: Image.Image, body: Image.Image | None) -> Image.Image:
 
 
 CARVE = 0.42  # 엉덩이 잇기 타원의 등 아래 사분면에서 (x/rx)²+(y/ry)²가 이보다 크면 깎는다(화면 블록의 등 아래 모서리)
+CARVE_TOP = -0.2  # 이 높이(-1 위 끝 ~ 1 아래 끝)부터 등 쪽 깎기가 시작된다
+CARVE_FULL = 0.5  # 이 높이 아래에서는 [CARVE_BACK]까지 깎는다
 CARVE_BACK = -0.35  # 타원 가로 위치(-1 등 끝 ~ 1 앞 끝)가 이보다 등 쪽이면 깎는다(화면 블록의 곧은 뒷면·뒤 허리 모서리)
 
 
@@ -289,6 +280,9 @@ def carve_hip(layer: Image.Image) -> Image.Image:
     yy, xx = np.mgrid[0:height, 0 : x1 - x0]
     nx = (xx - (x1 - x0 - 1) / 2) / ((x1 - x0) / 2)
     ny = (yy - (height - 1) / 2) / (height / 2)
-    # 맨 위 띠(ny < -0.5)는 남긴다: 등 쪽 위까지 깎으면 상의 밑단과 다리 사이에 배경 삼각형이 뚫렸다
-    region[((nx < CARVE_BACK) & (ny > -0.5)) | ((nx < 0) & (ny > 0) & (nx * nx + ny * ny > CARVE))] = 0
+    # 깎는 경계는 위로 갈수록 등 끝(-1)으로 부드럽게 물러나는 곡선이다: 맨 위까지 깎으면 상의 밑단과 다리 사이에 배경 삼각형이
+    # 뚫렸고, 곧은 세로선으로 깎다 위에서 멈추면 「ㄱ」자 홈이 생겼다(판정 round4)
+    t = np.clip((ny - CARVE_TOP) / (CARVE_FULL - CARVE_TOP), 0, 1)
+    boundary = -1 + (CARVE_BACK + 1) * (1 - (1 - t) ** 2)
+    region[(nx < boundary) | ((nx < 0) & (ny > 0) & (nx * nx + ny * ny > CARVE))] = 0
     return Image.fromarray(array, "RGBA")
