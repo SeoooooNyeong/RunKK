@@ -94,6 +94,10 @@ def check_layer(
     if image.mode != "RGBA":
         problems.append(Problem(2, str(path), f"mode {image.mode} != RGBA"))
         return problems
+    if part == "TOP":
+        from outfit_pipeline.cut import take_marks
+
+        image, _ = take_marks(image)  # 자르기 표지(알파 1)는 옷이 아니라 맨몸을 지우는 표시다(stand_fix.mark_body_cut)
     alpha = image.getchannel("A").point(lambda v: 255 if v else 0)
     allowed = load_mask(masks_dir, template, part)
     uv = load_mask(masks_dir, template)

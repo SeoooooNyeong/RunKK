@@ -128,7 +128,7 @@ def defects(rgb: np.ndarray, key: tuple[int, int, int] = KEY, body_top: int = BO
 def compose_stand(outfits_dir: Path, gender: str, chosen: dict[str, str]) -> Image.Image:
     """앱 합성과 같은 서기 아틀라스(러닝량 0): 맨몸(상의·하의 허리를 옷으로 친 상의 자르기) → 신발 → 하의 → 상의."""
     from outfit_pipeline.check import read_index, resolve
-    from outfit_pipeline.cut import apply
+    from outfit_pipeline.cut import apply, cut_marks, take_marks
 
     index = read_index(outfits_dir)
     entries = {e["assetKey"]: e for e in index["outfits"]}
@@ -148,6 +148,9 @@ def compose_stand(outfits_dir: Path, gender: str, chosen: dict[str, str]) -> Ima
     out = Image.new("RGBA", (spec.SLOTS["stand"].width, spec.SLOTS["stand"].height), (0, 0, 0, 0))
     if body is not None:
         top = layers.get("TOP")
+        marks = None
+        if top is not None:
+            top, marks = take_marks(top)  # 세트별 자르기 표지(앱 TopBodyCut.takeMarks와 같다)
         if top is not None and "BOTTOM" in layers:
             merged = layers["BOTTOM"].copy()
             merged.alpha_composite(top)
@@ -155,6 +158,8 @@ def compose_stand(outfits_dir: Path, gender: str, chosen: dict[str, str]) -> Ima
         area = read(outfits_dir / spec.BODY_FOLDER, f"{gender}_stand_cut", body_shared)
         if top is not None and area is not None:
             body = apply(body, top, area)
+        if marks is not None:
+            body = cut_marks(body, marks)
         out.alpha_composite(body)
     for part in ("SHOES", "BOTTOM", "TOP"):
         if part in layers:

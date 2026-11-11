@@ -77,6 +77,11 @@ def compose(index: dict, gender: str, slot: str, chosen: dict, amount: int) -> I
     body = read(OUTFITS / spec.BODY_FOLDER, f"{gender}_{slot}", body_shared)
     if body is not None:
         top = next((layer for part, layer in layers if part == "TOP"), None)
+        marks = None
+        if top is not None:
+            from outfit_pipeline.cut import cut_marks, take_marks
+
+            top, marks = take_marks(top)  # 세트별 자르기 표지(앱 TopBodyCut.takeMarks와 같다)
         bottom = next((layer for part, layer in layers if part == "BOTTOM"), None)
         if top is not None and bottom is not None:  # 앱과 같이 하의 허리도 옷으로 친다
             merged = bottom.copy()
@@ -85,6 +90,8 @@ def compose(index: dict, gender: str, slot: str, chosen: dict, amount: int) -> I
         area = read(OUTFITS / spec.BODY_FOLDER, f"{gender}_{slot}_cut", body_shared)
         if top is not None and area is not None:
             body = cut(body, top, area)
+        if marks is not None:
+            body = cut_marks(body, marks)
         out.alpha_composite(tone(body, amount))
     for _, layer in layers:
         out.alpha_composite(layer)

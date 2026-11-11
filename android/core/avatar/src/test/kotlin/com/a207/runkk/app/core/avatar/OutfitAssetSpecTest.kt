@@ -72,7 +72,9 @@ class OutfitAssetSpecTest {
         var drawn = 0
         for (y in 0 until image.height) {
             for (x in 0 until image.width) {
-                if (image.getPixel(x, y) ushr 24 == 0) continue
+                val alpha = image.getPixel(x, y) ushr 24
+                // 상의 자르기 표지(알파 1)는 옷이 아니라 맨몸을 지우는 표시다(TopBodyCut.takeMarks, 파이프라인 check.py와 같다)
+                if (alpha == 0 || (bundle.part == OutfitPart.TOP && alpha == TopBodyCut.MARK_ALPHA)) continue
                 drawn++
                 check(on(uv, x, y)) { "4번 UV 밖 ($x, $y) ${file.path} $gender" }
                 check(on(allowed, x, y)) { "3번 금지 영역 ($x, $y) ${file.path} $gender" }
@@ -164,6 +166,12 @@ class OutfitAssetSpecTest {
             val bitmap = read(file)
             val pixels = IntArray(bitmap.width * bitmap.height)
             bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            // 상의 자르기 표지(알파 1)는 옷이 아니다(TopBodyCut.takeMarks, 파이프라인 check.py와 같다)
+            if (catalog.bundle(OutfitPart.TOP, file.parentFile!!.name)?.assetKey ==
+                file.parentFile!!.name
+            ) {
+                TopBodyCut.takeMarks(pixels)
+            }
             // 갈색 실오라기는 맨팔이 옷 가장자리에 닿는 반팔·민소매 상의(base_top 제외)의 서기·달리기 몸통만 본다(파이프라인 body.wisp_layer와 같다)
             val folder = file.parentFile!!.name
             val bundle = catalog.bundle(OutfitPart.TOP, folder)?.takeIf { it.assetKey == folder }
