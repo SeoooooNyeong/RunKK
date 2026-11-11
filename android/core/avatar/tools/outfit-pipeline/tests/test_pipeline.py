@@ -230,3 +230,45 @@ def test_check_reports_exposed_skin(tmp_path: Path) -> None:
     # 붙인 사각형이 옷 가장자리에 좁은 틈을 만들면 16번(구멍)도 함께 나올 수 있다
     rules = {p.rule for p in problems}
     assert 9 in rules and rules <= {9, 16}
+
+
+def test_neck_side_cut_removes_skin_outside_sleeved_tops_only() -> None:
+    """칼라 옆 칸(221·181)은 짝 어깨 띠(220·180)를 상의가 덮을 때만 상의 밖 맨몸을 모두 지운다(판정 round1~3 B: windbreaker 칼라 옆 획).
+    앱 TopBodyCutParityTest의 같은 이름 시험과 같은 입력·기대값."""
+    import numpy as np
+
+    from outfit_pipeline.cut import apply
+
+    width, height = 40, 20
+    labels = np.zeros((height, width), np.uint8)
+    labels[:, 0:20] = 220
+    labels[:, 20:30] = 221
+    area = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    area.putalpha(Image.fromarray(labels))
+
+    def cut(shoulder: tuple[int, int]) -> np.ndarray:
+        body = np.zeros((height, width, 4), np.uint8)
+        body[:, 2:38] = (246, 205, 190, 255)
+        top = np.zeros((height, width, 4), np.uint8)
+        top[:, shoulder[0] : shoulder[1]] = (60, 56, 61, 255)
+        top[:, 26:30] = (60, 56, 61, 255)
+        return np.array(apply(Image.fromarray(body, "RGBA"), Image.fromarray(top, "RGBA"), area))[..., 3]
+
+    sleeved = cut((2, 20))
+    assert (sleeved[5, 20:26] == 0).all() and (sleeved[5, 30:38] == 255).all()
+    assert (cut((2, 6))[5, 20:26] == 255).all()
+
+
+def test_stand_cut_area_marks_neck_sides() -> None:
+    """서기 자르기 칸: 맨 위 목 둘레(NECK_TOP 행) 가운데 목 기둥 밖 양옆이 칼라 옆 칸 값이다."""
+    import numpy as np
+
+    from outfit_pipeline.build import cut_area
+    from outfit_pipeline.cli import RAW
+
+    area = np.array(cut_area(RAW, "stand"))
+    (l0, l1), (r0, r1) = spec.NECK_SIDES
+    assert (area[: spec.NECK_TOP[3], l0:l1] == spec.CUT_LEFT_NECK_SIDE).all()
+    assert (area[: spec.NECK_TOP[3], r0:r1] == spec.CUT_RIGHT_NECK_SIDE).all()
+    assert (area[: spec.NECK_TOP[3], l1:r0] == 0).all()  # 목 기둥은 자르지 않는다
+    assert area[spec.NECK_TOP[3] + 2, l0] == spec.CUT_LEFT_SHOULDER

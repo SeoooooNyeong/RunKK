@@ -17,6 +17,9 @@ TORSO = 255
 FULL_CUT = 240
 LEG_GUARD = 14  # 다리 윗부분으로 지키는 엉덩이 옆 칸 맨 아래 행 수
 HIP = 230  # 엉덩이 옆: 옷이 그 행에 걸친 가로 범위 밖만 지운다
+# 칼라 옆 칸(값 → 짝 어깨 띠 값): 짝 어깨 띠를 상의가 덮을 때(ARM_COVERED 넘게)만, 띠 판정 없이 상의 밖을 모두 지운다(판정 round1~3 B:
+# 칼라 양옆 어깨 윗선이 비스듬한 가는 선이라 띠 판정(상의와 배경이 반대 방향)에 걸리지 않고 짙은 획으로 떴다). 민소매는 그대로
+NECK_SIDES = {221: 220, 181: 180}
 _FAR = 10**6
 
 
@@ -80,11 +83,18 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
     skin = b[..., 3] > 0
     area_on = labels >= 128
     for value in np.unique(labels):
-        if value < 128 or value in (TORSO, FULL_CUT, HIP):
+        if value < 128 or value in (TORSO, FULL_CUT, HIP) or int(value) in NECK_SIDES:
             continue
         band = (labels == value) & skin
         if band.sum() and (band & top_alpha).sum() / band.sum() <= ARM_COVERED:
             area_on &= labels != value
+    neck_sides = np.zeros_like(area_on)
+    for side, shoulder in NECK_SIDES.items():
+        band = (labels == shoulder) & skin
+        if band.sum() and (band & top_alpha).sum() / band.sum() > ARM_COVERED:
+            neck_sides |= labels == side
+        else:
+            area_on &= labels != side
     background = ~skin & ~top_alpha
     steps = RIM_PX + 3
     ty, tx = _nearest(top_alpha, steps)
@@ -111,6 +121,7 @@ def apply(body: Image.Image, top: Image.Image, area: Image.Image) -> Image.Image
         cosine = (vty * vby + vtx * vbx) / (to_top * to_bg)
     rim = candidate & (to_top + to_bg <= RIM_PX + 2) & (cosine < OPPOSITE)
     rim |= skin & (labels == FULL_CUT) & ~inside & ~top_alpha  # 달리기 몸통: 상의 밖은 모두
+    rim |= skin & neck_sides & ~inside & ~top_alpha  # 어깨를 덮는 상의의 칼라 옆: 상의 밖은 모두
     # 엉덩이 옆: 옷이 있는 행의 가로 범위 밖, 그리고 칸 바로 아래 행 다리의 가로 범위 밖(옛 반바지 실루엣 테두리)
     hip = skin & (labels == HIP) & ~inside & ~top_alpha & ~_within_row_span(top_alpha) & top_alpha.any(axis=1)[:, None]
     rim |= hip & ~_leg_span(skin, labels == HIP)

@@ -420,6 +420,11 @@ def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
             x0, y0, x1, y1 = box
             region = array[y0:y1, x0:x1]
             region[region > 0] = value
+        (l0, l1), (r0, r1) = spec.NECK_SIDES
+        for (x0, x1), value in (((l0, l1), spec.CUT_LEFT_NECK_SIDE), ((r0, r1), spec.CUT_RIGHT_NECK_SIDE)):
+            array[: spec.NECK_TOP[3], x0:x1] = (
+                value  # 칼라 옆 칸(어깨를 덮는 상의만 상의 밖을 모두 지운다, 판정 round1~3 B)
+            )
         return Image.fromarray(array, "L")
     area = Image.new("L", (slot.width, slot.height), spec.CUT_ALL if slot_name == "run_body" else spec.CUT_TORSO)
     if slot_name == "run_body":
