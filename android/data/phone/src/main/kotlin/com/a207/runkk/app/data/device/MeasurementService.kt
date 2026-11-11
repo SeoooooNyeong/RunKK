@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 측정 중 앱을 살려 두는 포그라운드 서비스(6.1.14 data.device, 타입 location, C-010, FR-035).
- * 업무 규칙이 없다: FusedLocationProvider 1초 구독을 RunTracker.onLocationSample로, 1초 시계를 RunTracker.tick으로 넘긴다(D-56).
+ * 업무 규칙이 없다: FusedLocationProvider 1초 구독을 RunTracker.onPhoneLocationSample로, 1초 시계를 RunTracker.tick으로 넘긴다(D-56).
  * 위치가 속도를 알려 주면 그 값을, 걸음 센서(StepCadenceSensor, 권한이 있을 때)의 케이던스를 RunTracker.onMotionSample로 넘긴다
  * (S15P31A207-242).
  * 잠금 화면 진행 알림(FR-224, D-259)은 RunTracker.notice를 구독해 같은 알림 ID로 다시 그리고, 표현은 시작할 때 OS 판으로 고른다
@@ -65,6 +65,7 @@ class MeasurementService : LifecycleService() {
 
     private val locations by lazy { LocationServices.getFusedLocationProviderClient(this) }
     private val steps by lazy { StepCadenceSensor(this) }
+    private val inertialMotion by lazy { PhoneInertialMotion(this) }
     private var ticking: Job? = null
     private var publishing: Job? = null
     private val style: ProgressNotificationStyle by lazy {
@@ -77,7 +78,7 @@ class MeasurementService : LifecycleService() {
         object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.locations.forEach { location ->
-                    runTracker.onLocationSample(location.toSample())
+                    runTracker.onPhoneLocationSample(location.toSample())
                     location.toMotion()?.let(runTracker::onMotionSample)
                 }
             }
@@ -109,6 +110,7 @@ class MeasurementService : LifecycleService() {
     override fun onDestroy() {
         locations.removeLocationUpdates(callback)
         steps.stop()
+        inertialMotion.stop()
         ticking?.cancel()
         publishing?.cancel()
         super.onDestroy()
@@ -137,6 +139,7 @@ class MeasurementService : LifecycleService() {
     @SuppressLint("MissingPermission") // onStartCommand가 locationGranted로 먼저 확인한다.
     private fun startMeasuring() {
         if (ticking != null) return
+        if (runTracker.notice.value is ProgressNotice.Free) inertialMotion.start()
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MILLIS).build()
         locations.requestLocationUpdates(request, callback, Looper.getMainLooper())
         // 신체 활동 권한이 없으면 케이던스 없이 측정한다(서버가 비우고 ai가 no_cadence를 붙인다).
@@ -145,6 +148,7 @@ class MeasurementService : LifecycleService() {
             lifecycleScope.launch {
                 while (isActive) {
                     delay(INTERVAL_MILLIS)
+                    inertialMotion.ensureStepsStarted()
                     measurementTick(steps, runTracker::onMotionSample, runTracker::tick, clock.instant())
                 }
             }
@@ -189,7 +193,14 @@ class MeasurementService : LifecycleService() {
     private fun Location.toSample(): LocationSample = LocationSample(
         at = Instant.ofEpochMilli(time),
         point = GeoPoint(latitude, longitude),
-        accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else Double.MAX_VALUE
+        accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else Double.MAX_VALUE,
+        speedMps = if (hasSpeed()) speed.toDouble().takeIf { it.isFinite() && it >= 0 } else null,
+        speedAccuracyMps = if (hasSpeedAccuracy()) {
+            speedAccuracyMetersPerSecond.toDouble().takeIf { it.isFinite() && it >= 0 }
+        } else {
+            null
+        },
+        inertialMotion = this@MeasurementService.inertialMotion.forLocation(elapsedRealtimeNanos)
     )
 
     /** 위치가 잰 속도(m/s). 속도를 모르거나 위치 정확도가 기준(30m)을 넘으면 null(서버가 위치로 셈한다). */
