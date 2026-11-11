@@ -76,7 +76,7 @@ def test_check_rejects_forbidden_pixels_bad_names_and_sizes(tmp_path: Path) -> N
     entry = _entry("base_bottom")
     assert check_bundle(outfits, entry, MASKS) == []
     layer = Image.open(outfits / "base_bottom/female_stand.webp").convert("RGBA")
-    layer.putpixel((256, 100), (255, 0, 0, 255))  # 상의 칸
+    layer.paste((255, 0, 0, 255), (250, 100, 256, 106))  # 상의 칸(부스러기 규칙에 걸리지 않게 6x6)
     spec.save_webp(layer, outfits / "base_bottom/female_stand.webp")
     spec.save_webp(Image.new("RGBA", (100, 100)), outfits / "base_bottom/female_run_leg.webp")
     spec.save_webp(Image.new("RGBA", (256, 768)), outfits / "base_bottom/female_run_arm.webp")
@@ -155,7 +155,8 @@ def test_webp_is_lossless(tmp_path: Path) -> None:
 def test_cut_area_keeps_hands_and_neck() -> None:
     area = cut_area(RAW, "stand")
     assert area.getpixel((256, 150)) == spec.CUT_TORSO  # 몸통
-    assert area.getpixel((120, 60)) == spec.CUT_TORSO  # 어깨
+    assert area.getpixel((120, 60)) == spec.CUT_LEFT_SHOULDER  # 어깨(덮인 몫으로 자르는 띠, 민소매는 맨어깨)
+    assert area.getpixel((400, 60)) == spec.CUT_RIGHT_SHOULDER
     assert area.getpixel((256, 40)) == 0  # 목·가슴 위
     assert area.getpixel((40, 350)) == 0  # 손 칸
     assert area.getpixel((256, 500)) == 0  # 하의 칸

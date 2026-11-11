@@ -14,6 +14,19 @@ import numpy as np
 from PIL import Image, ImageChops, ImageFilter
 
 from outfit_pipeline import spec
+from outfit_pipeline.body import (
+    bare_hips,
+    close_seams,
+    close_side_gaps,
+    drop_gap_fragments,
+    drop_strays,
+    extend_waist,
+    fill_pinholes,
+    smooth_elbow,
+    smooth_sleeve_line,
+    trim_waist,
+    wisp_layer,
+)
 from outfit_pipeline.check import Problem, check_bundle, template_for
 from outfit_pipeline.masks import load_mask
 from outfit_pipeline.skin import strip_skin
@@ -334,6 +347,10 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
         template = template_for(path.name, part, surface)
         slot = spec.SLOTS[spec.TEMPLATES[template].slot]
         layer, _ = strip_skin(clip(to_slot(Image.open(path), slot), load_mask(masks_dir, template, part)))
+        wisps = wisp_layer(asset_key, name)
+        layer, _ = drop_strays(layer, garment=wisps)
+        if part == "BOTTOM":
+            layer = tidy_bottom(layer, target.parent / spec.BODY_FOLDER, wisps, match.group(2) == "stand")
         spec.save_webp(layer, target / f"{name}{spec.EXTENSION}")
         names.append(name)
         if match.group(3):
@@ -352,7 +369,7 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
 
 
 def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
-    """상의 자르기 칸([임시:D-성-156], 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위, 허리 밴드를 뺀 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
+    """상의 자르기 칸([임시:D-성-156], 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위, 허리 밴드를 빼고 엉덩이 옆(손 칸 밖)을 더한 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
     조각을 뺀 전체, 달리기 팔은 전체(소매 끝 아래는 팔 띠)."""
     from outfit_pipeline.masks import stand_zones
 
@@ -363,8 +380,18 @@ def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
         area.paste(0, spec.NECK_CHEST)
         area.paste(0, spec.NECK_TOP)
         area.paste(0, spec.STAND_WAIST)
+        # 엉덩이(하의 칸 위쪽): 하의 밖으로 비치는 맨몸 테두리도 지운다(하의는 옷으로 친다, [임시:D-성-185])
+        hips = Image.new("L", area.size, 0)
+        for box in spec.STAND_HIP_CUTS:
+            hips.paste(spec.CUT_HIP, box)
+        area = ImageChops.lighter(area, ImageChops.subtract(hips, zones["HANDS"]))
         array = np.array(area)
-        for box, value in ((spec.STAND_LEFT_ARM, spec.CUT_LEFT_ARM), (spec.STAND_RIGHT_ARM, spec.CUT_RIGHT_ARM)):
+        for box, value in (
+            (spec.STAND_LEFT_ARM, spec.CUT_LEFT_ARM),
+            (spec.STAND_RIGHT_ARM, spec.CUT_RIGHT_ARM),
+            (spec.STAND_LEFT_SHOULDER, spec.CUT_LEFT_SHOULDER),
+            (spec.STAND_RIGHT_SHOULDER, spec.CUT_RIGHT_SHOULDER),
+        ):
             x0, y0, x1, y1 = box
             region = array[y0:y1, x0:x1]
             region[region > 0] = value
@@ -389,7 +416,9 @@ def build_body(source: Path, outfits_dir: Path, raw_dir: Path) -> dict:
             src = next(
                 p for p in (source / f"{gender}_{slot_name}.png", source / f"{gender}_{slot_name}.webp") if p.is_file()
             )
-            image = to_slot(Image.open(src), spec.SLOTS[slot_name])
+            image, band = clean_body(slot_name, to_slot(Image.open(src), spec.SLOTS[slot_name]))
+            if band is not None and gender == "female":
+                merge_waistband(outfits_dir, band)
             array = np.array(image)
             array[array[..., 3] == 0] = 0
             spec.save_webp(Image.fromarray(array, "RGBA"), folder / f"{gender}_{slot_name}{spec.EXTENSION}")
@@ -434,3 +463,93 @@ def strip_bundles(outfits_dir: Path) -> dict[str, int]:
         if stand.is_file() and any(k.startswith(f"{folder.name}/") for k in removed):
             spec.save_webp(make_shop(Image.open(stand).convert("RGBA")), folder / spec.SHOP_FILE)
     return removed
+
+
+def clean_body(slot_name: str, image: Image.Image) -> tuple[Image.Image, Image.Image | None]:
+    """맨몸 바탕 정리([임시:D-성-184]·[임시:D-성-185], `outfit_pipeline.body`): 부스러기를 지우고, 서기는 소매 밑단 줄을 펴고 허리·엉덩이
+    속옷을 맨몸으로 바꾼다. (맨몸, 서기면 기본 하의로 옮길 허리 밴드 레이어)."""
+    image, _ = drop_strays(image.convert("RGBA"))
+    if slot_name != "stand":
+        return image, None
+    image, band = bare_hips(smooth_sleeve_line(smooth_elbow(image)))
+    image, _ = drop_strays(drop_gap_fragments(image))
+    return fill_pinholes(image), band
+
+
+def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stand: bool = True) -> Image.Image:
+    """하의 레이어 정리([임시:D-성-185]): 세로 틈을 메우고 부스러기를 지우고, 서기면 허리 조각을 지우고 허리를 겹침 띠 위까지 늘린다(맨몸
+    바탕이 있으면). 한 단계가 다른 단계의 결과를 바꿀 수 있어(메운 틈 옆 털, 늘린 허리 옆 조각) 더 바뀌지 않을 때까지(최대 6번) 되풀이한다."""
+    path = body_folder / f"female_stand{spec.EXTENSION}"
+    body = Image.open(path) if stand and path.is_file() else None
+    for _ in range(6):
+        before = np.array(layer.convert("RGBA"))
+        layer, _ = close_seams(layer)
+        layer, _ = drop_strays(layer, garment=wisps)
+        if stand:
+            layer, _ = trim_waist(layer)
+            if body is not None:
+                layer, _ = extend_waist(layer, body)
+                layer, _ = close_side_gaps(layer, body)
+        if np.array_equal(before, np.array(layer)):
+            break
+    return layer
+
+
+def merge_waistband(outfits_dir: Path, band: Image.Image, masks_dir: Path | None = None) -> None:
+    """맨몸에서 뺀 허리 밴드를 기본 하의 서기 레이어 밑에 깐다(기본 의상 모습은 승인 텍스처 그대로). 하의 허용 영역(남녀 템플릿)으로 자른다."""
+    path = outfits_dir / spec.LEGACY_KEYS["BOTTOM"][0] / f"female_stand{spec.EXTENSION}"
+    if not path.is_file():
+        return
+    from outfit_pipeline.cli import MASKS
+
+    masks = masks_dir or MASKS
+    merged = band.copy()
+    merged.alpha_composite(Image.open(path).convert("RGBA"))
+    allowed = ImageChops.multiply(
+        load_mask(masks, "female_stand", "BOTTOM"), load_mask(masks, spec.stand_template("male", 1), "BOTTOM")
+    )
+    layer, _ = drop_strays(clip(merged, allowed))
+    spec.save_webp(layer, path)
+
+
+def clean_assets(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, int]:
+    """이미 만든 자산을 정리한다(`clean-body`): 맨몸 바탕(`clean_body`)과 자르기 칸을 다시 쓰고, 허리 밴드를 기본 하의로 옮기고, 옷
+    레이어의 부스러기와 하의 허리 조각을 지운다(상점 그림도 다시). 파일별 바뀐 픽셀 수."""
+    changed: dict[str, int] = {}
+    folder = outfits_dir / spec.BODY_FOLDER
+    for path in sorted(folder.glob(f"*{spec.EXTENSION}")):
+        name = path.stem
+        if name.endswith("_cut"):
+            slot_name = name.split("_", 1)[1].removesuffix("_cut")
+            area = cut_area(raw_dir, slot_name)
+            mask = Image.new("RGBA", area.size, (0, 0, 0, 0))
+            mask.putalpha(area)
+            spec.save_webp(mask, path)
+            continue
+        slot_name = name.split("_", 1)[1]
+        before = Image.open(path).convert("RGBA")
+        image, band = clean_body(slot_name, before)
+        if band is not None:
+            merge_waistband(outfits_dir, band, masks_dir)
+            changed[f"base_bottom/female_stand{spec.EXTENSION}"] = int(np.array(band)[..., 3].astype(bool).sum())
+        changed[f"{folder.name}/{path.name}"] = int((np.array(image) != np.array(before)).any(axis=2).sum())
+        spec.save_webp(image, path)
+    for bundle in sorted(p for p in outfits_dir.iterdir() if p.is_dir() and p.name != spec.BODY_FOLDER):
+        touched = False
+        for path in sorted(bundle.glob(f"*{spec.EXTENSION}")):
+            if path.name == spec.SHOP_FILE:
+                continue
+            wisps = wisp_layer(bundle.name, path.name)
+            before = np.array(Image.open(path).convert("RGBA"))
+            layer, _ = drop_strays(Image.open(path), garment=wisps)
+            if spec.part_of_key(bundle.name) == "BOTTOM":
+                layer = tidy_bottom(layer, folder, wisps, path.stem.split("_", 1)[1] == "stand")
+            count = int((np.array(layer) != before).any(axis=2).sum())
+            if count:
+                spec.save_webp(layer, path)
+                changed[f"{bundle.name}/{path.name}"] = count
+                touched = True
+        stand = bundle / f"female_stand{spec.EXTENSION}"
+        if stand.is_file() and (touched or bundle.name == spec.LEGACY_KEYS["BOTTOM"][0]):
+            spec.save_webp(make_shop(Image.open(stand).convert("RGBA")), bundle / spec.SHOP_FILE)
+    return changed

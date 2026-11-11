@@ -23,6 +23,8 @@ internal object TopBodyCut {
     private const val ARM_COVERED = 0.6
     private const val TORSO_ALPHA = 255
     private const val FULL_CUT_ALPHA = 240
+    private const val SLIT_NEIGHBORS = 2
+    private const val HIP_ALPHA = 230
 
     /** [skin]·[top]·[area]는 같은 크기의 ARGB 픽셀. [skin]에서 지울 픽셀을 0으로 바꾼다. */
     fun apply(skin: IntArray, top: IntArray, area: IntArray, width: Int, height: Int) {
@@ -33,13 +35,64 @@ internal object TopBodyCut {
         val nearestTop = nearest(isTop, width, height)
         val nearestBackground = nearest(isBackground, width, height)
         val skipped = uncoveredArmBands(skin, top, area)
+        val before = skin.copyOf()
+        val span = rowSpans(isTop, width, height)
+        val leg = legSpan(skin, area, width, height)
         for (i in 0 until size) {
             val band = area[i] ushr 24
             if (skin[i] ushr 24 == 0 || band < CUT_ALPHA || band in skipped || !outside[i]) continue
+            // 엉덩이 옆(230): 옷(상의·하의)이 그 행에 걸친 가로 범위 밖, 그리고 칸 바로 아래 행 다리의 가로 범위 밖만 지운다(옛 반바지
+            // 실루엣 테두리). 하의 밑단 옆 트임 아래와 다리 윗부분은 남긴다
+            if (band == HIP_ALPHA) {
+                val x = i % width
+                val y = i / width
+                val row = span[y]
+                if (row != null && x !in row && (leg == null || x !in leg)) skin[i] = 0
+                continue
+            }
             // 달리기 몸통(240): 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다
             if (band == FULL_CUT_ALPHA || isRim(i, nearestTop[i], nearestBackground[i], width, height)) skin[i] = 0
         }
+        closeSlits(before, skin, width, height)
         dropCrumbs(skin, top, area, outside, nearestTop, skipped, width, height)
+    }
+
+    /**
+     * 띠 판정은 가까운 픽셀을 근사로 찾아 겨드랑이·소매 옆처럼 상의 가장자리와 배경이 비스듬히 만나는 곳에서 한 줄 걸러 지워 빗살을 남겼다.
+     * 메시가 늘면 점선으로 보였다([임시:D-성-184]). 먼저 지운 줄 사이에 낀 1px 맨몸 줄(위·아래 또는 왼쪽·오른쪽이 모두 지운 픽셀)을 지워 넓은
+     * 띠는 고르게 비우고, 그다음 남은 맨몸 사이에 낀 1px 틈 가운데 8방향 이웃에 지운 픽셀이 2개 이하인 것(맨몸 안의 줄 틈)을 되살린다.
+     * 파이프라인 `cut.close_slits`와 같다.
+     */
+    fun closeSlits(before: IntArray, skin: IntArray, width: Int, height: Int) {
+        fun removed(i: Int) = before[i] ushr 24 != 0 && skin[i] ushr 24 == 0
+        fun kept(i: Int) = skin[i] ushr 24 != 0
+        fun sandwiched(i: Int, test: (Int) -> Boolean): Boolean {
+            val x = i % width
+            val y = i / width
+            val vertical = y > 0 && y < height - 1 && test(i - width) && test(i + width)
+            val horizontal = x > 0 && x < width - 1 && test(i - 1) && test(i + 1)
+            return vertical || horizontal
+        }
+        skin.indices.filter { kept(it) && sandwiched(it, ::removed) }.forEach { skin[it] = 0 }
+        val restore = skin.indices.filter { i ->
+            if (!removed(i) || !sandwiched(i, ::kept)) return@filter false
+            val x = i % width
+            val y = i / width
+            var around = 0
+            for (dy in -1..1) {
+                for (dx in -1..1) {
+                    val nx = x + dx
+                    val ny = y + dy
+                    if ((dx != 0 || dy != 0) && nx in 0 until width && ny in 0 until height &&
+                        removed(ny * width + nx)
+                    ) {
+                        around++
+                    }
+                }
+            }
+            around <= SLIT_NEIGHBORS
+        }
+        restore.forEach { skin[it] = before[it] }
     }
 
     /**
@@ -102,7 +155,8 @@ internal object TopBodyCut {
         val size = width * height
         val exposed = BooleanArray(size) { i ->
             val band = area[i] ushr 24
-            skin[i] ushr 24 != 0 && top[i] ushr 24 == 0 && band >= CUT_ALPHA && band !in skipped && outside[i]
+            skin[i] ushr 24 != 0 && top[i] ushr 24 == 0 && band >= CUT_ALPHA && band != HIP_ALPHA && band !in skipped &&
+                outside[i]
         }
         val seen = BooleanArray(size)
         val queue = IntArray(size)
@@ -157,7 +211,11 @@ internal object TopBodyCut {
         for (i in area.indices) {
             val band = area[i] ushr 24
             // 몸통(255)과 모두 지우는 칸(240)은 팔 띠가 아니다(cut.py와 같다)
-            if (band < CUT_ALPHA || band == TORSO_ALPHA || band == FULL_CUT_ALPHA || skin[i] ushr 24 == 0) continue
+            if (band < CUT_ALPHA || band == TORSO_ALPHA || band == FULL_CUT_ALPHA || band == HIP_ALPHA ||
+                skin[i] ushr 24 == 0
+            ) {
+                continue
+            }
             total[band] = (total[band] ?: 0) + 1
             if (top[i] ushr 24 != 0) covered[band] = (covered[band] ?: 0) + 1
         }
@@ -206,6 +264,27 @@ internal object TopBodyCut {
         val dx = a % width - b % width
         val dy = a / width - b / width
         return dx * dx + dy * dy
+    }
+
+    /** 엉덩이 옆 칸 바로 아래 행에서 맨몸(다리)의 맨 왼쪽~맨 오른쪽(칸이나 맨몸이 없으면 null). */
+    private fun legSpan(skin: IntArray, area: IntArray, width: Int, height: Int): IntRange? {
+        val last = (height - 1 downTo 0).firstOrNull { y ->
+            (0 until width).any {
+                area[y * width + it] ushr 24 ==
+                    HIP_ALPHA
+            }
+        }
+        val y = (last ?: return null) + 1
+        if (y >= height) return null
+        val xs = (0 until width).filter { skin[y * width + it] ushr 24 != 0 }
+        return if (xs.isEmpty()) null else xs.first()..xs.last()
+    }
+
+    /** 행마다 옷 픽셀의 맨 왼쪽~맨 오른쪽(없으면 null). */
+    private fun rowSpans(isTop: BooleanArray, width: Int, height: Int): Array<IntRange?> = Array(height) { y ->
+        val row = y * width
+        val first = (0 until width).firstOrNull { isTop[row + it] }
+        first?.let { it..(width - 1 downTo 0).first { x -> isTop[row + x] } }
     }
 
     /** 상의 알파 밖이면서 텍스처 가장자리와 이어진 픽셀(옷으로 둘러싸인 빈 곳은 false). */

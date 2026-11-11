@@ -334,6 +334,111 @@ class OutfitCompositeTest {
     }
 
     @Test
+    fun `모든 상의 × 하의 × 남녀 서기 합성에서 밑단과 허리 사이와 하의 둘레에 맨몸 속옷·짙은 띠가 비치지 않는다`() {
+        val found = mutableListOf<String>()
+        val width = OutfitSlot.STAND.width
+        val (xs, ys) = StrayPixels.HIPS
+        OutfitCatalog.LEGACY_KEYS.getValue(OutfitPart.TOP).indices.forEach { top ->
+            OutfitCatalog.LEGACY_KEYS.getValue(OutfitPart.BOTTOM).indices.forEach { bottom ->
+                AvatarGender.entries.forEach { gender ->
+                    val outfit = AvatarOutfit(top = top, bottom = bottom)
+                    val clothes = decodeLayer(OutfitSlot.STAND, gender, outfit)
+                    val plain = compose(OutfitSlot.STAND, gender, outfit, 0)
+                    val toned = compose(OutfitSlot.STAND, gender, outfit, 100)
+                    var neutral = 0
+                    var dark = 0
+                    for (y in ys) {
+                        for (x in xs) {
+                            if (clothes[y * width + x] ushr 24 != 0) continue
+                            val c = plain.getPixel(x, y)
+                            if (Color.alpha(c) < 128) continue
+                            val channels = listOf(Color.red(c), Color.green(c), Color.blue(c))
+                            // 러닝량 0에서 옷 밖으로 보이는 맨몸의 회색(속옷). 몸 외곽선(밝기 60 미만)은 빼고 센다
+                            if (channels.max() - channels.min() < 25 && luma(c) >= 60) neutral++
+                            // 몸통 열(x 128~383)의 허리 밴드: 러닝량 100 맨몸 피부는 밝기 80 이상, 톤 걸린 속옷 허리 밴드는 40 아래였다
+                            if (x in 128..383 && y < 322 && luma(toned.getPixel(x, y)) < 60) dark++
+                        }
+                    }
+                    plain.recycle()
+                    toned.recycle()
+                    if (neutral + dark > 0) found += "top $top bottom $bottom $gender: 무채색 $neutral, 짙음 $dark"
+                }
+            }
+        }
+        assertEquals(emptyList(), found, "[임시:D-성-185]")
+    }
+
+    @Test
+    fun `하의 7벌 × 남녀 × 서기·달리기 다리에서 하의 안 맨몸 실루엣이 비지 않는다`() {
+        val found = mutableListOf<String>()
+        OutfitCatalog.LEGACY_KEYS.getValue(OutfitPart.BOTTOM).indices.forEach { bottom ->
+            AvatarGender.entries.forEach { gender ->
+                // 서기: 허리·엉덩이 칸(y 296~411)에서 하의가 그 행에 걸친 가로 범위 안. 범위 밖(옛 반바지 실루엣 테두리)은 자르기가 지운다
+                OutfitCatalog.LEGACY_KEYS.getValue(OutfitPart.TOP).indices.forEach { top ->
+                    val outfit = AvatarOutfit(top = top, bottom = bottom)
+                    val holes = uncovered(OutfitSlot.STAND, gender, outfit, 296 until 412, insideBottomSpan = true)
+                    if (holes > 0) found += "stand top $top bottom $bottom $gender: $holes"
+                }
+                // 달리기 다리: 슬롯 전체(자르기가 없다)
+                val outfit = AvatarOutfit(bottom = bottom)
+                val holes = uncovered(OutfitSlot.RUN_LEG, gender, outfit, 0 until OutfitSlot.RUN_LEG.height, false)
+                if (holes > 0) found += "run_leg bottom $bottom $gender: $holes"
+            }
+        }
+        assertEquals(emptyList(), found, "맨몸 실루엣 안인데 아무 레이어도 덮지 않은 픽셀([임시:D-성-185])")
+    }
+
+    /** 맨몸 바탕이 불투명한데 합성 결과가 비는 픽셀 수([rows] 행, [insideBottomSpan]이면 그 행 하의의 맨 왼쪽~맨 오른쪽 사이만). */
+    private fun uncovered(
+        slot: OutfitSlot,
+        gender: AvatarGender,
+        outfit: AvatarOutfit,
+        rows: IntRange,
+        insideBottomSpan: Boolean
+    ): Int {
+        val width = slot.width
+        val body = pixels(OutfitLibrary.read(checkNotNull(catalog.bodyFile(gender, slot)))!!)
+        val bottom = layersOf(slot, gender, outfit).first { it.first == OutfitPart.BOTTOM }.second.let(::pixels)
+        val composed = compose(slot, gender, outfit, 0)
+        var holes = 0
+        for (y in rows) {
+            val span = if (insideBottomSpan) {
+                val xs = (0 until width).filter { bottom[y * width + it] ushr 24 >= 128 }
+                if (xs.isEmpty()) continue
+                xs.first()..xs.last()
+            } else {
+                0 until width
+            }
+            for (x in span) {
+                if (body[y * width + x] ushr 24 >= 128 && Color.alpha(composed.getPixel(x, y)) < 128) holes++
+            }
+        }
+        composed.recycle()
+        return holes
+    }
+
+    @Test
+    fun `민소매 서기 합성의 맨팔에 소매 밑단 가로 줄이 없다`() {
+        val composed = compose(OutfitSlot.STAND, AvatarGender.FEMALE, AvatarOutfit(top = 1), 0)
+        val lines = mutableListOf<String>()
+        // 팔 안쪽(외곽선에서 3px 넘게 떨어진 곳), 소매 높이 y 140~205
+        val columns = (70..125) + (386..441)
+        for (x in columns) {
+            for (y in 140 until 205) {
+                // 외곽선(어두운 선)에서 3px 넘게 떨어진 피부만 본다: 팔꿈치 바깥 윤곽이 지나는 곳은 줄이 아니다
+                fun skin(px: Int, py: Int) = composed.getPixel(px, py).let { Color.alpha(it) >= 250 && luma(it) >= 150 }
+                val inside = (-3..3).all { dy -> (-3..3).all { dx -> skin(x + dx, y + dy) } }
+                val next = (-3..3).all { dx -> skin(x + dx, y + 4) }
+                if (!inside || !next) continue
+                val jump = abs(luma(composed.getPixel(x, y)) - luma(composed.getPixel(x, y + 1)))
+                if (jump > 8) lines += "($x, $y) $jump"
+            }
+        }
+        composed.recycle()
+        assertEquals(emptyList(), lines.take(10), "가로 줄 ${lines.size}([임시:D-성-184])")
+    }
+
+    @Test
     fun `기본 의상 러닝량 0 서기 합성의 팔 가장자리는 승인 기본 텍스처와 알파·색이 같다`() {
         val approved = pixels(approvedBytes(OutfitSlot.STAND))
         val composed = compose(OutfitSlot.STAND, AvatarGender.FEMALE, AvatarOutfit(), 0)
@@ -341,8 +446,8 @@ class OutfitCompositeTest {
         val opaque = BooleanArray(approved.size) { approved[it] ushr 24 >= 128 }
         var edge = 0
         val differs = mutableListOf<String>()
-        // 팔 띠(소매 밑 y 190~300, 바깥 열 x < 140·x > 372)에서 승인 실루엣 경계 2px 안
-        for (y in 190..300) {
+        // 팔 띠(소매 밑 y 190~295, 바깥 열 x < 140·x > 372)에서 승인 실루엣 경계 2px 안. y 296부터는 허리 밴드(기본 하의가 그린다, [임시:D-성-185])
+        for (y in 190..295) {
             for (x in (0 until 140) + (373 until width)) {
                 val i = y * width + x
                 val near = (-2..2).any { dy ->
@@ -402,7 +507,12 @@ class OutfitCompositeTest {
         val composed = compose(slot, gender, AvatarOutfit(), 0)
         val width = legacy.width
         return BooleanArray(width * legacy.height) {
-            near(legacy.getPixel(it % width, it / width), composed.getPixel(it % width, it / width), 6)
+            val a = legacy.getPixel(it % width, it / width)
+            val c = composed.getPixel(it % width, it / width)
+            // 서기 팔의 소매 높이(y 140~205)는 소매 밑단 줄을 펴고 팔꿈치 외곽선을 곧게 이어 승인 색과 조금 다르다([임시:D-성-184]):
+            // 승인 그림에서도 팔(피부·외곽선)이 있던 곳이면 팔이다
+            near(a, c, 6) ||
+                (slot == OutfitSlot.STAND && it / width in 140..205 && Color.alpha(a) >= 128 && Color.alpha(c) >= 250)
         }.also {
             legacy.recycle()
             composed.recycle()
