@@ -42,6 +42,21 @@ def test_committed_run_tops_are_finished(key: str) -> None:
         layer = Image.open(OUTFITS / key / f"female_{slot}{spec.EXTENSION}")
         again = np.array(finish_run_layer(layer, key, "TOP", slot))
         before = np.array(layer.convert("RGBA"))
-        assert np.array_equal(before[..., 3], again[..., 3]), slot
         visible = before[..., 3] > 0
-        assert np.abs(before[visible, :3].astype(int) - again[visible, :3]).max(initial=0) <= 30, slot
+        changed = (before[..., 3] != again[..., 3]) | (
+            visible & (np.abs(before[..., :3].astype(int) - again[..., :3]).max(axis=-1) > 30)
+        )
+        # 다시 돌려도 거의 그대로다(구멍 메우기 뒤 가장자리 몇 픽셀만 다를 수 있다)
+        assert int(changed.sum()) <= visible.sum() // 200, slot
+
+
+def test_fix_masks_are_applied_to_committed_layers() -> None:
+    from outfit_pipeline.run import FIXES
+
+    masks = sorted(FIXES.glob("*__*.png"))
+    assert masks, "손 마스크 파일이 없다"
+    for path in masks:
+        key, stem = path.stem.split("__")
+        mask = np.array(Image.open(path).convert("L")) > 0
+        layer = np.array(Image.open(OUTFITS / key / f"{stem}{spec.EXTENSION}").convert("RGBA"))
+        assert mask.shape == layer.shape[:2] and int(layer[mask, 3].max(initial=0)) == 0, path.name

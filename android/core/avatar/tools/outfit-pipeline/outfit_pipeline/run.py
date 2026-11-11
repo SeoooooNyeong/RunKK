@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 from PIL import Image, ImageFilter
 
@@ -16,6 +18,7 @@ SOLID = 128
 PIECE = 1000
 BACK_KEYS = ("top_winter_hoodie",)
 EDGE_PX = 4
+SHEEN_PX = 14  # 소매 가장자리 밝은 줄을 누르는 띠 폭
 EDGE_INK = 75  # 이보다 어두운 가장자리는 이미 외곽선
 OUTLINE = (66, 46, 40)
 CORD_BOX = {"bottom_jogger_pants": (0, 95, 30, 155)}  # 허리끈 끝(갈색·금속) 칸(x0, y0, x1, y1)
@@ -101,6 +104,55 @@ def clean_cord(layer: Image.Image, key: str) -> Image.Image:
     return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA")
 
 
+def outline_all_edges(layer: Image.Image) -> tuple[Image.Image, int]:
+    """배경(텍스처 밖 포함)과 [EDGE_PX]px 안의 옷 픽셀 가운데 밝기 [EDGE_INK] 이상을 짙은 갈색으로 칠한다(hoodie 달리기 소매: 화면에서
+    등 쪽 실루엣은 소매가 만들고, 그 가장자리가 밝은 줄(소매 얼룩)이라 외곽선이 없어 보였다)."""
+    array = np.array(layer.convert("RGBA")).astype(np.float64)
+    solid = array[..., 3] >= SOLID
+    background = np.pad(~solid, EDGE_PX, constant_values=True)
+    near = _morph(background, ImageFilter.MaxFilter(2 * EDGE_PX + 1))[EDGE_PX:-EDGE_PX, EDGE_PX:-EDGE_PX]
+    edge = solid & near & (array[..., :3].mean(axis=-1) >= EDGE_INK)
+    array[edge, :3] = array[edge, :3] * 0.2 + np.array(OUTLINE) * 0.8
+    # 외곽선 안쪽 띠(가장자리에서 [EDGE_PX]~[SHEEN_PX]px)의 밝은 줄(소매 얼룩)을 천 가운데값 쪽으로 누른다
+    wide = _morph(background, ImageFilter.MaxFilter(2 * SHEEN_PX + 1))[EDGE_PX:-EDGE_PX, EDGE_PX:-EDGE_PX]
+    cloth = solid & ~near
+    median = np.median(array[cloth][:, :3], axis=0) if cloth.any() else None
+    sheen = cloth & wide & (array[..., :3].mean(axis=-1) > (median.mean() + 12 if median is not None else 999))
+    if median is not None:
+        array[sheen, :3] = array[sheen, :3] * 0.4 + median * 0.6
+    return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), int(edge.sum())
+
+
+TOP_STROKE_ROWS = 45  # 달리기 몸통 위 끝(후드 꼭대기)에서 가는 획을 지우는 행
+
+
+def trim_top_strokes(layer: Image.Image) -> tuple[Image.Image, int]:
+    """달리기 몸통 위 [TOP_STROKE_ROWS]행에서 5x5로 열면 사라지는 가는 부분(후드 꼭대기 들쭉날쭉한 끝, 「ㅅ」자 획)을 지운다
+    (판정 round4 hoodie run 목)."""
+    array = np.array(layer.convert("RGBA"))
+    solid = array[..., 3] >= SOLID
+    thick = _morph(solid, ImageFilter.MinFilter(5), ImageFilter.MaxFilter(5), ImageFilter.MaxFilter(3))
+    thin = (array[..., 3] > 0) & ~thick
+    thin[TOP_STROKE_ROWS:] = False
+    array[thin] = 0
+    return Image.fromarray(array, "RGBA"), int(thin.sum())
+
+
+FIXES = Path(__file__).resolve().parent.parent / "templates" / "fixes"
+
+
+def apply_fix_mask(layer: Image.Image, key: str, file_stem: str) -> Image.Image:
+    """손으로 정한 지울 칸(`templates/fixes/<key>__<file_stem>.png`, 흰색 = 지움)을 투명하게 한다. 자동 판별로 외곽선과 가르기 어려운
+    생성 잔상만 둔다(판정 round4: high_top 달리기 신발 끈 옆 검은 계단 그림자). 파일이 없으면 그대로."""
+    path = FIXES / f"{key}__{file_stem}.png"
+    if not path.is_file():
+        return layer
+    mask = np.array(Image.open(path).convert("L")) > 0
+    array = np.array(layer.convert("RGBA"))
+    array[mask] = 0
+    return Image.fromarray(array, "RGBA")
+
+
 def finish_run_layer(layer: Image.Image, key: str, part: str, slot: str, leg: Image.Image | None = None) -> Image.Image:
     """달리기 상의·하의 레이어 마무리(판정 round3): 상의 몸통·팔은 떨어진 조각을 지우고 몸통은 등 외곽선, 하의 다리는 허리끈 끝을 정리한
     뒤 맨몸 다리 외곽선을 다시 입힌다([leg] = 맨몸 달리기 다리, outfit_pipeline.hip.finish_run_leg)."""
@@ -108,6 +160,15 @@ def finish_run_layer(layer: Image.Image, key: str, part: str, slot: str, leg: Im
         layer, _ = drop_loose_pieces(layer)
         if slot == "run_body":
             layer, _ = outline_back(layer, key)
+            if key in BACK_KEYS:
+                layer, _ = drop_loose_pieces(trim_top_strokes(layer)[0])
+        elif key in BACK_KEYS:
+            layer, _ = outline_all_edges(layer)
+    elif part == "SHOES" and slot == "run_shoe":
+        from outfit_pipeline.body import drop_strays
+        from outfit_pipeline.shoes import drop_pieces
+
+        layer = drop_pieces(drop_strays(apply_fix_mask(layer, key, "female_run_shoe"), thin=True)[0])[0]
     elif part == "BOTTOM" and slot == "run_leg" and key in CORD_BOX:
         from outfit_pipeline.hip import finish_run_leg
 
