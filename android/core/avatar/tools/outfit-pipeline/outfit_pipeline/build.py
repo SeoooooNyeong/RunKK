@@ -36,6 +36,7 @@ from outfit_pipeline.check import Problem, check_bundle, hole_area, template_for
 from outfit_pipeline.hip import carve_hip, finish_run_leg, paint_hip, round_hip_corner
 from outfit_pipeline.holes import fill_garment_holes
 from outfit_pipeline.masks import load_mask
+from outfit_pipeline.run import finish_run_layer
 from outfit_pipeline.shoes import drop_ghost, drop_pieces
 from outfit_pipeline.skin import strip_skin
 
@@ -364,6 +365,10 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
             layer = tidy_bottom(layer, target.parent / spec.BODY_FOLDER, wisps, match.group(2) == "stand")
         if part == "SHOES":
             layer, _ = drop_pieces(layer)
+        run_leg = target.parent / spec.BODY_FOLDER / f"female_run_leg{spec.EXTENSION}"
+        layer = finish_run_layer(
+            layer, asset_key, part, match.group(2), Image.open(run_leg) if run_leg.is_file() else None
+        )
         if asset_key in spec.SHOE_GHOST_KEYS:
             # 생성 그림자 잔상(판정 round1 D). 되풀이하면 더 깎이므로 원본에서 만들 때 한 번만 지운다(clean-body에서는 하지 않는다)
             layer, _ = drop_ghost(layer)
@@ -598,6 +603,10 @@ def clean_assets(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str,
                 layer = tidy_bottom(layer, folder, wisps, path.stem.split("_", 1)[1] == "stand")
             if part == "SHOES":
                 layer, _ = drop_pieces(layer)
+            run_leg = folder / f"female_run_leg{spec.EXTENSION}"
+            layer = finish_run_layer(
+                layer, bundle.name, part, path.stem.split("_", 1)[1], Image.open(run_leg) if run_leg.is_file() else None
+            )
             stand_body = folder / f"female_stand{spec.EXTENSION}"
             if part == "TOP" and path.stem.split("_", 1)[1] == "stand" and stand_body.is_file():
                 layer, _ = meet_torso_outline(layer, Image.open(stand_body))

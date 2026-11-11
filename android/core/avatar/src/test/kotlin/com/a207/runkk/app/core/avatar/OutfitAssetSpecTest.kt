@@ -78,7 +78,9 @@ class OutfitAssetSpecTest {
                 check(on(allowed, x, y)) { "3번 금지 영역 ($x, $y) ${file.path} $gender" }
             }
         }
-        assertTrue(drawn >= image.width * image.height / 100, "4번 1% 이상 ${file.path}")
+        // 소매 없는 상의의 달리기 팔은 비어 있다(파이프라인 spec.EMPTY_RUN_ARM_KEYS, 판정 round3)
+        val emptyOk = file.parentFile?.name == "top_lime_singlet" && "run_arm" in file.name
+        assertTrue(emptyOk || drawn >= image.width * image.height / 100, "4번 1% 이상 ${file.path}")
         listOf(image, allowed, uv).forEach(Bitmap::recycle)
     }
 

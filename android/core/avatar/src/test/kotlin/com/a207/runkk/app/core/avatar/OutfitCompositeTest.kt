@@ -80,9 +80,12 @@ class OutfitCompositeTest {
                     OutfitPart.BOTTOM -> AvatarOutfit(bottom = id)
                     OutfitPart.SHOES -> AvatarOutfit(shoes = id)
                 }
-                OutfitSlot.entries.filter { part in it.parts }.forEach { slot ->
-                    assertToneOnlyOnBody(slot, AvatarGender.FEMALE, outfit, "${keys[id]} ${slot.fileName}")
-                }
+                // 소매 없는 상의의 달리기 팔은 비어 있다(파이프라인 spec.EMPTY_RUN_ARM_KEYS, 판정 round3)
+                OutfitSlot.entries.filter { part in it.parts }
+                    .filterNot { keys[id] == "top_lime_singlet" && it == OutfitSlot.RUN_ARM }
+                    .forEach { slot ->
+                        assertToneOnlyOnBody(slot, AvatarGender.FEMALE, outfit, "${keys[id]} ${slot.fileName}")
+                    }
             }
         }
     }

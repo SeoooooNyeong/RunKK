@@ -107,7 +107,8 @@ def check_layer(
     if outside:
         problems.append(Problem(4, str(path), f"alpha outside UV area at {outside}"))
     coverage = sum(alpha.histogram()[1:]) / (slot.width * slot.height)
-    if coverage < spec.MIN_COVERAGE:
+    empty_ok = path.parent.name in spec.EMPTY_RUN_ARM_KEYS and "run_arm" in path.name
+    if coverage < spec.MIN_COVERAGE and not empty_ok:
         problems.append(Problem(4, str(path), f"coverage {coverage:.4f} < {spec.MIN_COVERAGE}"))
     # 9번: 옷 레이어에 드러난 맨살이 없다(피부는 맨몸 바탕에서만 와 러닝량 톤이 걸린다, [임시:D-성-174]).
     skin = count_exposed(image)

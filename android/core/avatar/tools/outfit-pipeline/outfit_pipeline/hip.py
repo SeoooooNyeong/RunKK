@@ -183,18 +183,17 @@ def retarget_rml(text: str) -> str:
 
 LEG_EDGE_PX = 7  # 맨몸 다리 외곽선으로 보는 가장자리 폭
 LEG_DARK = 110
-LONG_ROW = 500  # 천이 넓게(40px 이상) 이 행 아래까지 있으면 긴 하의
 
 
 def outline_leg_edge(layer: Image.Image, body: Image.Image) -> Image.Image:
-    """긴 하의 달리기 다리(판정 round3: wide·jogger 외곽선 없음, leggings 무릎 비침): 다리 메시는 맨몸 다리 실루엣 모양이라 하의가 그보다
+    """하의 달리기 다리(판정 round3: wide·jogger 외곽선 없음, leggings 무릎 비침, cargo 주머니 가장자리 톱니): 다리 메시는 맨몸 다리 실루엣 모양이라 하의가 그보다
     넓은 곳은 화면에 나오지 않고, 실루엣 가장자리에는 하의 천이 나온다(하의 자체 외곽선은 메시 밖이라 안 보였다). 하의가 있는 행(밑단 위)에서
     맨몸 다리 외곽선 픽셀(실루엣 가장자리 [LEG_EDGE_PX]px 안의 짙은 픽셀) 위의 하의 픽셀을 그 외곽선 색으로 바꿔 하의 외곽선으로 쓴다."""
     array = np.array(layer.convert("RGBA"))
     skin = np.array(body.convert("RGBA"))
     garment = array[..., 3] >= 128
     rows = np.nonzero(garment.sum(axis=1) >= 40)[0]
-    if len(rows) == 0 or rows.max() < LONG_ROW:
+    if len(rows) == 0:
         return layer
     solid = skin[..., 3] >= 128
     from PIL import ImageFilter
@@ -209,7 +208,7 @@ def outline_leg_edge(layer: Image.Image, body: Image.Image) -> Image.Image:
 
 
 def finish_run_leg(layer: Image.Image, body: Image.Image | None) -> Image.Image:
-    """달리기 다리 하의 레이어 마무리(판정 round1~3 C): 엉덩이 잇기 칸(등 아래 모서리 깎음), 엉덩이 뒷면 둥근 모서리, 긴 하의는 맨몸 다리
+    """달리기 다리 하의 레이어 마무리(판정 round1~3 C): 엉덩이 잇기 칸(등 아래 모서리 깎음), 엉덩이 뒷면 둥근 모서리, 맨몸 다리
     외곽선."""
     from outfit_pipeline.body import close_seams
 

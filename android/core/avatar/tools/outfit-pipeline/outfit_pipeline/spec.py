@@ -197,3 +197,6 @@ def save_webp(image, path) -> None:
 # 생성 그림의 그림자·배경이 신발 외곽선 밖에 불투명한 잔상 띠로 남은 신발(판정 round1 D, `outfit_pipeline.shoes`). 외곽선이 부드러운
 # 다른 신발에 쓰면 외곽선까지 지워져 확인된 것만 둔다.
 SHOE_GHOST_KEYS = ("shoes_high_top", "shoes_lime_runner")
+
+# 소매가 없어 달리기 팔 레이어가 비어 있는 상의(판정 round3: 딸려 온 맨몸 팔 외곽선 조각을 지우면 비는 게 맞다). 4번 1% 이상에서 뺀다.
+EMPTY_RUN_ARM_KEYS = ("top_lime_singlet",)
