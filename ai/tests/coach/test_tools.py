@@ -136,6 +136,23 @@ async def test_this_calendar_week_counts_runs_from_monday(tools: CoachTools, res
     }
 
 
+async def test_sunday_late_run_is_last_week_just_after_midnight(results: list[SessionResultOut]) -> None:
+    """한국 시각 일요일 23:30 러닝은 월요일 00:10에 물으면 지난주다.
+
+    UTC로는 일요일 14:30·15:10이라 한국 날짜로 바꾸지 않으면 경계가 틀어진다.
+    """
+    repo = InMemoryResultRepository()
+    late = results[1].model_copy(update={"sessionId": "run-sun-late"})
+    late = late.model_copy(update={"summary": late.summary.model_copy(update={"startedAt": kst("2026-10-25 23:30")})})
+    await save(repo, late)
+    monday = kst("2026-10-26 00:10")
+    tools = CoachTools(repo, MonthlyService(repo, clock=lambda: monday), clock=lambda: monday)
+
+    out = await tools.call(USER, "getBaseline", {})
+
+    assert out["thisWeek"] == {"weekStart": "2026-10-26", "runs": 0, "distanceKm": 0}
+
+
 async def test_monthly_weeks_carry_run_counts(tools: CoachTools) -> None:
     out = await tools.call(USER, "getMonthlyResult", None)
 
