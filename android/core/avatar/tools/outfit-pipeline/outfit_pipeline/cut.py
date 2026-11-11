@@ -15,6 +15,7 @@ CRUMB_PX = 80
 ARM_COVERED = 0.6  # 팔 띠는 상의가 그 띠 맨몸을 이만큼 넘게 덮을 때(긴소매)만 자른다
 TORSO = 255
 FULL_CUT = 240
+LEG_GUARD = 14  # 다리 윗부분으로 지키는 엉덩이 옆 칸 맨 아래 행 수
 HIP = 230  # 엉덩이 옆: 옷이 그 행에 걸친 가로 범위 밖만 지운다
 _FAR = 10**6
 
@@ -57,14 +58,15 @@ def _within_row_span(mask: np.ndarray) -> np.ndarray:
 
 
 def _leg_span(skin: np.ndarray, hip: np.ndarray) -> np.ndarray:
-    """엉덩이 옆 칸 바로 아래 행의 맨몸(다리) 맨 왼쪽~맨 오른쪽 열(모든 행에 같은 열 마스크, 없으면 모두 False)."""
+    """엉덩이 옆 칸 맨 아래 [LEG_GUARD]행에서, 칸 바로 아래 행 맨몸(다리)의 맨 왼쪽~맨 오른쪽 열(없으면 모두 False). 그 위 허리·엉덩이 옆 옛
+    실루엣 외곽선은 지킨다고 보지 않는다(앱 TopBodyCut.legSpan)."""
     out = np.zeros_like(skin)
     rows = np.flatnonzero(hip.any(axis=1))
     if not len(rows) or rows[-1] + 1 >= skin.shape[0]:
         return out
     xs = np.flatnonzero(skin[rows[-1] + 1])
     if len(xs):
-        out[:, xs[0] : xs[-1] + 1] = True
+        out[rows[-1] + 1 - LEG_GUARD : rows[-1] + 1, xs[0] : xs[-1] + 1] = True
     return out
 
 

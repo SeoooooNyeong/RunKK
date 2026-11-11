@@ -1,11 +1,13 @@
 package com.a207.runkk.app.core.avatar
 
 /**
- * 시험용 부스러기·속옷 규칙([임시:D-성-184]·[임시:D-성-185], 파이프라인 `outfit_pipeline/body.py`와 같다).
+ * 시험용 부스러기·속옷·외곽선 규칙([임시:D-성-184]·[임시:D-성-185], 파이프라인 `outfit_pipeline/body.py`와 같다).
  *
- * 부스러기 = 알파가 있는데 굵은 실루엣(알파 128 이상을 3x3로 깎았다 넓히고(열기) 다시 1px 넓힌 곳) 밖인 픽셀. 실루엣에서 뻗은 1~2px 털과
- * 떨어진 점·먼지다. riv 메시가 팔과 몸통 사이, 엉덩이 옆을 늘리면 선으로 보였다. 그림 가장자리 너머는 가장자리 픽셀과 같다고 본다(PIL 필터와 같다).
- * 속옷 = 서기 허리·엉덩이 칸(x 100~411, y 296~411) 안의 알파 128 이상 무채색(채널 최대−최소 25 미만) 픽셀.
+ * 부스러기 = 고립 점: 알파가 있는 픽셀을 8방향으로 이은 덩어리 가운데 40픽셀보다 작거나 알파 128 이상이 하나도 없는 것(떨어진 점, 거의 투명한
+ * 먼지). 외곽선에 붙은 픽셀은 몸 덩어리에 이어져 있어 세지 않는다(검수: 외곽선을 깎으면 실기기에서 팔이 울퉁불퉁했다). 옷 레이어는 5x5 굵은
+ * 실루엣 밖 불투명 갈색 실오라기도 센다. 그림 가장자리 너머는 가장자리 픽셀과 같다고 본다(PIL 필터와 같다).
+ * 속옷 = 서기 허리·엉덩이 칸(x 100~411, y 296~411) 안, 그림 밖과 이어진 빈 곳(알파 16 미만)에서 5px 넘게 떨어진 알파 128 이상 픽셀 가운데
+ * 무채색(채널 최대−최소 25 미만)이거나 짙은(밝기 120 미만) 것. 가장자리 5px(맨몸 외곽선)은 원래 그대로라 세지 않는다.
  * 허리 조각 = 하의 서기 레이어의 허리 겹침 띠(y 296~321)에서, 띠 안을 3x3로 연 굵은 픽셀을 4방향으로 이은 덩어리 가운데 하의 본체(y 330 아래까지
  * 이어진 덩어리)에서 1px 넘게 떨어진 알파 픽셀.
  */
@@ -15,22 +17,30 @@ internal object StrayPixels {
     private const val ROOT_ROW = 330
     private const val WISP_DARK = 140
     private const val SEAM = 4
+    private const val DUST_PIECE = 40
+    private const val EMPTY = 16
+    private const val EDGE_PX = 5
+    private const val DARK = 120
     val HIPS = Pair(100 until 412, 296 until 412)
 
-    /** [garment]면 5x5 굵은 실루엣 밖 불투명 갈색 실오라기(R > G + 10, R > B + 20, 밝기 140 미만, 옷 레이어에 남은 맨몸 외곽선 조각)도 센다. */
-    fun count(pixels: IntArray, width: Int, height: Int, garment: Boolean = false): Int {
+    /** 부스러기 수. [thin]이면 3x3 굵은 실루엣 밖 털도, [garment]면 5x5 굵은 실루엣 밖 불투명 갈색 실오라기(R > G + 10, R > B + 20, 밝기 140 미만)도 센다. */
+    fun count(pixels: IntArray, width: Int, height: Int, garment: Boolean = false, thin: Boolean = false): Int {
+        val dust = dust(pixels, width, height)
         val solid = BooleanArray(pixels.size) { pixels[it] ushr 24 >= SOLID }
-        val keep = grow(grow(shrink(solid, width, height), width, height), width, height)
+        // 옷 레이어([thin])는 3x3 굵은 실루엣 밖 1~2px 털도 센다(맨몸은 외곽선을 건드리지 않아 고립 점만)
+        val keep = if (thin) grow(grow(shrink(solid, width, height), width, height), width, height) else null
         val thick = if (garment) {
-            val opened5 = grow(grow(shrink(shrink(solid, width, height), width, height), width, height), width, height)
-            grow(opened5, width, height)
+            grow(
+                grow(grow(shrink(shrink(solid, width, height), width, height), width, height), width, height),
+                width,
+                height
+            )
         } else {
             null
         }
         return pixels.indices.count { i ->
             val p = pixels[i]
-            if (p ushr 24 == 0) return@count false
-            if (!keep[i]) return@count true
+            if (dust[i] || (keep != null && p ushr 24 != 0 && !keep[i])) return@count true
             val r = p shr 16 and 0xFF
             val g = p shr 8 and 0xFF
             val b = p and 0xFF
@@ -38,17 +48,105 @@ internal object StrayPixels {
         }
     }
 
-    fun underwear(pixels: IntArray, width: Int): Int {
+    /** 굵은 맨몸 실루엣 안(알파 128 이상이면서 3x3로 열고 1px 넓힌 곳 안, 파이프라인 body._body_inside와 같다). */
+    fun bodyInside(pixels: IntArray, width: Int, height: Int): BooleanArray {
+        val solid = BooleanArray(pixels.size) { pixels[it] ushr 24 >= SOLID }
+        val keep = grow(grow(shrink(solid, width, height), width, height), width, height)
+        return BooleanArray(pixels.size) { solid[it] && keep[it] }
+    }
+
+    /** 고립 점(8방향 덩어리가 40픽셀보다 작거나 알파 128 이상이 없는 것). */
+    fun dust(pixels: IntArray, width: Int, height: Int): BooleanArray {
+        val out = BooleanArray(pixels.size)
+        val seen = BooleanArray(pixels.size)
+        val queue = IntArray(pixels.size)
+        for (start in pixels.indices) {
+            if (pixels[start] ushr 24 == 0 || seen[start]) continue
+            var head = 0
+            var tail = 0
+            var strongest = 0
+            seen[start] = true
+            queue[tail++] = start
+            while (head < tail) {
+                val i = queue[head++]
+                strongest = maxOf(strongest, pixels[i] ushr 24)
+                val x = i % width
+                val y = i / width
+                for (dy in -1..1) {
+                    for (dx in -1..1) {
+                        val nx = x + dx
+                        val ny = y + dy
+                        if (nx !in 0 until width || ny !in 0 until height) continue
+                        val n = ny * width + nx
+                        if (pixels[n] ushr 24 != 0 && !seen[n]) {
+                            seen[n] = true
+                            queue[tail++] = n
+                        }
+                    }
+                }
+            }
+            if (tail < DUST_PIECE || strongest < SOLID) for (k in 0 until tail) out[queue[k]] = true
+        }
+        return out
+    }
+
+    fun underwear(pixels: IntArray, width: Int, height: Int): Int {
+        val near = nearOutside(pixels, width, height)
         val (xs, ys) = HIPS
         var total = 0
         for (y in ys) {
             for (x in xs) {
-                val p = pixels[y * width + x]
+                val i = y * width + x
+                val p = pixels[i]
                 val channels = listOf(p shr 16 and 0xFF, p shr 8 and 0xFF, p and 0xFF)
-                if (p ushr 24 >= SOLID && channels.max() - channels.min() < NEUTRAL) total++
+                val neutral = channels.max() - channels.min() < NEUTRAL
+                val dark = channels.sum() / 3.0 < DARK
+                if (p ushr 24 >= SOLID && (neutral || dark) && !near[i]) total++
             }
         }
         return total
+    }
+
+    /** [reference](맨몸 외곽선 기준, 정리 전 원본) 가운데 지금 비었거나(알파 128 미만) 밝아진(밝기 140 이상) 픽셀 수. */
+    fun outlineBreaks(pixels: IntArray, reference: BooleanArray): Int = pixels.indices.count { i ->
+        if (!reference[i]) return@count false
+        val p = pixels[i]
+        val mean = ((p shr 16 and 0xFF) + (p shr 8 and 0xFF) + (p and 0xFF)) / 3.0
+        p ushr 24 < SOLID || mean >= 140
+    }
+
+    /** 그림 밖과 이어진 빈 곳(알파 16 미만, 4방향)에서 [EDGE_PX] 안. */
+    private fun nearOutside(pixels: IntArray, width: Int, height: Int): BooleanArray {
+        val empty = BooleanArray(pixels.size) { pixels[it] ushr 24 < EMPTY }
+        val outside = BooleanArray(pixels.size)
+        val queue = IntArray(pixels.size)
+        var tail = 0
+        fun visit(i: Int) {
+            if (empty[i] && !outside[i]) {
+                outside[i] = true
+                queue[tail++] = i
+            }
+        }
+        for (x in 0 until width) {
+            visit(x)
+            visit((height - 1) * width + x)
+        }
+        for (y in 0 until height) {
+            visit(y * width)
+            visit(y * width + width - 1)
+        }
+        var head = 0
+        while (head < tail) {
+            val i = queue[head++]
+            val x = i % width
+            if (x > 0) visit(i - 1)
+            if (x < width - 1) visit(i + 1)
+            if (i >= width) visit(i - width)
+            if (i < (height - 1) * width) visit(i + width)
+        }
+        var near = outside
+        repeat(EDGE_PX) { near = grow(near, width, height) }
+        return near
     }
 
     fun looseWaist(pixels: IntArray, width: Int, height: Int): Int {

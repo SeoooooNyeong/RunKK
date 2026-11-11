@@ -25,6 +25,7 @@ internal object TopBodyCut {
     private const val FULL_CUT_ALPHA = 240
     private const val SLIT_NEIGHBORS = 2
     private const val HIP_ALPHA = 230
+    private const val LEG_GUARD = 14
 
     /** [skin]·[top]·[area]는 같은 크기의 ARGB 픽셀. [skin]에서 지울 픽셀을 0으로 바꾼다. */
     fun apply(skin: IntArray, top: IntArray, area: IntArray, width: Int, height: Int) {
@@ -47,7 +48,8 @@ internal object TopBodyCut {
                 val x = i % width
                 val y = i / width
                 val row = span[y]
-                if (row != null && x !in row && (leg == null || x !in leg)) skin[i] = 0
+                val legTop = leg != null && y >= leg.second && x in leg.first
+                if (row != null && x !in row && !legTop) skin[i] = 0
                 continue
             }
             // 달리기 몸통(240): 맨몸이 보일 곳이 없어(목 조각은 칸 밖) 상의 밖은 모두 지운다
@@ -266,8 +268,11 @@ internal object TopBodyCut {
         return dx * dx + dy * dy
     }
 
-    /** 엉덩이 옆 칸 바로 아래 행에서 맨몸(다리)의 맨 왼쪽~맨 오른쪽(칸이나 맨몸이 없으면 null). */
-    private fun legSpan(skin: IntArray, area: IntArray, width: Int, height: Int): IntRange? {
+    /**
+     * 엉덩이 옆 칸 바로 아래 행에서 맨몸(다리)의 맨 왼쪽~맨 오른쪽과, 그 범위를 지키는 첫 행(칸 맨 아래 [LEG_GUARD]행만: 그 위 허리·엉덩이
+     * 옆 옛 실루엣 외곽선은 지운다. 칸이나 맨몸이 없으면 null).
+     */
+    private fun legSpan(skin: IntArray, area: IntArray, width: Int, height: Int): Pair<IntRange, Int>? {
         val last = (height - 1 downTo 0).firstOrNull { y ->
             (0 until width).any {
                 area[y * width + it] ushr 24 ==
@@ -277,7 +282,7 @@ internal object TopBodyCut {
         val y = (last ?: return null) + 1
         if (y >= height) return null
         val xs = (0 until width).filter { skin[y * width + it] ushr 24 != 0 }
-        return if (xs.isEmpty()) null else xs.first()..xs.last()
+        return if (xs.isEmpty()) null else (xs.first()..xs.last()) to (y - LEG_GUARD)
     }
 
     /** 행마다 옷 픽셀의 맨 왼쪽~맨 오른쪽(없으면 null). */

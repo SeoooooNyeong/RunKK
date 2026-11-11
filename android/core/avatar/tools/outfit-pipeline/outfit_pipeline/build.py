@@ -18,11 +18,12 @@ from outfit_pipeline.body import (
     bare_hips,
     close_seams,
     close_side_gaps,
+    drop_dust,
     drop_gap_fragments,
     drop_strays,
+    elbow_tail_mask,
     extend_waist,
     fill_pinholes,
-    smooth_elbow,
     smooth_sleeve_line,
     trim_waist,
     wisp_layer,
@@ -348,7 +349,7 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
         slot = spec.SLOTS[spec.TEMPLATES[template].slot]
         layer, _ = strip_skin(clip(to_slot(Image.open(path), slot), load_mask(masks_dir, template, part)))
         wisps = wisp_layer(asset_key, name)
-        layer, _ = drop_strays(layer, garment=wisps)
+        layer, _ = drop_strays(layer, garment=wisps, thin=True)
         if part == "BOTTOM":
             layer = tidy_bottom(layer, target.parent / spec.BODY_FOLDER, wisps, match.group(2) == "stand")
         spec.save_webp(layer, target / f"{name}{spec.EXTENSION}")
@@ -468,11 +469,19 @@ def strip_bundles(outfits_dir: Path) -> dict[str, int]:
 def clean_body(slot_name: str, image: Image.Image) -> tuple[Image.Image, Image.Image | None]:
     """맨몸 바탕 정리([임시:D-성-184]·[임시:D-성-185], `outfit_pipeline.body`): 부스러기를 지우고, 서기는 소매 밑단 줄을 펴고 허리·엉덩이
     속옷을 맨몸으로 바꾼다. (맨몸, 서기면 기본 하의로 옮길 허리 밴드 레이어)."""
-    image, _ = drop_strays(image.convert("RGBA"))
+    # 맨몸 외곽선과 그 안티에일리어싱은 승인 원본 그대로 둔다(검수: 외곽선을 다시 그리거나 3x3로 깎으면 실기기에서 팔이 울퉁불퉁했다).
+    # 고립 점만 지우고, 서기는 팔 안쪽 피부의 소매 줄, 팔꿈치 꼬리 조각, 허리·엉덩이 안쪽 속옷, 팔과 몸통 사이 떨어진 조각만 고친다
     if slot_name != "stand":
+        # 달리기 슬롯(옆모습)은 3x3 굵은 실루엣 밖 1~2px 털도 지운다: 남기면 긴소매 소매 끝 옆 손목에서 상의 자르기가 빗살을 남겼다
+        image, _ = drop_strays(image.convert("RGBA"), thin=True)
         return image, None
-    image, band = bare_hips(smooth_sleeve_line(smooth_elbow(image)))
-    image, _ = drop_strays(drop_gap_fragments(image))
+    image, _ = drop_dust(image.convert("RGBA"))
+    from outfit_pipeline.cli import RAW
+
+    array = np.array(smooth_sleeve_line(image, Image.open(RAW / "avatar_legacy_standing_body.png")))
+    array[elbow_tail_mask(array)] = 0
+    image, band = bare_hips(Image.fromarray(array, "RGBA"))
+    image, _ = drop_dust(drop_gap_fragments(image))
     return fill_pinholes(image), band
 
 
@@ -484,7 +493,7 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
     for _ in range(6):
         before = np.array(layer.convert("RGBA"))
         layer, _ = close_seams(layer)
-        layer, _ = drop_strays(layer, garment=wisps)
+        layer, _ = drop_strays(layer, garment=wisps, thin=True)
         if stand:
             layer, _ = trim_waist(layer)
             if body is not None:
@@ -492,6 +501,10 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
                 layer, _ = close_side_gaps(layer, body)
         if np.array_equal(before, np.array(layer)):
             break
+    # 마지막으로 늘린 허리·메운 틈 옆에 남은 점과 조각을 지운다
+    layer, _ = drop_strays(layer, garment=wisps, thin=True)
+    if stand:
+        layer, _ = trim_waist(layer)
     return layer
 
 
@@ -508,7 +521,7 @@ def merge_waistband(outfits_dir: Path, band: Image.Image, masks_dir: Path | None
     allowed = ImageChops.multiply(
         load_mask(masks, "female_stand", "BOTTOM"), load_mask(masks, spec.stand_template("male", 1), "BOTTOM")
     )
-    layer, _ = drop_strays(clip(merged, allowed))
+    layer, _ = drop_strays(clip(merged, allowed), thin=True)
     spec.save_webp(layer, path)
 
 
@@ -541,7 +554,7 @@ def clean_assets(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str,
                 continue
             wisps = wisp_layer(bundle.name, path.name)
             before = np.array(Image.open(path).convert("RGBA"))
-            layer, _ = drop_strays(Image.open(path), garment=wisps)
+            layer, _ = drop_strays(Image.open(path), garment=wisps, thin=True)
             if spec.part_of_key(bundle.name) == "BOTTOM":
                 layer = tidy_bottom(layer, folder, wisps, path.stem.split("_", 1)[1] == "stand")
             count = int((np.array(layer) != before).any(axis=2).sum())

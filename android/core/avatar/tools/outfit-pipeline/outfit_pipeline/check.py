@@ -6,11 +6,14 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageChops
 
 from outfit_pipeline import spec
 from outfit_pipeline.body import (
     count_strays,
+    dust_mask,
+    outline_breaks,
     seam_mask,
     side_gap_mask,
     underwear_mask,
@@ -85,7 +88,7 @@ def check_layer(path: Path, part: str, template: str, masks_dir: Path, wisps: bo
         problems.append(Problem(9, str(path), f"{skin} exposed skin pixel(s) in garment layer"))
     # 10번: 굵은 실루엣 밖 부스러기(실루엣에서 뻗은 털, 떨어진 점)가 없다. 메시가 늘면 선으로 보인다([임시:D-성-184]).
     garment = wisp_layer(path.parent.name, path.name) if wisps is None else wisps
-    strays = count_strays(image, garment=garment)
+    strays = count_strays(image, garment=garment, thin=True)
     if strays:
         problems.append(Problem(10, str(path), f"{strays} stray pixel(s) outside the solid silhouette"))
     # 14번: 하의 레이어에 위·아래가 천인 세로 4px 이하 틈이 없다(밑단 안감 사이로 맨몸이 살색 점선으로 보였다, [임시:D-성-185]).
@@ -216,9 +219,16 @@ def check_body(outfits_dir: Path, shared: dict[str, str] | None = None) -> list[
                 continue
             if name.endswith("_cut"):
                 continue
-            strays = count_strays(image)
-            if strays:
-                problems.append(Problem(10, str(path), f"{strays} stray pixel(s) outside the solid silhouette"))
+            # 맨몸은 외곽선에 붙은 픽셀을 건드리지 않고 고립 점만 본다(검수: 외곽선을 깎으면 팔이 울퉁불퉁했다)
+            dust = int(dust_mask(image).sum())
+            if dust:
+                problems.append(Problem(10, str(path), f"{dust} isolated dust pixel(s) in the body"))
+            reference = spec.outline_reference_path(name)
+            if reference.is_file():
+                breaks = int(outline_breaks(image, np.array(Image.open(reference).convert("L")) > 0).sum())
+                # 17번: 맨몸 외곽선이 승인 원본(정리 전)과 같이 이어진다
+                if breaks:
+                    problems.append(Problem(17, str(path), f"{breaks} body outline pixel(s) broken"))
             # 11번: 서기 맨몸의 허리·엉덩이 칸에 속옷(무채색) 픽셀이 없다. 하의 밖으로 비치고 피부톤이 걸려 짙은 띠가 됐다([임시:D-성-185]).
             if slot_name == "stand" and (under := int(underwear_mask(image).sum())):
                 problems.append(Problem(11, str(path), f"{under} underwear pixel(s) in the waist and hips"))

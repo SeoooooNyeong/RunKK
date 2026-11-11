@@ -12,7 +12,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 의상 자산 규격 검사(OUTFIT_SPEC.md 6절 열네 항목, D-성-114). 파이프라인(tools/outfit-pipeline `check`)과 같은 규칙을 빌드 때 다시 본다.
+ * 의상 자산 규격 검사(OUTFIT_SPEC.md 6절 열일곱 항목, D-성-114). 파이프라인(tools/outfit-pipeline `check`)과 같은 규칙을 빌드 때 다시 본다.
  * 자산은 무손실 WebP이고 남녀 같은 파일은 index.json `shared`로 한 장을 함께 쓴다. 허용 영역 마스크는 파이프라인 `uv-mask`가 riv 메시
  * UV로 만든 templates/masks(H-성-1: riv가 바뀌면 다시 만든다)다.
  */
@@ -167,8 +167,9 @@ class OutfitAssetSpecTest {
             val bundle = catalog.bundle(OutfitPart.TOP, folder)?.takeIf { it.assetKey == folder }
             val garment = bundle != null && bundle.maleTopSurface == 1 && !folder.startsWith("base_") &&
                 Regex("""^(female|male)_(stand|run_body)(_b1|_b2)?\.webp$""").matches(file.name)
-            "${file.parentFile!!.name}/${file.name}" to StrayPixels.count(pixels, bitmap.width, bitmap.height, garment)
-                .also { bitmap.recycle() }
+            "${file.parentFile!!.name}/${file.name}" to
+                StrayPixels.count(pixels, bitmap.width, bitmap.height, garment, thin = folder != OutfitCatalog.BODY)
+                    .also { bitmap.recycle() }
         }.filterValues { it > 0 }
         assertTrue(files.size > 40, "검사한 파일 ${files.size}")
         assertEquals(emptyMap(), found, "부스러기 픽셀(메시가 늘면 선으로 보인다, [임시:D-성-184])")
@@ -180,7 +181,11 @@ class OutfitAssetSpecTest {
             val bitmap = read(File(assets, catalog.bodyFile(gender, OutfitSlot.STAND)!!))
             val pixels = IntArray(bitmap.width * bitmap.height)
             bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
-            assertEquals(0, StrayPixels.underwear(pixels, bitmap.width), "$gender 하의 밖으로 비치는 속옷([임시:D-성-185])")
+            assertEquals(
+                0,
+                StrayPixels.underwear(pixels, bitmap.width, bitmap.height),
+                "$gender 하의 밖으로 비치는 속옷([임시:D-성-185])"
+            )
             bitmap.recycle()
         }
     }
@@ -199,22 +204,27 @@ class OutfitAssetSpecTest {
     @Test
     fun `13 하의 서기 허리는 겹침 띠 위(y 296)까지 맨몸 실루엣을 덮는다`() {
         val body = read(File(assets, catalog.bodyFile(AvatarGender.FEMALE, OutfitSlot.STAND)!!))
+        val bodyPixels = IntArray(body.width * body.height).also {
+            body.getPixels(it, 0, body.width, 0, 0, body.width, body.height)
+        }
+        val inside = StrayPixels.bodyInside(bodyPixels, body.width, body.height)
         val found = bundles.filter { it.part == OutfitPart.BOTTOM }.associate { bundle ->
             val bitmap = read(File(assets, bundle.file(AvatarGender.FEMALE, OutfitSlot.STAND, AvatarBodyShape.BASE)))
             fun solid(x: Int, y: Int) = bitmap.getPixel(x, y) ushr 24 >= 128
-            // 열마다 하의가 시작하는 행(파이프라인 body.waist_starts와 같다): 하의가 5행 이어지는 곳이 y 296~329에 있으면 처음 불투명한
-            // 행, 그런 열 사이 10px 안의 틈(허리 가운데 트인 곳)은 처음 불투명한 행(y 345까지, 없으면 345)
+            // 열마다 하의가 시작하는 행(파이프라인 body.waist_starts와 같다): 하의가 5행 이어지는 곳이 y 296~329에 있으면 거기서 위로 이어진
+            // 천의 첫 행, 그런 열 사이 10px 안의 틈(허리 가운데 트인 곳)은 처음 불투명한 행(y 345까지, 없으면 345)
             val starts = sortedMapOf<Int, Int>()
             for (x in 100 until 412) {
-                if ((296 until 330).any { r -> (r until r + 5).all { solid(x, it) } }) {
-                    starts[x] = (296 until 330).first { solid(x, it) }
-                }
+                var run = (296 until 330).firstOrNull { r -> (r until r + 5).all { solid(x, it) } } ?: continue
+                // 그 5행에서 위로 이어진 천의 첫 행(떨어진 점에서 시작하지 않는다)
+                while (run > 296 && solid(x, run - 1)) run--
+                starts[x] = run
             }
             starts.keys.toList().zipWithNext().filter { (l, r) -> r - l in 2..10 }.forEach { (l, r) ->
                 for (x in l + 1 until r) starts[x] = (296 until 345).firstOrNull { solid(x, it) } ?: 345
             }
             val gap = starts.entries.sumOf { (x, start) ->
-                (296 until start).count { y -> body.getPixel(x, y) ushr 24 >= 128 && !solid(x, y) }
+                (296 until start).count { y -> inside[y * body.width + x] && !solid(x, y) }
             }
             bitmap.recycle()
             bundle.assetKey to gap
@@ -236,6 +246,24 @@ class OutfitAssetSpecTest {
             StrayPixels.seams(pixels, bitmap.width, bitmap.height).also { bitmap.recycle() }
         }.filterValues { it > 0 }
         assertEquals(emptyMap(), found, "밑단 안감 사이 맨몸 점선([임시:D-성-185])")
+    }
+
+    @Test
+    fun `17 맨몸 바탕 외곽선은 정리 전 원본처럼 이어진다`() {
+        // 기준: tools/outfit-pipeline/templates/masks/body_outline_<파일>.png(정리 전 승인 원본의 외곽선에서 고립 점·팔꿈치 꼬리·틈 조각을 뺀 것)
+        val found = listOf("stand", "run_body", "run_arm", "run_leg").associateWith { slot ->
+            val bitmap = read(File(outfits, "${OutfitCatalog.BODY}/female_$slot.webp"))
+            val mask = read(File(masks, "body_outline_female_$slot.png"))
+            val pixels = IntArray(bitmap.width * bitmap.height)
+            bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+            val reference = BooleanArray(pixels.size) { on(mask, it % bitmap.width, it / bitmap.width) }
+            assertTrue(reference.count { it } > 500, "외곽선 기준 $slot")
+            StrayPixels.outlineBreaks(pixels, reference).also {
+                bitmap.recycle()
+                mask.recycle()
+            }
+        }.filterValues { it > 0 }
+        assertEquals(emptyMap(), found, "끊긴 맨몸 외곽선 픽셀(실기기에서 팔이 울퉁불퉁했다)")
     }
 
     private fun slotsOf(part: OutfitPart) = OutfitSlot.entries.filter { part in it.parts }

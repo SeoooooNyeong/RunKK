@@ -114,7 +114,7 @@ RUN_NECK = (100, 0, 200, 40)  # 달리기 몸통의 목 조각
 STAND_HIPS = (100, 296, 412, 412)
 # 상의 자르기 칸의 엉덩이 옆 몫(몸통 값): 하의 밖으로 비치는 맨몸 테두리(옛 반바지 실루엣)를 지운다. 허리 밴드(그 위)·가랑이·허벅지(다리
 # 바깥 픽셀이 상의와 배경 사이 띠로 잘못 잡혀 점점이 비었다)는 뺀다
-STAND_HIP_CUTS = ((100, 322, 150, 412), (362, 322, 412, 412))
+STAND_HIP_CUTS = ((100, 296, 150, 412), (362, 296, 412, 412))
 # 자르기 칸의 팔 띠(알파 값). 상의가 그 팔 띠 맨몸을 60% 넘게 덮을 때(긴소매)만 띠 안을 자른다. 나머지 칸(몸통·어깨)은 255.
 CUT_TORSO, CUT_LEFT_ARM, CUT_RIGHT_ARM = 255, 200, 160
 # 어깨 띠(알파 값): 팔 띠처럼 상의가 그 띠 맨몸을 60% 넘게 덮을 때만 자른다. 민소매는 맨어깨라 자르지 않는다(끈 옆 어깨 테두리를
@@ -129,6 +129,15 @@ CUT_ALL = 240  # 띠 판정 없이 상의 밖을 모두 지우는 칸(달리기 
 STAND_LEFT_ARM = (0, 185, 145, 302)  # 서기 아틀라스 왼팔(가장 긴 반팔 소매 끝 아래, x0, y0, x1, y1)
 STAND_RIGHT_ARM = (367, 185, 512, 302)
 RUN_ARM_FOREARM = (0, 300, 256, 1024)  # 달리기 팔의 기본 반팔 소매 끝(y 약 301) 아래
+
+
+# 맨몸 외곽선 기준(정리 전 승인 원본에서 뽑은 1비트 그림, 검사 17번): templates/masks/body_outline_<맨몸 파일 이름>.png
+def outline_reference_path(name: str):
+    from pathlib import Path
+
+    return Path(__file__).resolve().parents[1] / "templates/masks" / f"body_outline_{name}.png"
+
+
 BODY_FOLDER = "body"  # aapt는 _로 시작하는 assets 폴더를 APK에서 뺀다(<dir>_*). 설계의 _body 대신 body
 
 # 기존 21가지(5.7): 부위별 번호 0..6 → 묶음 폴더. 상의 maleTopSurface는 0·1·2 → 1, 3..6 → 2.
