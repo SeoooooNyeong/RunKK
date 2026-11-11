@@ -23,7 +23,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * 프로필 얼굴 = 아바타 머리(design-oo 05-30 [임시:D-성-180], [임시:D-성-187]): 셀카 얼굴("selfie:…", "head:…")이면 받은 부위 그림을
  * 겹치고, 얼굴 키가 없거나 어느 기본 캐릭터 값("default:*")이든 표시 성별의 기본 머리를 그린다. 동물 그림은 그리지 않는다. 셀카 그림을
- * 받기 전·받지 못했을 때도 기본 머리다.
+ * 받는 중이면 중립 자리(기본 머리를 거치지 않는다, [임시:D-성-190]), 받지 못했거나 깨졌으면 기본 머리다.
  */
 @RunWith(RobolectricTestRunner::class)
 class RunkkAvatarPortraitTest {
@@ -81,9 +81,31 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `셀카 그림을 아직 받지 못했으면 빈 칸 대신 기본 머리다`() {
+    fun `셀카 키이고 그림을 받는 중이면 기본 머리 대신 중립 자리다(임시 D-성-190)`() {
+        show("head:7:job-1", emptyList(), AvatarCharacter.FEMALE, isFaceLoading = true)
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `얼굴 키를 아직 모르는 채 읽는 중이면(프로필 읽기 전) 기본 머리 대신 중립 자리다`() {
+        show(null, emptyList(), AvatarCharacter.MALE, isFaceLoading = true)
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `기본 캐릭터 키면 읽는 중이어도 기다리지 않고 기본 머리다`() {
+        show("default:RABBIT", emptyList(), AvatarCharacter.MALE, isFaceLoading = true)
+        compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `셀카 그림을 받지 못하고 끝났으면(받기 실패) 기본 머리다`() {
         show("selfie:face/1/s1", emptyList(), AvatarCharacter.FEMALE)
         compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test
@@ -93,15 +115,24 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `셀카 머리 얼굴(head)은 받은 층을 겹쳐 그리고, 아직 못 받았으면 기본 머리다`() {
+    fun `셀카 머리 얼굴(head)은 받는 동안 중립 자리이고 기본 머리를 거치지 않고 받은 층으로 바뀐다(임시 D-성-190)`() {
         var layers by mutableStateOf(emptyList<FaceLayer>())
+        var loading by mutableStateOf(true)
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RunkkAvatar("head:12:job-1", AvatarExpression.FACE, Modifier.size(40.dp), layers)
+                RunkkAvatar(
+                    "head:12:job-1",
+                    AvatarExpression.FACE,
+                    Modifier.size(40.dp),
+                    layers,
+                    isFaceLoading = loading
+                )
             }
         }
-        compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertDoesNotExist()
         layers = listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR).map { FaceLayer(it, TINY_PNG) }
+        loading = false
         compose.waitForIdle()
         compose.onNodeWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertExists()
         compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertDoesNotExist()
@@ -143,10 +174,15 @@ class RunkkAvatarPortraitTest {
 
     private fun defaultHeadTag(character: AvatarCharacter): String = runkkAvatarDefaultHeadTag(character)
 
-    private fun show(faceKey: String?, layers: List<FaceLayer>, character: AvatarCharacter) {
+    private fun show(
+        faceKey: String?,
+        layers: List<FaceLayer>,
+        character: AvatarCharacter,
+        isFaceLoading: Boolean = false
+    ) {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RunkkAvatarPortrait(faceKey, layers, Modifier.size(56.dp), character)
+                RunkkAvatarPortrait(faceKey, layers, Modifier.size(56.dp), character, isFaceLoading)
             }
         }
     }

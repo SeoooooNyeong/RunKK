@@ -18,7 +18,8 @@ import com.a207.runkk.app.core.model.FaceLayer
  * 아바타 한 칸(D-254). 아바타 꾸미기(AVATAR_CUSTOMIZE)가 닫혀 있으면 [faceKey]를 무시하고 기본 아바타의 [expression] 그림을 그리고,
  * 열려 있으면 아바타 머리 그림([RunkkAvatarPortrait], [임시:D-성-180])을 쓴다. 홈·마이·결과·랭킹 행·매칭 성공 등이 모두 이 하나를 부른다.
  * 장식이므로 읽기 정보는 부르는 쪽이 붙인다. 기본 그림·기본 머리의 남녀는 [character]다: 내 그림이면 기본값(내 성별), 다른 러너면 그 러너의
- * 표시 성별(`AvatarCharacter.of(shownGender)`, D-327)을 넘긴다.
+ * 표시 성별(`AvatarCharacter.of(shownGender)`, D-327)을 넘긴다. [isFaceLoading]은 열린 배포의 머리 그림이 받는 중 자리를 둘 때 쓴다
+ * ([RunkkAvatarPortrait], [임시:D-성-190]).
  */
 @Composable
 fun RunkkAvatar(
@@ -27,12 +28,13 @@ fun RunkkAvatar(
     modifier: Modifier = Modifier,
     faceLayers: List<FaceLayer> = emptyList(),
     colorFilter: ColorFilter? = null,
-    character: AvatarCharacter = LocalAvatarCharacter.current
+    character: AvatarCharacter = LocalAvatarCharacter.current,
+    isFaceLoading: Boolean = false
 ) {
     if (LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
-        // 아바타 머리([임시:D-성-180]): 셀카 머리면 받은 층, 얼굴 없음·기본 캐릭터 값·셀카 그림을 아직 받지 못함이면 [character]의
-        // 기본 머리를 그린다(빈 칸·동물 그림 없음).
-        RunkkAvatarPortrait(faceKey, faceLayers, modifier, character)
+        // 아바타 머리([임시:D-성-180]): 셀카 머리면 받은 층, 받는 중이면 중립 자리, 얼굴 없음·기본 캐릭터 값·셀카 그림을 받지 못함이면
+        // [character]의 기본 머리를 그린다(동물 그림 없음, [임시:D-성-190]).
+        RunkkAvatarPortrait(faceKey, faceLayers, modifier, character, isFaceLoading)
     } else {
         val isFace = expression == AvatarExpression.FACE
         // 여자 서기·기쁨은 남자와 같은 짧은 체형으로 다시 그렸다(사용자 요청 2026-10-31). 아직 머리가 작고 다리가 긴 점프·달리기

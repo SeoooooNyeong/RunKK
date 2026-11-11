@@ -24,6 +24,9 @@ internal object GeneratedAvatarLayers {
     private const val EYE_ALPHA = 48
     private const val BACKED_ALPHA = 230
     private const val SKIN_RED_OVER_BLUE = 20
+
+    /** 볼 레이어 띠 높이(턱 위). */
+    private const val BAND = 145f
     private val filter get() = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
 
     fun prepare(input: GeneratedHeadInput): GeneratedHeadLayers {
@@ -65,7 +68,10 @@ internal object GeneratedAvatarLayers {
             val variants = AvatarGender.entries.associateWith { gender ->
                 val frontTarget = HeadTarget.front(gender)
                 val sideTarget = HeadTarget.side(gender)
-                val front = HeadPlacement.fit(centerX, chin, crown, frontTarget).matrix()
+                val frontPlacement = HeadPlacement.fit(centerX, chin, crown, frontTarget)
+                val front = frontPlacement.matrix()
+                // 볼 레이어는 눈 아래부터 넓힌다(눈이 턱 가까이 있는 셀카에서 눈을 덮지 않게, [임시:D-성-192]).
+                val eyeBottom = frontPlacement.mapY(eyeRects.maxOf { it.bottom }.toFloat())
                 val side = HeadPlacement.fit(sideCenterX, sideChin, sideCrown, sideTarget).matrix()
                 val normalizedFace = transform(backed, front).also(bitmaps::add)
                 val sideSkin = transform(shortenedSide, side).also(bitmaps::add)
@@ -84,7 +90,7 @@ internal object GeneratedAvatarLayers {
                             transformed(sideHair, side)
                         ),
                         frontFullness = (1..2).associateWith {
-                            fullness(normalizedFace, frontTarget.centerX, frontTarget.chinY, it)
+                            fullness(normalizedFace, frontTarget.centerX, frontTarget.chinY, it, top = eyeBottom)
                         },
                         sideFullness = (1..2).associateWith {
                             fullness(sideSkin, sideTarget.centerX, sideTarget.chinY, it)
@@ -339,12 +345,16 @@ internal object GeneratedAvatarLayers {
         }
     }
 
-    /** 체형 [stage]의 볼 레이어: 턱 위 145px 띠를 턱 중심 기준으로 가로 3.5%씩 넓힌다. */
-    private fun fullness(face: Bitmap, centerX: Float, chin: Float, stage: Int): ByteArray {
+    /**
+     * 체형 [stage]의 볼 레이어: 턱 위 145px 띠를 턱 중심 기준으로 가로 3.5%씩 넓힌다. 띠 위 끝은 [top](정면은 눈 아래 끝)보다 위로 가지
+     * 않는다. 볼 레이어는 눈 위에 그려지므로 눈을 덮으면 눈 없는 얼굴(쌍꺼풀 선만)이 보여 눈이 감긴 선처럼 보였다([임시:D-성-192]).
+     * 내장 머리의 볼 레이어도 눈 아래 끝에서 시작한다.
+     */
+    private fun fullness(face: Bitmap, centerX: Float, chin: Float, stage: Int, top: Float = 0f): ByteArray {
         val bitmap = Bitmap.createBitmap(SIZE, SIZE, Bitmap.Config.ARGB_8888)
         try {
             val canvas = Canvas(bitmap)
-            canvas.clipRect(0f, chin - 145f, SIZE.toFloat(), chin)
+            canvas.clipRect(0f, maxOf(chin - BAND, top), SIZE.toFloat(), chin)
             canvas.scale(1 + stage * .035f, 1f, centerX, chin)
             canvas.drawBitmap(face, 0f, 0f, filter)
             return AvatarImages.encode(bitmap)

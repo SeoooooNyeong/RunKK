@@ -149,8 +149,14 @@ class AvatarSetupViewModel internal constructor(
         }
     }
 
-    /** 화면이 보인다(ON_START). 보이는 동안 결과는 알림 대신 화면으로 알린다. */
-    fun onScreenVisible() = presence.opened()
+    /**
+     * 화면이 보인다(ON_START, 앱이 다시 앞으로 온 때 포함). 보이는 동안 결과는 알림 대신 화면으로 알린다. 남은 작업을 워커와 따로 한 번
+     * 직접 확인한다(워커가 네트워크 제약으로 돌지 못해도 끝난 결과를 받는다, [임시:D-성-188]).
+     */
+    fun onScreenVisible() {
+        presence.opened()
+        viewModelScope.launch { follower.checkNow() }
+    }
 
     /** 화면이 안 보인다(ON_STOP). */
     fun onScreenHidden() = presence.closed()

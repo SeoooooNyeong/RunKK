@@ -44,10 +44,14 @@ internal val VISIBLE_ITEM_SLOTS: List<ItemSlot> = listOf(ItemSlot.TOP, ItemSlot.
 internal val ItemSlot.decorateLabelRes: Int
     get() = if (this == ItemSlot.HAT) R.string.avatar_slot_accessory else labelRes
 
-/** 서버 체형 4단계를 화면·렌더러 3단계(0 기본, 1 변화 1, 2 변화 2)로(서버 BodyShape.variant와 같다). 모르면 0. */
+/**
+ * 서버 체형 4단계를 화면·렌더러 3단계(0 기본, 1 변화 1, 2 변화 2)로 옮긴다. 서버 BodyShape.variant와 같다([임시:D-성-179]: 4단계가 기본
+ * 몸, 2·3단계가 조금 통통, 1단계가 가장 통통). 모르면 0. 앞 판은 4단계를 2(가장 통통)로 뒤집어 옮겨, 상점·꾸미기 무대가 홈(내 러너
+ * bodyVariant)과 다른 체형으로 그리며 셀카 눈 위에 볼 레이어를 얹었다([임시:D-성-191]).
+ */
 internal fun bodyVariantOf(bodyShape: String): Int = when (bodyStage(bodyShape)) {
+    1 -> 2
     2, 3 -> 1
-    4 -> 2
     else -> 0
 }
 

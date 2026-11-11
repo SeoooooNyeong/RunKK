@@ -67,7 +67,9 @@ class MyAvatarStore internal constructor(
     /** 로그아웃 뒷정리(보낸 사진 지움, 리뷰 R2-11). */
     private val onLoggedOut: suspend () -> Unit = {},
     /** 기기에 남은 셀카 작업 따라가기 잇기(리뷰 R2-3, [임시:D-성-163]). */
-    private val resumeSelfie: suspend () -> Unit = {}
+    private val resumeSelfie: suspend () -> Unit = {},
+    /** 기기에 남은 셀카 작업을 앞 화면에서 한 번 직접 확인([임시:D-성-188]). */
+    private val checkPending: suspend () -> Unit = {}
 ) {
     @Inject
     constructor(
@@ -97,7 +99,8 @@ class MyAvatarStore internal constructor(
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + LOG_FAILURE),
         loggedIn = sessions.loggedIn,
         onLoggedOut = { photo.clear() },
-        resumeSelfie = { avatars.pendingSelfieJobId()?.let(follower::resume) }
+        resumeSelfie = { avatars.pendingSelfieJobId()?.let(follower::resume) },
+        checkPending = { follower.checkNow() }
     )
 
     /** 셀카 작업 진행(홈 칸의 진행 배지가 듣는다, 피그마 AV-7 4). */
@@ -154,6 +157,15 @@ class MyAvatarStore internal constructor(
                 .catch { /* 진행을 못 들어도 칸은 그대로 둔다(리뷰 R2-8). */ }
                 .collect { refresh() }
         }
+    }
+
+    /**
+     * 홈 칸이 보일 때(앱이 다시 앞으로 온 때 포함): 기기에 남은 셀카 작업을 워커와 따로 한 번 직접 확인한다([임시:D-성-188]). 워커가
+     * 네트워크 제약(인터넷 확인된 연결)을 못 채워 돌지 않아도 끝난 작업의 「얼굴 만드는 중」이 남지 않는다. 로그아웃 상태면 묻지 않는다.
+     */
+    fun checkSelfie() {
+        if (!loggedIn.value) return
+        scope.launch { quietly { checkPending() } }
     }
 
     /**

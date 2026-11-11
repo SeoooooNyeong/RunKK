@@ -25,6 +25,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 
 /**
@@ -177,6 +180,70 @@ class SelfieJobPollerTest {
         assertEquals(ListenableWorker.Result.failure(), SelfieJobWorker.afterException(runAttemptCount = 2))
     }
 
+    @Test
+    fun `앞 화면 직접 확인 - 끝난 작업이면 기다리지 않고 결과를 받아 적용한다(임시 D-성-188)`() = runTest {
+        store.save("job-1", clock.now)
+        hub.sync()
+        repo.jobs += job(SelfieJob.Status.SUCCEEDED)
+
+        poller().checkNow()
+
+        assertTrue(waits.isEmpty(), "간격을 기다리지 않고 한 번 조회한다")
+        assertEquals(1, repo.finishes)
+        assertNull(store.load())
+        assertNull(photo.saved)
+        assertEquals(listOf("job-1" to true), notices)
+    }
+
+    @Test
+    fun `앞 화면 직접 확인 - 실패로 끝났으면 실패를 남기고 만드는 중이면 그대로 둔다`() = runTest {
+        store.save("job-1", clock.now)
+        repo.jobs += job(SelfieJob.Status.FAILED, "NO_FACE_DETECTED")
+        poller().checkNow()
+        assertEquals(SelfieFailure("job-1", "NO_FACE_DETECTED"), store.failure())
+        assertEquals(listOf("job-1" to false), notices)
+
+        store.save("job-2", clock.now)
+        repo.jobs += SelfieJob("job-2", SelfieJob.Status.RUNNING)
+        poller().checkNow()
+        assertEquals("job-2", store.load())
+        assertEquals(1, notices.size)
+    }
+
+    @Test
+    fun `앞 화면 직접 확인 - 기기에 남긴 작업이 없으면 묻지 않고 연결 실패는 실패로 남기지 않는다`() = runTest {
+        poller().checkNow()
+        assertEquals(0, repo.checks)
+
+        store.save("job-1", clock.now)
+        repo.failures += AppError.Network
+        poller().checkNow()
+        assertEquals("job-1", store.load())
+        assertNull(store.failure())
+        assertTrue(notices.isEmpty())
+    }
+
+    @Test
+    fun `워커 조회와 앞 화면 확인이 겹쳐도 결과는 한 번만 받고 한 번만 알린다`() = runTest {
+        store.save("job-1", clock.now)
+        repo.forever = job(SelfieJob.Status.SUCCEEDED)
+        val gate = CompletableDeferred<Unit>()
+        repo.finishGate = gate
+        val poller = poller()
+
+        val worker = launch { poller.poll("job-1") }
+        runCurrent()
+        val foreground = launch { poller.checkNow() }
+        runCurrent()
+        gate.complete(Unit)
+        worker.join()
+        foreground.join()
+
+        assertEquals(1, repo.finishes)
+        assertEquals(listOf("job-1" to true), notices)
+        assertNull(store.failure())
+    }
+
     private fun job(status: SelfieJob.Status, code: String? = null) = SelfieJob("job-1", status, code)
 }
 
@@ -244,6 +311,7 @@ private class ScriptedAvatars(private val store: PendingSelfieStore) : AvatarRep
     var finishes = 0
     var seenAt: Long? = null
     var onCheck: () -> Unit = {}
+    var finishGate: CompletableDeferred<Unit>? = null
 
     override suspend fun selfieJob(jobId: String): Outcome<SelfieJob> {
         checks++
@@ -277,6 +345,7 @@ private class ScriptedAvatars(private val store: PendingSelfieStore) : AvatarRep
 
     override suspend fun finishSelfie(jobId: String): Outcome<Avatar> {
         finishes++
+        finishGate?.await()
         store.clear()
         return Outcome.Success(Avatar("head:7:$jobId", null, "STAGE1", "DAYTIME", emptyMap(), 0, false, emptyMap()))
     }
