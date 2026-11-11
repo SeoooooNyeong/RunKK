@@ -144,7 +144,7 @@ FIXES = Path(__file__).resolve().parent.parent / "templates" / "fixes"
 def apply_fix_mask(layer: Image.Image, key: str, file_stem: str) -> Image.Image:
     """손으로 정한 지울 칸(`templates/fixes/<key>__<file_stem>.png`, 흰색 = 지움)을 투명하게 한다. 자동 판별로 외곽선과 가르기 어려운
     생성 잔상만 둔다(판정 round4: high_top 달리기 신발 끈 옆 검은 계단 그림자, round5: hoodie 달리기 몸통 후드
-    꼭대기 날개가 목 옆에 「ㅅ」자 뿔로 솟았다). 파일이 없으면 그대로."""
+    꼭대기 날개가 목 옆에 「ㅅ」자 뿔로 솟았다, round6: slip_on 달리기 신발 뒤꿈치 검은 덩어리). 파일이 없으면 그대로."""
     path = FIXES / f"{key}__{file_stem}.png"
     if not path.is_file():
         return layer
