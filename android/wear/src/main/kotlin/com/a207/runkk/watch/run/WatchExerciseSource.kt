@@ -199,11 +199,13 @@ class WatchExerciseSource internal constructor(
         }
 
         fun onMetrics(container: DataPointContainer) {
-            container.getData(DataType.LOCATION).forEach { point ->
+            val boot = bootInstant
+            // 화면이 꺼져 위치가 묶여 와도 필터에는 측정 시각순으로 넘긴다.
+            container.getData(DataType.LOCATION).sortedBy { it.getTimeInstant(boot) }.forEach { point ->
                 val accuracy = (point.accuracy as? LocationAccuracy)?.horizontalPositionErrorMeters ?: Double.MAX_VALUE
                 val location = point.value
                 val geo = runCatching { GeoPoint(location.latitude, location.longitude) }.getOrNull() ?: return@forEach
-                locationSamples.tryEmit(LocationSample(point.getTimeInstant(bootInstant), geo, accuracy))
+                locationSamples.tryEmit(LocationSample(point.getTimeInstant(boot), geo, accuracy))
             }
             container.getData(DataType.HEART_RATE_BPM).forEach { point ->
                 val status = (point.accuracy as? HeartRateAccuracy)?.sensorStatus
