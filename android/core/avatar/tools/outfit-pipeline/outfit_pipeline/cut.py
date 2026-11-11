@@ -20,7 +20,25 @@ HIP = 230  # 엉덩이 옆: 옷이 그 행에 걸친 가로 범위 밖만 지운
 # 칼라 옆 칸(값 → 짝 어깨 띠 값): 짝 어깨 띠를 상의가 덮을 때(ARM_COVERED 넘게)만, 띠 판정 없이 상의 밖을 모두 지운다(판정 round1~3 B:
 # 칼라 양옆 어깨 윗선이 비스듬한 가는 선이라 띠 판정(상의와 배경이 반대 방향)에 걸리지 않고 짙은 획으로 떴다). 민소매는 그대로
 NECK_SIDES = {221: 220, 181: 180}
+# 자르기 표지: 상의 레이어의 알파가 정확히 이 값인 픽셀은 옷이 아니라 「이 자리 맨몸을 지운다」는 세트별 표시다(판정 round6: lime_singlet
+# 밑단 옆 짙은 획). 상의 서기 레이어의 옷 픽셀 알파는 8 이상이라 겹치지 않는다. 앱 `TopBodyCut.MARK_ALPHA`와 같다
+MARK_ALPHA = 1
 _FAR = 10**6
+
+
+def take_marks(top: Image.Image) -> tuple[Image.Image, np.ndarray]:
+    """[top]에서 자르기 표지(알파 [MARK_ALPHA]) 픽셀을 떼어 낸다. (표지를 투명으로 바꾼 상의, 표지 칸). 앱 `TopBodyCut.takeMarks`와 같다."""
+    array = np.array(top.convert("RGBA"))
+    marks = array[..., 3] == MARK_ALPHA
+    array[marks] = 0
+    return Image.fromarray(array, "RGBA"), marks
+
+
+def cut_marks(body: Image.Image, marks: np.ndarray) -> Image.Image:
+    """[marks] 칸의 맨몸을 지운다(투명). 앱 `TopBodyCut.cutMarks`와 같다."""
+    array = np.array(body.convert("RGBA"))
+    array[marks] = 0
+    return Image.fromarray(array, "RGBA")
 
 
 def _nearest(source: np.ndarray, steps: int) -> tuple[np.ndarray, np.ndarray]:

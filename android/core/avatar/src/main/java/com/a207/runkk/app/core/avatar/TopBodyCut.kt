@@ -34,6 +34,24 @@ internal object TopBodyCut {
      */
     private val NECK_SIDES = mapOf(221 to 220, 181 to 180)
 
+    /**
+     * 자르기 표지 알파. 상의 레이어에서 알파가 정확히 이 값인 픽셀은 옷이 아니라 「이 상의를 입으면 이 자리 맨몸을 지운다」는 세트별 표시다
+     * (판정 round6: lime_singlet 밑단 양옆 짙은 획, 파이프라인 `stand_fix.mark_body_cut`). 상의 레이어의 옷 픽셀 알파는 8 이상이다. cut.py와 같다.
+     */
+    const val MARK_ALPHA = 1
+
+    /** [top]에서 자르기 표지 픽셀을 떼어 내(투명으로) 그 칸을 돌려준다. cut.py `take_marks`와 같다. */
+    fun takeMarks(top: IntArray): BooleanArray {
+        val marks = BooleanArray(top.size) { top[it] ushr 24 == MARK_ALPHA }
+        for (i in top.indices) if (marks[i]) top[i] = 0
+        return marks
+    }
+
+    /** [marks] 칸의 맨몸을 지운다. cut.py `cut_marks`와 같다. */
+    fun cutMarks(skin: IntArray, marks: BooleanArray) {
+        for (i in skin.indices) if (marks[i]) skin[i] = 0
+    }
+
     /** [skin]·[top]·[area]는 같은 크기의 ARGB 픽셀. [skin]에서 지울 픽셀을 0으로 바꾼다. */
     fun apply(skin: IntArray, top: IntArray, area: IntArray, width: Int, height: Int) {
         val size = width * height

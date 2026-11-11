@@ -6,6 +6,8 @@
    밑단 아래 맨살을 덮는다([close_side_skin]).
 4. 신발 서기 레이어의 외곽선 밖 회색 띠를 지운다(`feet.drop_halo`). 맨몸 서기 아틀라스의 맨발 칸은 비운다([clear_bare_feet]):
    신발이 늘 덮으므로 신발마다 제 외곽선이 실루엣이다(맨발을 신발로 덮던 `feet.cover_feet`는 쓰지 않는다).
+5. 세트별 맨몸 자르기 표지(상의 레이어 알파 1)를 `templates/marks/`대로 찍는다([mark_body_cut], 판정 round6 singlet 밑단 옆 획). 다른 단계가
+   표지를 옷으로 보지 않게 처음에 떼고 끝에 다시 찍는다.
 2·4 뒤에 새로 갇힌 좁은 틈은 검사 16번 규칙으로 메운다(`build.fill_layer_holes`).
 바뀐 묶음은 상점 그림도 다시 만든다.
 """
@@ -84,6 +86,8 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
         spec.save_webp(cleared, body_path)
         changed[f"{spec.BODY_FOLDER}/{body_path.name}"] = count
         body = cleared
+    # 자르기 표지(알파 1)는 다른 단계가 옷으로 보지 않게 먼저 떼고, 끝에 다시 찍는다([mark_body_cut])
+    marked = strip_marks(outfits_dir)
     short = [k for k in spec.LEGACY_KEYS["TOP"] if spec.default_male_top_surface(k) == 1]
     jobs = (
         [(key, line_collar) for key in COLLAR_KEYS]
@@ -125,7 +129,72 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
                 touched = True
         if not touched:
             break
+    put_marks(outfits_dir, body, marked, changed)
     return changed
+
+
+MARKS = Path(__file__).resolve().parent.parent / "templates" / "marks"
+
+
+def mark_body_cut(layer: Image.Image, body: Image.Image, key: str, file_stem: str) -> tuple[Image.Image, int]:
+    """세트별 맨몸 자르기 표지를 찍는다(판정 round6: lime_singlet 4칸 밑단 양옆 짧은 짙은 획). 표지 칸은
+    `templates/marks/<key>__<file_stem>.png`(흰색)이고, 상의가 없고 맨몸이 있는 칸에만 알파 [cut.MARK_ALPHA]의 검은 픽셀을 둔다. 앱
+    `TopBodyCut.takeMarks`·`cutMarks`가 그 자리 맨몸을 지운다(그 상의를 입을 때만). 원인: 맨몸 아틀라스 x 103~125·386~411, y 248~300의
+    팔·몸통 외곽선 띠는 메시 이음매(여자 Regional·Smooth, 남자 메시마다 u가 다르다) 몸통 쪽 삼각형이 싱글렛 옆선 밖에 그려 밑단 옆 짧은
+    획이 됐다. 표지 칸 = 그 띠 가운데 이음매 몸통 쪽 짙은 픽셀 중 4칸(여자·남자 × 체형 0·100) 렌더에 보이는 것. 표지가 없는 상의는
+    그대로다. 기존 표지는 지우고 다시 찍는다. (레이어, 표지 수)."""
+    from outfit_pipeline.cut import MARK_ALPHA
+
+    array = np.array(layer.convert("RGBA"))
+    array[array[..., 3] == MARK_ALPHA] = 0
+    path = MARKS / f"{key}__{file_stem}.png"
+    if not path.is_file():
+        return Image.fromarray(array, "RGBA"), 0
+    mask = np.array(Image.open(path).convert("L")) > 0
+    put = mask & (array[..., 3] == 0) & (np.array(body.convert("RGBA"))[..., 3] > 0)
+    array[put] = (0, 0, 0, MARK_ALPHA)
+    return Image.fromarray(array, "RGBA"), int(put.sum())
+
+
+def strip_marks(outfits_dir: Path) -> dict[str, np.ndarray]:
+    """상의 서기 레이어에서 자르기 표지를 떼어 저장한다. 표지가 있던 레이어의 원래 픽셀(키 → 배열)."""
+    from outfit_pipeline.cut import take_marks
+
+    marked: dict[str, np.ndarray] = {}
+    for key in spec.LEGACY_KEYS["TOP"]:
+        path = outfits_dir / key / f"female_stand{spec.EXTENSION}"
+        if not path.is_file():
+            continue
+        layer = Image.open(path).convert("RGBA")
+        stripped, marks = take_marks(layer)
+        if marks.any():
+            marked[key] = np.array(layer)
+            spec.save_webp(stripped, path)
+    return marked
+
+
+def put_marks(outfits_dir: Path, body: Image.Image, marked: dict[str, np.ndarray], changed: dict[str, int]) -> None:
+    """[mark_body_cut]을 상의 서기 레이어마다 건다. 바뀐 픽셀 수는 처음(표지를 떼기 전) 레이어와 견준다."""
+    for key in spec.LEGACY_KEYS["TOP"]:
+        path = outfits_dir / key / f"female_stand{spec.EXTENSION}"
+        if not path.is_file():
+            continue
+        layer = Image.open(path).convert("RGBA")
+        out, count = mark_body_cut(layer, body, key, path.stem)
+        final = np.array(out)
+        if count or key in marked:
+            spec.save_webp(out, path)
+        name = f"{key}/{path.name}"
+        if key not in marked:
+            if count:
+                changed[name] = changed.get(name, 0) + count
+            continue
+        start, end = marked[key].copy(), final.copy()
+        start[start[..., 3] == 0] = 0
+        end[end[..., 3] == 0] = 0
+        diff = int((start != end).any(axis=2).sum())
+        if diff and name not in changed:
+            changed[name] = diff
 
 
 # 민소매 몸통 옆 맨살 띠(판정 round4 표지 색 렌더: singlet 밑단 옆 짧은 짙은 획 = 맨몸 아틀라스 x 100~124·376~392, y 256~295의 몸통 옆

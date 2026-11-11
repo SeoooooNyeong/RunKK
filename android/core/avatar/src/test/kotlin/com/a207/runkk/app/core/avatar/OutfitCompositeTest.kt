@@ -171,6 +171,48 @@ class OutfitCompositeTest {
     }
 
     @Test
+    fun `자르기 표지 - 상의 알파 1 칸의 맨몸만 지우고 표지는 옷으로 치지 않는다`() {
+        // 맨몸: x 2..17, y 2..17. 상의: x 6..13, y 4..15. 표지: (3, 10) 한 칸(상의 밖, 띠 자르기 칸 밖이라 표지가 없으면 남는다)
+        val body =
+            png(20, 20) { bitmap -> for (y in 2..17) for (x in 2..17) bitmap.setPixel(x, y, Color.rgb(250, 220, 200)) }
+        val top = png(20, 20) { bitmap ->
+            for (y in 4..15) for (x in 6..13) bitmap.setPixel(x, y, Color.BLUE)
+            bitmap.setPixel(3, 10, Color.argb(TopBodyCut.MARK_ALPHA, 0, 0, 0))
+        }
+        val area = png(20, 20) { }
+        val out = decode(OutfitLayerComposer.compose(body, listOf(OutfitPart.TOP to top), 0, 20, 20, area))
+        assertTrue(Color.alpha(out.getPixel(3, 10)) <= TopBodyCut.MARK_ALPHA, "표지 칸 맨몸은 지운다")
+        assertEquals(255, Color.alpha(out.getPixel(3, 9)), "표지 옆 맨몸은 남는다")
+        assertEquals(255, Color.alpha(out.getPixel(4, 10)), "자르기 칸 밖 맨몸은 남는다")
+        assertEquals(Color.BLUE, out.getPixel(9, 10), "상의")
+        out.recycle()
+    }
+
+    @Test
+    fun `자르기 표지는 lime_singlet 서기에만 있고 그 칸의 맨몸은 서기 합성에서 지운다(판정 round6 밑단 옆 획)`() {
+        val keys = OutfitCatalog.LEGACY_KEYS.getValue(OutfitPart.TOP)
+        keys.forEachIndexed { id, key ->
+            val top = pixels(File(root, "outfits/$key/female_stand.webp").readBytes())
+            val marks = top.indices.filter { top[it] ushr 24 == TopBodyCut.MARK_ALPHA }
+            if (key != "top_lime_singlet") {
+                assertEquals(0, marks.size, "$key 에는 표지가 없다(crew·base 등은 그대로)")
+                return@forEachIndexed
+            }
+            assertTrue(marks.size > 100, "singlet 표지 ${marks.size}칸")
+            val skin = pixels(File(root, "outfits/body/female_stand.webp").readBytes())
+            assertTrue(marks.all { skin[it] ushr 24 != 0 }, "표지는 맨몸이 있는 칸에만")
+            for (gender in AvatarGender.entries) {
+                val composed = compose(OutfitSlot.STAND, gender, AvatarOutfit(top = id), 0)
+                val out = IntArray(composed.width * composed.height)
+                composed.getPixels(out, 0, composed.width, 0, 0, composed.width, composed.height)
+                composed.recycle()
+                val left = marks.count { out[it] ushr 24 > TopBodyCut.MARK_ALPHA }
+                assertEquals(0, left, "$gender singlet 서기 합성에서 표지 칸에 맨몸이 남지 않는다")
+            }
+        }
+    }
+
+    @Test
     fun `상의 알파 밖 몸통 피부 테두리 0px - 21가지 × 남녀 × 서기·달리기 몸통·팔 × 러닝량 0·100`() {
         val slots = listOf(OutfitSlot.STAND, OutfitSlot.RUN_BODY, OutfitSlot.RUN_ARM)
         OutfitCatalog.LEGACY_KEYS.forEach { (part, keys) ->

@@ -211,3 +211,59 @@ def test_committed_stand_body_has_no_bare_feet() -> None:
     x0, y0, x1, y1 = spec.BARE_FEET
     assert (body[y0:y1, x0:x1, 3] == 0).all()
     assert (body[y0 - 20 : y0, x0:x1, 3] > 0).any()  # 그 위 다리(신발 목 위)는 남는다
+
+
+def test_mark_body_cut_marks_only_bare_body_outside_the_top() -> None:
+    """자르기 표지(알파 1)는 표지 칸 가운데 상의가 없고 맨몸이 있는 곳에만 찍히고, 다시 걸면 같은 결과다(판정 round6 singlet 밑단 옆 획)."""
+    from outfit_pipeline.cut import MARK_ALPHA
+    from outfit_pipeline.stand_fix import MARKS, mark_body_cut
+
+    path = MARKS / "top_lime_singlet__female_stand.png"
+    mask = np.array(Image.open(path).convert("L")) > 0
+    ys, xs = np.nonzero(mask)
+    y, x = int(ys[0]), int(xs[0])
+    body = np.zeros((*mask.shape, 4), np.uint8)
+    body[mask] = (90, 60, 50, 255)
+    body[y, x] = 0  # 맨몸 없는 칸
+    layer = np.zeros_like(body)
+    cloth_y, cloth_x = int(ys[-1]), int(xs[-1])
+    layer[cloth_y, cloth_x] = (40, 200, 150, 255)  # 상의가 있는 칸
+    out, count = mark_body_cut(
+        Image.fromarray(layer, "RGBA"), Image.fromarray(body, "RGBA"), "top_lime_singlet", "female_stand"
+    )
+    array = np.array(out)
+    assert count == int(mask.sum()) - 2
+    assert array[y, x, 3] == 0
+    assert array[cloth_y, cloth_x].tolist() == [40, 200, 150, 255]
+    assert (array[mask & (array[..., 3] == MARK_ALPHA)][:, :3] == 0).all()
+    again, _ = mark_body_cut(out, Image.fromarray(body, "RGBA"), "top_lime_singlet", "female_stand")
+    assert np.array_equal(np.array(again), array)
+    other, none = mark_body_cut(
+        Image.fromarray(layer, "RGBA"), Image.fromarray(body, "RGBA"), "top_crew_tee", "female_stand"
+    )
+    assert none == 0 and np.array_equal(np.array(other), layer)
+
+
+@pytest.mark.parametrize("key", spec.LEGACY_KEYS["TOP"])
+def test_committed_cut_marks_belong_to_the_singlet_only(key: str) -> None:
+    """자르기 표지는 lime_singlet 서기에만 있다(crew·base 등 다른 상의는 그대로)."""
+    from outfit_pipeline.cut import MARK_ALPHA
+
+    array = np.array(Image.open(OUTFITS / key / f"female_stand{spec.EXTENSION}").convert("RGBA"))
+    marks = int((array[..., 3] == MARK_ALPHA).sum())
+    assert (marks > 100) if key == "top_lime_singlet" else marks == 0
+
+
+def test_cut_marks_remove_the_body_under_marks_only() -> None:
+    """cut.take_marks는 표지를 떼고 그 칸을 돌려주고, cut_marks는 그 칸 맨몸만 지운다(앱 TopBodyCut.takeMarks·cutMarks와 같다)."""
+    from outfit_pipeline.cut import MARK_ALPHA, cut_marks, take_marks
+
+    top = np.zeros((4, 4, 4), np.uint8)
+    top[1, 1] = (0, 0, 0, MARK_ALPHA)
+    top[2, 2] = (10, 20, 30, 255)
+    stripped, marks = take_marks(Image.fromarray(top, "RGBA"))
+    assert marks.sum() == 1 and marks[1, 1]
+    assert np.array(stripped)[1, 1, 3] == 0 and np.array(stripped)[2, 2, 3] == 255
+    body = np.full((4, 4, 4), 200, np.uint8)
+    out = np.array(cut_marks(Image.fromarray(body, "RGBA"), marks))
+    assert out[1, 1, 3] == 0 and (out[..., 3] > 0).sum() == 15

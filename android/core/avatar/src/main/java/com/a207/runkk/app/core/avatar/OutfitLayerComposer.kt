@@ -125,7 +125,7 @@ internal object OutfitLayerComposer {
         }
     }
 
-    /** [skin]에서 상의(와 그 슬롯의 하의) 밖으로 비치는 얇은 테두리를 지운다([TopBodyCut]). [skin]은 바뀐다. */
+    /** [skin]에서 상의(와 그 슬롯의 하의) 밖으로 비치는 얇은 테두리와 상의의 자르기 표지 칸을 지운다([TopBodyCut]). [skin]은 바뀐다. */
     private fun cutOutside(skin: Bitmap, top: Bitmap, bottom: Bitmap?, cut: ByteArray) {
         val width = skin.width
         val height = skin.height
@@ -133,6 +133,8 @@ internal object OutfitLayerComposer {
         val areaPixels = IntArray(width * height).also { area.getPixels(it, 0, width, 0, 0, width, height) }
         area.recycle()
         val topPixels = IntArray(width * height).also { top.getPixels(it, 0, width, 0, 0, width, height) }
+        // 세트별 자르기 표지(알파 1)는 옷으로 치지 않고, 띠 자르기 뒤에 그 자리 맨몸을 지운다
+        val marks = TopBodyCut.takeMarks(topPixels)
         // 상의 칸으로 올라온 하의 허리(겹침 띠)도 옷으로 친다: 밑단과 허리 사이·허리 옆으로 맨몸이 비치지 않게
         bottom?.let {
             val bottomPixels = IntArray(width * height).also { b -> it.getPixels(b, 0, width, 0, 0, width, height) }
@@ -140,6 +142,7 @@ internal object OutfitLayerComposer {
         }
         val skinPixels = IntArray(width * height).also { skin.getPixels(it, 0, width, 0, 0, width, height) }
         TopBodyCut.apply(skinPixels, topPixels, areaPixels, width, height)
+        TopBodyCut.cutMarks(skinPixels, marks)
         skin.setPixels(skinPixels, 0, width, 0, 0, width, height)
     }
 
