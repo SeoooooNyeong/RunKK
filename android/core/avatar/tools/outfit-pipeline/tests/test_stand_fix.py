@@ -106,8 +106,8 @@ def test_stand_fix_is_stable_on_the_committed_assets(tmp_path) -> None:
     assert fix_stand(tmp_path / "outfits", RAW, MASKS) == {}
 
 
-# 원본 그림의 뒤꿈치·발목 모양으로 원래 있던 옆 가장자리 계단(판정 round3 원본에서 잰 수). 나머지 신발은 계단이 없어야 한다
-SHOE_EDGE_STEPS = {"shoes_high_top": 1, "shoes_lime_runner": 2}
+# 원본 그림의 뒤꿈치·발목 모양으로 원래 있던 옆 가장자리 계단(승인 생성 원본에서 잰 수). 나머지 신발은 계단이 없어야 한다
+SHOE_EDGE_STEPS = {"shoes_high_top": 5, "shoes_lime_runner": 4}
 
 
 def _edge_steps(array: np.ndarray) -> int:
@@ -203,3 +203,11 @@ def test_solid_hem_corner_paints_light_specks_inside_the_hem_outline() -> None:
     array = np.array(out)
     assert count == 1 and array[292, 385, :3].mean() < 100
     assert array[250, 300, :3].tolist() == [250, 250, 250]
+
+
+def test_committed_stand_body_has_no_bare_feet() -> None:
+    """앱은 신발 칸을 늘 신발로 채우므로(base_shoes) 서기 맨몸의 맨발 칸은 비어 있다: 신발마다 제 외곽선이 실루엣이다(판정 round5 lime_runner)."""
+    body = np.array(Image.open(OUTFITS / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}").convert("RGBA"))
+    x0, y0, x1, y1 = spec.BARE_FEET
+    assert (body[y0:y1, x0:x1, 3] == 0).all()
+    assert (body[y0 - 20 : y0, x0:x1, 3] > 0).any()  # 그 위 다리(신발 목 위)는 남는다

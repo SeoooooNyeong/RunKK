@@ -4,7 +4,8 @@
 2. 긴소매 상의 서기 레이어의 칼라·후드 안 빈 곳을 안감 색으로 메운다(`holes.line_collar`).
 3. 반팔·민소매 상의 서기 레이어의 몸통 옆 외곽선 밖 밝은 점을 외곽선 색으로 칠하고([solid_side_outline]), 민소매는 몸통 옆 맨살 띠와
    밑단 아래 맨살을 덮는다([close_side_skin]).
-4. 신발 서기 레이어의 외곽선 밖 회색 띠를 지우고(`feet.drop_halo`) 맨발 실루엣을 덮게 한다(`feet.cover_feet`).
+4. 신발 서기 레이어의 외곽선 밖 회색 띠를 지운다(`feet.drop_halo`). 맨몸 서기 아틀라스의 맨발 칸은 비운다([clear_bare_feet]):
+   신발이 늘 덮으므로 신발마다 제 외곽선이 실루엣이다(맨발을 신발로 덮던 `feet.cover_feet`는 쓰지 않는다).
 2·4 뒤에 새로 갇힌 좁은 틈은 검사 16번 규칙으로 메운다(`build.fill_layer_holes`).
 바뀐 묶음은 상점 그림도 다시 만든다.
 """
@@ -61,7 +62,7 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
 
     from outfit_pipeline.body import drop_strays, wisp_layer
     from outfit_pipeline.build import cut_area, fill_layer_holes, make_shop
-    from outfit_pipeline.feet import HALO_LIGHT, HALO_LIGHT_BY_KEY, cover_feet, drop_halo
+    from outfit_pipeline.feet import HALO_LIGHT, HALO_LIGHT_BY_KEY, drop_halo
     from outfit_pipeline.holes import line_collar
 
     changed: dict[str, int] = {}
@@ -76,7 +77,13 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
         changed[f"{spec.BODY_FOLDER}/{name}"] = (
             int((before != np.array(area)).sum()) if before is not None else area.size[0] * area.size[1]
         )
-    body = Image.open(folder / f"female_stand{spec.EXTENSION}").convert("RGBA")
+    body_path = folder / f"female_stand{spec.EXTENSION}"
+    body = Image.open(body_path).convert("RGBA")
+    cleared, count = clear_bare_feet(body)
+    if count:
+        spec.save_webp(cleared, body_path)
+        changed[f"{spec.BODY_FOLDER}/{body_path.name}"] = count
+        body = cleared
     short = [k for k in spec.LEGACY_KEYS["TOP"] if spec.default_male_top_surface(k) == 1]
     jobs = (
         [(key, line_collar) for key in COLLAR_KEYS]
@@ -86,7 +93,6 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
         + [(key, solid_hem_corner) for key in short]
         + [(key, close_hem_slit) for key in SLIT_KEYS]
         + [(key, partial(drop_halo, light=HALO_LIGHT_BY_KEY.get(key, HALO_LIGHT))) for key in spec.LEGACY_KEYS["SHOES"]]
-        + [(key, cover_feet) for key in spec.LEGACY_KEYS["SHOES"]]
     )
     # 한 단계가 다른 단계의 결과를 바꿀 수 있어(회색 띠를 지우면 맨발이 새로 드러난다) 더 바뀌지 않을 때까지(최대 [PASSES]번) 되풀이한다
     for _ in range(PASSES):
@@ -278,3 +284,13 @@ def solid_hem_corner(layer: Image.Image, _body: Image.Image | None = None) -> tu
             array[y, x, :3] = color.round().astype(np.uint8)
         changed += len(paint)
     return Image.fromarray(array, "RGBA"), changed
+
+
+def clear_bare_feet(body: Image.Image) -> tuple[Image.Image, int]:
+    """서기 맨몸 아틀라스의 맨발 칸(spec.BARE_FEET)을 비운다(신발이 늘 덮는다). (맨몸, 비운 픽셀 수)."""
+    array = np.array(body.convert("RGBA"))
+    x0, y0, x1, y1 = spec.BARE_FEET
+    region = array[y0:y1, x0:x1]
+    count = int((region[..., 3] > 0).sum())
+    region[...] = 0
+    return Image.fromarray(array, "RGBA"), count
