@@ -29,7 +29,7 @@
     <string name="core_error_crew_name_taken">이미 있는 크루명이에요. 다른 이름을 입력해 주세요</string>
     <string name="core_error_match_failed">대결을 만들지 못했어요. 다시 시도해 주세요</string>
     <string name="core_error_face_image_not_found">아바타 얼굴 이미지를 찾을 수 없어요</string>
-    <string name="core_error_selfie_retry_limit">오늘은 셀카 변환을 5번 실패해 더 시도할 수 없어요. 내일 다시 하거나 기본 캐릭터를 골라 주세요</string>
+    <string name="core_error_selfie_retry_limit">오늘은 셀카 변환을 5번 실패해 더 시도할 수 없어요. 내일 다시 하거나 기본 얼굴을 골라 주세요</string>
     <string name="core_error_too_many_attempts">시도가 너무 많아요. 잠시 뒤 다시 시도해 주세요</string>
     <string name="core_error_intro_too_long">소개는 40자 이내로 입력해 주세요</string>
     <string name="core_error_setting_invalid">바꿀 수 없는 설정 값이에요</string>

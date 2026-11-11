@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="avatar_error_no_face">얼굴을 찾지 못했어요. 얼굴이 잘 보이게 다시 찍거나 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_multiple_faces">한 사람만 나오게 찍어 주세요. 기본 캐릭터를 골라도 돼요</string>
-    <string name="avatar_error_unsupported_image">지원하지 않는 사진 형식이에요. 다시 찍거나 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_too_large">사진이 너무 커요. 다시 찍거나 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_upstream_failed">지금은 얼굴을 변환할 수 없어요. 잠시 뒤 다시 시도하거나 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_timeout">변환 시간이 초과됐어요. 다시 시도하거나 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_selfie_failed">얼굴을 만들지 못했어요. 다시 시도하거나 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_selfie_limit">오늘은 이미 셀카 아바타를 만들었어요. 내일 다시 만들 수 있어요. 기본 캐릭터는 지금 고를 수 있어요</string>
-    <string name="avatar_error_selfie_disabled">지금은 셀카 아바타를 만들 수 없어요. 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_face_consent_required">얼굴 변환 전송 동의가 필요해요. 마이 > 동의 관리에서 켜거나 기본 캐릭터를 골라 주세요</string>
-    <string name="avatar_error_selfie_retry_limit">오늘은 셀카 변환을 5번 실패해 더 시도할 수 없어요. 내일 다시 하거나 기본 캐릭터를 골라 주세요</string>
+    <string name="avatar_error_no_face">얼굴을 찾지 못했어요. 얼굴이 잘 보이게 다시 찍거나 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_multiple_faces">한 사람만 나오게 찍어 주세요. 기본 얼굴을 골라도 돼요</string>
+    <string name="avatar_error_unsupported_image">지원하지 않는 사진 형식이에요. 다시 찍거나 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_too_large">사진이 너무 커요. 다시 찍거나 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_upstream_failed">지금은 얼굴을 변환할 수 없어요. 잠시 뒤 다시 시도하거나 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_timeout">변환 시간이 초과됐어요. 다시 시도하거나 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_selfie_failed">얼굴을 만들지 못했어요. 다시 시도하거나 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_selfie_limit">오늘은 이미 셀카 아바타를 만들었어요. 내일 다시 만들 수 있어요. 기본 얼굴은 지금 고를 수 있어요</string>
+    <string name="avatar_error_selfie_disabled">지금은 셀카 아바타를 만들 수 없어요. 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_face_consent_required">얼굴 변환 전송 동의가 필요해요. 마이 > 동의 관리에서 켜거나 기본 얼굴을 골라 주세요</string>
+    <string name="avatar_error_selfie_retry_limit">오늘은 셀카 변환을 5번 실패해 더 시도할 수 없어요. 내일 다시 하거나 기본 얼굴을 골라 주세요</string>
     <string name="avatar_error_face_image_not_found">아바타 얼굴 이미지를 찾을 수 없어요. 아바타를 다시 만들어 주세요</string>
     <string name="avatar_error_selfie_in_progress">얼굴을 만들고 있어요. 잠시 뒤 다시 확인해 주세요</string>
     <string name="avatar_error_item_not_owned">가지고 있지 않은 아이템이에요</string>
@@ -23,7 +23,7 @@
     <string name="avatar_slot_bottom">하의</string>
     <string name="avatar_slot_shoes">신발</string>
     <string name="avatar_slot_hat">모자</string>
-    <string name="avatar_setup_selfie_unavailable">사진을 받지 못했어요. 다시 찍거나 기본 캐릭터를 골라 주세요</string>
+    <string name="avatar_setup_selfie_unavailable">사진을 받지 못했어요. 다시 찍거나 기본 얼굴을 골라 주세요</string>
     <string name="avatar_equip_rejected">%1$s: %2$s</string>
     <string name="avatar_shop_bought">%1$s%2$s 샀어요. 바로 입어 볼 수 있어요</string>
     <string name="avatar_setup_title">얼굴 만들기</string>
@@ -105,7 +105,7 @@
     <string name="avatar_shop_price_description">%1$,d 리워드</string>
     <string name="avatar_shop_buy_description">%1$s, %2$,d 리워드에 사기</string>
     <string name="avatar_shop_equipped">%1$s%2$s 입었어요</string>
-    <string name="avatar_error_selfie_timeout">얼굴을 만드는 데 너무 오래 걸렸어요. 다시 시도하거나 기본 캐릭터를 골라 주세요</string>
+    <string name="avatar_error_selfie_timeout">얼굴을 만드는 데 너무 오래 걸렸어요. 다시 시도하거나 기본 얼굴을 골라 주세요</string>
     <string name="avatar_setup_selfie_used">내일 다시</string>
     <string name="avatar_setup_confirm_title">사진 확인</string>
     <string name="avatar_setup_sent_photo">보낸 사진</string>
