@@ -424,7 +424,8 @@ constructor(
                     mode = RunMode.FREE,
                     cardKind = CardKind.FREE_RUN,
                     startDevice = run.startDevice,
-                    todayPlan = plan
+                    todayPlan = plan,
+                    isOfflineBattle = true
                 )
             } else {
                 RunStartSpec(

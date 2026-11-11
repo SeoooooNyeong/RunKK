@@ -180,8 +180,8 @@ class BattleRunCoordinatorTest {
         return tracker to BattleRunCoordinator(tracker, live, repository, output, clock, appScope, gps)
     }
 
-    private fun RunTracker.runTo(second: Long, meters: Double) {
-        onLocationSample(sample(second, meters))
+    private fun RunTracker.runTo(second: Long, meters: Double, stabilize: Boolean = false) {
+        onLocationSample(sample(second, meters), stabilize = stabilize)
         clock.now = T0.plusSeconds(second)
         tick(clock.now)
     }
@@ -1156,8 +1156,8 @@ class BattleRunCoordinatorTest {
         val (tracker, coordinator) = setUp()
         coordinator.onOfflineRecordBattle(offlineSelf)
         advanceTimeBy(3_001)
-        tracker.runTo(1, 0.0)
-        tracker.runTo(30, 101.0)
+        tracker.runTo(1, 0.0, stabilize = true)
+        tracker.runTo(30, 101.0, stabilize = true)
         runCurrent()
 
         assertEquals(RunStartSpec.StartDevice.WATCH, pending.runs.single().startDevice)
