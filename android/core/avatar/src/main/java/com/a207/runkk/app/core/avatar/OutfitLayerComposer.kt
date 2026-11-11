@@ -18,6 +18,9 @@ import timber.log.Timber
 internal object OutfitLayerComposer {
     private val ORDER = listOf(OutfitPart.SHOES, OutfitPart.BOTTOM, OutfitPart.TOP)
 
+    /** 합성 텍스처에서 비우는 거의 투명한 픽셀의 알파 상한(미만). cut.py `FAINT_ALPHA`와 같다. */
+    internal const val FAINT_ALPHA = 16
+
     /** 겹칠 레이어 하나. [part]가 TOP이면 맨몸 자르기의 기준이다. */
     class Layer(val part: OutfitPart, val path: String)
 
@@ -79,10 +82,25 @@ internal object OutfitLayerComposer {
             val canvas = Canvas(bitmap)
             body?.let { drawBody(canvas, it, decoded, amount, cut) }
             decoded.forEach { (_, layer) -> canvas.drawBitmap(layer, 0f, 0f, null) }
+            dropFaint(bitmap)
             return AvatarImages.encode(bitmap)
         } finally {
             decoded.forEach { it.second.recycle() }
             result?.recycle()
+        }
+    }
+
+    /**
+     * 알파 [FAINT_ALPHA] 미만 픽셀을 비운다(투명, RGB 0). 미리곱 비트맵을 PNG로 쓰면 이런 픽셀의 색이 반올림으로 255 같은 밝은 값이 되어,
+     * 텍스처를 미리곱으로 읽는 렌더러에서 밝은 점으로 보인다. 바뀌는 칸만 고쳐 다른 픽셀의 미리곱 반올림은 건드리지 않는다. cut.py
+     * `drop_faint`와 같다.
+     */
+    private fun dropFaint(bitmap: Bitmap) {
+        val width = bitmap.width
+        val pixels = IntArray(width * bitmap.height).also { bitmap.getPixels(it, 0, width, 0, 0, width, bitmap.height) }
+        for (i in pixels.indices) {
+            val alpha = pixels[i] ushr 24
+            if (alpha in 1 until FAINT_ALPHA) bitmap.setPixel(i % width, i / width, 0)
         }
     }
 

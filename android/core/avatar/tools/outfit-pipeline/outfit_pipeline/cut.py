@@ -34,6 +34,19 @@ def take_marks(top: Image.Image) -> tuple[Image.Image, np.ndarray]:
     return Image.fromarray(array, "RGBA"), marks
 
 
+# 합성 텍스처의 거의 투명한 픽셀(알파 이 값 미만)은 비운다(RGB 0). 앱의 미리곱 비트맵을 PNG로 쓰면 알파 1~15 픽셀의 색이 반올림으로
+# 255 같은 밝은 값이 되고, 텍스처를 미리곱으로 읽는 렌더러에서 밝은 점으로 보인다(실기기 판정: 러닝량 100 싱글렛 틈의 흰 조각). 앱
+# `OutfitLayerComposer.FAINT_ALPHA`와 같다
+FAINT_ALPHA = 16
+
+
+def drop_faint(image: Image.Image) -> Image.Image:
+    """알파 [FAINT_ALPHA] 미만 픽셀을 비운다(RGB 0)."""
+    array = np.array(image.convert("RGBA"))
+    array[array[..., 3] < FAINT_ALPHA] = 0
+    return Image.fromarray(array, "RGBA")
+
+
 def cut_marks(body: Image.Image, marks: np.ndarray) -> Image.Image:
     """[marks] 칸의 맨몸을 지운다(투명). 앱 `TopBodyCut.cutMarks`와 같다."""
     array = np.array(body.convert("RGBA"))

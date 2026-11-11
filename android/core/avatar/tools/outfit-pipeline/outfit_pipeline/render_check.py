@@ -128,7 +128,7 @@ def defects(rgb: np.ndarray, key: tuple[int, int, int] = KEY, body_top: int = BO
 def compose_stand(outfits_dir: Path, gender: str, chosen: dict[str, str]) -> Image.Image:
     """앱 합성과 같은 서기 아틀라스(러닝량 0): 맨몸(상의·하의 허리를 옷으로 친 상의 자르기) → 신발 → 하의 → 상의."""
     from outfit_pipeline.check import read_index, resolve
-    from outfit_pipeline.cut import apply, cut_marks, take_marks
+    from outfit_pipeline.cut import apply, cut_marks, drop_faint, take_marks
 
     index = read_index(outfits_dir)
     entries = {e["assetKey"]: e for e in index["outfits"]}
@@ -165,7 +165,7 @@ def compose_stand(outfits_dir: Path, gender: str, chosen: dict[str, str]) -> Ima
     for part in ("SHOES", "BOTTOM", "TOP"):
         if part in layers:
             out.alpha_composite(layers[part])
-    return out
+    return drop_faint(out)  # 거의 투명한 픽셀은 비운다(앱 OutfitLayerComposer와 같다)
 
 
 def render_stand(
