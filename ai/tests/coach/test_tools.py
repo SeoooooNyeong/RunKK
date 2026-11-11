@@ -124,6 +124,24 @@ async def test_this_week_is_last_7_days(results: list[SessionResultOut]) -> None
     assert out["load"]["weeklyAvg28DaysKm"] == 1.26
 
 
+async def test_this_calendar_week_counts_runs_from_monday(tools: CoachTools, results: list[SessionResultOut]) -> None:
+    """'이번 주 몇 번 뛰었어'는 월요일 시작 달력 주의 횟수다. 10/20(화)에 물으면 10/19(월)만 들고 10/18(일)은 지난주다
+    (실기기에서 모델이 최근 러닝 목록을 세어 2회를 4회로 답했다)."""
+    out = await tools.call(USER, "getBaseline", {})
+
+    assert out["thisWeek"] == {
+        "weekStart": "2026-10-19",
+        "runs": 1,
+        "distanceKm": round(results[1].summary.distanceMeters / 1000, 2),
+    }
+
+
+async def test_monthly_weeks_carry_run_counts(tools: CoachTools) -> None:
+    out = await tools.call(USER, "getMonthlyResult", None)
+
+    assert [(w["weekStart"], w["runs"]) for w in out["weeks"]] == [("2026-10-12", 1), ("2026-10-19", 1)]
+
+
 async def test_acwr_level_after_28_days(results: list[SessionResultOut]) -> None:
     repo = InMemoryResultRepository()
     for r in results:
