@@ -107,4 +107,38 @@ class TopBodyCutParityTest {
         )
             .also { bitmap.recycle() }
     }
+
+    @Test
+    fun `칼라 옆 칸은 짝 어깨 띠를 상의가 덮을 때만 상의 밖 맨몸을 모두 지운다(파이프라인 cut_py와 같다)`() {
+        val width = 40
+        val height = 20
+        val skin = 0xFFF6CDBE.toInt()
+        val cloth = 0xFF3C383D.toInt()
+        val area = IntArray(width * height) { i ->
+            when (i % width) {
+                in 0 until 20 -> 220 shl 24
+                in 20 until 30 -> 221 shl 24
+                else -> 0
+            }
+        }
+        fun cut(shoulder: IntRange): IntArray {
+            val body = IntArray(width * height) { i -> if (i % width in 2 until 38) skin else 0 }
+            val top = IntArray(width * height) { i ->
+                if (i % width in shoulder ||
+                    i % width in 26 until 30
+                ) {
+                    cloth
+                } else {
+                    0
+                }
+            }
+            TopBodyCut.apply(body, top, area, width, height)
+            return body
+        }
+        val sleeved = cut(2 until 20)
+        assertEquals(List(6) { 0 }, (20 until 26).map { sleeved[5 * width + it] }, "어깨를 덮는 상의: 칼라 옆 맨몸을 지운다")
+        assertEquals(List(8) { skin }, (30 until 38).map { sleeved[5 * width + it] }, "칸 밖은 그대로")
+        val bare = cut(2 until 6)
+        assertEquals(List(6) { skin }, (20 until 26).map { bare[5 * width + it] }, "민소매: 그대로")
+    }
 }

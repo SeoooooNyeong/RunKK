@@ -36,6 +36,8 @@ internal class PreparedRiveAssets(
             RivReviewBackground.hideInPlace(it)
             RivGroundShadow.hideInPlace(it)
             RivHipConnection.retargetInPlace(it)
+            // 남자 서기 긴소매 메시 팔·몸통 이음매(판정 round3 소매 이음새 틈)
+            RivSleeveSeam.closeInPlace(it)
         }
 
         /** 막는 읽기다. IO 스레드에서 부른다. */

@@ -33,7 +33,9 @@ class RivGroundShadowTest {
             val hip = (RivHipConnection.FEMALE_OFFSETS + RivHipConnection.MALE_OFFSETS).flatMap {
                 (it until it + 4).toList()
             }
-            val changed = original.indices.filter { original[it] != prepared[it] && it !in hip }
+            // 남자 서기 riv는 긴소매 이음매 몸통 쪽 꼭짓점 값(float32, [RivSleeveSeam])도 바뀐다
+            val seam = RivSleeveSeam.TARGETS.flatMap { (it until it + 4).toList() }.toSet()
+            val changed = original.indices.filter { original[it] != prepared[it] && it !in hip && it !in seam }
             assertEquals(2, changed.size, "$name: 검수 바탕 알파 하나 + 그림자 알파 하나")
         }
     }

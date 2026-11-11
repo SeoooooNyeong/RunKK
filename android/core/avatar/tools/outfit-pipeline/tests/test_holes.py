@@ -126,3 +126,25 @@ def test_collar_fill_lines_the_hood_but_keeps_the_neck_open() -> None:
     assert out[30, 200, 3] == 255 and out[30, 312, 3] == 255  # 목 기둥 밖은 메운다
     x0, x1 = NECK_COLUMN
     assert out[30, (x0 + x1) // 2, 3] == 0  # 목 기둥은 비어 있다
+
+
+def test_line_collar_fills_smoothly_without_stripes_or_dark_blocks() -> None:
+    """판정 round3 B 부작용: [fill_collar]의 세로 줄무늬·목 둘레 짙은 네모 대신 둘레 천에서 매끄럽게 이어지는 안감 색으로 메운다."""
+    from outfit_pipeline.holes import NECK_COLUMN, line_collar
+
+    image = _canvas((512, 768))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((150, 0, 370, 120), fill=(200, 120, 80, 255))  # 후드 겉감
+    for x in range(150, 196, 4):
+        draw.line((x, 0, x, 120), fill=(230, 200, 170, 255))  # 줄무늬 둘레(번지면 줄무늬가 된다)
+    draw.rectangle((196, 0, 316, 48), fill=(0, 0, 0, 0))  # 지워진 직사각형
+    draw.line((196, 49, 316, 49), fill=(40, 20, 10, 255))  # 아래 외곽선(둘레 색으로 쓰지 않는다)
+    out = np.array(line_collar(image)[0]).astype(int)
+    x0, x1 = NECK_COLUMN
+    assert out[30, 200, 3] == 255 and out[30, 312, 3] == 255
+    assert out[30, (x0 + x1) // 2, 3] == 0
+    filled = out[5:45, 200:215, :3]
+    assert np.abs(np.diff(filled, axis=1)).max() <= 12  # 옆 픽셀끼리 줄무늬처럼 튀지 않는다
+    assert filled.mean() > 60  # 외곽선 색으로 어두워지지 않는다
+    near_neck = out[20, x0 - 1, :3].mean()
+    assert near_neck > 0.75 * out[20, 200, :3].mean()  # 목 둘레가 짙은 네모가 아니다

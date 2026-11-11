@@ -240,3 +240,92 @@ def fill_collar(image: Image.Image, body: Image.Image | None = None) -> tuple[Im
     edge = _filter(opening & (np.arange(solid.shape[0])[:, None] < COLLAR_ROWS), ImageFilter.MaxFilter(5)) & filled
     array[edge, :3] *= NECK_SHADE
     return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), int(filled.sum())
+
+
+# 칼라·후드 안 안감 메우기(판정 round3 B 부작용). [fill_collar]는 이웃 천 색을 행·열로 번져 메워 세로 줄무늬 블록, 목 둘레의 네모 단차
+# (목 기둥 둘레 2px을 0.62로 어둡게 한 짙은 사각형), 남은 안감 조각과의 곧은 경계가 보였다. 같은 칸을 둘레 밝은 천 색에서 매끄럽게 이어지는
+# 색(라플라스 보간: 칸 안 픽셀마다 이웃 평균, 둘레 천은 고정)으로 메우고, 칸 안쪽으로 들어갈수록(안감 그늘) 조금 어둡게 한다.
+LINING_DARK = 0.55  # 둘레 천 가운데값 밝기의 이 비율보다 어두운 천(외곽선·주름 선)은 둘레 색으로 쓰지 않는다
+LINING_SHADE = 0.86  # 칸 안 깊은 곳(둘레에서 [LINING_DEPTH]px 넘게)의 밝기 배율
+LINING_DEPTH = 8.0
+LINING_NECK_SHADE = 0.9  # 목 구멍 바로 옆(그늘) 밝기 배율. 둘레 3px에 걸쳐 1로 돌아온다
+LINING_ROUNDS = 600  # 보간 반복 수
+
+
+def _collar_target(solid: np.ndarray, body: Image.Image | None) -> tuple[np.ndarray, np.ndarray]:
+    """[fill_collar]와 같은 칸: (메울 곳, 비워 두는 목 구멍)."""
+    x0, x1 = COLLAR_BAND
+    target = np.zeros(solid.shape, bool)
+    for y in range(COLLAR_ROWS):
+        cloth = np.nonzero(solid[y, x0:x1])[0] + x0
+        if len(cloth) < 2:
+            continue
+        left, right = cloth.min(), cloth.max()
+        target[y, left:right] = ~solid[y, left:right]
+    n0, n1 = NECK_COLUMN
+    opening = np.zeros(solid.shape, bool)
+    opening[:COLLAR_ROWS, n0:n1] = True
+    if body is not None:
+        opening &= _rgba(body)[..., 3] < SOLID
+    return target & ~opening, opening
+
+
+def line_collar(
+    image: Image.Image, body: Image.Image | None = None, region: np.ndarray | None = None
+) -> tuple[Image.Image, int]:
+    """칼라·후드 안 빈 곳([fill_collar]와 같은 칸, 또는 [region])을 안감 색으로 메운다. 색은 둘레의 밝은 천(외곽선 제외)에서 매끄럽게 이어
+    지고(줄무늬·네모 경계 없음), 둘레에서 멀수록 [LINING_SHADE]까지, 목 구멍 바로 옆은 [LINING_NECK_SHADE]까지 부드럽게 어둡다.
+    (레이어, 메운 픽셀 수)."""
+    array = _rgba(image).astype(np.float64)
+    solid = array[..., 3] >= SOLID
+    target, opening = _collar_target(solid, body)
+    if region is not None:
+        target = region & ~opening
+    if not target.any():
+        return image, 0
+    lum = _lum(array)
+    ring = _filter(target, ImageFilter.MaxFilter(9)) & solid & ~target
+    if not ring.any():
+        return image, 0
+    bright = ring & (lum >= LINING_DARK * np.median(lum[ring]))
+    # 라플라스 보간: 칸 안은 4방향 이웃(칸 안 또는 밝은 둘레 천) 평균, 밝은 둘레 천은 고정. 어두운 천·목 구멍·빈 곳은 이웃으로 치지 않는다
+    usable = target | bright
+    color = np.where(bright[..., None], array[..., :3], 0.0)
+    if bright.any():
+        color[target] = np.median(array[bright][:, :3], axis=0)
+    # 칸과 둘레만 잘라 계산한다(전체 그림에서 되풀이하면 느리다)
+    ys_, xs_ = np.nonzero(target)
+    y0, y1 = max(0, ys_.min() - 2), min(target.shape[0], ys_.max() + 3)
+    x0, x1 = max(0, xs_.min() - 2), min(target.shape[1], xs_.max() + 3)
+    sub_color, sub_usable, sub_target = color[y0:y1, x0:x1], usable[y0:y1, x0:x1], target[y0:y1, x0:x1]
+    height, width = sub_target.shape
+    for _ in range(LINING_ROUNDS):
+        total = np.zeros_like(sub_color)
+        count = np.zeros(sub_target.shape)
+        for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            ys = slice(max(dy, 0), height + min(dy, 0))
+            yd = slice(max(-dy, 0), height + min(-dy, 0))
+            xs = slice(max(dx, 0), width + min(dx, 0))
+            xd = slice(max(-dx, 0), width + min(-dx, 0))
+            total[yd, xd] += np.where(sub_usable[ys, xs, None], sub_color[ys, xs], 0.0)
+            count[yd, xd] += sub_usable[ys, xs]
+        update = sub_target & (count > 0)
+        sub_color[update] = total[update] / count[update][:, None]
+    # 그늘: 둘레 천에서 멀수록 어둡게(거리는 3x3 최솟값 되풀이로 근사), 목 구멍 바로 옆은 조금 더
+    depth = np.zeros(target.shape)
+    inside = target.copy()
+    for d in range(1, int(LINING_DEPTH) + 1):
+        depth[inside] = d
+        inside = _filter(inside, ImageFilter.MinFilter(3))
+    shade = 1.0 - (1.0 - LINING_SHADE) * np.clip(depth / LINING_DEPTH, 0, 1)
+    near_neck = np.zeros(target.shape)
+    grown = opening.copy()
+    for d in range(3, 0, -1):
+        grown = _filter(grown, ImageFilter.MaxFilter(3))
+        near_neck[grown & target & (near_neck == 0)] = d
+    shade *= 1.0 - (1.0 - LINING_NECK_SHADE) * near_neck / 3
+    original = array[target].copy()
+    cover = original[:, 3:4] / 255.0
+    array[target, :3] = original[:, :3] * cover + (color[target] * shade[target][:, None]) * (1 - cover)
+    array[target, 3] = 255
+    return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), int(target.sum())

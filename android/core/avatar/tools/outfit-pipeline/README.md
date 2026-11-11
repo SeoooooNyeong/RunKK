@@ -8,7 +8,9 @@ uv sync
 uv run outfit-pipeline uv-mask     # riv 메시 UV → templates/masks
 uv run outfit-pipeline templates   # 템플릿 11장
 uv run outfit-pipeline clean-body  # 맨몸·옷 레이어의 부스러기·허리 속옷·하의 허리를 정리(이미 만든 자산, 검사 10~14번)
+uv run outfit-pipeline stand-fix   # 서기 마무리: 상의 자르기 칸, 긴소매 칼라 안감, 반팔 몸통 옆 외곽선, 신발 회색 띠·맨발 덮기(다시 걸어도 그대로)
 uv run outfit-pipeline check       # assets/outfits 규격 검사
+uv run outfit-pipeline render-check --rive <rive> --rml <PoC tools>   # 체형 100 서기 렌더 검사(검수 목록, Rive CLI 필요)
 uv run pytest && uv run ruff check .
 ```
 
@@ -36,8 +38,8 @@ uv run pytest && uv run ruff check .
 3. 맨몸 바탕: `uv run python make_body.py --work <작업>`으로 `<작업>/src_body/`를 만들고, `cd .. && uv run outfit-pipeline body <작업>/src_body`로 `assets/outfits/body/`(무손실 WebP, 상의 자르기 칸, 남녀 공용)를 만든다.
 4. 의상 18가지(Codex, 4개씩 병렬 가능): `./codex.sh <작업> item <assetKey> <썸네일>`. 지시문은 `prompts/items/<assetKey>.txt`다. 긴소매 4벌은 기본 아틀라스(흰 반팔티) 위에 그리고, 승인 코랄 집업 후드를 품질 참고로 함께 준다.
 5. 레이어 뽑기: `uv run python produce.py --work <작업>`(base_* 셋은 승인 기본 텍스처에서 뽑는다). 결과 `<작업>/src_outfits/<assetKey>/{g}_{slot}.png`.
-6. 규격 묶음: `cd .. && uv run outfit-pipeline build <작업>/src_outfits && uv run outfit-pipeline templates && uv run outfit-pipeline check`.
-7. 검수: `uv run python production/review.py --rive <rive> --rml <PoC tools> --out <작업>/review/a0 <키...>`. 러닝량 100은 `--amount 100`, 체형은 `--shape 100`, 조합은 `top_x+bottom_y+shoes_z`로 준다. 앱과 같은 규칙(맨몸 피부톤과 얼굴 톤, 상의 자르기)으로 합성해 Rive로 남녀 서기·달리기를 그린 `sheet.png`가 나온다. 기준(코랄 집업 후드 품질, 상점 썸네일과 같은 옷, 어깨 테두리 없음)에 못 미치면 그 키만 4번부터 다시 한다(`runs/<assetKey>_v2/`에 두면 그것을 쓴다).
+6. 규격 묶음: `cd .. && uv run outfit-pipeline build <작업>/src_outfits && uv run outfit-pipeline stand-fix && uv run outfit-pipeline templates && uv run outfit-pipeline check`.
+7. 검수: `uv run python production/review.py --rive <rive> --rml <PoC tools> --out <작업>/review/a0 <키...>`. 러닝량 100은 `--amount 100`, 체형은 `--shape 100`, 조합은 `top_x+bottom_y+shoes_z`로 준다. 앱과 같은 규칙(맨몸 피부톤과 얼굴 톤, 상의 자르기)으로 합성해 Rive로 남녀 서기·달리기를 그린 `sheet.png`가 나온다. 기준(코랄 집업 후드 품질, 상점 썸네일과 같은 옷, 어깨 테두리 없음)에 못 미치면 그 키만 4번부터 다시 한다(`runs/<assetKey>_v2/`에 두면 그것을 쓴다). 판정 회차마다 `uv run outfit-pipeline render-check --rive <rive> --rml <PoC tools> --out <작업>/review/s100`으로 체형 100 서기의 떠도는 조각(사다리 획)·비치는 틈도 본다(0 problem이어야 한다).
 8. 배경: `./codex.sh <작업> bd_<단계> prompts/bd_<단계>.txt <기존 배경 그림>`(국내·동아시아·대륙 너머). 결과 1080x1200을 `core/ui/src/main/res/drawable-nodpi/avatar_backdrop_<단계>.webp`로 저장한다. 바닥선 y 984, 가운데 40% 비움, 위 20%·양옆 15% 랜드마크 없음을 직접 확인한다.
 
 그림 생성은 매번 결과가 다르다. 같은 그림을 다시 얻는 것이 아니라 같은 절차와 기준으로 다시 만드는 순서다.
