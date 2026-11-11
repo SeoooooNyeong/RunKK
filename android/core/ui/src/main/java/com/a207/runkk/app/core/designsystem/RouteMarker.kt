@@ -59,5 +59,11 @@ const val OPPONENT_MARKER_TAG = "route-marker-opponent"
 
 /** 기본 마커 그림(기본 아바타 얼굴). 마커마다 새 람다를 만들지 않게 하나를 함께 쓴다. */
 private val DefaultMarkerFigure: @Composable () -> Unit = {
-    RunkkAvatar(faceKey = null, expression = AvatarExpression.FACE, modifier = Modifier.fillMaxSize())
+    // 지도 위 마커는 얼굴 원이 아니다(목을 늘리지 않는다, [임시:D-성-193]).
+    RunkkAvatar(
+        faceKey = null,
+        expression = AvatarExpression.FACE,
+        modifier = Modifier.fillMaxSize(),
+        isInCircle = false
+    )
 }

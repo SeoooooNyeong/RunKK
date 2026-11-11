@@ -168,7 +168,7 @@ private fun ProfileHeader(
             RunkkAvatar(
                 profile.faceKey,
                 AvatarExpression.FACE,
-                modifier = Modifier.size(64.dp).testTag(PROFILE_FACE_TAG),
+                modifier = Modifier.fillMaxSize().testTag(PROFILE_FACE_TAG),
                 faceLayers = faceLayers
             )
         }

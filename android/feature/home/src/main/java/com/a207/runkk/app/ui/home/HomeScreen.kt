@@ -326,7 +326,7 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                 ) {
                     // 성별을 읽기 전에는 얼굴도 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02)
                     if (state.isAvatarReady) {
-                        RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
+                        RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.fillMaxSize(), state.faceLayers)
                     }
                 }
                 HeaderIdentity(state, modifier = Modifier.weight(1f, fill = false))
