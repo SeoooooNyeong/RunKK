@@ -736,3 +736,51 @@ def cover_run_leg(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, i
     array[edge, :3] = array[edge, :3] * 0.2 + np.array(LEG_OUTLINE) * 0.8
     changed += int(edge.sum())
     return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), changed
+
+
+TORSO_GAP_ALPHA = 64  # 팔 띠에서 팔과 몸통 조각을 가르는 틈의 알파 상한
+TORSO_GAP_MAX = 8  # 상의 옆 가장자리와 몸통 옆 외곽선 사이를 메우는 최대 폭
+
+
+def meet_torso_outline(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
+    """서기 상의 레이어(판정 round1 A): 팔 띠(x < 145·x ≥ 367, y 185~301) 행마다 맨몸에서 바깥부터 처음 덩어리(팔) 뒤 틈 너머 조각(몸통 옆
+    외곽선)을 찾고, 상의 옆 가장자리와 그 조각 사이 1~[TORSO_GAP_MAX]px을 상의 가장자리 안쪽 천 색으로 메운다. 민소매는 팔 띠를
+    자르지 않아 몸통 옆 외곽선이 상의와 떨어져 밑단 옆에 짙은 세로 선으로 매달렸다. 메우면 그 외곽선이 상의 외곽선이 된다.
+    (레이어, 메운 픽셀 수)."""
+    array = _rgba(layer).copy()
+    alpha = _rgba(body)[..., 3] >= TORSO_GAP_ALPHA
+    solid = array[..., 3] >= SOLID
+    added = 0
+    for box, outward in ((spec.STAND_LEFT_ARM, True), (spec.STAND_RIGHT_ARM, False)):
+        x0, y0, x1, y1 = box
+        for y in range(y0, y1):
+            xs = range(x0, x1) if outward else range(x1 - 1, x0 - 1, -1)
+            state, sliver = 0, None  # 0 팔 앞, 1 팔, 2 틈, 3 몸통 조각
+            for x in xs:
+                on = alpha[y, x]
+                if state == 0 and on:
+                    state = 1
+                elif state == 1 and not on:
+                    state = 2
+                elif state == 2 and on:
+                    state = 3
+                elif state == 3 and not on:
+                    sliver = x  # 조각 바로 바깥(상의 쪽) 첫 픽셀
+                    break
+            if sliver is None:
+                continue
+            step = 1 if outward else -1
+            edge = None
+            for d in range(TORSO_GAP_MAX + 1):
+                x = sliver + d * step
+                if 0 <= x < solid.shape[1] and solid[y, x]:
+                    edge = x
+                    break
+            if edge is None or edge == sliver:
+                continue
+            fabric = array[y, min(max(edge + 2 * step, 0), solid.shape[1] - 1)].copy()
+            for x in range(sliver, edge, step):
+                array[y, x] = fabric
+                array[y, x, 3] = 255
+                added += 1
+    return Image.fromarray(array, "RGBA"), added

@@ -409,3 +409,18 @@ def test_cover_run_leg_hides_the_body_leg_and_outlines_the_garment() -> None:
     assert (out[10:590, 44:60, 3] == 255).all()  # 뒤 허벅지 피부를 덮었다
     assert out[300, 228, :3].mean() < 110 and out[300, 120, :3].mean() > 150  # 배경 쪽 가장자리만 짙다
     assert out[650, 100, 3] == 0  # 바지 밑단 아래 다리는 그대로
+
+
+def test_top_side_meets_the_torso_outline_in_arm_bands() -> None:
+    """민소매처럼 몸통보다 좁은 상의: 팔 띠 높이에서 맨몸 몸통 옆 외곽선(팔과 틈으로 떨어진 조각)과 상의 옆 가장자리 사이 1~8px 틈을
+    상의 천으로 메워 그 외곽선이 상의 외곽선이 되게 한다(판정 round1 A: 밑단 옆에 짙은 세로 선이 매달려 보였다)."""
+    from outfit_pipeline.body import meet_torso_outline
+
+    body = np.zeros((768, 512, 4), np.uint8)
+    body[270:300, 40:110] = (240, 200, 185, 255)  # 왼팔
+    body[270:300, 116:121] = (60, 40, 35, 255)  # 몸통 옆 외곽선(팔과 6px 틈)
+    top = np.zeros_like(body)
+    top[250:300, 126:390] = (120, 200, 170, 255)  # 상의(외곽선과 5px 틈)
+    out = np.array(meet_torso_outline(Image.fromarray(top, "RGBA"), Image.fromarray(body, "RGBA"))[0])
+    assert (out[280, 121:126, 3] == 255).all() and out[280, 115, 3] == 0
+    assert out[260, 121, 3] == 0  # 외곽선이 없는 행은 그대로

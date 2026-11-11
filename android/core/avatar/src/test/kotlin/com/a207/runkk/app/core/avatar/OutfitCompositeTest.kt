@@ -290,13 +290,12 @@ class OutfitCompositeTest {
         val found = mutableListOf<String>()
         AvatarGender.entries.forEach { gender ->
             val visible = uvMask(OutfitSlot.STAND, gender, AvatarOutfit())
-            val slivers = torsoSlivers(gender)
             val composed = compose(OutfitSlot.STAND, gender, AvatarOutfit(), 100)
             // 소매 아래(y 185)부터 손 위(y 300)까지: 팔 띠·몸통 옆·허리 위. 소매 끝 모서리(y 185 위)와 목은 상의 자르기·머리가 정한다.
             for (y in 185..300) {
                 for (x in 0 until width) {
                     val i = y * width + x
-                    if (visible[i] && !slivers[i] && approved[i] ushr 24 >= 250 &&
+                    if (visible[i] && approved[i] ushr 24 >= 250 &&
                         composed.getPixel(x, y) ushr 24 < 128
                     ) {
                         found += "$gender ($x, $y)"
@@ -458,17 +457,15 @@ class OutfitCompositeTest {
         val approved = pixels(approvedBytes(OutfitSlot.STAND))
         val composed = compose(OutfitSlot.STAND, AvatarGender.FEMALE, AvatarOutfit(), 0)
         val width = OutfitSlot.STAND.width
-        val slivers = torsoSlivers(AvatarGender.FEMALE)
         val opaque = BooleanArray(approved.size) { approved[it] ushr 24 >= 128 }
         var edge = 0
         val differs = mutableListOf<String>()
-        // 팔 띠(소매 밑 y 190~300, 바깥 열 x < 140·x > 372)에서 승인 실루엣 경계 2px 안. y 296부터 허리 쪽 열(x 128~139·373~383)은 허리 밴드
-        // 자리라 건너뛴다(기본 하의가 그린다, [임시:D-성-185])
+        // 팔 띠(소매 밑 y 190~300, 바깥 열 x < 140·x > 372)에서 승인 실루엣 경계 2px 안. y 296부터 허리 쪽 열(x 110~139·373~401)은 허리 밴드
+        // 자리라 건너뛴다(기본 하의가 그린다, [임시:D-성-185]. 허리 옆 계단을 원래 허리 가장자리로 이어 x 110·401까지 하의가 덮는다, 판정 round1 A)
         for (y in 190..300) {
             for (x in (0 until 140) + (373 until width)) {
-                if (y >= 296 && (x in 128..139 || x in 373..383)) continue
+                if (y >= 296 && (x in 110..139 || x in 373..401)) continue
                 val i = y * width + x
-                if (slivers[i]) continue
                 val near = (-2..2).any { dy ->
                     (-2..2).any { dx ->
                         opaque[
@@ -496,29 +493,6 @@ class OutfitCompositeTest {
         composed.recycle()
         assertTrue(edge > 300, "검사한 가장자리 $edge")
         assertEquals(emptyList(), differs.take(10), "팔 가장자리 차이 ${differs.size}/$edge")
-    }
-
-    /**
-     * 팔 띠 x 범위 안의 몸통 조각(자르기 칸 값 255): 허리 높이 몸통 옆 외곽선이 팔 띠에 들어온 곳이라 상의 밖이면 몸통 규칙으로 지운다.
-     * 승인 기본 그림에서도 밑단 옆에 짧은 짙은 호로 떠 보였다(판정 round1 A). 팔 가장자리·몸 실루엣 비교에서 그 둘레 2px까지 뺀다.
-     */
-    private fun torsoSlivers(gender: AvatarGender): BooleanArray {
-        val cut = decode(OutfitLibrary.read(checkNotNull(catalog.cutFile(gender, OutfitSlot.STAND)))!!)
-        val width = cut.width
-        val sliver = BooleanArray(width * cut.height) {
-            val x = it % width
-            val y = it / width
-            y in 185..301 && (x < 145 || x >= 367) && Color.alpha(cut.getPixel(x, y)) == 255
-        }
-        cut.recycle()
-        // 조각 끝 2px(조각을 지우면 끝에 남는 몇 픽셀도 부스러기로 지워진다)
-        return BooleanArray(sliver.size) { i ->
-            val x = i % width
-            val y = i / width
-            (-2..2).any { dy ->
-                (-2..2).any { dx -> sliver.getOrElse((y + dy) * width + (x + dx).coerceIn(0, width - 1)) { false } }
-            }
-        }
     }
 
     private fun approvedBytes(slot: OutfitSlot): ByteArray = if (slot == OutfitSlot.STAND) {

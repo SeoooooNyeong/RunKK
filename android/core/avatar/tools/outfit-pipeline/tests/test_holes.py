@@ -111,3 +111,18 @@ def test_soft_rims_around_a_real_hole_are_filled_with_it() -> None:
     draw.ellipse((50, 50, 70, 70), fill=(0, 0, 0, 0))  # 구멍
     out = np.array(fill_garment_holes(image)[0])
     assert (out[45:76, 45:76, 3] == 255).all()
+
+
+def test_collar_fill_lines_the_hood_but_keeps_the_neck_open() -> None:
+    """긴소매 서기 칼라·후드 안(생성 단계 피부 판정 칸 x 196~316, y 0~48에서 지워진 직사각형)을 안감 색으로 메우고 목 기둥(얼굴 목이
+    보이는 곳)은 비워 둔다(판정 round1 B: 목 피부 사각형, 후드 안 배경 구멍)."""
+    from outfit_pipeline.holes import NECK_COLUMN, fill_collar
+
+    image = _canvas((512, 768))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((150, 0, 370, 120), fill=WHITE)  # 후드 안감
+    draw.rectangle((196, 0, 316, 48), fill=(0, 0, 0, 0))  # 지워진 직사각형
+    out = np.array(fill_collar(image)[0])
+    assert out[30, 200, 3] == 255 and out[30, 312, 3] == 255  # 목 기둥 밖은 메운다
+    x0, x1 = NECK_COLUMN
+    assert out[30, (x0 + x1) // 2, 3] == 0  # 목 기둥은 비어 있다

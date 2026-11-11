@@ -183,3 +183,60 @@ def fill_garment_holes(image: Image.Image) -> tuple[Image.Image, int]:
             _component_fill(window, piece)
         total += int(mask.sum())
     return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), total
+
+
+# 서기 칼라·후드 안 메우기(판정 round1 B). 생성 단계가 긴소매의 목·가슴 위 칸(x 196~316, y 0~48)을 피부 판정 칸으로 써서 후드 안감과
+# 칼라를 직사각형으로 지웠고, 그 밑 몸 아틀라스 가슴 피부(자르기 제외 칸)가 목 둘레에 곧은 모서리의 피부 사각형으로 비쳤다. 몸 아틀라스는
+# 얼굴 레이어 위에 그려지므로 얼굴 목은 아틀라스가 빈 곳으로만 보인다: 목 기둥만 비워 두고 나머지 칼라·후드 안을 이웃 천 색으로 메운다.
+COLLAR_ROWS = 60  # 칼라·후드 안으로 보는 행(위에서)
+COLLAR_BAND = (150, 370)  # 칼라·후드 안으로 보는 x 범위
+NECK_COLUMN = (217, 296)  # 얼굴 목이 보이는 기둥(아틀라스 x, 여자 얼굴 목 폭. 남자는 목 바깥 몇 px이 안감에 가린다)
+NECK_SHADE = 0.62  # 목 기둥 둘레 안감 가장자리 2px을 이만큼 어둡게(후드 안 그늘)
+
+
+def fill_collar(image: Image.Image, body: Image.Image | None = None) -> tuple[Image.Image, int]:
+    """칼라·후드 안의 빈 곳(같은 행 왼쪽·오른쪽에 천이 있는 투명 픽셀, 위 [COLLAR_ROWS]행)을 이웃 천 색으로 메운다. 비워 두는 곳은 목
+    기둥 가운데 맨몸 아틀라스도 빈 곳(어깨선 U자 안, 얼굴 목이 보이는 곳)뿐이다: 목 기둥 안이라도 맨몸 가슴 피부가 있는 곳을 비우면 그
+    피부가 곧은 세로 모서리로 비쳤다. [body]가 없으면 목 기둥 전체를 비운다. 목 구멍 둘레 2px은 안감 그늘로 조금 어둡게 한다.
+    (레이어, 메운 픽셀 수)."""
+    array = _rgba(image).astype(np.float64)
+    solid = array[..., 3] >= SOLID
+    x0, x1 = COLLAR_BAND
+    target = np.zeros(solid.shape, bool)
+    for y in range(COLLAR_ROWS):
+        cloth = np.nonzero(solid[y, x0:x1])[0] + x0
+        if len(cloth) < 2:
+            continue
+        left, right = cloth.min(), cloth.max()
+        target[y, left:right] = ~solid[y, left:right]
+    n0, n1 = NECK_COLUMN
+    opening = np.zeros(solid.shape, bool)
+    opening[:, n0:n1] = True
+    if body is not None:
+        opening &= _rgba(body)[..., 3] < SOLID
+    target &= ~opening
+    if not target.any():
+        return image, 0
+    known = solid.copy()
+    todo = target.copy()
+    while todo.any():
+        grown = []
+        for y, x in zip(*np.nonzero(todo), strict=True):
+            around = [
+                array[ny, nx, :3]
+                for ny, nx in ((y - 1, x), (y + 1, x), (y, x - 1), (y, x + 1))
+                if 0 <= ny < known.shape[0] and 0 <= nx < known.shape[1] and known[ny, nx]
+            ]
+            if around:
+                grown.append((y, x, np.mean(around, axis=0)))
+        if not grown:
+            break
+        for y, x, color in grown:
+            array[y, x, :3] = color
+            array[y, x, 3] = 255
+            known[y, x] = True
+            todo[y, x] = False
+    filled = target & ~todo
+    edge = _filter(opening & (np.arange(solid.shape[0])[:, None] < COLLAR_ROWS), ImageFilter.MaxFilter(5)) & filled
+    array[edge, :3] *= NECK_SHADE
+    return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), int(filled.sum())

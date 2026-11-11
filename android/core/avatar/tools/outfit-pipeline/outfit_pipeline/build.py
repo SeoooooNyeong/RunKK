@@ -25,6 +25,7 @@ from outfit_pipeline.body import (
     elbow_tail_mask,
     extend_waist,
     fill_pinholes,
+    meet_torso_outline,
     smooth_sleeve_line,
     square_waist_sides,
     trim_waist,
@@ -32,6 +33,7 @@ from outfit_pipeline.body import (
     wisp_strokes,
 )
 from outfit_pipeline.check import Problem, check_bundle, hole_area, template_for
+from outfit_pipeline.hip import paint_hip
 from outfit_pipeline.holes import fill_garment_holes
 from outfit_pipeline.masks import load_mask
 from outfit_pipeline.shoes import drop_ghost, drop_pieces
@@ -355,6 +357,9 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
         layer, _ = strip_skin(clip(to_slot(Image.open(path), slot), load_mask(masks_dir, template, part)))
         wisps = wisp_layer(asset_key, name)
         layer, _ = drop_strays(layer, garment=wisps, thin=True)
+        stand_body = target.parent / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}"
+        if part == "TOP" and match.group(2) == "stand" and stand_body.is_file():
+            layer, _ = meet_torso_outline(layer, Image.open(stand_body))  # 판정 round1 A
         if part == "BOTTOM":
             layer = tidy_bottom(layer, target.parent / spec.BODY_FOLDER, wisps, match.group(2) == "stand")
         if part == "SHOES":
@@ -383,13 +388,9 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
     return entry
 
 
-ARM_GAP_ALPHA = 64  # 팔 띠에서 팔과 몸통을 가르는 틈의 알파 상한
-
-
-def cut_area(raw_dir: Path, slot_name: str, body: Image.Image | None = None) -> Image.Image:
+def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
     """상의 자르기 칸([임시:D-성-156], 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위, 허리 밴드를 빼고 엉덩이 옆(손 칸 밖)을 더한 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
-    조각을 뺀 전체, 달리기 팔은 전체(소매 끝 아래는 팔 띠). 서기 맨몸 [body]를 주면 팔 띠 안에서 팔과 틈으로 떨어진 몸통 조각은 몸통 값으로 둔다
-    (`_torso_in_arm_bands`)."""
+    조각을 뺀 전체, 달리기 팔은 전체(소매 끝 아래는 팔 띠)."""
     from outfit_pipeline.masks import stand_zones
 
     slot = spec.SLOTS[slot_name]
@@ -414,10 +415,6 @@ def cut_area(raw_dir: Path, slot_name: str, body: Image.Image | None = None) -> 
             x0, y0, x1, y1 = box
             region = array[y0:y1, x0:x1]
             region[region > 0] = value
-        if body is not None:
-            # 팔 띠 값인 곳만 바꾼다(엉덩이 칸 값 230은 그대로)
-            arm = (array == spec.CUT_LEFT_ARM) | (array == spec.CUT_RIGHT_ARM)
-            array[_torso_in_arm_bands(body) & arm] = spec.CUT_TORSO
         return Image.fromarray(array, "L")
     area = Image.new("L", (slot.width, slot.height), spec.CUT_ALL if slot_name == "run_body" else spec.CUT_TORSO)
     if slot_name == "run_body":
@@ -425,30 +422,6 @@ def cut_area(raw_dir: Path, slot_name: str, body: Image.Image | None = None) -> 
     if slot_name == "run_arm":
         area.paste(spec.CUT_LEFT_ARM, spec.RUN_ARM_FOREARM)
     return area
-
-
-def _torso_in_arm_bands(body: Image.Image) -> np.ndarray:
-    """서기 팔 띠(왼쪽·오른쪽) 각 행에서 바깥부터 처음 만나는 맨몸 덩어리(알파 64 이상)는 팔, 그 뒤 틈(알파 64 미만) 너머 덩어리는 몸통이다.
-    허리 높이에서 몸통 옆 외곽선이 팔 띠 x 범위 안에 들어와 민소매일 때 자르지 않고 남았다(판정 round1 A: 밑단 옆 짙은 세로 선).
-    겨드랑이처럼 팔과 몸통이 붙은 행은 모두 팔이다."""
-    alpha = np.array(body.convert("RGBA"))[..., 3] >= ARM_GAP_ALPHA
-    torso = np.zeros(alpha.shape, bool)
-    for box, outward in ((spec.STAND_LEFT_ARM, True), (spec.STAND_RIGHT_ARM, False)):
-        x0, y0, x1, y1 = box
-        for y in range(y0, y1):
-            row = alpha[y, x0:x1] if outward else alpha[y, x0:x1][::-1]
-            seen_arm = False
-            gap = False
-            mark = np.zeros(row.shape, bool)
-            for i, on in enumerate(row):
-                if on and not seen_arm:
-                    seen_arm = True
-                elif not on and seen_arm:
-                    gap = True
-                elif on and gap:
-                    mark[i] = True
-            torso[y, x0:x1] = mark if outward else mark[::-1]
-    return torso
 
 
 def build_body(source: Path, outfits_dir: Path, raw_dir: Path) -> dict:
@@ -471,8 +444,7 @@ def build_body(source: Path, outfits_dir: Path, raw_dir: Path) -> dict:
             spec.save_webp(Image.fromarray(array, "RGBA"), folder / f"{gender}_{slot_name}{spec.EXTENSION}")
             names.append(f"{gender}_{slot_name}")
         for slot_name in spec.CUT_SLOTS:
-            stand = folder / f"{gender}_stand{spec.EXTENSION}"
-            area = cut_area(raw_dir, slot_name, Image.open(stand) if slot_name == "stand" and stand.is_file() else None)
+            area = cut_area(raw_dir, slot_name)
             mask = Image.new("RGBA", area.size, (0, 0, 0, 0))
             mask.putalpha(area)
             spec.save_webp(mask, folder / f"{gender}_{slot_name}_cut{spec.EXTENSION}")
@@ -521,6 +493,8 @@ def clean_body(slot_name: str, image: Image.Image) -> tuple[Image.Image, Image.I
     if slot_name != "stand":
         # 달리기 슬롯(옆모습)은 3x3 굵은 실루엣 밖 1~2px 털도 지운다: 남기면 긴소매 소매 끝 옆 손목에서 상의 자르기가 빗살을 남겼다
         image, _ = drop_strays(image.convert("RGBA"), thin=True)
+        if slot_name == "run_leg":
+            image = paint_hip(image)  # 엉덩이 잇기 메시 칸(판정 round1 C)
         return image, None
     image, _ = drop_dust(image.convert("RGBA"))
     from outfit_pipeline.cli import RAW
@@ -559,6 +533,8 @@ def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stan
     if stand:
         layer, _ = trim_waist(layer)
     else:
+        # 달리기 엉덩이 잇기 메시가 쓰는 칸(판정 round1 C, outfit_pipeline/hip.py)
+        layer = paint_hip(layer)
         leg = body_folder / f"female_run_leg{spec.EXTENSION}"
         # 천이 넓게(40px 이상) 있는 행만 센다(반바지 레이어에 딸려 온 다리 외곽선 가는 줄은 발목까지 내려간다)
         rows = np.nonzero(((np.array(layer.convert("RGBA"))[..., 3] >= 128).sum(axis=1)) >= 40)[0]
@@ -596,8 +572,7 @@ def clean_assets(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str,
         name = path.stem
         if name.endswith("_cut"):
             slot_name = name.split("_", 1)[1].removesuffix("_cut")
-            stand = folder / f"{name.split('_', 1)[0]}_stand{spec.EXTENSION}"
-            area = cut_area(raw_dir, slot_name, Image.open(stand) if slot_name == "stand" and stand.is_file() else None)
+            area = cut_area(raw_dir, slot_name)
             mask = Image.new("RGBA", area.size, (0, 0, 0, 0))
             mask.putalpha(area)
             spec.save_webp(mask, path)
@@ -623,6 +598,9 @@ def clean_assets(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str,
                 layer = tidy_bottom(layer, folder, wisps, path.stem.split("_", 1)[1] == "stand")
             if part == "SHOES":
                 layer, _ = drop_pieces(layer)
+            stand_body = folder / f"female_stand{spec.EXTENSION}"
+            if part == "TOP" and path.stem.split("_", 1)[1] == "stand" and stand_body.is_file():
+                layer, _ = meet_torso_outline(layer, Image.open(stand_body))
             surface = spec.default_male_top_surface(bundle.name)
             layer = fill_layer_holes(layer, masks_dir, path.name, part, surface)
             count = int((np.array(layer) != before).any(axis=2).sum())

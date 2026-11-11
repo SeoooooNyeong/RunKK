@@ -37,7 +37,7 @@ class RiveAvatarAssetsTest {
     }
 
     @Test
-    fun `준비한 바이트는 4개 매핑 Rive 파일(검수 바탕·내장 그림자 투명), 내장 머리 12장, 앞 단계 서기 몸이다`() = runBlocking {
+    fun `준비한 바이트는 4개 매핑 Rive 파일(검수 바탕·내장 그림자 투명, 달리기 엉덩이 잇기 칸 옮김), 내장 머리 12장, 앞 단계 서기 몸이다`() = runBlocking {
         for (gender in AvatarGender.entries) {
             val prepared = assets.load(context, gender)
             assertEquals(gender, prepared.gender)
@@ -45,7 +45,7 @@ class RiveAvatarAssetsTest {
                 assertContentEquals(
                     RivGroundShadow.hidden(
                         RivReviewBackground.hidden(raw(RiveAvatarScene.rawResource(gender, motion)))
-                    ),
+                    ).also(RivHipConnection::retargetInPlace),
                     prepared.riv(motion),
                     "$gender $motion"
                 )

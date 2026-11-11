@@ -165,23 +165,6 @@ def test_cut_area_keeps_hands_and_neck() -> None:
     assert area.getpixel((60, 300)) == spec.CUT_LEFT_ARM and area.getpixel((450, 300)) == spec.CUT_RIGHT_ARM
 
 
-def test_cut_area_gives_torso_slivers_in_arm_bands_the_torso_rule() -> None:
-    """팔 띠 안에서 팔과 틈(알파 64 미만)으로 떨어진 몸통 조각(허리 옆 외곽선)은 몸통 규칙(255)이다. 민소매는 팔 띠를 자르지 않아 그 조각이
-    밑단 옆에 짙은 세로 선으로 매달렸다(판정 round1 A)."""
-    import numpy as np
-
-    body = np.zeros((768, 512, 4), np.uint8)
-    body[280:290, 40:110, 3] = 255  # 왼팔
-    body[280:290, 116:200, 3] = 255  # 몸통(팔과 6px 틈)
-    body[280:290, 300:396, 3] = 255  # 몸통
-    body[280:290, 402:470, 3] = 255  # 오른팔
-    area = np.array(cut_area(RAW, "stand", Image.fromarray(body, "RGBA")))
-    assert area[285, 60] == spec.CUT_LEFT_ARM and area[285, 120] == spec.CUT_TORSO
-    assert area[285, 450] == spec.CUT_RIGHT_ARM and area[285, 390] == spec.CUT_TORSO
-    committed = np.array(Image.open(OUTFITS / spec.BODY_FOLDER / f"female_stand_cut{spec.EXTENSION}"))[..., 3]
-    assert committed[285, 120] == spec.CUT_TORSO and committed[285, 100] == spec.CUT_LEFT_ARM
-
-
 @pytest.mark.parametrize("key", ["top_cherry_vest", "top_lime_singlet", "base_top"])
 def test_default_male_top_surface(key: str) -> None:
     assert spec.default_male_top_surface(key) == (2 if key == "top_cherry_vest" else 1)

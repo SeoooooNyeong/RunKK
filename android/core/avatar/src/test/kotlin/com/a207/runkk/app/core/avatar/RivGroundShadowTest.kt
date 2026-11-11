@@ -29,7 +29,11 @@ class RivGroundShadowTest {
         for (name in RIVS) {
             val original = File(raw, "$name.riv").readBytes()
             val prepared = PreparedRiveAssets.hideBuiltInShapes(original.copyOf())
-            val changed = original.indices.filter { original[it] != prepared[it] }
+            // 달리기 riv는 엉덩이 잇기 꼭짓점 v(float32 17개, [RivHipConnection])도 바뀐다
+            val hip = (RivHipConnection.FEMALE_OFFSETS + RivHipConnection.MALE_OFFSETS).flatMap {
+                (it until it + 4).toList()
+            }
+            val changed = original.indices.filter { original[it] != prepared[it] && it !in hip }
             assertEquals(2, changed.size, "$name: 검수 바탕 알파 하나 + 그림자 알파 하나")
         }
     }
