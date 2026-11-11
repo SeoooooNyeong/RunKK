@@ -212,6 +212,10 @@ internal class FakeFollower : SelfieJobFollower {
     override fun cancel() {
         calls += "cancel"
     }
+
+    override suspend fun checkNow() {
+        calls += "check"
+    }
 }
 
 /** 보낸 사진 한 장(메모리). */
@@ -467,6 +471,19 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
+    fun `기본 얼굴에서 셀카가 만들어지면 기본 얼굴 칸 고름을 풀어 새 셀카를 기본 얼굴로 덮지 않는다(D-성-187, 리뷰 U-11)`() {
+        val model = vm()
+        assertTrue(model.state.value.isDefaultSelected)
+        model.onSelfie(byteArrayOf(1))
+        model.onStart()
+        model.onDefaultFaceSelected()
+        repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "head:7:job-1", defaultCharacterId = null))
+        repo.progress.value = SelfieProgress.Succeeded("job-1", "head:7:job-1")
+        assertEquals("head:7:job-1", model.state.value.faceKey)
+        assertFalse(model.state.value.isDefaultSelected, "새 셀카가 지금 얼굴이다(카드가 셀카를 그리고 저장 단추가 없다)")
+    }
+
+    @Test
     fun `만드는 중에도 기본 얼굴을 저장할 수 있고(서버에는 RABBIT) 따라가기를 멈추고 사진을 지운 뒤 돌아간다(FR-158, D-성-187)`() = runTest(main.dispatcher) {
         val model = vm()
         model.onSelfie(byteArrayOf(1))
@@ -488,6 +505,13 @@ class AvatarSetupViewModelTest {
         assertTrue(presence.isVisible)
         model.onScreenHidden()
         assertFalse(presence.isVisible)
+    }
+
+    @Test
+    fun `화면이 보이면 기기에 남은 작업을 워커와 따로 한 번 직접 확인한다(임시 D-성-188)`() {
+        val model = vm()
+        model.onScreenVisible()
+        assertEquals(1, follower.calls.count { it == "check" })
     }
 }
 

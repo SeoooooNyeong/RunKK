@@ -34,6 +34,7 @@ import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_LOADING_TAG
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.ReleaseScope
@@ -250,6 +251,30 @@ class MeScreensTest {
         val avatar = compose.onNodeWithTag(PROFILE_EDIT_AVATAR_TAG).getUnclippedBoundsInRoot()
         val nickname = compose.onNodeWithText("달리는곰").getUnclippedBoundsInRoot()
         assertTrue(avatar.bottom <= nickname.top, "아바타가 닉네임 칸보다 위에 있다")
+    }
+
+    @Test
+    fun `프로필 편집은 셀카 얼굴을 받는 동안 기본 머리를 먼저 보이지 않는다(임시 D-성-190)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ProfileEditScreen(
+                    ProfileEditUiState(
+                        isLoading = false,
+                        nickname = "달리는곰",
+                        faceKey = "head:1:job-1",
+                        isFaceLoading = true
+                    ),
+                    onBack = {},
+                    onNicknameChange = {},
+                    onIntroChange = {},
+                    onSave = {},
+                    onErrorShown = {}
+                )
+            }
+        }
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true)
+            .assertDoesNotExist()
     }
 
     @Test

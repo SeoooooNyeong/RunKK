@@ -58,7 +58,16 @@ class HomeSelfieBadgeTest {
 
     private val repo = FakeAvatars()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val store = MyAvatarStore(repo, flowOf<Gender?>(Gender.MALE), headsOf(repo), {}, { _, _ -> }, scope)
+    private var checks = 0
+    private val store = MyAvatarStore(
+        repo,
+        flowOf<Gender?>(Gender.MALE),
+        headsOf(repo),
+        {},
+        { _, _ -> },
+        scope,
+        checkPending = { checks++ }
+    )
     private val navigator = RecordingNavigator()
 
     @After
@@ -78,6 +87,14 @@ class HomeSelfieBadgeTest {
         show()
         compose.onNodeWithTag(SELFIE_WORKING_BADGE_TAG).performClick()
         assertEquals(listOf(Routes.AVATAR_SETUP), navigator.routes)
+    }
+
+    @Test
+    fun `홈 칸이 보이면 워커와 따로 기기 작업을 한 번 직접 확인한다(임시 D-성-188)`() {
+        repo.progress.value = SelfieProgress.Working("job-1")
+        show()
+        compose.waitForIdle()
+        assertEquals(1, checks)
     }
 
     @Test

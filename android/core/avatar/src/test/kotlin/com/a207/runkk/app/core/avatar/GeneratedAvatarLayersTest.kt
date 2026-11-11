@@ -74,6 +74,36 @@ class GeneratedAvatarLayersTest {
     }
 
     @Test
+    fun `체형 볼 레이어는 눈을 덮지 않는다 - 눈이 턱 가까이 있어도 눈 아래부터 넓힌다(임시 D-성-192)`() {
+        // 큰 눈이 턱 쪽으로 내려온 셀카(눈 y600..660, 턱 750): 턱 위 145px 띠가 눈 아래쪽을 덮으면 눈이 감긴 선처럼 보였다.
+        val lowEyes = shape { bitmap ->
+            fill(bitmap, 400..440, 600..660, EYE)
+            fill(bitmap, 584..624, 600..660, EYE)
+        }
+        val layers = GeneratedHeadLayers.fromHeadJson(json(mobile = null, eyes = lowEyes))
+        for (gender in AvatarGender.entries) {
+            val placement = HeadPlacement.fit(512f, 750f, 150f, HeadTarget.front(gender))
+            val eyeTop = placement.mapY(600f).toInt()
+            val eyeBottom = placement.mapY(660f).toInt()
+            val eyeXs = listOf(placement.mapX(420f).toInt(), placement.mapX(604f).toInt())
+            for (stage in 1..2) {
+                val overlay = decode(layers.variants.getValue(gender).frontFullness.getValue(stage))
+                for (x in eyeXs) {
+                    for (y in eyeTop until eyeBottom) {
+                        assertTrue(
+                            Color.alpha(overlay.getPixel(x, y)) == 0,
+                            "$gender 체형 $stage 볼 레이어가 눈($x, $y)을 덮는다"
+                        )
+                    }
+                }
+                val chin = HeadTarget.front(gender).chinY.toInt()
+                assertTrue(Color.alpha(overlay.getPixel(placement.mapX(512f).toInt(), chin - 10)) > 200, "턱 위 볼은 그대로")
+                overlay.recycle()
+            }
+        }
+    }
+
+    @Test
     fun `목 메타가 없고 알파에서도 목을 찾지 못하면 실패한다`() {
         val noNeck = shape { fill(it, 300..720, 300..800, FRONT_SKIN) }
         assertFailsWith<IllegalArgumentException> {
@@ -81,10 +111,10 @@ class GeneratedAvatarLayersTest {
         }
     }
 
-    private fun json(mobile: String?, face: ByteArray = frontFace): String {
+    private fun json(mobile: String?, face: ByteArray = frontFace, eyes: ByteArray = frontEyes): String {
         val images = mapOf(
             "faceImage" to face,
-            "eyesImage" to frontEyes,
+            "eyesImage" to eyes,
             "hairImage" to frontHair,
             "rightFaceImage" to sideFace,
             "rightEyesImage" to sideEyes,

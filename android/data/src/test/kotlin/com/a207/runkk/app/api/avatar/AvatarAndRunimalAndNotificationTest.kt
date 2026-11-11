@@ -69,6 +69,7 @@ class AvatarAndRunimalAndNotificationTest {
             pending,
             com.a207.runkk.app.api.core.SelfMember(TestTokens(com.a207.runkk.app.api.core.jwtOf("7")))
         ),
+        MemoryPhoto(),
         java.time.Clock.systemUTC()
     )
 

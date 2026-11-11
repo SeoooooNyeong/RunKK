@@ -23,6 +23,7 @@ import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.BackgroundUnlockSeenStore
@@ -82,7 +83,19 @@ class AvatarW8LogicTest {
         assertEquals(AvatarBodyShape.CHANGE_1, bodyShapeOf(1))
         assertEquals(AvatarBodyShape.CHANGE_2, bodyShapeOf(2))
         assertEquals(AvatarBodyShape.BASE, bodyShapeOf(7))
-        assertEquals(listOf(0, 1, 1, 2, 0), listOf("STAGE1", "STAGE2", "STAGE3", "STAGE4", "?").map(::bodyVariantOf))
+    }
+
+    @Test
+    fun `서버 체형 4단계는 서버 BodyShape variant와 같게 옮긴다 - 4단계가 기본 몸, 1단계가 가장 통통(D-성-179)`() {
+        assertEquals(listOf(2, 1, 1, 0, 0), listOf("STAGE1", "STAGE2", "STAGE3", "STAGE4", "?").map(::bodyVariantOf))
+    }
+
+    @Test
+    fun `상점·꾸미기 무대 체형은 홈(내 러너 bodyVariant)과 같다 - 기본 몸이면 볼 덮개가 셀카 눈을 덮지 않는다(임시 D-성-191)`() {
+        val base = Avatar(null, null, "STAGE4", "DAYTIME", emptyMap(), 0, true, emptyMap())
+        assertEquals(AvatarBodyShape.BASE, AvatarLook().withAvatar(base, emptyList(), 0).bodyShape)
+        val fullest = base.copy(bodyShape = "STAGE1")
+        assertEquals(AvatarBodyShape.CHANGE_2, AvatarLook().withAvatar(fullest, emptyList(), 0).bodyShape)
     }
 
     @Test
