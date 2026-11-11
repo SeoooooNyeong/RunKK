@@ -15,6 +15,7 @@ import com.a207.runkk.app.domain.avatar.SelfieProgress
 import com.a207.runkk.app.domain.avatar.SelfieScreenPresence
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -155,7 +156,18 @@ class AvatarSetupViewModel internal constructor(
      */
     fun onScreenVisible() {
         presence.opened()
-        viewModelScope.launch { follower.checkNow() }
+        viewModelScope.launch { quietly { follower.checkNow() } }
+    }
+
+    /** 직접 확인은 덤이라 실패해도 화면을 그대로 둔다(워커가 이어 간다). 취소는 그대로 넘긴다. */
+    private suspend fun quietly(block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 다음에 화면이 보일 때 다시 확인한다.
+        }
     }
 
     /** 화면이 안 보인다(ON_STOP). */

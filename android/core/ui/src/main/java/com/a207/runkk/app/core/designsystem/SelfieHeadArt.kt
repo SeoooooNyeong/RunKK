@@ -10,8 +10,16 @@ import com.a207.runkk.app.core.model.FacePart
 /** 읽은 셀카 머리 층(그리는 순서)과 구도. [face]는 얼굴 층(목을 잇는 층)이다. */
 internal class SelfieHeadArt(val layers: List<ImageBitmap>, val face: ImageBitmap?, val frame: PortraitHeadFrame?) {
     companion object {
-        /** 하나라도 읽지 못하면 null. 얼굴·헤어 층이 같은 크기면 구도를 잰다. */
-        fun of(layers: List<FaceLayer>): SelfieHeadArt? {
+        /** 최근에 읽은 머리(2~4개): 내용이 같은 층 목록은 새 목록 인스턴스여도 다시 읽지 않는다(깜빡임 없이 바로 그린다). */
+        private val cache = SelfieHeadArtCache<SelfieHeadArt>(CACHE_SIZE)
+
+        private const val CACHE_SIZE = 4
+
+        /** 하나라도 읽지 못하면 null. 내용이 같으면 읽어 둔 것을 돌려준다. */
+        fun of(layers: List<FaceLayer>): SelfieHeadArt? = cache.getOrLoad(layers, ::decode)
+
+        /** 얼굴·헤어 층이 같은 크기면 구도를 잰다. */
+        private fun decode(layers: List<FaceLayer>): SelfieHeadArt? {
             val sorted = layers.sortedBy { it.part.ordinal }
             val bitmaps = sorted.map { BitmapFactory.decodeByteArray(it.png, 0, it.png.size) ?: return null }
             val face = sorted.indexOfFirst { it.part == FacePart.EARS }.takeIf { it >= 0 }

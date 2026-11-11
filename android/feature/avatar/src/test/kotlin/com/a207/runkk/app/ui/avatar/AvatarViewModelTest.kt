@@ -198,7 +198,7 @@ class FakeAvatars : AvatarRepository {
 }
 
 /** 따라가기 기록. */
-internal class FakeFollower : SelfieJobFollower {
+internal class FakeFollower(private val checkFailure: Exception? = null) : SelfieJobFollower {
     val calls = mutableListOf<String>()
 
     override fun follow(jobId: String) {
@@ -215,6 +215,7 @@ internal class FakeFollower : SelfieJobFollower {
 
     override suspend fun checkNow() {
         calls += "check"
+        checkFailure?.let { throw it }
     }
 }
 
@@ -512,6 +513,26 @@ class AvatarSetupViewModelTest {
         val model = vm()
         model.onScreenVisible()
         assertEquals(1, follower.calls.count { it == "check" })
+    }
+
+    @Test
+    fun `직접 확인이 예외를 던져도 앱이 죽지 않고 화면 상태는 그대로다`() {
+        val failing = FakeFollower(checkFailure = IllegalStateException("저장소 오류"))
+        val model =
+            AvatarSetupViewModel(
+                repo,
+                failing,
+                photo,
+                presence,
+                headsOf(repo),
+                Dispatchers.Unconfined,
+                FakeConsent(true)
+            )
+        val before = model.state.value
+        model.onScreenVisible()
+        assertEquals(1, failing.calls.count { it == "check" })
+        assertTrue(presence.isVisible)
+        assertEquals(before, model.state.value)
     }
 }
 
