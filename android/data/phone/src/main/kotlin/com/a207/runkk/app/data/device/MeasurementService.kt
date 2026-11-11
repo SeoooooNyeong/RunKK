@@ -46,7 +46,7 @@ import kotlinx.coroutines.launch
 
 /**
  * 측정 중 앱을 살려 두는 포그라운드 서비스(6.1.14 data.device, 타입 location, C-010, FR-035).
- * 업무 규칙이 없다: FusedLocationProvider 1초 구독을 RunTracker.onLocationSample로, 1초 시계를 RunTracker.tick으로 넘긴다(D-56).
+ * FusedLocationProvider 1초 구독과 폰 움직임 판정을 RunTracker로 넘긴다(D-56).
  * 잠금 화면 진행 알림(FR-224, D-259)은 RunTracker.notice를 구독해 같은 알림 ID로 다시 그리고, 표현은 시작할 때 OS 판으로 고른다
  * ([ProgressNotificationStyle.choose]). 알림의 일시정지·재개 버튼은 action과 함께 이 서비스를 부르고, 그때는 포그라운드 진입을
  * 다시 하지 않고 RunTracker의 알림 연산만 부른다(D-260). 위치·시각 값은 로그에 쓰지 않는다.
@@ -60,6 +60,7 @@ class MeasurementService : LifecycleService() {
     lateinit var clock: Clock
 
     private val locations by lazy { LocationServices.getFusedLocationProviderClient(this) }
+    private val inertialMotion by lazy { PhoneInertialMotion(this) }
     private var ticking: Job? = null
     private var publishing: Job? = null
     private val style: ProgressNotificationStyle by lazy {
@@ -71,7 +72,7 @@ class MeasurementService : LifecycleService() {
     private val callback =
         object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                result.locations.forEach { runTracker.onLocationSample(it.toSample()) }
+                result.locations.forEach { runTracker.onPhoneLocationSample(it.toSample()) }
             }
         }
 
@@ -100,6 +101,7 @@ class MeasurementService : LifecycleService() {
 
     override fun onDestroy() {
         locations.removeLocationUpdates(callback)
+        inertialMotion.stop()
         ticking?.cancel()
         publishing?.cancel()
         super.onDestroy()
@@ -128,12 +130,14 @@ class MeasurementService : LifecycleService() {
     @SuppressLint("MissingPermission") // onStartCommand가 locationGranted로 먼저 확인한다.
     private fun startMeasuring() {
         if (ticking != null) return
+        if (runTracker.notice.value is ProgressNotice.Free) inertialMotion.start()
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MILLIS).build()
         locations.requestLocationUpdates(request, callback, Looper.getMainLooper())
         ticking =
             lifecycleScope.launch {
                 while (isActive) {
                     delay(INTERVAL_MILLIS)
+                    inertialMotion.ensureStepsStarted()
                     runTracker.tick(clock.instant())
                 }
             }
@@ -178,7 +182,14 @@ class MeasurementService : LifecycleService() {
     private fun Location.toSample(): LocationSample = LocationSample(
         at = Instant.ofEpochMilli(time),
         point = GeoPoint(latitude, longitude),
-        accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else Double.MAX_VALUE
+        accuracyMeters = if (hasAccuracy()) accuracy.toDouble() else Double.MAX_VALUE,
+        speedMps = if (hasSpeed()) speed.toDouble().takeIf { it.isFinite() && it >= 0 } else null,
+        speedAccuracyMps = if (hasSpeedAccuracy()) {
+            speedAccuracyMetersPerSecond.toDouble().takeIf { it.isFinite() && it >= 0 }
+        } else {
+            null
+        },
+        inertialMotion = this@MeasurementService.inertialMotion.forLocation(elapsedRealtimeNanos)
     )
 
     /**

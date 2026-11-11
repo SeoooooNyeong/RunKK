@@ -4,6 +4,7 @@
     <!-- data.device: 측정 위치(FR-032)와 포그라운드 측정 서비스(타입 location, FR-035) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- data.device: 잠금 화면 진행 알림(FR-224). Android 16 이상은 승격 진행 알림(Live Updates, D-259) -->
