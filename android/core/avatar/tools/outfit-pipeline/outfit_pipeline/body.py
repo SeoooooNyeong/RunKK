@@ -2,7 +2,7 @@
 
 riv 메시는 체형과 숨쉬기 동작에서 팔과 몸통 사이, 엉덩이 옆을 늘린다. 그래서 텍스처의 작은 흠이 화면에서 선으로 커진다.
 
-- 부스러기(`drop_strays`): 굵은 실루엣(알파 128 이상을 3x3로 열고 1px 넓힌 곳) 밖의 픽셀. 실루엣에서 뻗은 1~2px 털(소매 모서리
+- 부스러기(`drop_strays`): 외곽선에 붙지 않은 고립 점과 거의 투명한 먼지(`dust_mask`). 팔꿈치 꼬리(소매 모서리
   외곽선 조각, 그림 도구 외곽선 실오라기)과 떨어진 점·거의 투명한 먼지다. 가장자리 안티에일리어싱 1px은 남는다.
 - 소매 밑단 줄(`smooth_sleeve_line`): 서기 맨몸 팔은 소매 높이 위가 그림 도구 피부, 아래가 승인 피부라 그 사이에 소매 밑단 선과
   소매 그림자 띠가 남았다. 민소매에서 팔꿈치 위 가로 줄로 보였다. 팔 안쪽 픽셀을 위아래 피부 사이 보간으로 바꾼다.
@@ -25,14 +25,25 @@ SOLID = 128
 NEUTRAL = 25  # 채널 최대−최소가 이보다 작으면 무채색(속옷 회색·짙은 허리 밴드·그 외곽선). 피부는 40 이상
 BODY_OUTLINE = (58, 30, 16)  # 승인 텍스처 다리 외곽선
 WISP_DARK = 140  # 옷 레이어의 갈색 실오라기 밝기 상한(크림·베이지 천은 더 밝다)
-EDGE_PX = 2  # 실루엣 가장자리(빈 곳까지 이 거리 안)
+REMOVE_MARGIN = 2  # 지울 때 문턱을 넓히는 폭(앱 디코더 반올림 차이로 검사 문턱에 걸린 픽셀이 남지 않게)
+EDGE_PX = 5  # 실루엣 가장자리(빈 곳까지 이 거리 안): 맨몸 외곽선 두께(4~6px)를 다 덮는다. 이 안은 고치지 않는다
+OUTLINE_DARK = 120  # 맨몸 외곽선으로 보는 밝기 상한
+DUST_PIECE = 40  # 8방향으로 이은 알파 덩어리가 이보다 작으면(또는 알파 128 이상 픽셀이 없으면) 고립 점
+ELBOW_WINDOW = (140, 180)  # 서기 팔꿈치 높이(승인 반팔 소매 모서리 외곽선 꼬리가 남은 행)
 EMPTY = 16  # 이보다 옅으면 빈 곳(속바지 밑단 선 안쪽의 반투명 픽셀은 빈 곳이 아니다)
 LEG_REACH = 40  # 허리·엉덩이 칸 아래에서 다리 피부를 찾는 행 수
 PINHOLE = 8  # 몸 안 투명 구멍을 채우는 최대 크기
 LEG_SMOOTH = 21  # 허리·엉덩이 피부색을 가로로 고르는 폭
 DARK = 120  # 허리·엉덩이 칸 안쪽에서 이보다 어두우면 옛 반바지 선
-SLEEVE_ROWS = (145, 201)  # 서기 팔에서 소매 밑단 줄과 그림자 띠가 있는 행(위 끝 행·아래 끝 행은 보간 기준)
-SLEEVE_REACH = 10  # 기준 행이 팔 안쪽이 아니면 위·아래로 이만큼까지 찾는다
+SEAM_FROM = 100  # 승인 소매를 찾는 행(어깨 아래)
+SEAM_LIMIT = 230  # 승인 소매를 찾는 행(그 아래는 몸판)
+SEAM_SLEEVE_MAX = 200  # 소매 밑단으로 보는 행 상한(그보다 아래면 몸판까지 이어진 열)
+SEAM_BORROW = 40  # 밑단을 못 찾은 열이 빌려 올 소매 열의 거리
+SEAM_ABOVE = 4  # 소매 밑단 행 위로 이만큼(보간 위 끝)
+SEAM_BELOW = 30  # 소매 밑단 행 아래로 이만큼(아래팔 피부 기준 색)
+SEAM_MIN_DEPTH = 14  # 맨몸 소매 줄은 승인 밑단보다 최대 8행 아래에 있다(맨몸 만들 때 피부가 시작하는 행부터 옮겼다)
+SEAM_BLEND = 8  # 끝 색을 고르는 양옆 열 수
+SEAM_MATCH = 18  # 아래팔 피부와 이만큼(채널 차 합) 안이면 그림자 띠가 끝난 것
 
 
 def _rgba(image: Image.Image | np.ndarray) -> np.ndarray:
@@ -46,14 +57,27 @@ def _thick(solid: np.ndarray, size: int) -> np.ndarray:
     return np.array(opened.filter(ImageFilter.MaxFilter(3))) > 0
 
 
-def stray_mask(rgba: np.ndarray, garment: bool = False) -> np.ndarray:
-    """굵은 실루엣(3x3) 밖의 알파가 있는 픽셀(부스러기·털·먼지). [garment]면 옷 레이어에 남은 갈색 맨몸 외곽선 실오라기(5x5 굵은 실루엣 밖 불투명 픽셀,
-    R > G + 10, R > B + 20, 밝기 [WISP_DARK] 미만)도 센다. 맨몸 바탕의 갈색 외곽선은 몸의 일부라 빼고 본다."""
+def _thin_mask(rgba: np.ndarray) -> np.ndarray:
+    """굵은 실루엣(3x3로 열고 1px 넓힌 곳) 밖의 알파가 있는 픽셀(실루엣에서 뻗은 1~2px 털 포함)."""
+    return (rgba[..., 3] > 0) & ~_thick(rgba[..., 3] >= SOLID, 3)
+
+
+def stray_mask(rgba: np.ndarray, garment: bool = False, thin: bool = False, margin: int = 0) -> np.ndarray:
+    """부스러기: 고립 점([dust_mask]: 외곽선에 붙지 않은 작은 덩어리, 거의 투명한 먼지). 맨몸은 외곽선에 붙은 픽셀을 건드리지 않는다(검수: 3x3로
+    깎으면 외곽선이 끊겨 실기기에서 팔이 울퉁불퉁했다). 옷 레이어([thin])는 3x3 굵은 실루엣 밖 1~2px 털도 센다. [garment]면 옷 레이어에 남은
+    갈색 맨몸 외곽선 실오라기(5x5 굵은 실루엣 밖 불투명 픽셀, R > G + 10, R > B + 20, 밝기 [WISP_DARK] 미만)도 센다. 지울 때는 [margin]만큼
+    경계를 넓혀 앱 디코더 반올림 차이로 문턱에 걸린 픽셀이 남지 않게 한다."""
     solid = rgba[..., 3] >= SOLID
-    mask = (rgba[..., 3] > 0) & ~_thick(solid, 3)
+    mask = dust_mask(rgba)
+    if thin:
+        mask |= _thin_mask(rgba)
     if garment:
         rgb = rgba[..., :3].astype(int)
-        brown = (rgb[..., 0] > rgb[..., 1] + 10) & (rgb[..., 0] > rgb[..., 2] + 20) & (rgb.mean(axis=2) < WISP_DARK)
+        brown = (
+            (rgb[..., 0] > rgb[..., 1] + 10 - margin)
+            & (rgb[..., 0] > rgb[..., 2] + 20 - margin)
+            & (rgb.mean(axis=2) < WISP_DARK + margin)
+        )
         mask |= solid & brown & ~_thick(solid, 5)
     return mask
 
@@ -69,15 +93,15 @@ def wisp_layer(asset_key: str, name: str) -> bool:
     return short_top and not asset_key.startswith("base_") and slot in ("stand", "run_body")
 
 
-def count_strays(image: Image.Image, garment: bool = False) -> int:
-    return int(stray_mask(_rgba(image), garment).sum())
+def count_strays(image: Image.Image, garment: bool = False, thin: bool = False) -> int:
+    return int(stray_mask(_rgba(image), garment, thin).sum())
 
 
-def drop_strays(image: Image.Image, garment: bool = False) -> tuple[Image.Image, int]:
+def drop_strays(image: Image.Image, garment: bool = False, thin: bool = False) -> tuple[Image.Image, int]:
     """부스러기를 투명하게 지운다(지우면 새 털이 드러날 수 있어 더 없을 때까지). 지운 픽셀 수도 돌려준다."""
     array = _rgba(image).copy()
     total = 0
-    while (mask := stray_mask(array, garment)).any():
+    while (mask := stray_mask(array, garment, thin, margin=REMOVE_MARGIN)).any():
         array[mask] = 0
         total += int(mask.sum())
     return Image.fromarray(array, "RGBA"), total
@@ -110,14 +134,15 @@ def _near_outside(alpha: np.ndarray, radius: int) -> np.ndarray:
     return np.array(outside.filter(ImageFilter.MaxFilter(2 * radius + 1))) > 0
 
 
-def underwear_mask(rgba: np.ndarray | Image.Image) -> np.ndarray:
+def underwear_mask(rgba: np.ndarray | Image.Image, margin: int = 0) -> np.ndarray:
     """서기 맨몸의 허리·엉덩이 칸 안 옷 픽셀: 실루엣 가장자리([EDGE_PX]) 안쪽의 무채색(속옷 회색·짙은 허리 밴드)과 짙은 선(옛 반바지 밑단·주름
     선, 밝기 [DARK] 미만). 가장자리의 몸 외곽선은 빠진다."""
     array = _rgba(rgba)
     rgb = array[..., :3].astype(int)
-    dark = rgb.mean(axis=2) < DARK
+    dark = rgb.mean(axis=2) < DARK + margin
     inner = ~_near_outside(array[..., 3], EDGE_PX)
-    return (array[..., 3] >= SOLID) & (_neutral(array) | dark) & inner & _zone(array.shape, spec.STAND_HIPS)
+    neutral = (rgb.max(axis=2) - rgb.min(axis=2)) < NEUTRAL + margin
+    return (array[..., 3] >= SOLID) & (neutral | dark) & inner & _zone(array.shape, spec.STAND_HIPS)
 
 
 def _leg_colors(array: np.ndarray) -> np.ndarray:
@@ -153,7 +178,7 @@ def bare_hips(image: Image.Image) -> tuple[Image.Image, Image.Image]:
     array = _rgba(image).copy()
     zone = _zone(array.shape, spec.STAND_HIPS)
     near = _near_outside(array[..., 3], EDGE_PX)
-    under = underwear_mask(array)
+    under = underwear_mask(array, REMOVE_MARGIN)
     band = np.zeros_like(array)
     waist = (array[..., 3] >= SOLID) & _neutral(array) & zone & _zone(array.shape, spec.STAND_WAIST)
     band[waist] = array[waist]
@@ -165,36 +190,75 @@ def bare_hips(image: Image.Image) -> tuple[Image.Image, Image.Image]:
     ys, xs = np.nonzero(inner)
     array[ys, xs, :3] = colors[xs - x0]
     array[ys, xs, 3] = 255
-    # 가장자리의 무채색(옛 반바지 외곽선)은 몸 외곽선 갈색으로
-    edge = zone & near & (array[..., 3] >= SOLID) & _neutral(array)
-    array[edge, :3] = BODY_OUTLINE
+    # 가장자리(외곽선)는 모양 그대로 둔다(외곽선을 다시 그리면 실기기에서 들쭉날쭉했다). 옛 반바지 외곽선의 무채색만 색을 바꾼다:
+    # 짙은 픽셀은 같은 밝기의 몸 외곽선 갈색으로, 밝은 회색 안티에일리어싱은 다리 피부색으로(하의 옆에 회색 테두리로 비쳤다)
+    rim = (
+        zone
+        & near
+        & (array[..., 3] > 0)
+        & ((array[..., :3].astype(int).max(axis=2) - array[..., :3].astype(int).min(axis=2)) < NEUTRAL + REMOVE_MARGIN)
+    )
+    lum = array[..., :3].astype(float).mean(axis=2)
+    dark_rim = rim & (lum < DARK)
+    tint = np.array(BODY_OUTLINE, float) / np.mean(BODY_OUTLINE)
+    array[dark_rim, :3] = (lum[dark_rim, None] * tint).clip(0, 255).astype(np.uint8)
+    light_rim = rim & ~dark_rim
+    ys2, xs2 = np.nonzero(light_rim)
+    array[ys2, xs2, :3] = colors[xs2 - x0]
     return Image.fromarray(array, "RGBA"), Image.fromarray(band, "RGBA")
 
 
-def smooth_sleeve_line(image: Image.Image) -> Image.Image:
-    """서기 맨몸 팔(소매 높이)의 가로 줄을 지운다: 팔 안쪽 픽셀을 열마다 위(소매 높이 위 첫 안쪽 행)·아래(`SLEEVE_ROWS` 끝) 피부 사이 직선
-    보간으로. 위쪽 기준이 없는 열(팔꿈치 바깥)은 아래 피부색으로 채운다."""
+def sleeve_seams(legacy: Image.Image) -> dict[int, int]:
+    """승인 기본 텍스처(흰 반팔)의 열마다 소매 밑단 행(소매 흰 픽셀의 가장 아래 행, y 230 위). 서기 팔 열만."""
+    ref = _rgba(legacy).astype(int)
+    rgb = ref[..., :3]
+    tee = (ref[..., 3] > 0) & (rgb.min(axis=2) > 215) & ((rgb.max(axis=2) - rgb.min(axis=2)) < 30)
+    columns = [*range(spec.STAND_LEFT_ARM[0], spec.STAND_LEFT_ARM[2]), *range(spec.STAND_RIGHT_ARM[0], ref.shape[1])]
+    seams = {}
+    for x in columns:
+        # 흰 소매가 끝나고 아래로 5행 넘게 피부(흰 티 아님, 불투명, 붉은 기)가 이어지는 마지막 행
+        skin = (ref[:, x, 3] > 0) & ~tee[:, x] & (rgb[:, x, 0] - rgb[:, x, 2] > 20)
+        ends = [r for r in range(SEAM_FROM, SEAM_SLEEVE_MAX) if tee[r, x] and skin[r + 2 : r + 8].all()]
+        if ends:
+            seams[x] = ends[-1]
+    # 겨드랑이 쪽 열은 소매가 몸판 흰 티와 이어져 밑단을 찾지 못한다: 가장 가까운 소매 열의 밑단 행을 쓴다
+    for x in columns:
+        if x not in seams and seams:
+            nearest = min(seams, key=lambda c: abs(c - x))
+            if abs(nearest - x) <= SEAM_BORROW:
+                seams[x] = seams[nearest]
+    return seams
+
+
+def smooth_sleeve_line(image: Image.Image, legacy: Image.Image) -> Image.Image:
+    """서기 맨몸 팔의 소매 밑단 줄과 그림자 띠를 지운다: 열마다 승인 소매 밑단 행([sleeve_seams]) 위 [SEAM_ABOVE]행 ~ 아래 [SEAM_BELOW]행의
+    밝은 팔 피부를 위·아래 끝 피부 사이 직선 보간으로 바꾼다. 외곽선(빈 곳에서 [EDGE_PX] 안, 짙은 픽셀)은 건드리지 않는다."""
     array = _rgba(image).copy()
     alpha = array[..., 3]
-    inside = (alpha >= 250) & ~_near_edge(alpha, 250, 3)
-    top, bottom = SLEEVE_ROWS
-    columns = [*range(spec.STAND_LEFT_ARM[0], spec.STAND_LEFT_ARM[2]), *range(spec.STAND_RIGHT_ARM[0], array.shape[1])]
+    skin = (alpha >= 250) & ~_near_edge(alpha, EMPTY, EDGE_PX) & (array[..., :3].astype(int).mean(axis=2) >= 120)
     out = array.astype(np.float64)
-    for x in columns:
-        below = next((y for y in range(bottom, bottom + SLEEVE_REACH) if inside[y, x]), None)
-        if below is None:
+    spans = {}
+    for x, seam in sleeve_seams(legacy).items():
+        top, far = seam - SEAM_ABOVE, seam + SEAM_BELOW
+        if top < 0 or far >= array.shape[0] or not skin[top, x] or not skin[far, x]:
             continue
-        above = next((y for y in range(top - SLEEVE_REACH, top + SLEEVE_REACH) if inside[y, x]), None)
-        start = above if above is not None else top - SLEEVE_REACH
-        rows = np.arange(start + 1, below)
-        rows = rows[inside[rows, x]]
-        if not len(rows):
+        # 아래 끝: 소매 그림자 띠가 끝나 아래팔 피부(밑단에서 SEAM_BELOW 아래 색)와 거의 같아지는 첫 행
+        target = out[far, x, :3]
+        bottom = next(
+            (y for y in range(seam + 4, far) if skin[y, x] and np.abs(out[y, x, :3] - target).sum() <= SEAM_MATCH),
+            far,
+        )
+        spans[x] = (seam, top, bottom - seam)
+    for x, (seam, top, _) in spans.items():
+        # 그림자 띠가 끝나는 깊이는 양옆 열의 가운데값으로 고른다(열마다 다르면 세로 줄무늬·모서리가 생겼다). 끝 색은 그 행의 실제 피부
+        depth = int(np.median([spans[n][2] for n in range(x - SEAM_BLEND, x + SEAM_BLEND + 1) if n in spans]))
+        bottom = min(seam + max(depth, SEAM_MIN_DEPTH), seam + SEAM_BELOW)
+        if not skin[bottom, x]:
             continue
-        if above is None:
-            out[rows, x, :3] = out[below, x, :3]
-            continue
-        t = ((rows - above) / (below - above))[:, None]
-        out[rows, x, :3] = out[above, x, :3] * (1 - t) + out[below, x, :3] * t
+        rows = np.arange(top + 1, bottom)
+        rows = rows[skin[rows, x]]
+        t = ((rows - top) / (bottom - top))[:, None]
+        out[rows, x, :3] = out[top, x, :3] * (1 - t) + out[bottom, x, :3] * t
     return Image.fromarray(out.round().clip(0, 255).astype(np.uint8), "RGBA")
 
 
@@ -260,12 +324,18 @@ def trim_waist(image: Image.Image) -> tuple[Image.Image, int]:
     return Image.fromarray(array, "RGBA"), int(mask.sum())
 
 
+def _body_inside(body: Image.Image) -> np.ndarray:
+    solid = _rgba(body)[..., 3] >= SOLID
+    return solid & _thick(solid, 3)
+
+
 def extend_waist(image: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
     """하의 서기 레이어의 허리를 허리 겹침 띠 위(y 296)까지 늘린다(상의 밑단 밑으로 들어가게, [임시:D-성-158]·[임시:D-성-185]). 열마다 하의가
     5행 이어지기 시작하는 행 아래 4~8행의 색(양옆 10열 가운데값)으로, 맨몸 실루엣 안만 채운다. 하의가 그 띠에서 시작하지 않는 열은 그대로.
     밑단이 높은 상의와 짧은 허리 사이로 맨몸(예전엔 맨몸의 짙은 허리 밴드)이 띠로 보이지 않게 한다. (레이어, 채운 픽셀 수)."""
     array = _rgba(image).astype(np.float64)
-    inside = _rgba(body)[..., 3] >= SOLID
+    # 맨몸 실루엣 안: 굵은 실루엣(3x3 열기)만(외곽선 밖 낱 픽셀까지 늘리면 떨어진 점이 생겼다)
+    inside = _body_inside(body)
     starts = waist_starts(_rgba(image))
     y0 = spec.STAND_WAIST[1]
     reference = {x: np.median(array[r + 4 : r + 9, x, :3], axis=0) for x, r in starts.items()}
@@ -284,15 +354,19 @@ def extend_waist(image: Image.Image, body: Image.Image) -> tuple[Image.Image, in
 
 
 def waist_starts(rgba: np.ndarray) -> dict[int, int]:
-    """허리 겹침 띠의 열마다 하의가 시작하는 행: 하의가 5행 이어지는 곳이 y 296~329에 있는 열에서 처음 불투명한 행(끈 고리 안쪽 같은 옷
-    안의 빈 곳은 건너뛴다). 그런 열 사이 [WAIST_BRIDGE]px 안의 틈(허리 가운데 끈 사이로 트인 곳)도 넣는다: 그 열은 처음 불투명한 행(y 345
+    """허리 겹침 띠의 열마다 하의가 시작하는 행: 하의가 5행 이어지는 곳이 y 296~329에 있는 열에서 처음 그런 곳부터 위로 이어진 천의 첫
+    행. 그런 열 사이 [WAIST_BRIDGE]px 안의 틈(허리 가운데 끈 사이로 트인 곳)도 넣는다: 그 열은 처음 불투명한 행(y 345
     까지, 없으면 345). 하의가 없는 열은 빠진다."""
     x0, y0, x1, _ = spec.STAND_WAIST
     solid = rgba[..., 3] >= SOLID
     starts = {}
     for x in range(x0, x1):
-        if any(solid[r : r + 5, x].all() for r in range(y0, WAIST_ROOT)):
-            starts[x] = y0 + int(np.argmax(solid[y0:WAIST_ROOT, x]))
+        run = next((r for r in range(y0, WAIST_ROOT) if solid[r : r + 5, x].all()), None)
+        if run is not None:
+            # 그 5행에서 위로 이어진 천의 첫 행(떨어진 점에서 시작하지 않는다)
+            while run > y0 and solid[run - 1, x]:
+                run -= 1
+            starts[x] = run
     columns = sorted(starts)
     for left, right in pairwise(columns):
         if 1 < right - left <= WAIST_BRIDGE:
@@ -305,7 +379,8 @@ def waist_starts(rgba: np.ndarray) -> dict[int, int]:
 def waist_gap(image: Image.Image, body: Image.Image) -> int:
     """하의가 띠에서 시작하는 열에서 y 296과 그 시작 행 사이, 맨몸 실루엣 안인데 하의가 덮지 않은 픽셀 수(검사 13번)."""
     array = _rgba(image)
-    inside = _rgba(body)[..., 3] >= SOLID
+    # 맨몸 실루엣 안: 굵은 실루엣(3x3 열기)만(외곽선 밖 낱 픽셀까지 늘리면 떨어진 점이 생겼다)
+    inside = _body_inside(body)
     y0 = spec.STAND_WAIST[1]
     return sum(int((inside[y0:r, x] & (array[y0:r, x, 3] < SOLID)).sum()) for x, r in waist_starts(array).items())
 
@@ -368,57 +443,6 @@ def drop_gap_fragments(image: Image.Image) -> Image.Image:
     return Image.fromarray(array, "RGBA")
 
 
-ELBOW_ROWS = (150, 178)  # 서기 팔 바깥 외곽선이 소매 이음새에서 꺾인 행(위 그림 도구 팔 ↔ 아래 승인 팔)
-OUTLINE_PX = 5
-SKIN_REACH = 12
-
-
-def _arm_edge(solid: np.ndarray, y: int, x_lo: int, x_hi: int, left: bool) -> int | None:
-    xs = np.flatnonzero(solid[y, x_lo:x_hi])
-    if not len(xs):
-        return None
-    return x_lo + int(xs[0] if left else xs[-1])
-
-
-def smooth_elbow(image: Image.Image) -> Image.Image:
-    """서기 맨몸 팔 바깥 외곽선을 소매 이음새([ELBOW_ROWS])에서 곧게 잇는다: 위·아래 끝 행의 가장자리 사이를 직선으로 잇고, 그 자리에
-    끝 행 외곽선 색 [OUTLINE_PX]px, 안쪽에 남은 옛 외곽선 꼬리는 그 행의 피부색으로 바꾼다. 민소매에서 팔꿈치 위 외곽선 꼬리로 보였다."""
-    array = _rgba(image).copy()
-    solid = array[..., 3] >= SOLID
-    lum = array[..., :3].astype(int).mean(axis=2)
-    y0, y1 = ELBOW_ROWS
-    sides = ((True, 0, spec.STAND_LEFT_ARM[2]), (False, spec.STAND_RIGHT_ARM[0], array.shape[1]))
-    for left, x_lo, x_hi in sides:
-        top = _arm_edge(solid, y0, x_lo, x_hi, left)
-        bottom = _arm_edge(solid, y1, x_lo, x_hi, left)
-        if top is None or bottom is None:
-            continue
-        step = 1 if left else -1
-        ends = []
-        for y in (*range(y0 - 4, y0 + 1), *range(y1, y1 + 5)):
-            e = _arm_edge(solid, y, x_lo, x_hi, left)
-            if e is not None:
-                ends += [array[y, e + step * k, :3] for k in range(1, OUTLINE_PX - 1)]
-        outline = np.median(np.array(ends), axis=0).astype(np.uint8)
-        for y in range(y0 + 1, y1):
-            e = round(top + (bottom - top) * (y - y0) / (y1 - y0))
-            outside = range(e - 6, e) if left else range(e + 1, e + 7)
-            for x in outside:
-                array[y, x] = 0
-            for k in range(OUTLINE_PX):
-                array[y, e + step * k, :3] = outline
-                array[y, e + step * k, 3] = 255
-            inner = [e + step * k for k in range(OUTLINE_PX, OUTLINE_PX + SKIN_REACH)]
-            skin_x = next((x for x in inner if array[y, x, 3] >= 250 and lum[y, x] >= 180), None)
-            if skin_x is None:
-                continue
-            for x in inner:
-                if x == skin_x:
-                    break
-                array[y, x] = array[y, skin_x]
-    return Image.fromarray(array, "RGBA")
-
-
 SIDE_CLOSE = 7  # 하의 엉덩이 옆 칸·허리에서 이 폭으로 닫아 메우는 트임(밑단 옆 안감 사이, 허리 옆 구멍)
 SIDE_WAIST = (100, 296, 412, 330)  # 허리(겹침 띠와 허리 밴드 아래 몇 행)
 
@@ -460,3 +484,91 @@ def close_side_gaps(image: Image.Image, body: Image.Image) -> tuple[Image.Image,
             array[y, x, 3] = 255
             todo[y, x] = False
     return Image.fromarray(array.round().clip(0, 255).astype(np.uint8), "RGBA"), total
+
+
+def _components8(mask: np.ndarray) -> list[np.ndarray]:
+    """8방향으로 이은 덩어리(평탄화한 픽셀 번호 배열)."""
+    from collections import deque
+
+    height, width = mask.shape
+    flat = mask.reshape(-1)
+    seen = np.zeros(flat.size, bool)
+    pieces = []
+    for start in np.flatnonzero(flat):
+        if seen[start]:
+            continue
+        seen[start] = True
+        piece = [int(start)]
+        queue = deque(piece)
+        while queue:
+            i = queue.popleft()
+            y, x = divmod(i, width)
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    ny, nx = y + dy, x + dx
+                    if 0 <= ny < height and 0 <= nx < width:
+                        n = ny * width + nx
+                        if flat[n] and not seen[n]:
+                            seen[n] = True
+                            piece.append(n)
+                            queue.append(n)
+        pieces.append(np.array(piece))
+    return pieces
+
+
+def dust_mask(rgba: np.ndarray | Image.Image) -> np.ndarray:
+    """맨몸 바탕의 고립 점: 알파가 있는 픽셀을 8방향으로 이은 덩어리 가운데 알파 128 이상이 하나도 없거나(거의 투명한 먼지·떨어진 유령
+    외곽선) [DUST_PIECE]픽셀보다 작은 것. 외곽선에 붙은 안티에일리어싱은 몸 덩어리에 이어져 있어 남는다([임시:D-성-184] 검수)."""
+    array = _rgba(rgba)
+    alpha = array[..., 3]
+    out = np.zeros(alpha.shape, bool)
+    flat_out = out.reshape(-1)
+    flat_alpha = alpha.reshape(-1)
+    for piece in _components8(alpha > 0):
+        if len(piece) < DUST_PIECE or flat_alpha[piece].max() < SOLID:
+            flat_out[piece] = True
+    return out
+
+
+def drop_dust(image: Image.Image) -> tuple[Image.Image, int]:
+    array = _rgba(image).copy()
+    mask = dust_mask(array)
+    array[mask] = 0
+    return Image.fromarray(array, "RGBA"), int(mask.sum())
+
+
+def elbow_tail_mask(rgba: np.ndarray | Image.Image) -> np.ndarray:
+    """서기 맨몸 팔꿈치 높이([ELBOW_WINDOW])에서 팔 실루엣 밖으로 뻗은 가는 꼬리(승인 반팔 소매 모서리 외곽선 조각): 그 창 안의 3x3 굵은
+    실루엣 밖 픽셀. 외곽선 자체는 굵어서 남는다."""
+    array = _rgba(rgba)
+    tail = _thin_mask(array)
+    window = np.zeros(tail.shape, bool)
+    y0, y1 = ELBOW_WINDOW
+    window[y0:y1, : spec.STAND_LEFT_ARM[2]] = True
+    window[y0:y1, spec.STAND_RIGHT_ARM[0] :] = True
+    return tail & window
+
+
+def body_outline(rgba: np.ndarray | Image.Image) -> np.ndarray:
+    """맨몸 외곽선: 빈 곳에서 [EDGE_PX] 안의 짙은(밝기 [OUTLINE_DARK] 미만) 불투명 픽셀."""
+    array = _rgba(rgba)
+    dark = array[..., :3].astype(int).mean(axis=2) < OUTLINE_DARK
+    return (array[..., 3] >= SOLID) & dark & _near_outside(array[..., 3], EDGE_PX)
+
+
+def outline_reference(original: Image.Image, thin: bool = False) -> np.ndarray:
+    """정리 전 맨몸(승인 원본)에서 지켜야 할 외곽선: [body_outline]에서 고립 점·팔꿈치 꼬리·팔과 몸통 사이 떨어진 조각을 뺀 것. [thin]이면
+    (달리기 슬롯) 3x3 굵은 실루엣 밖 털도 뺀다."""
+    array = _rgba(original)
+    keep = body_outline(array) & ~dust_mask(array) & ~elbow_tail_mask(array)
+    if thin:
+        keep &= ~_thin_mask(array)
+    fragments = np.array(drop_gap_fragments(Image.fromarray(array, "RGBA")))[..., 3] == 0
+    return keep & ~(fragments & (array[..., 3] > 0))
+
+
+def outline_breaks(image: Image.Image | np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """[reference] 외곽선 가운데 지금 그림에서 비거나 밝아진 픽셀(끊긴 곳). 밝기 140 미만 불투명이면 이어진 것으로 본다."""
+    array = _rgba(image)
+    kept = (array[..., 3] >= SOLID) & (array[..., :3].astype(int).mean(axis=2) < 140)
+    return reference & ~kept

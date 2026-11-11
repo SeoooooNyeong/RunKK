@@ -76,7 +76,7 @@ def test_check_rejects_forbidden_pixels_bad_names_and_sizes(tmp_path: Path) -> N
     entry = _entry("base_bottom")
     assert check_bundle(outfits, entry, MASKS) == []
     layer = Image.open(outfits / "base_bottom/female_stand.webp").convert("RGBA")
-    layer.paste((255, 0, 0, 255), (250, 100, 256, 106))  # 상의 칸(부스러기 규칙에 걸리지 않게 6x6)
+    layer.paste((255, 0, 0, 255), (250, 100, 258, 108))  # 상의 칸(고립 점 규칙에 걸리지 않게 8x8)
     spec.save_webp(layer, outfits / "base_bottom/female_stand.webp")
     spec.save_webp(Image.new("RGBA", (100, 100)), outfits / "base_bottom/female_run_leg.webp")
     spec.save_webp(Image.new("RGBA", (256, 768)), outfits / "base_bottom/female_run_arm.webp")
@@ -218,7 +218,12 @@ def test_check_reports_exposed_skin(tmp_path: Path) -> None:
     layer = np.array(Image.open(OUTFITS / "top_crew_tee/female_stand.webp").convert("RGBA"))
     ys, xs = np.nonzero(layer[..., 3] > 200)
     y, x = ys[len(ys) // 2], xs.min()
-    layer[y - 3 : y + 3, x : x + 6] = (246, 209, 197, 255)  # 왼쪽 빈 곳에 닿은 맨살
+    layer[y - 4 : y + 3, x : x + 7] = (
+        246,
+        209,
+        197,
+        255,
+    )  # 왼쪽 빈 곳에 닿은 맨살(7x7: 고립 점 규칙 40px 미만에 걸리지 않게)
     path = tmp_path / "female_stand.webp"
     spec.save_webp(Image.fromarray(layer, "RGBA"), path)
     problems = check_layer(path, "TOP", template_for(path.name, "TOP", 1), MASKS)

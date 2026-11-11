@@ -15,13 +15,16 @@ from outfit_pipeline.body import (
     close_seams,
     close_side_gaps,
     count_strays,
+    drop_dust,
     drop_gap_fragments,
     drop_strays,
+    dust_mask,
+    elbow_tail_mask,
     extend_waist,
     fill_pinholes,
+    outline_breaks,
     seam_mask,
     side_gap_mask,
-    smooth_elbow,
     smooth_sleeve_line,
     trim_waist,
     underwear_mask,
@@ -43,18 +46,20 @@ def _blob() -> np.ndarray:
     return array
 
 
-def test_drop_strays_removes_thin_strokes_and_dust_and_keeps_the_shape() -> None:
+def test_drop_strays_removes_isolated_dots_and_dust_but_keeps_attached_pixels() -> None:
     array = _blob()
     array[30, 50:58] = (70, 40, 30, 220)  # 몸에서 뻗은 1px 털(소매 모서리 외곽선 부스러기)
     array[5, 5] = (60, 30, 20, 90)  # 떨어진 점
     array[2, 30] = (60, 30, 20, 3)  # 거의 투명한 먼지
     array[9, 10:50] = (70, 40, 30, 100)  # 가장자리 안티에일리어싱 1px(남긴다)
     image = Image.fromarray(array, "RGBA")
-    assert count_strays(image) == 7 + 1 + 1  # 털의 첫 픽셀(몸에 닿은 1px)은 가장자리로 남는다
+    assert (
+        count_strays(image) == 1 + 1
+    )  # 떨어진 점과 먼지만. 몸에 붙은 털·안티에일리어싱은 남긴다(외곽선을 깎지 않는다)
     cleaned, removed = drop_strays(image)
     out = np.array(cleaned)
-    assert removed == 9 and count_strays(cleaned) == 0
-    assert out[30, 51:58, 3].max() == 0 and out[5, 5, 3] == 0 and out[2, 30, 3] == 0
+    assert removed == 2 and count_strays(cleaned) == 0
+    assert out[30, 51:58, 3].min() == 220 and out[5, 5, 3] == 0 and out[2, 30, 3] == 0
     assert (out[10:50, 10:50] == array[10:50, 10:50]).all()
     assert (out[9, 10:50, 3] == 100).all()
 
@@ -85,7 +90,10 @@ def test_smooth_sleeve_line_removes_the_hem_line_across_the_bare_arm() -> None:
     array[120:260, 60:130] = (250, 216, 204, 255)  # 왼팔
     array[171, 64:126] = (209, 151, 131, 255)  # 소매 밑단 선
     array[172:184, 64:126] = (236, 171, 149, 255)  # 소매 그림자 띠
-    out = np.array(smooth_sleeve_line(Image.fromarray(array, "RGBA"))).astype(int)
+    legacy = np.zeros_like(array)
+    legacy[100:171, 50:140] = (250, 250, 250, 255)  # 승인 흰 반팔(밑단 행 170)
+    legacy[171:260, 50:140] = (250, 216, 204, 255)  # 그 아래 팔 피부
+    out = np.array(smooth_sleeve_line(Image.fromarray(array, "RGBA"), Image.fromarray(legacy, "RGBA"))).astype(int)
     column = out[140:220, 95, :3].sum(axis=1)
     assert np.abs(np.diff(column)).max() <= 6
     assert (out[120:260, 60:130, 3] == 255).all()
@@ -105,7 +113,7 @@ def test_check_reports_strays_and_underwear(tmp_path: Path) -> None:
     layer = np.array(Image.open(OUTFITS / "top_crew_tee/female_stand.webp").convert("RGBA"))
     ys, xs = np.nonzero(layer[..., 3] > 200)
     y, x = ys[len(ys) // 2], xs.min()
-    layer[y, x - 9 : x] = (60, 40, 30, 255)  # 옷에서 뻗은 1px 털
+    layer[y - 40, x - 12] = (60, 40, 30, 255)  # 옷에서 떨어진 점
     path = tmp_path / "female_stand.webp"
     spec.save_webp(Image.fromarray(layer, "RGBA"), path)
     assert [p.rule for p in check_layer(path, "TOP", template_for(path.name, "TOP", 1), MASKS)] == [10]
@@ -122,15 +130,11 @@ def test_check_reports_strays_and_underwear(tmp_path: Path) -> None:
     assert 11 in {p.rule for p in check_body(outfits, shared)}
 
 
-@pytest.mark.parametrize("slot", spec.BODY_SLOTS)
-def test_committed_body_has_no_strays(slot: str) -> None:
-    assert count_strays(Image.open(OUTFITS / spec.BODY_FOLDER / f"female_{slot}.webp")) == 0
-
-
 def test_committed_stand_body_has_no_underwear_around_the_hips_and_no_sleeve_line() -> None:
     body = np.array(Image.open(OUTFITS / spec.BODY_FOLDER / "female_stand.webp").convert("RGBA"))
     assert underwear_mask(body).sum() == 0
-    smoothed = np.array(smooth_sleeve_line(Image.fromarray(body, "RGBA")))
+    legacy = Image.open(RAW / "avatar_legacy_standing_body.png")
+    smoothed = np.array(smooth_sleeve_line(Image.fromarray(body, "RGBA"), legacy))
     assert np.abs(smoothed.astype(int) - body.astype(int)).max() <= 2
 
 
@@ -255,23 +259,24 @@ def test_drop_gap_fragments_removes_dark_slivers_between_arm_and_torso() -> None
     assert (out[150:300, 141:147, 3] == 255).all() and (out[200, 100] == SKIN).all()
 
 
-def test_smooth_elbow_straightens_the_outline_jog_at_the_sleeve_seam() -> None:
+def test_body_cleaning_keeps_the_outline_and_its_antialiasing() -> None:
+    """맨몸 외곽선과 거기 붙은 안티에일리어싱은 그대로, 고립 점과 팔꿈치 꼬리만 지운다(검수: 외곽선을 깎거나 다시 그리면 팔이 울퉁불퉁했다)."""
     size = (spec.SLOTS["stand"].height, spec.SLOTS["stand"].width, 4)
     array = np.zeros(size, np.uint8)
-    edges = {y: 90 - (y - 130) // 6 for y in range(130, 200)}
-    for y, edge in edges.items():
-        array[y, edge : edge + 5] = (60, 30, 18, 255)
-        array[y, edge + 5 : 140] = SKIN
-    for y in range(160, 166):  # 소매 이음새에서 3px 안으로 꺾인 얇은 외곽선
-        array[y, : edges[y] + 3] = 0
-        array[y, edges[y] + 3] = (60, 30, 18, 255)
-        array[y, edges[y] + 4 : edges[y] + 6] = SKIN
-    out = np.array(smooth_elbow(Image.fromarray(array, "RGBA")))
-    for y in range(156, 172):
-        first = int(np.argmax(out[y, :, 3] >= 128))
-        assert abs(first - edges[y]) <= 1
-        assert out[y, first : first + 4, :3].mean() < 90  # 외곽선이 이어진다
-        assert out[y, first + 7, 0] > 200  # 안은 피부
+    array[120:260, 64:130] = SKIN  # 왼팔
+    array[120:260, 60:64] = (60, 30, 18, 255)  # 바깥 외곽선
+    array[120:260, 59] = (60, 30, 18, 90)  # 외곽선 안티에일리어싱(1px, 반투명)
+    array[150, 59] = (60, 30, 18, 200)  # 외곽선에서 1px 튀어나온 들쭉날쭉(붙어 있다)
+    array[155, 50:59] = (60, 30, 18, 230)  # 팔꿈치 높이에서 뻗은 꼬리
+    array[300, 20] = (60, 30, 18, 200)  # 떨어진 점
+    array[310:313, 20:60] = (60, 30, 18, 3)  # 거의 투명한 유령 외곽선(큰 덩어리)
+    image = Image.fromarray(array, "RGBA")
+    assert int(dust_mask(image).sum()) == 1 + 3 * 40
+    assert int(elbow_tail_mask(image).sum()) >= 8
+    cleaned, _ = drop_dust(image)
+    out = np.array(cleaned)
+    assert (out[120:260, 59, 3] > 0).all() and out[150, 59, 3] == 200
+    assert out[300, 20, 3] == 0 and out[311, 30, 3] == 0
 
 
 def test_close_side_gaps_fills_the_slit_between_shorts_and_liner() -> None:
@@ -295,20 +300,15 @@ def test_committed_bottoms_have_no_side_gaps(key: str) -> None:
     assert int(side_gap_mask(Image.open(OUTFITS / key / "female_stand.webp"), body).sum()) == 0
 
 
-def test_committed_stand_body_has_no_gap_fragments_or_elbow_jog() -> None:
+def test_committed_stand_body_has_no_gap_fragments_and_keeps_the_outline() -> None:
     body = Image.open(OUTFITS / spec.BODY_FOLDER / "female_stand.webp").convert("RGBA")
     assert np.array_equal(np.array(drop_gap_fragments(body)), np.array(body))
-    solid = np.array(body)[..., 3] >= 128
-    y0, y1 = 150, 178
-    for left in (True, False):
-
-        def edge(y: int, left: bool = left) -> int:
-            xs = np.flatnonzero(solid[y, :145] if left else solid[y, 367:])
-            return int(xs[0]) if left else 367 + int(xs[-1])
-
-        for y in range(y0, y1 + 1):  # 팔 바깥 외곽선이 소매 이음새에서 꺾이지 않는다
-            line = edge(y0) + (edge(y1) - edge(y0)) * (y - y0) / (y1 - y0)
-            assert abs(edge(y) - line) <= 1.5, (left, y, edge(y), line)
+    for slot in spec.BODY_SLOTS:
+        image = Image.open(OUTFITS / spec.BODY_FOLDER / f"female_{slot}.webp")
+        reference = np.array(Image.open(spec.outline_reference_path(f"female_{slot}")).convert("L")) > 0
+        assert reference.sum() > 500
+        assert int(outline_breaks(image, reference).sum()) == 0, slot
+        assert int(dust_mask(image).sum()) == 0, slot
 
 
 def test_hip_cut_removes_only_body_outside_the_clothes_row_span() -> None:
