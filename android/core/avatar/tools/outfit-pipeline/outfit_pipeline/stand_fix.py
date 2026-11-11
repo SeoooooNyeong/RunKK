@@ -56,9 +56,11 @@ def solid_side_outline(layer: Image.Image, _body: Image.Image | None = None) -> 
 def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, int]:
     """[outfits_dir]의 서기 레이어를 마무리한다. 메운 뒤 새로 갇힌 좁은 틈(목 구멍 아래 끝, 덮은 신발 옆)은 검사 16번 규칙으로 메운다
     (`build.fill_layer_holes`). 파일별 바뀐 픽셀 수."""
+    from functools import partial
+
     from outfit_pipeline.body import drop_strays, wisp_layer
     from outfit_pipeline.build import cut_area, fill_layer_holes, make_shop
-    from outfit_pipeline.feet import cover_feet, drop_halo
+    from outfit_pipeline.feet import HALO_LIGHT, HALO_LIGHT_BY_KEY, cover_feet, drop_halo
     from outfit_pipeline.holes import line_collar
 
     changed: dict[str, int] = {}
@@ -78,7 +80,7 @@ def fix_stand(outfits_dir: Path, raw_dir: Path, masks_dir: Path) -> dict[str, in
     jobs = (
         [(key, line_collar) for key in COLLAR_KEYS]
         + [(key, solid_side_outline) for key in short]
-        + [(key, drop_halo) for key in spec.LEGACY_KEYS["SHOES"]]
+        + [(key, partial(drop_halo, light=HALO_LIGHT_BY_KEY.get(key, HALO_LIGHT))) for key in spec.LEGACY_KEYS["SHOES"]]
         + [(key, cover_feet) for key in spec.LEGACY_KEYS["SHOES"]]
     )
     # 한 단계가 다른 단계의 결과를 바꿀 수 있어(회색 띠를 지우면 맨발이 새로 드러난다) 더 바뀌지 않을 때까지(최대 [PASSES]번) 되풀이한다

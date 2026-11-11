@@ -51,11 +51,41 @@ internal object RivSleeveSeam {
         4067848, 4649192, 4994298, 5339404
     )
 
-    /** [riv]가 승인 남자 서기 riv면 이음매 몸통 쪽 꼭짓점 값을 팔 쪽 값으로 바꾼다(바로 고친다). 아니면 그대로 둔다. */
+    /**
+     * 반팔·민소매 표면 메시(Image 「Existing wardrobe top」) 몸통 띠 바깥 끝 꼭짓점의 체형 x 키 위치(판정 round4: base·singlet 남자 체형 100
+     * 오른쪽 겨드랑이 아래 틈). 체형 키에서 팔 띠와의 겹침이 바탕 자세보다 줄어 벌어진 곳만 [OVERLAP_VALUES](팔 쪽 키 + 바탕 겹침)로
+     * 바꾼다. 표는 파이프라인 `seam.overlap_patch`가 riv에서 찾은 값이다.
+     */
+    internal val OVERLAP_TARGETS = intArrayOf(
+        4977502, 5322608, 4977559, 5322665, 4977692, 5322798, 4977749, 5322855,
+        4977882, 5322988, 4977939, 5323045, 4978072, 5323178, 4978129, 5323235,
+        4978262, 5323368, 4978319, 5323425, 4978452, 5323558, 4978509, 5323615
+    )
+
+    internal val OVERLAP_VALUES = floatArrayOf(
+        -29.55476951599121f, -32.344032287597656f, 30.303617477416992f, 33.11725997924805f,
+        -29.78829002380371f, -32.66720962524414f, 30.68305206298828f, 33.58557891845703f,
+        -30.270648956298828f, -33.21796417236328f, 31.080997467041016f, 34.05262756347656f,
+        -30.812795639038086f, -33.79150390625f, 31.64537811279297f, 34.645835876464844f,
+        -31.369779586791992f, -34.397804260253906f, 32.167083740234375f, 35.21597671508789f,
+        -32.01605224609375f, -35.093505859375f, 32.687557220458984f, 35.787498474121094f
+    )
+
+    /** [riv]가 승인 남자 서기 riv면 이음매 몸통 쪽 꼭짓점 값을 팔 쪽 값으로 바꾸고 반팔 표면 겹침을 지킨다(바로 고친다). 아니면 그대로 둔다. */
     fun closeInPlace(riv: ByteArray) {
-        if (!matches(riv)) return
+        if (!matches(riv) || !matchesOverlap(riv)) return
         val buffer = ByteBuffer.wrap(riv).order(ByteOrder.LITTLE_ENDIAN)
         SOURCES.indices.forEach { buffer.putFloat(TARGETS[it], buffer.getFloat(SOURCES[it])) }
+        OVERLAP_TARGETS.indices.forEach { buffer.putFloat(OVERLAP_TARGETS[it], OVERLAP_VALUES[it]) }
+    }
+
+    private fun matchesOverlap(riv: ByteArray): Boolean {
+        if (OVERLAP_TARGETS.max() + 4 > riv.size) return false
+        val buffer = ByteBuffer.wrap(riv).order(ByteOrder.LITTLE_ENDIAN)
+        return OVERLAP_TARGETS.indices.all {
+            val current = buffer.getFloat(OVERLAP_TARGETS[it])
+            abs(current) in MIN_ABS..MAX_ABS && abs(current - OVERLAP_VALUES[it]) <= MAX_GAP
+        }
     }
 
     private fun matches(riv: ByteArray): Boolean {

@@ -33,7 +33,8 @@ NEAR_KEY = 120  # 배경과의 채널 차 합이 이 이하면 배경(안티앨�
 FLOAT_MIN = 3
 SLIT_MAX = 150
 BODY_TOP = 430  # 잘라낸 판정 그림에서 턱 아래 행
-BODY_X = (160, 380)  # 비치는 틈을 보는 가로 범위(그 밖은 여자 긴 머리카락 사이 틈)
+BODY_X = (160, 380)
+GAP_TIP = 3  # 자연스러운 큰 틈에서 이 거리 안의 작은 틈은 그 틈의 끝으로 본다  # 비치는 틈을 보는 가로 범위(그 밖은 여자 긴 머리카락 사이 틈)
 SCALE = 760 / 1211
 CROP = (230, 200, 770, 1050)
 SCENES = {  # Rive 원본 폴더 기준(production/review.py와 같은 승인 riv 빌드 원본)
@@ -72,6 +73,12 @@ def _components8(mask: np.ndarray) -> list[np.ndarray]:
     return out
 
 
+def _grow(mask: np.ndarray, size: int) -> np.ndarray:
+    from PIL import ImageFilter
+
+    return np.array(Image.fromarray((mask * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(size))) > 0
+
+
 def _open3(mask: np.ndarray) -> np.ndarray:
     from PIL import ImageFilter
 
@@ -96,13 +103,22 @@ def defects(rgb: np.ndarray, key: tuple[int, int, int] = KEY, body_top: int = BO
     holes[:body_top] = False
     # 가는 틈만(3x3로 열면 사라지는 폭 2px 이하): 체형 100에서 팔이 몸통에 닿아 갇힌 넓은 배경은 그림 그대로다
     thin = holes & ~_open3(holes)
-    for piece in _components8(holes):
+    # 큰 배경(바깥 배경이나 SLIT_MAX보다 큰 갇힌 배경: 팔과 몸통 사이 자연스러운 틈)에서 [GAP_TIP]px 안의 작은 틈은 그 틈의 끝(외곽선 한
+    # 줄이 가로지른 끝)이라 세지 않는다(판정 round4: 여자 체형 100 겨드랑이 약 5px)
+    big = (~avatar & ~filled) | np.zeros_like(avatar)
+    pieces = _components8(holes)
+    for piece in pieces:
+        if len(piece) > SLIT_MAX:
+            big[piece[:, 0], piece[:, 1]] = True
+    near_big = _grow(big, 2 * GAP_TIP + 1)
+    for piece in pieces:
         _, cx = piece.mean(axis=0)
         if (
             len(piece) <= SLIT_MAX
             and piece[:, 0].min() >= body_top
             and BODY_X[0] <= cx <= BODY_X[1]
             and thin[piece[:, 0], piece[:, 1]].all()
+            and not near_big[piece[:, 0], piece[:, 1]].any()
         ):
             y, x = piece.mean(axis=0).round().astype(int)
             found.append(f"see-through {len(piece)}px at ({x},{y})")
@@ -150,7 +166,7 @@ def render_stand(
     rive: Path, rml: Path, avatars: Path, gender: str, atlas: Image.Image, surface: int, shape: int
 ) -> np.ndarray:
     """Rive CLI로 서기를 그려 판정 크기(760/1211 배, 판정 잘라내기)의 RGB 배열로."""
-    from outfit_pipeline.seam import close_seam_rml
+    from outfit_pipeline.seam import close_seam_rml, keep_overlap_rml
 
     source, artboard = SCENES[gender]
     work = Path(tempfile.mkdtemp(prefix="render_check_"))
@@ -178,7 +194,7 @@ def render_stand(
             number("selected_top", surface)
             number("selected_bottom", 1)
             number("selected_shoes", 1)
-            text = close_seam_rml(text)  # 앱 RivSleeveSeam과 같은 긴소매 이음매
+            text = keep_overlap_rml(close_seam_rml(text))  # 앱 RivSleeveSeam과 같은 긴소매 이음매·반팔 겹침
         (scene / "scene.rml").write_text(text, encoding="utf-8")
         shot = work / "shot.png"
         command = [str(rive), str(scene), f"--screenshot={shot}", "--advance=360", f"--artboard={artboard}"]
