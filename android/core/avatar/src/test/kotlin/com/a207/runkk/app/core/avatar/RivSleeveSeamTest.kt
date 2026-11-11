@@ -24,7 +24,12 @@ class RivSleeveSeamTest {
             assertEquals(source, after.getFloat(RivSleeveSeam.TARGETS[it]))
             assertEquals(source, after.getFloat(RivSleeveSeam.SOURCES[it]))
         }
-        val allowed = RivSleeveSeam.TARGETS.flatMap { (it until it + 4).toList() }.toSet()
+        RivSleeveSeam.OVERLAP_TARGETS.indices.forEach {
+            assertEquals(RivSleeveSeam.OVERLAP_VALUES[it], after.getFloat(RivSleeveSeam.OVERLAP_TARGETS[it]))
+        }
+        val allowed = (RivSleeveSeam.TARGETS + RivSleeveSeam.OVERLAP_TARGETS).flatMap {
+            (it until it + 4).toList()
+        }.toSet()
         assertEquals(emptyList(), original.indices.filter { original[it] != patched[it] && it !in allowed })
     }
 

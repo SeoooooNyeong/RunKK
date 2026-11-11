@@ -67,7 +67,55 @@ internal object TopBodyCut {
             }
         }
         closeSlits(before, skin, width, height)
+        restoreEnclosed(before, skin, top, width, height)
         dropCrumbs(skin, top, area, outside, nearestTop, skipped, width, height)
+    }
+
+    /**
+     * 지운 맨몸 가운데 상의 밖이면서 배경(맨몸도 상의도 없는 곳, 텍스처 가장자리 너머 포함)에 8방향으로 닿지 않는 덩어리를 되살린다.
+     * 자르기는 상의와 배경 사이 테두리를 지우는 것이라, 배경과 떨어진 곳을 지우면 맨몸 안에 배경이 비치는 구멍만 생겼다(판정 round4: crew 소매
+     * 끝 아래 팔의 비스듬한 틈). 파이프라인 `cut.restore_enclosed`와 같다.
+     */
+    fun restoreEnclosed(before: IntArray, skin: IntArray, top: IntArray, width: Int, height: Int) {
+        val size = width * height
+        val removed = BooleanArray(size) { before[it] ushr 24 != 0 && skin[it] ushr 24 == 0 && top[it] ushr 24 == 0 }
+        fun background(x: Int, y: Int): Boolean {
+            if (x !in 0 until width || y !in 0 until height) return true
+            val i = y * width + x
+            return before[i] ushr 24 == 0 && top[i] ushr 24 == 0
+        }
+        val seen = BooleanArray(size)
+        val queue = IntArray(size)
+        for (start in 0 until size) {
+            if (!removed[start] || seen[start]) continue
+            var head = 0
+            var tail = 0
+            seen[start] = true
+            queue[tail++] = start
+            var touches = false
+            while (head < tail) {
+                val i = queue[head++]
+                val x = i % width
+                val y = i / width
+                for (dy in -1..1) {
+                    for (dx in -1..1) {
+                        if (dx == 0 && dy == 0) continue
+                        val nx = x + dx
+                        val ny = y + dy
+                        if (background(nx, ny)) touches = true
+                        if (nx !in 0 until width || ny !in 0 until height) continue
+                        val n = ny * width + nx
+                        if (removed[n] && !seen[n]) {
+                            seen[n] = true
+                            queue[tail++] = n
+                        }
+                    }
+                }
+            }
+            if (!touches) {
+                for (k in 0 until tail) skin[queue[k]] = before[queue[k]]
+            }
+        }
     }
 
     /**

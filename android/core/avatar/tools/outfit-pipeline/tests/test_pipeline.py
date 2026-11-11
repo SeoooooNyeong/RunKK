@@ -272,3 +272,22 @@ def test_stand_cut_area_marks_neck_sides() -> None:
     assert (area[: spec.NECK_TOP[3], r0:r1] == spec.CUT_RIGHT_NECK_SIDE).all()
     assert (area[: spec.NECK_TOP[3], l1:r0] == 0).all()  # 목 기둥은 자르지 않는다
     assert area[spec.NECK_TOP[3] + 2, l0] == spec.CUT_LEFT_SHOULDER
+
+
+def test_restore_enclosed_keeps_holes_away_from_the_background() -> None:
+    """앱 TopBodyCutParityTest의 같은 시험과 같은 입력·기대값(판정 round4 crew 소매 끝 아래 틈)."""
+    import numpy as np
+
+    from outfit_pipeline.cut import restore_enclosed
+
+    before = np.zeros((12, 12, 4), np.uint8)
+    before[1:11, 1:11] = (246, 205, 190, 255)
+    top = np.zeros((12, 12), bool)
+    top[1:3, 1:11] = True
+    after = before.copy()
+    after[5, 5] = 0
+    after[6, 5] = 0
+    after[8, 1] = 0
+    out = restore_enclosed(before, after, top)
+    assert out[5, 5, 3] == 255 and out[6, 5, 3] == 255
+    assert out[8, 1, 3] == 0

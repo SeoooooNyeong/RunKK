@@ -39,3 +39,11 @@ def test_holes_above_the_chin_and_wide_gaps_are_ignored() -> None:
     rgb[100:800, 150:152] = KEY
     rgb[600:700, 250:300] = KEY  # 팔과 몸 사이처럼 넓게 갇힌 배경
     assert defects(rgb) == []
+
+
+def test_tip_of_a_natural_gap_cut_off_by_one_outline_row_is_ignored() -> None:
+    """판정 round4: 팔과 몸통 사이 자연스러운 틈 끝이 외곽선 한 줄로 갈라져 생긴 작은 갇힌 배경은 결함으로 세지 않는다."""
+    rgb = _render()
+    rgb[600:700, 200:203] = KEY  # 팔과 몸통 사이 자연스러운 틈(바깥과 이어지지 않아도 크다)
+    rgb[594:598, 201:202] = KEY  # 외곽선 두 줄(598~599)로 갈라진 끝
+    assert defects(rgb) == []

@@ -83,3 +83,29 @@ def test_close_seam_rml_moves_the_torso_twin_and_its_shape_keys() -> None:
     assert 'x="-28.5" y="-30.0" u="0.26" v="0.3" id="0:2"' in out
     assert out.count('value="-28.5"') == 6
     assert 'x="-13.0"' in out
+
+
+def test_app_overlap_table_matches_the_riv() -> None:
+    import numpy as np
+
+    from outfit_pipeline.seam import overlap_patch
+
+    patch = overlap_patch((RAW / "avatar_male_idle.riv").read_bytes())
+    assert len(patch) == 24  # 반팔 표면 띠 끝 짝 가운데 체형 키에서 겹침이 줄어든 곳
+    source = KOTLIN.read_text(encoding="utf-8")
+    assert _table(source, "OVERLAP_TARGETS") == [o for o, _ in patch]
+    body = re.search(r"OVERLAP_VALUES = floatArrayOf\(([^)]*)\)", source)
+    assert body is not None
+    values = [float(v) for v in re.findall(r"(-?[0-9.]+)f", body.group(1))]
+    assert [np.float32(v) for v in values] == [np.float32(v) for _, v in patch]
+
+
+def test_keep_overlap_restores_the_bind_overlap_only() -> None:
+    from outfit_pipeline.seam import keep_overlap, overlap_patch
+
+    data = (RAW / "avatar_male_idle.riv").read_bytes()
+    out = keep_overlap(data)
+    patch = overlap_patch(data)
+    changed = {i for i in range(len(data)) if data[i] != out[i]}
+    assert changed <= {o + k for o, _ in patch for k in range(4)}
+    assert overlap_patch(out) == []

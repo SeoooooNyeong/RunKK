@@ -104,3 +104,64 @@ def test_stand_fix_is_stable_on_the_committed_assets(tmp_path) -> None:
 
     shutil.copytree(OUTFITS, tmp_path / "outfits")
     assert fix_stand(tmp_path / "outfits", RAW, MASKS) == {}
+
+
+# 원본 그림의 뒤꿈치·발목 모양으로 원래 있던 옆 가장자리 계단(판정 round3 원본에서 잰 수). 나머지 신발은 계단이 없어야 한다
+SHOE_EDGE_STEPS = {"shoes_high_top": 1, "shoes_lime_runner": 2}
+
+
+def _edge_steps(array: np.ndarray) -> int:
+    """두 발 칸 바깥 옆 가장자리(행마다 처음 만나는 불투명 픽셀)가 이웃 행과 4px 넘게 어긋나는 곳 수(y 640~759)."""
+    from outfit_pipeline.feet import FEET
+
+    solid = array[..., 3] >= 128
+    count = 0
+    for x0, _, x1, _ in FEET:
+        for xs in (list(range(x0, x1)), list(range(x1 - 1, x0 - 1, -1))):
+            previous = None
+            for y in range(640, 760):
+                edge = next((i for i, x in enumerate(xs) if solid[y, x]), None)
+                if edge is not None and previous is not None and abs(edge - previous) >= 4:
+                    count += 1
+                previous = edge
+    return count
+
+
+@pytest.mark.parametrize("key", spec.LEGACY_KEYS["SHOES"])
+def test_committed_shoes_have_no_side_tabs(key: str) -> None:
+    """판정 round4: 회색 띠를 아래쪽만 지워 뒤꿈치 옆에 귀 모양 탭이 남았다(basic_runner). 옆 가장자리에 새 계단이 없다."""
+    array = np.array(Image.open(OUTFITS / key / f"female_stand{spec.EXTENSION}").convert("RGBA"))
+    assert _edge_steps(array) <= SHOE_EDGE_STEPS.get(key, 0)
+
+
+def test_cover_feet_never_paints_outside_the_bare_foot() -> None:
+    """맨발 덮기는 맨발 실루엣(알파 128 이상) 안만 칠한다: 신발 실루엣을 맨발보다 넓히지 않는다."""
+    body, shoe = _foot_case()
+    out = np.array(cover_feet(Image.fromarray(shoe, "RGBA"), Image.fromarray(body, "RGBA"))[0])
+    added = (out[..., 3] > 0) & (shoe[..., 3] == 0)
+    assert added.any() and (body[added][:, 3] >= 128).all()
+
+
+@pytest.mark.parametrize("key", spec.LEGACY_KEYS["SHOES"])
+def test_committed_shoes_need_no_cover_outside_the_bare_foot(key: str) -> None:
+    body = np.array(Image.open(OUTFITS / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}").convert("RGBA"))
+    layer = Image.open(OUTFITS / key / f"female_stand{spec.EXTENSION}")
+    region = exposed_feet(layer, body)
+    assert (body[region][:, 3] >= 128).all()
+
+
+def test_close_side_skin_covers_bare_strips_beside_and_below_a_sleeveless_top() -> None:
+    from outfit_pipeline.stand_fix import close_side_skin
+
+    body = np.zeros((768, 512, 4), np.uint8)
+    body[150:330, 110:402] = (240, 200, 180, 255)  # 맨몸 몸통
+    body[150:330, 110:114] = (60, 30, 16, 255)  # 왼쪽 몸통 옆 외곽선
+    top = np.zeros((768, 512, 4), np.uint8)
+    top[150:291, 117:395] = (120, 200, 170, 255)  # 맨몸보다 좁은 민소매, 밑단 y 290
+    out, count = close_side_skin(Image.fromarray(top, "RGBA"), Image.fromarray(body, "RGBA"))
+    array = np.array(out)
+    assert count > 0
+    assert array[250, 115, 3] == 255  # 옆 맨살 띠는 천으로
+    assert array[250, 112, 3] == 0  # 몸통 옆 외곽선은 맨몸 그대로(상의 옆 외곽선)
+    assert array[293, 150, 3] == 255 and array[293, 150, :3].tolist() == [120, 200, 170]  # 밑단 아래 하의 허리 위 맨살
+    assert array[300, 150, 3] == 0  # 하의 허리(y 296) 아래는 그대로

@@ -76,7 +76,8 @@ def cover_feet(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, int]
     background = ~solid & ~region & (skin[..., 3] < SOLID)
     edge = _grow(background, 2 * EDGE + 1)
     keep_body = region & (skin[..., :3].astype(int).mean(axis=-1) < INK) & edge
-    out, _ = line_collar(Image.fromarray(shoe, "RGBA"), region=region & ~keep_body)
+    # 그늘 없이(신발 옆은 안감이 아니다: 그늘을 넣으면 lime_runner 바깥 아래에 짙은 쐐기로 보였다, 판정 round4)
+    out, _ = line_collar(Image.fromarray(shoe, "RGBA"), region=region & ~keep_body, shade=False)
     array = np.array(out)
     array[keep_body] = skin[keep_body]
     return Image.fromarray(array, "RGBA"), int(region.sum())
@@ -85,12 +86,20 @@ def cover_feet(layer: Image.Image, body: Image.Image) -> tuple[Image.Image, int]
 # 신발 옆 회색 띠(판정 round2~3: basic_runner 옆 띠). 생성 그림의 부드러운 그림자가 신발 외곽선 밖에 반투명 회색 띠(2~5px)로 남아 신발 옆에
 # 흐린 띠로 보였다. 행마다 신발 바깥 끝에서 안쪽으로 [HALO_MAX]px 안의 첫 짙은 외곽선 픽셀보다 바깥에 있는, 외곽선보다 [HALO_LIGHT] 넘게 밝은
 # 픽셀을 지운다(반투명 1px을 남기면 부스러기 검사 10번의 가는 털이 됐다).
-HALO_MAX = 6
+HALO_MAX = (
+    10  # 뒤꿈치 옆 회색 덧판은 외곽선 밖으로 8px까지 나왔다(6px로 자르면 위쪽만 남아 네모 탭이 됐다, 판정 round4)
+)
+HALO_FAINT = 64
+HALO_MIN = 2  # 띠로 보는 덜 투명한 밝은 픽셀 최소 수
+HALO_BRIGHT = 200  # 이보다 밝은 픽셀(흰 밑창)은 띠가 아니다
 HALO_DARK = 90  # 이보다 어두운 불투명 픽셀은 외곽선
 HALO_LIGHT = 40
+# 신발별 밝기 차 하한: basic_runner 뒤꿈치 옆 회색 덧판(밝기 95~117)은 외곽선(45~60)과 차가 40에 못 미치는 행이 있어 위쪽만 남아 귀 모양 탭이 됐다
+# (판정 round4). 다른 신발에 30을 쓰면 신발 그림(lime_runner 옆 천)까지 지운다
+HALO_LIGHT_BY_KEY = {"shoes_basic_runner": 30}
 
 
-def drop_halo(layer: Image.Image, _body: Image.Image | None = None) -> tuple[Image.Image, int]:
+def drop_halo(layer: Image.Image, _body: Image.Image | None = None, light: int = HALO_LIGHT) -> tuple[Image.Image, int]:
     """서기 신발 레이어의 두 발 칸에서 신발 외곽선 밖 회색 띠를 지운다. (레이어, 바꾼 픽셀 수)."""
     array = _rgba(layer).copy()
     alpha = array[..., 3]
@@ -106,7 +115,14 @@ def drop_halo(layer: Image.Image, _body: Image.Image | None = None) -> tuple[Ima
                 ink = next((i for i, x in enumerate(window) if alpha[y, x] >= SOLID and lum[y, x] < HALO_DARK), None)
                 if not ink:
                     continue
-                halo = [x for x in window[:ink] if lum[y, x] >= lum[y, window[ink]] + HALO_LIGHT]
+                # 거의 투명한 안티앨리어싱(알파 [HALO_FAINT] 미만)은 색과 상관없이 띠에 넣는다
+                halo = [
+                    x
+                    for x in window[:ink]
+                    if alpha[y, x] < HALO_FAINT or lum[y, window[ink]] + light <= lum[y, x] < HALO_BRIGHT
+                ]
+                if sum(alpha[y, x] >= HALO_FAINT for x in halo) < HALO_MIN:
+                    continue  # 반투명 안티앨리어싱만 있는 외곽선 가장자리는 그대로
                 if len(halo) != ink:
                     continue  # 외곽선 밖이 모두 밝은 띠일 때만(외곽선 바깥에 짙은 픽셀이 섞이면 신발 그림이다)
                 for x in halo:
