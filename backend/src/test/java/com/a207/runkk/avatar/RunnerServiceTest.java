@@ -73,7 +73,7 @@ class RunnerServiceTest {
     void noRuns() {
         RunnerView view = service.runner(M);
 
-        assertThat(view.bodyShape()).isEqualTo(BodyShape.STAGE1);
+        assertThat(view.bodyShape()).isEqualTo(BodyShape.STAGE4);
         assertThat(view.bodyVariant()).isZero();
         assertThat(view.skinTone()).isEqualTo(SkinTone.DAYTIME);
         assertThat(view.recentRunCount()).isZero();

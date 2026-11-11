@@ -256,7 +256,7 @@ class AvatarControllerTest extends WebTestSupport {
         Session s = signUp();
         mvc.perform(as(s, get("/api/v1/avatar/runner")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bodyShape").value("STAGE1"))
+                .andExpect(jsonPath("$.bodyShape").value("STAGE4"))
                 .andExpect(jsonPath("$.bodyVariant").value(0))
                 .andExpect(jsonPath("$.skinTone").value("DAYTIME"))
                 .andExpect(jsonPath("$.typicalStartHour").doesNotExist())

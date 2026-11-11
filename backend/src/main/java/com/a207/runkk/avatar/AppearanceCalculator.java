@@ -17,8 +17,8 @@ import org.springframework.stereotype.Component;
 public class AppearanceCalculator {
 
     /**
-     * 쉰 날(오늘 − 마지막 유효 러닝 날짜) &gt; rule.restDaysBeforeDecline이면 이전 체형.lowerOneStep(), 아니면
-     * rule.stageFor(최근 7일 횟수). 유효 러닝이 없으면 쉰 날은 무한이다.
+     * 쉰 날(오늘 − 마지막 유효 러닝 날짜) &gt; rule.restDaysBeforeDecline이면 이전 체형.lowerOneStep()(한 단계 통통), 아니면
+     * 기본 몸 STAGE4다. 기본 몸에서 쉬어야만 통통해진다([임시:D-성-179]). 유효 러닝이 없으면 쉰 날은 무한이다.
      */
     public BodyShape bodyShape(AppearanceInput in, BodyShapeRule rule) {
         long restDays =
@@ -28,7 +28,7 @@ public class AppearanceCalculator {
         if (restDays > rule.restDaysBeforeDecline()) {
             return in.previous().lowerOneStep();
         }
-        return BodyShape.ofStage(rule.stageFor(in.runsIn7Days()));
+        return BodyShape.STAGE4;
     }
 
     /** 시간대별 개수가 가장 큰 톤. 같으면 가장 최근 러닝의 시간대. 시작 일시가 하나 이상이어야 한다. */

@@ -108,11 +108,11 @@ public class Avatar {
 
     private Avatar(long memberId) {
         this.memberId = memberId;
-        this.bodyShape = BodyShape.STAGE1;
+        this.bodyShape = BodyShape.STAGE4;
         this.skinTone = SkinTone.DAYTIME;
     }
 
-    /** 얼굴 없음, 1단계 체형, 낮 톤, 착용 없음. */
+    /** 얼굴 없음, 기본 몸(4단계, [임시:D-성-179]), 낮 톤, 착용 없음. */
     public static Avatar create(long memberId) {
         return new Avatar(memberId);
     }

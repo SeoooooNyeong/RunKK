@@ -496,7 +496,14 @@ class CrewThreadIntegrationTest {
                 .isEqualTo(5);
         assertThat(avatars.equip(m, List.of(EquipChange.wear(ItemSlot.HAT, 77))).rejected())
                 .containsKey(ItemSlot.HAT);
-        assertThat(appearance.refreshAll(LocalDate.now())).isZero();
+        // 한 번도 달리지 않은 회원은 기본 몸(4단계)에서 한 단계 통통해진다([임시:D-성-179])
+        assertThat(appearance.refreshAll(LocalDate.now())).isPositive();
+        assertThat(
+                        jdbc.queryForObject(
+                                "select body_shape from avatar where member_id = ?",
+                                String.class,
+                                m))
+                .isEqualTo("STAGE3");
         avatarWithdrawal.onMemberWithdrawn(new MemberWithdrawn(m, LocalDateTime.now()));
         assertThat(
                         jdbc.queryForObject(
