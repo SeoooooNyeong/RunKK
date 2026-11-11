@@ -15,6 +15,8 @@
 #   KAKAO_NATIVE_APP_KEY_DEVELOP  develop 패키지(com.a207.runkk.dev)용 카카오 네이티브 앱 키. android:build가 KAKAO_NATIVE_APP_KEY 대신 쓴다
 #   GRAFANA_ADMIN_PASSWORD    Variable(masked), Grafana 관리자 비밀번호. 배포가 edge.env 끝에 붙인다(INFRA_ENV_EDGE에 두지 않는다)
 #   GRAFANA_ALERT_WEBHOOK_URL Variable(masked), Mattermost Incoming Webhook 주소(runkk-alerts 채널). 배포가 edge.env 끝에 붙인다. 없으면 알림 없이 뜬다
+#   GRAFANA_DB_READONLY_PASSWORD  Variable(masked, protected), Grafana 이벤트 현황 대시보드의 읽기 전용 DB 계정 runkk_grafana_ro 비밀번호(영숫자 16자 이상,
+#                             openssl rand -hex 24). 배포가 edge.env 끝에 붙이고 deploy.sh가 그 환경 DB 계정과 Grafana 데이터소스에 맞춘다. 없으면 데이터소스만 빠진다
 #   FIREBASE_APP_DISTRIBUTION_SA  File 타입(선택), Firebase App Distribution 관리자 권한 서비스 계정 JSON. android:beta가 쓴다.
 #                             없으면 FCM_SERVICE_ACCOUNT로 올려 보고, 권한이 없으면 잡이 실패한다
 #   RUNKK_HOME                보통 Variable. 배포 설정 복사 폴더(infra/deploy.sh, 기본 /srv/runkk). 지금 서버는 /home/gitlab-runner/runkk
@@ -274,9 +276,10 @@ backend:deploy:
     # GitLab 화면에서 저장한 File 변수는 줄 끝이 CRLF다. CR을 지워야 grep -x·env_value가 값을 그대로 읽는다
     - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
     - tr -d '\r' < "$INFRA_ENV_EDGE" > infra/edge.env
-    # Grafana 비밀번호·장애 알림 웹훅은 따로 둔 masked 변수에서 붙인다(edge.env 파일 변수를 열지 않고 바꾸게)
+    # Grafana 비밀번호·장애 알림 웹훅·이벤트 현황 DB 읽기 전용 비밀번호는 따로 둔 masked 변수에서 붙인다(edge.env 파일 변수를 열지 않고 바꾸게)
     - if [ -n "${GRAFANA_ADMIN_PASSWORD:-}" ]; then printf '\nGRAFANA_ADMIN_PASSWORD=%s\n' "$GRAFANA_ADMIN_PASSWORD" >> infra/edge.env; fi
     - if [ -n "${GRAFANA_ALERT_WEBHOOK_URL:-}" ]; then printf '\nGRAFANA_ALERT_WEBHOOK_URL=%s\n' "$GRAFANA_ALERT_WEBHOOK_URL" >> infra/edge.env; fi
+    - if [ -n "${GRAFANA_DB_READONLY_PASSWORD:-}" ]; then printf '\nGRAFANA_DB_READONLY_PASSWORD=%s\n' "$GRAFANA_DB_READONLY_PASSWORD" >> infra/edge.env; fi
     # 브랜치와 .env의 환경이 어긋나면(CI 변수를 바꿔 넣은 경우) 다른 환경을 덮지 않게 멈춘다
     - grep -qx "RUNKK_ENV=$DEPLOY_ENV" infra/.env || { echo "infra/.env RUNKK_ENV must be $DEPLOY_ENV" >&2; exit 1; }
     - mkdir -p infra/secrets && if [ -n "${FCM_SERVICE_ACCOUNT:-}" ]; then cp "$FCM_SERVICE_ACCOUNT" infra/secrets/fcm-service-account.json && chmod 644 infra/secrets/fcm-service-account.json; fi
