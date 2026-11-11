@@ -113,7 +113,10 @@ class ReleaseShellTest {
             }
         }
         compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "SAD", useUnmergedTree = true).assertExists()
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(
+            runkkAvatarDefaultHeadTag(AvatarCharacter.MALE),
+            useUnmergedTree = true
+        ).assertDoesNotExist()
         assertEquals(R.drawable.avatar_default_joy, defaultAvatarOf(AvatarExpression.JOY))
     }
 
@@ -129,11 +132,11 @@ class ReleaseShellTest {
     }
 
     @Test
-    fun `TC-9701 아바타 꾸미기가 열려 있으면 기존 얼굴 그림을 쓴다`() {
+    fun `TC-9701 아바타 꾸미기가 열려 있으면 아바타 머리 그림을 쓴다(기본 캐릭터 값이면 기본 머리, D-성-180)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) { RunkkAvatar("default:BEAR", AvatarExpression.JOY, Modifier.size(40.dp)) }
         }
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true).assertExists()
         compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "JOY", useUnmergedTree = true).assertDoesNotExist()
     }
 

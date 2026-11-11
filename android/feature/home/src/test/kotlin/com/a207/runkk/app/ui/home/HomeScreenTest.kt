@@ -29,6 +29,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.GuideAnchors
@@ -38,7 +39,7 @@ import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
-import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.designsystem.runkkAvatarDefaultHeadTag
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.TierDisplay
@@ -322,7 +323,10 @@ class HomeScreenTest {
             .assertCountEquals(1)
         compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.STAND.name, useUnmergedTree = true)
             .assertCountEquals(1)
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(
+            runkkAvatarDefaultHeadTag(AvatarCharacter.MALE),
+            useUnmergedTree = true
+        ).assertDoesNotExist()
         compose.onNodeWithContentDescription("내 아바타").assertHasNoClickAction()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").assertHasNoClickAction()
     }

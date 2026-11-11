@@ -58,7 +58,7 @@ class HomeSelfieBadgeTest {
 
     private val repo = FakeAvatars()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val store = MyAvatarStore(repo, flowOf<Gender?>(Gender.MALE), headsOf(repo), {}, {}, scope)
+    private val store = MyAvatarStore(repo, flowOf<Gender?>(Gender.MALE), headsOf(repo), {}, { _, _ -> }, scope)
     private val navigator = RecordingNavigator()
 
     @After

@@ -128,36 +128,40 @@ class RunkkComponentsScreenshotTest {
         TierEmblemSheet()
     }
 
-    /** 아바타 기본 캐릭터 4종(큰 그림)과 홈 상단(48dp)·마이 프로필(56dp) 원 안에 넣었을 때. */
+    /** 기본 머리(남녀, 큰 그림)와 홈 상단(48dp)·마이 프로필(56dp) 원 안에 넣었을 때([임시:D-성-180]). */
     @Test
-    fun avatarCharacters() = compose.captureRunkkScreen("designsystem_avatar_characters") {
-        val keys = RunkkAvatarArt.characters.keys.map(RunkkAvatarArt::defaultKey)
+    fun avatarDefaultHeads() = compose.captureRunkkScreen("designsystem_avatar_default_heads") {
+        val characters = AvatarCharacter.entries
         Column(
             Modifier.fillMaxSize().background(RunkkColors.Background).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            keys.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    row.forEach { key ->
-                        Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(RunkkColors.Surface)
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            RunkkAvatarPortrait(key, emptyList(), Modifier.size(120.dp))
-                            Text(key, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-                        }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                characters.forEach { character ->
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(RunkkColors.Surface)
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        RunkkAvatarPortrait(
+                            RunkkAvatarArt.DEFAULT_FACE_KEY,
+                            emptyList(),
+                            Modifier.size(120.dp).clip(CircleShape).background(RunkkColors.SurfaceHigh),
+                            character
+                        )
+                        Text(character.name, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
                     }
                 }
             }
-            listOf(48, 56).forEach { size ->
+            listOf(44, 56, 120).forEach { size ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    keys.forEach { key ->
+                    characters.forEach { character ->
                         RunkkAvatarPortrait(
-                            key,
+                            null,
                             emptyList(),
                             Modifier.size(size.dp).border(2.dp, RunkkColors.Lime, CircleShape).padding(3.dp)
-                                .clip(CircleShape).background(RunkkColors.Border)
+                                .clip(CircleShape).background(RunkkColors.SurfacePressed),
+                            character
                         )
                     }
                 }

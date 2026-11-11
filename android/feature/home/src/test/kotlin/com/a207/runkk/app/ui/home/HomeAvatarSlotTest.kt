@@ -1,5 +1,9 @@
 package com.a207.runkk.app.ui.home
 
+import androidx.compose.foundation.IndicationNodeFactory
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -9,16 +13,25 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.node.DelegatableNode
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
@@ -33,10 +46,12 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.SlotKey
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.launch
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
@@ -64,17 +79,24 @@ class HomeAvatarSlotTest {
 
     private var slots by mutableStateOf<Map<SlotKey, List<@Composable () -> Unit>>>(emptyMap())
 
-    private fun show(filled: Map<SlotKey, List<@Composable () -> Unit>>, scope: ReleaseScope = ReleaseScope.ALL_OPEN) {
+    private fun show(
+        filled: Map<SlotKey, List<@Composable () -> Unit>>,
+        scope: ReleaseScope = ReleaseScope.ALL_OPEN,
+        indication: PressRecordingIndication? = null
+    ) {
         slots = filled
         compose.setContent {
             CompositionLocalProvider(LocalReleaseScope provides scope, LocalSlots provides slots) {
                 RunkkTheme(reduceMotion = true) {
-                    Box(Modifier.fillMaxSize()) {
-                        HomeScreen(
-                            state,
-                            HomeActions(onNavigate = { routes += it }),
-                            Modifier.padding(bottom = RUNKK_BOTTOM_BAR_HEIGHT)
-                        )
+                    val local = indication ?: LocalIndication.current
+                    CompositionLocalProvider(LocalIndication provides local) {
+                        Box(Modifier.fillMaxSize()) {
+                            HomeScreen(
+                                state,
+                                HomeActions(onNavigate = { routes += it }),
+                                Modifier.padding(bottom = RUNKK_BOTTOM_BAR_HEIGHT)
+                            )
+                        }
                     }
                 }
             }
@@ -121,8 +143,83 @@ class HomeAvatarSlotTest {
     }
 
     @Test
+    fun `칸을 눌러도 물결(누름 표시)을 그리지 않고 단추 안내는 그대로다(D-성-182)`() {
+        val indication = PressRecordingIndication()
+        show(mapOf(SlotKey.HOME_AVATAR to listOf(probe)), indication = indication)
+        assertNoRippleButton(HOME_AVATAR_SLOT_TAG, indication)
+        assertEquals(listOf(Routes.AVATAR_RUNNER), routes)
+    }
+
+    @Test
+    fun `칸이 비어 지금 서기 그림을 그려도 눌렀을 때 물결이 없다(D-성-182)`() {
+        val indication = PressRecordingIndication()
+        show(emptyMap(), indication = indication)
+        val created = indication.created
+        compose.onNodeWithContentDescription(text(R.string.home_avatar_description))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(hasClickLabel(text(R.string.home_house_edit_avatar)))
+            .performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertEquals(created, indication.created, "누를 때 표시를 만들지 않는다")
+        assertEquals(0, indication.presses)
+        assertEquals(listOf(Routes.AVATAR_RUNNER), routes)
+    }
+
+    /** 시험 장치 확인: 물결이 있는 단추(머리 줄 프로필)를 누르면 기록된다. */
+    @Test
+    fun `물결이 있는 단추는 눌림 표시가 기록된다(시험 장치 확인)`() {
+        val indication = PressRecordingIndication()
+        show(mapOf(SlotKey.HOME_AVATAR to listOf(probe)), indication = indication)
+        val created = indication.created
+        compose.onNode(hasClickLabel(text(R.string.home_open_profile_edit))).performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertTrue(indication.created > created || indication.presses > 0)
+    }
+
+    private fun assertNoRippleButton(tag: String, indication: PressRecordingIndication) {
+        val created = indication.created
+        compose.onNodeWithTag(tag)
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button))
+            .assert(hasClickLabel(text(R.string.home_house_edit_avatar)))
+            .assertHasClickAction()
+            .performTouchInput { click(center) }
+        compose.waitForIdle()
+        assertEquals(created, indication.created, "누를 때 표시를 만들지 않는다")
+        assertEquals(0, indication.presses, "눌림을 표시로 그리지 않는다")
+    }
+
+    @Test
     fun `아바타 꾸미기가 닫힌 배포에서는 칸을 눌러도 이동하지 않는다`() {
         show(mapOf(SlotKey.HOME_AVATAR to listOf(probe)), ReleaseScope.FIRST_RELEASE)
         compose.onNodeWithTag(HOME_AVATAR_SLOT_TAG).assertHasNoClickAction()
     }
+}
+
+private fun text(id: Int): String = RuntimeEnvironment.getApplication().getString(id)
+
+private fun hasClickLabel(label: String): SemanticsMatcher =
+    SemanticsMatcher("onClickLabel = $label") { it.config.getOrNull(SemanticsActions.OnClick)?.label == label }
+
+/**
+ * 눌림 표시(물결 등)를 만드는지 기록하는 표시. 표시를 쓰는 누름 요소마다 [create]가 불리고(누를 때 늦게 만들기도 한다), 붙은 뒤에는
+ * 눌림을 센다. `indication = null`이면 이 표시는 쓰이지 않는다.
+ */
+internal class PressRecordingIndication : IndicationNodeFactory {
+    var created = 0
+    var presses = 0
+
+    override fun create(interactionSource: InteractionSource): DelegatableNode {
+        created++
+        return object : Modifier.Node() {
+            override fun onAttach() {
+                coroutineScope.launch {
+                    interactionSource.interactions.collect { if (it is PressInteraction.Press) presses++ }
+                }
+            }
+        }
+    }
+
+    override fun equals(other: Any?): Boolean = other === this
+
+    override fun hashCode(): Int = System.identityHashCode(this)
 }

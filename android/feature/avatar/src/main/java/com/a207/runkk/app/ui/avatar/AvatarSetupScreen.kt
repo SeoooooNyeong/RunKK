@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -169,8 +170,8 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
             },
             onAlbum = openAlbum,
             onFaceConsent = viewModel::onFaceConsent,
-            onCharacter = viewModel::onCharacterSelected,
-            onSave = viewModel::onConfirmCharacter,
+            onDefaultFace = viewModel::onDefaultFaceSelected,
+            onSave = viewModel::onConfirmDefaultFace,
             onRepick = viewModel::onRepick,
             onStart = start,
             onLater = navigator::back,
@@ -203,7 +204,10 @@ fun AvatarSetupScreen(state: AvatarSetupUiState, actions: AvatarSetupActions, mo
 /** 셀카 고르기 칸의 시험 태그. 셀카 문구가 이 칸 위에 있는지 본다(DV-성-10). */
 internal const val SELFIE_CARD_TAG = "avatar_setup_selfie_card"
 
-/** 1 얼굴 만들기(62329:1715): 지금 얼굴 카드(오늘 횟수 칩), 셀카 찍기(라임)·앨범(흰), 기본 얼굴 4종, 고른 기본 얼굴 저장. */
+/**
+ * 1 얼굴 만들기(62329:1715): 지금 얼굴 카드(오늘 횟수 칩), 셀카 찍기(라임)·앨범(흰), 「기본 얼굴」 칸 하나([임시:D-성-187], 동물 4종 없음),
+ * 지금 얼굴이 기본 얼굴이 아닐 때 고르면 저장 단추.
+ */
 @Composable
 private fun ColumnScope.ChooseStep(state: AvatarSetupUiState, actions: AvatarSetupActions) {
     RunkkTopBar(title = stringResource(R.string.avatar_setup_title), onBack = actions.onBack)
@@ -256,12 +260,8 @@ private fun ColumnScope.ChooseStep(state: AvatarSetupUiState, actions: AvatarSet
             modifier = Modifier.semantics { heading() }
         )
         Spacer(Modifier.height(11.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            DefaultCharacter.entries.forEach { character ->
-                CharacterOption(character, isSelected = character == state.selected, onClick = {
-                    actions.onCharacter(character)
-                })
-            }
+        Row(Modifier.selectableGroup()) {
+            DefaultFaceOption(isSelected = state.isDefaultSelected, onClick = actions.onDefaultFace)
         }
         state.saveError?.let {
             Text(
@@ -274,8 +274,7 @@ private fun ColumnScope.ChooseStep(state: AvatarSetupUiState, actions: AvatarSet
             )
         }
     }
-    val selected = state.selected
-    if (selected != null && RunkkAvatarArt.defaultKey(selected.name) != state.faceKey) {
+    if (state.isDefaultSelected && !RunkkAvatarArt.isDefaultKey(state.faceKey)) {
         BottomBar {
             AvatarPillButton(
                 stringResource(R.string.avatar_setup_save),
@@ -287,12 +286,15 @@ private fun ColumnScope.ChooseStep(state: AvatarSetupUiState, actions: AvatarSet
     }
 }
 
-/** 지금 얼굴(흰 카드 358×220, 모서리 24): 가운데 140 동그라미 얼굴, 오른쪽 위 「오늘 1회」 칩(오늘 다 썼으면 「내일 다시」). */
+/**
+ * 지금 얼굴(흰 카드 358×220, 모서리 24): 가운데 140 동그라미 얼굴, 오른쪽 위 「오늘 1회」 칩(오늘 다 썼으면 「내일 다시」). 「기본 얼굴」을
+ * 골랐으면 내 성별의 기본 머리, 아니면 지금 얼굴(셀카면 받은 머리)이다.
+ */
 @Composable
 private fun CurrentFaceCard(state: AvatarSetupUiState) {
     val shape = RoundedCornerShape(24.dp)
-    val key =
-        state.selected?.let { RunkkAvatarArt.defaultKey(it.name) } ?: state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY
+    val key = if (state.isDefaultSelected) RunkkAvatarArt.DEFAULT_FACE_KEY else state.faceKey
+    val layers = if (state.isDefaultSelected) emptyList() else state.faceLayers
     Box(
         Modifier
             .fillMaxWidth()
@@ -309,7 +311,7 @@ private fun CurrentFaceCard(state: AvatarSetupUiState) {
                 .clip(CircleShape)
                 .background(RunkkColors.SurfaceHigh)
         ) {
-            RunkkAvatarPortrait(key, faceLayers = emptyList(), modifier = Modifier.fillMaxSize())
+            RunkkAvatarPortrait(key, faceLayers = layers, modifier = Modifier.fillMaxSize())
         }
         Row(
             modifier = Modifier
@@ -382,11 +384,10 @@ private fun PickCard(
     }
 }
 
-/** 기본 얼굴(동그라미 72, 고른 것은 라임 3 테두리). */
+/** 「기본 얼굴」 칸(동그라미 72, 고른 것은 라임 3 테두리): 내 성별의 기본 머리를 그린다([임시:D-성-187]). */
 @Composable
-private fun CharacterOption(character: DefaultCharacter, isSelected: Boolean, onClick: () -> Unit) {
-    val name = stringResource(character.labelRes)
-    val pickLabel = stringResource(R.string.avatar_setup_pick_label, name)
+private fun DefaultFaceOption(isSelected: Boolean, onClick: () -> Unit) {
+    val label = stringResource(R.string.avatar_setup_pick_label, stringResource(R.string.avatar_setup_pick_character))
     Box(
         Modifier
             .size(72.dp)
@@ -398,16 +399,14 @@ private fun CharacterOption(character: DefaultCharacter, isSelected: Boolean, on
                 CircleShape
             )
             .selectable(selected = isSelected, role = Role.RadioButton, onClick = onClick)
-            .semantics { contentDescription = name },
+            .semantics { contentDescription = label },
         contentAlignment = Alignment.Center
     ) {
         RunkkAvatarPortrait(
-            RunkkAvatarArt.defaultKey(character.name),
+            RunkkAvatarArt.DEFAULT_FACE_KEY,
             faceLayers = emptyList(),
-            modifier = Modifier.fillMaxSize().semantics { this.contentDescription = pickLabel }
-        ) {
-            Text(name, style = RunkkTextStyles.text(14, FontWeight.Black), color = RunkkColors.TextPrimary)
-        }
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
@@ -569,11 +568,7 @@ private fun ColumnScope.WorkingStep(state: AvatarSetupUiState, actions: AvatarSe
                     .background(RunkkColors.SurfaceHigh)
             ) {
                 SentPhoto(state.photo, stringResource(R.string.avatar_setup_sent_photo), Modifier.fillMaxSize()) {
-                    RunkkAvatarPortrait(
-                        state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY,
-                        emptyList(),
-                        Modifier.fillMaxSize()
-                    )
+                    RunkkAvatarPortrait(state.faceKey, state.faceLayers, Modifier.fillMaxSize())
                 }
             }
         }
@@ -814,11 +809,7 @@ private fun FailedPhoto(state: AvatarSetupUiState) {
                 .alpha(FAILED_PHOTO_ALPHA)
         ) {
             SentPhoto(state.photo, stringResource(R.string.avatar_setup_sent_photo), Modifier.fillMaxSize()) {
-                RunkkAvatarPortrait(
-                    state.faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY,
-                    emptyList(),
-                    Modifier.fillMaxSize()
-                )
+                RunkkAvatarPortrait(state.faceKey, state.faceLayers, Modifier.fillMaxSize())
             }
         }
         Box(
@@ -905,7 +896,10 @@ private val GUIDE_GAP = 8.dp
 @Composable
 private fun AvatarSetupPreview() {
     RunkkTheme(reduceMotion = true) {
-        AvatarSetupScreen(AvatarSetupUiState(isLoading = false, selected = DefaultCharacter.FOX), AvatarSetupActions())
+        AvatarSetupScreen(
+            AvatarSetupUiState(isLoading = false, faceKey = RunkkAvatarArt.DEFAULT_FACE_KEY, isDefaultSelected = true),
+            AvatarSetupActions()
+        )
     }
 }
 

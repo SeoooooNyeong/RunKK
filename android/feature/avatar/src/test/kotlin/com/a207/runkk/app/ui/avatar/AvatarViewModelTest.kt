@@ -272,7 +272,7 @@ internal fun storeOf(repo: AvatarRepository, gender: Gender? = null): MyAvatarSt
     flowOf(gender),
     headsOf(repo),
     preload = {},
-    prepare = {},
+    prepare = { _, _ -> },
     scope = CoroutineScope(Dispatchers.Unconfined)
 )
 
@@ -293,7 +293,16 @@ class AvatarSetupViewModelTest {
         val s = vm().state.value
         assertEquals(SetupPhase.CHOOSE, s.phase)
         assertTrue(s.canCreateSelfie)
-        assertEquals(DefaultCharacter.FOX, s.selected)
+        assertTrue(s.isDefaultSelected, "지금 얼굴이 기본 캐릭터(어느 값이든)면 「기본 얼굴」 칸을 고른 채 연다(D-성-187)")
+    }
+
+    @Test
+    fun `지금 얼굴이 셀카면 기본 얼굴 칸을 고르지 않고 미리보기용 셀카 층을 읽는다`() {
+        repo.avatarResult = Outcome.Success(avatar.copy(faceKey = "selfie:face/7/s1", defaultCharacterId = null))
+        val s = vm().state.value
+        assertFalse(s.isDefaultSelected)
+        assertEquals("selfie:face/7/s1", s.faceKey)
+        assertTrue(s.faceLayers.isNotEmpty(), "지금 얼굴 카드가 셀카 머리를 그린다(빈 칸·기본 머리가 아니게)")
     }
 
     @Test
@@ -458,14 +467,15 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `만드는 중에도 기본 캐릭터를 저장할 수 있고 따라가기를 멈추고 사진을 지운 뒤 돌아간다(FR-158)`() = runTest(main.dispatcher) {
+    fun `만드는 중에도 기본 얼굴을 저장할 수 있고(서버에는 RABBIT) 따라가기를 멈추고 사진을 지운 뒤 돌아간다(FR-158, D-성-187)`() = runTest(main.dispatcher) {
         val model = vm()
         model.onSelfie(byteArrayOf(1))
         model.onStart()
         assertFalse(model.onSelfieRequested(), "만드는 중에는 셀카를 막는다")
-        model.onCharacterSelected(DefaultCharacter.BEAR)
-        model.onConfirmCharacter()
-        assertTrue("default:BEAR" in repo.calls)
+        model.onDefaultFaceSelected()
+        assertTrue(model.state.value.isDefaultSelected)
+        model.onConfirmDefaultFace()
+        assertEquals(listOf("default:RABBIT"), repo.calls.filter { it.startsWith("default:") })
         assertTrue("cancel" in follower.calls)
         assertNull(photo.saved)
         assertEquals(AvatarSetupEvent.Done, model.events.first())
@@ -530,6 +540,15 @@ class AvatarDecorateViewModelTest {
         assertTrue(model.state.value.isDone)
         assertEquals(2L, model.state.value.avatar?.equipped?.get(ItemSlot.TOP))
         assertTrue(repo.calls.count { it == "runner" } > before, "저장 뒤 MyAvatarStore가 다시 읽는다")
+    }
+
+    @Test
+    fun `숨긴 모자 부위의 착용은 저장해도 그대로 둔다(보내지 않는다, D-성-183)`() {
+        repo.avatarResult = Outcome.Success(avatar.copy(equipped = mapOf(ItemSlot.TOP to 1L, ItemSlot.HAT to 3L)))
+        val model = AvatarViewModel(repo, headsOf(repo), storeOf(repo))
+        model.onToggle(items[1])
+        model.onSave()
+        assertEquals(listOf("equip:{TOP=2}"), repo.calls.filter { it.startsWith("equip") })
     }
 
     @Test

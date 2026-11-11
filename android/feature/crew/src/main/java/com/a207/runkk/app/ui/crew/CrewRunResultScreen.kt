@@ -51,7 +51,6 @@ import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
-import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -272,14 +271,14 @@ private fun AvatarRow(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map
 }
 
 /**
- * 크루원 아바타 한 칸: 기본 캐릭터 얼굴이면 그 그림, 셀카 얼굴이면 받은 부위 그림이다. 얼굴 키가 없거나(얼굴을 고르지 않음·옛 서버)
- * 셀카 부위 그림을 아직 받지 못했으면 지금처럼 기본 캐릭터다(빈 칸을 그리지 않는다).
+ * 크루원 아바타 한 칸: 셀카 얼굴이고 부위 그림을 받았으면 그 머리, 그 밖(얼굴 키 없음·옛 서버, 기본 캐릭터 값, 셀카 그림을 아직 받지
+ * 못함)은 그 크루원 표시 성별의 기본 머리다([임시:D-성-180], 빈 칸을 그리지 않는다).
  */
 @Composable
 private fun MateAvatar(mate: CrewRunResult.Participant, mateFaces: Map<String, List<FaceLayer>>) {
     val layers = mate.faceKey?.let(mateFaces::get).orEmpty()
     RunkkAvatar(
-        faceKey = mate.faceKey?.takeIf { RunkkAvatarArt.characterOf(it) != null || layers.isNotEmpty() },
+        faceKey = mate.faceKey,
         expression = AvatarExpression.JOY,
         modifier = Modifier.size(width = 50.dp, height = 62.dp),
         faceLayers = layers,
