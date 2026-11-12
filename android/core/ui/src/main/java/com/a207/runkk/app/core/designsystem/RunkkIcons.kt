@@ -216,6 +216,10 @@ object RunkkIcons {
         isFilled = true
     )
 
+    /** 보내기(피그마 G-25 AI 코치 질문 보내기의 Material send, 채움). */
+    val Send: ImageVector =
+        filled("Send", 24f, "M3 20V4L22 12L3 20ZM5 17L16.85 12L5 7V10.5L11 12L5 13.5V17ZM5 17V12V7V10.5V13.5V17Z")
+
     /** 해(홈 러닝 설정 버튼, A-4). */
     val Sun: ImageVector = line(
         "Sun",

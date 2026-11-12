@@ -4,6 +4,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -11,11 +12,13 @@ import androidx.compose.ui.test.performTextInput
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.domain.coach.CoachConversation
 import com.a207.runkk.app.domain.coach.CoachFailure
 import com.a207.runkk.app.ui.record.coach.CoachChatActions
 import com.a207.runkk.app.ui.record.coach.CoachChatScreen
 import com.a207.runkk.app.ui.record.coach.CoachChatTurn
 import com.a207.runkk.app.ui.record.coach.CoachChatUiState
+import java.time.LocalDateTime
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -37,18 +40,18 @@ class CoachChatScreensTest {
                 CoachChatScreen(CoachChatUiState(), CoachChatActions(onSend = { questions += it }))
             }
         }
-        compose.onNodeWithText("질문 보내기").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("질문 보내기").assertIsNotEnabled()
         compose.onNodeWithText("질문").performTextInput("오늘은 어떻게 달릴까요?")
-        compose.onNodeWithText("질문 보내기").assertIsEnabled().performClick()
+        compose.onNodeWithContentDescription("질문 보내기").assertIsEnabled().performClick()
         assertEquals(listOf("오늘은 어떻게 달릴까요?"), questions)
-        compose.onNodeWithText("질문 보내기").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("질문 보내기").assertIsNotEnabled()
     }
 
     @Test
     fun `501자 질문은 보낼 수 없다`() {
         compose.setContent { RunkkTheme { CoachChatScreen(CoachChatUiState(), CoachChatActions()) } }
         compose.onNodeWithText("질문").performTextInput("가".repeat(501))
-        compose.onNodeWithText("질문 보내기").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("질문 보내기").assertIsNotEnabled()
         compose.onNodeWithText("질문은 1자 이상 500자 이하로 입력해 주세요").assertExists()
     }
 
@@ -82,7 +85,7 @@ class CoachChatScreensTest {
         }
         compose.onNodeWithText("동의 설정으로 이동").performClick()
         assertEquals(1, opened)
-        compose.onNodeWithText("질문 보내기").assertDoesNotExist()
+        compose.onNodeWithContentDescription("질문 보내기").assertDoesNotExist()
     }
 
     @Test
@@ -144,10 +147,56 @@ class CoachChatScreensTest {
     }
 
     @Test
+    fun `이전 대화를 누르면 목록이 보이고 고른 대화를 연 뒤 코치 화면으로 돌아온다`() {
+        val opened = mutableListOf<String>()
+        val conversation = CoachConversation("c1", "어제 러닝 어땠어?", LocalDateTime.of(2026, 11, 2, 9, 0))
+        compose.setContent {
+            RunkkTheme {
+                CoachChatScreen(
+                    CoachChatUiState(conversations = listOf(conversation)),
+                    CoachChatActions(onOpenConversation = { opened += it })
+                )
+            }
+        }
+        compose.onNodeWithText("이전 대화").performClick()
+        compose.onNodeWithText("11월 2일").assertExists()
+        compose.onNodeWithText("어제 러닝 어땠어?").performClick()
+        assertEquals(listOf("c1"), opened)
+        compose.onNodeWithText("AI 코치").assertExists()
+    }
+
+    @Test
+    fun `이전 대화가 없으면 새 대화를 열 수 있다`() {
+        var opened = 0
+        compose.setContent {
+            RunkkTheme {
+                CoachChatScreen(CoachChatUiState(), CoachChatActions(onNewConversation = { opened++ }))
+            }
+        }
+        compose.onNodeWithText("이전 대화").performClick()
+        compose.onNodeWithText("보관 중인 이전 대화가 없어요").assertExists()
+        compose.onNodeWithText("새 대화").performClick()
+        assertEquals(1, opened)
+        compose.onNodeWithText("새 대화를 시작해요").assertExists()
+    }
+
+    @Test
     fun chatScreenshot() = compose.captureRunkkScreen("record_ai_coach") {
         CoachChatScreen(
-            CoachChatUiState(turns = listOf(CoachChatTurn("오늘은 어떻게 달릴까요?", "천천히 달리며 회복해 보세요.", true))),
+            CoachChatUiState(
+                conversationId = "c1",
+                turns = listOf(
+                    CoachChatTurn("어제 러닝 어땠어?", "후반 3km에서 페이스를 잘 지켰어요. 같은 심박에서 지난주보다 12초 빨라졌어요.", true),
+                    CoachChatTurn("이번 주에 뭘 하면 좋을까?", "회복 러닝을 한 번 넣고")
+                ),
+                isSending = true
+            ),
             CoachChatActions()
         )
+    }
+
+    @Test
+    fun newChatScreenshot() = compose.captureRunkkScreen("record_ai_coach_new") {
+        CoachChatScreen(CoachChatUiState(), CoachChatActions())
     }
 }
