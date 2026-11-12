@@ -15,12 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -159,7 +161,8 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // 피그마 H-3: 세로 그림 95x126(모서리 12). 잠긴 배경은 그림 없이 surfaceHigh 바탕에 자물쇠만 둔다.
+        // 피그마 H-3: 세로 그림 95x126(모서리 12). 잠긴 배경도 그림을 불투명하게 그대로 보이고 가운데에 자물쇠 배지를 얹는다
+        // (2026-11-12 PM 요구: 무엇이 열릴지 보이게).
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -168,14 +171,19 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
                 .background(RunkkColors.SurfaceHigh),
             contentAlignment = Alignment.Center
         ) {
-            if (!isLocked) AvatarStageBackdrop(key, modifier = Modifier.matchParentSize(), stage)
+            AvatarStageBackdrop(key, modifier = Modifier.matchParentSize(), stage)
             if (isLocked) {
-                Icon(
-                    RunkkIcons.Lock,
-                    contentDescription = null,
-                    tint = RunkkColors.TextPrimary,
-                    modifier = Modifier.size(16.dp)
-                )
+                Box(
+                    modifier = Modifier.size(28.dp).clip(CircleShape).background(LOCK_BADGE),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        RunkkIcons.Lock,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
         Text(
@@ -190,6 +198,9 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
 }
 
 private const val COLUMNS = 3
+
+/** 잠긴 배경 그림 위 자물쇠 배지 바탕(검정 60%). */
+private val LOCK_BADGE = Color(0x99000000)
 private const val BACKDROP_RATIO = 95f / 126f
 private const val METERS_PER_KM = 1_000L
 

@@ -221,7 +221,9 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
         AvatarBackdrop(
             if (isAvatarOpen) state.backgroundKey else null,
             modifier = Modifier.fillMaxSize().extendBottom(bleed),
-            alignment = Alignment.BottomCenter
+            alignment = Alignment.BottomCenter,
+            // 사진을 아래 가운데 기준으로 키워 트랙이 아바타 발 밑까지 오게 한다(2026-11-12 PM: 발이 지평선 근처에 떠 보였다)
+            zoom = HOME_BACKDROP_ZOOM
         )
         // 점선 방 바깥은 사진 위에 반투명 막을 덮는다(라이트 흰 막, 다크 검은 막). 방 안 장면은 그대로 둔다
         var roomBounds by remember { mutableStateOf<Rect?>(null) }
@@ -904,3 +906,6 @@ private fun HomeScreenPreview() {
 /** 점선 방 모서리와 바깥 막의 진하기. */
 private val ROOM_CORNER = 28.dp
 private const val OUTSIDE_SCRIM_ALPHA = 0.4f
+
+/** 홈 배경 사진 확대 배율(아래 가운데 기준). */
+private const val HOME_BACKDROP_ZOOM = 1.35f

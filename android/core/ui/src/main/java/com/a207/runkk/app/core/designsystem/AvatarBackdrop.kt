@@ -5,6 +5,9 @@ import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 
@@ -12,14 +15,16 @@ import androidx.compose.ui.res.painterResource
  * 아바타 랜드마크 배경(FR-201, FR-202, D-107). 고른 배경 키로 그림을 찾아 아바타·프로필·러닝 카드 뒤에 깐다.
  * 장식 그림이라 보조 기술에는 알리지 않는다(이름은 화면이 글자로 보인다).
  * [backgroundKey]가 null이면 기본 배경, 기본 키는 도시 그림, 모르는 키는 [stage](서버 단계 이름)별 기본 그림, 단계도 모르면 기본 배경이다.
- * 칸에 맞춰 자를 때 [alignment] 기준으로 남긴다(납작한 칸은 바닥이 보이게 아래 기준을 넘긴다).
+ * 칸에 맞춰 자를 때 [alignment] 기준으로 남긴다(납작한 칸은 바닥이 보이게 아래 기준을 넘긴다). [zoom]이 1보다 크면 아래 가운데를
+ * 기준으로 그만큼 키워 그린다(홈: 아바타 발이 사진 트랙 위에 오게, 2026-11-12 PM 요구).
  */
 @Composable
 fun AvatarBackdrop(
     backgroundKey: String?,
     modifier: Modifier = Modifier,
     stage: String? = null,
-    alignment: Alignment = Alignment.Center
+    alignment: Alignment = Alignment.Center,
+    zoom: Float = 1f
 ) {
     Image(
         painter = painterResource(
@@ -33,7 +38,15 @@ fun AvatarBackdrop(
         contentDescription = null,
         contentScale = ContentScale.Crop,
         alignment = alignment,
-        modifier = modifier
+        modifier = if (zoom == 1f) {
+            modifier
+        } else {
+            modifier.clipToBounds().graphicsLayer {
+                scaleX = zoom
+                scaleY = zoom
+                transformOrigin = TransformOrigin(0.5f, 1f)
+            }
+        }
     )
 }
 

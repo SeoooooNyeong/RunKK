@@ -27,6 +27,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
@@ -83,7 +84,13 @@ fun AvatarStageFrame(
             Image(
                 painter = backdrop,
                 contentDescription = null,
-                modifier = Modifier.matchParentSize(),
+                // 그림을 아래 가운데 기준으로 키워 아바타 발이 그림 바닥 위에 오게 한다(내 러너·꾸미기·상점, 홈과 같은 배율,
+                // 2026-11-12 PM 요구). 발 자리는 그대로 두고 그림만 키운다.
+                modifier = Modifier.matchParentSize().clipToBounds().graphicsLayer {
+                    scaleX = STAGE_BACKDROP_ZOOM
+                    scaleY = STAGE_BACKDROP_ZOOM
+                    transformOrigin = TransformOrigin(0.5f, 1f)
+                },
                 alignment = Alignment.BottomCenter,
                 contentScale = ContentScale.Crop
             )
@@ -263,3 +270,6 @@ private fun DrawScope.drawStageShadow(layout: AvatarStageLayout, alpha: Float, b
         )
     }
 }
+
+/** 무대 배경 그림 확대 배율(아래 가운데 기준, 홈 배경과 같다). */
+private const val STAGE_BACKDROP_ZOOM = 1.35f
