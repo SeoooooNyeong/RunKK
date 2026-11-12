@@ -28,3 +28,6 @@ val LocalSlotAvatarPose = compositionLocalOf { AvatarSlotPose.STAND }
  * 넘기고, 흔들림 거르기(2초 유지)와 뒤집기는 칸 내용이 한다. 처음·칸 밖은 오른쪽(false).
  */
 val LocalSlotAvatarFacingLeft = compositionLocalOf { false }
+
+/** 전신 정지 그림 칸(SlotKey.AVATAR_STILL)에 넘기는 사람. 칸 밖이면 null이다. [AvatarStillSlot] 참고. */
+val LocalSlotAvatarStill = compositionLocalOf<AvatarStillSubject?> { null }

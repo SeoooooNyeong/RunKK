@@ -1,6 +1,7 @@
 package com.a207.runkk.app.core.avatar
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.view.MotionEvent
@@ -114,6 +115,18 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             state = null
             fail(error)
         }
+    }
+
+    /**
+     * 지금 동작 플레이어가 그린 판을 [width]×[height]로 읽는다(전신 정지 그림, [RiveAvatarStill]). 그 동작의 첫 텍스처가 아직 들어가지
+     * 않았거나 그릴 면이 아직 없으면 null이다. 주 스레드에서 부른다.
+     */
+    fun snapshot(width: Int, height: Int): Bitmap? {
+        if (isReleased || width <= 0 || height <= 0) return null
+        val motion = state?.motion ?: return null
+        if (motion !in applied) return null
+        val player = players[motion]?.takeIf { it.isAvailable } ?: return null
+        return player.getBitmap(width, height)
     }
 
     fun release() {

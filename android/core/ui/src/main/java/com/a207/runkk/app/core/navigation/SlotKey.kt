@@ -24,5 +24,12 @@ enum class SlotKey {
      * 측정 화면(자유런·크루런·대결) 지도 위 내 위치 마커의 Rive 아바타([임시:D-성-121], AV-3). 동작은 [LocalSlotAvatarPose], 진행 방향
      * 원값은 [LocalSlotAvatarFacingLeft]로 받는다. 칸이 비면 측정 화면은 지금 그림(RunkkRunningFigure)을 그린다. [RunAvatarSlot] 참고.
      */
-    RUN_AVATAR
+    RUN_AVATAR,
+
+    /**
+     * 전신 정지 그림(랭킹 TOP3 시상대, 기록런 나 VS 과거의 나, S15P31A207-300). ui.avatar가 서기 자세를 한 번 그려 읽은 그림을 넣는다.
+     * 누구를 그릴지는 [LocalSlotAvatarStill]로 받고, 칸 크기는 부르는 쪽이 정한다. 칸이 비거나 아바타 꾸미기가 닫혀 있으면 부르는
+     * 쪽은 지금 그림을 그린다. [AvatarStillSlot] 참고.
+     */
+    AVATAR_STILL
 }

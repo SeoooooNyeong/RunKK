@@ -35,6 +35,8 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.runkkDashedBorder
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import java.time.Duration
 import java.time.LocalDate
 
@@ -43,7 +45,10 @@ import java.time.LocalDate
 /** 거리 카드 한 장(셀프런): 거리, 내 최고 기록과 날짜(없으면 "기록 없음"이고 고를 수 있다). */
 data class DistanceCard(val distance: Distance, val best: Duration?, val recordedOn: LocalDate?)
 
-/** 나 VS 상대 자리(상대는 아직 모르므로 흐린 상대 그림). */
+/**
+ * 나 VS 상대 자리(상대는 아직 모르므로 흐린 상대 그림). 나와 과거의 나는 머리·몸·의상이 다 보이는 내 전신 정지 그림이다
+ * (SlotKey.AVATAR_STILL, S15P31A207-300). 꾸미기가 닫혀 있거나 칸이 비면 지금 서기 그림이다.
+ */
 @Composable
 internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL) {
     val me = stringResource(R.string.battle_me)
@@ -53,14 +58,27 @@ internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL)
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        VersusSlot { RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(VERSUS_FIGURE)) }
+        VersusSlot {
+            AvatarStillSlot(MY_STILL, Modifier.size(VERSUS_FIGURE)) {
+                RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(VERSUS_FIGURE))
+            }
+        }
         Text(
             "VS",
             style = RunkkTextStyles.display(28),
             color = RunkkColors.TextSecondary,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
-        VersusSlot(isFaded = true) { OpponentFigure(opponentFigure, size = VERSUS_FIGURE) }
+        VersusSlot(isFaded = true) {
+            if (opponentFigure == Figure.PAST_SELF) {
+                // 과거의 나도 내 전신 정지 그림(흐림은 칸이 준다)
+                AvatarStillSlot(MY_STILL, Modifier.size(VERSUS_FIGURE)) {
+                    OpponentFigure(opponentFigure, size = VERSUS_FIGURE)
+                }
+            } else {
+                OpponentFigure(opponentFigure, size = VERSUS_FIGURE)
+            }
+        }
     }
 }
 
@@ -74,6 +92,9 @@ private fun VersusSlot(isFaded: Boolean = false, content: @Composable () -> Unit
         contentAlignment = Alignment.Center
     ) { content() }
 }
+
+/** 전신 정지 그림 칸에 넘기는 사람(나). */
+private val MY_STILL = AvatarStillSubject(isMine = true)
 
 /** VS 칸 안 캐릭터 크기(칸 높이에 맞춰 크게). */
 private val VERSUS_FIGURE = 148.dp

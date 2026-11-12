@@ -66,6 +66,8 @@ import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Ranking
 import java.time.Duration
@@ -327,7 +329,10 @@ private fun Top3Label(period: AggregationPeriod, modifier: Modifier = Modifier) 
     }
 }
 
-/** 받침(위가 밝은 그라데이션)과 그 위에 서 있는 아바타·발밑 그림자. 읽기는 아래 정보 띠가 맡는다. */
+/**
+ * 받침(위가 밝은 그라데이션)과 그 위에 서 있는 아바타·발밑 그림자. 아바타는 머리·몸·의상이 다 보이는 전신 정지 그림이다
+ * (SlotKey.AVATAR_STILL, S15P31A207-300). 읽기는 아래 정보 띠가 맡는다.
+ */
 @Composable
 private fun PodiumStand(entry: Ranking.Entry?, mine: Ranking.Entry?, stand: Stand, modifier: Modifier = Modifier) {
     Column(modifier.clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -344,12 +349,16 @@ private fun PodiumStand(entry: Ranking.Entry?, mine: Ranking.Entry?, stand: Stan
                     )
                 }
             ) {
-                RunkkAvatar(
-                    faceKey = null,
-                    expression = AvatarExpression.STAND,
-                    modifier = Modifier.height(stand.avatar).aspectRatio(AVATAR_ASPECT),
-                    character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender)
-                )
+                // 꾸미기가 열려 있으면 전신 정지 그림(나는 내 모습, 다른 러너는 표시 성별의 기본 모습), 아니면 지금 서기 그림
+                val figure = Modifier.height(stand.avatar).aspectRatio(AVATAR_ASPECT)
+                AvatarStillSlot(AvatarStillSubject(isMine, entry.shownGender), figure) {
+                    RunkkAvatar(
+                        faceKey = null,
+                        expression = AvatarExpression.STAND,
+                        modifier = figure,
+                        character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender)
+                    )
+                }
             }
         }
         Box(

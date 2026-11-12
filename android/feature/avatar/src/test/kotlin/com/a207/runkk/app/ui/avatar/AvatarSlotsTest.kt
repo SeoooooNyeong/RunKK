@@ -17,7 +17,9 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarPose
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.SlotKey
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -59,8 +61,8 @@ class AvatarSlotsTest {
     fun tearDown() = scope.cancel()
 
     @Test
-    fun `ui·avatar가 홈 아바타 칸과 러닝 중 아바타 칸을 채운다`() {
-        assertEquals(setOf(SlotKey.HOME_AVATAR, SlotKey.RUN_AVATAR), entry.slots.keys)
+    fun `ui·avatar가 홈 아바타 칸과 러닝 중 아바타 칸과 전신 정지 그림 칸을 채운다`() {
+        assertEquals(setOf(SlotKey.HOME_AVATAR, SlotKey.RUN_AVATAR, SlotKey.AVATAR_STILL), entry.slots.keys)
         assertEquals(entry.slots, entry.slots, "칸 람다는 한 번 만들어 둔다(다시 그릴 때 칸 내용을 새로 만들지 않게)")
     }
 
@@ -170,6 +172,45 @@ class AvatarSlotsTest {
             }
         }
         compose.waitUntil(timeoutMillis = 2_000) { store.state.value is MyAvatarState.Ready }
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 내 준비에 실패하면 성별 기본 전신 그림을 보인다`() {
+        repo.avatarResult = Outcome.Failure(AppError.Network)
+        gender.value = Gender.FEMALE
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(LocalSlotAvatarStill provides AvatarStillSubject(isMine = true)) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 2_000) { store.state.value is MyAvatarState.Failed }
+        compose.onNodeWithTag(AVATAR_STILL_FALLBACK_TAG).assertExists()
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 다른 러너를 Rive로 그리지 못하면(시험 환경) 성별 기본 전신 그림을 보인다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject(isMine = false, gender = Gender.MALE)
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 칸 밖(사람을 넘기지 않음)이면 아무것도 그리지 않는다`() {
+        compose.setContent {
+            Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+        }
+        compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).assertCountEqualsTo(0, "사람이 없으면 비운다")
     }
 }
 
