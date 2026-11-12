@@ -65,4 +65,19 @@ class AvatarStillFrameTest {
         const val OPAQUE = 0xFF336699.toInt()
         const val FAINT = 0x04FFFFFF
     }
+
+    @Test
+    fun `자르는 틀은 남녀 몸 둘레와 상관없이 같은 크기이고 발에 붙어 키 차이가 그대로 남는다`() {
+        // 같은 아트보드 그림(400×1000)에서 남자(좁고 키 큼)와 여자(머리로 넓고 키 조금 작음)
+        val male = AvatarStillFrame.Bounds(140, 380, 260, 980)
+        val female = AvatarStillFrame.Bounds(120, 400, 280, 980)
+        val a = AvatarStillFrame.window(male, 400, 1000, 60, 120)
+        val b = AvatarStillFrame.window(female, 400, 1000, 60, 120)
+        assertEquals(a.width, b.width)
+        assertEquals(a.height, b.height)
+        assertEquals(980, a.bottom)
+        assertEquals(980, b.bottom)
+        // 틀은 아트보드 가운데에 놓인다(몸 가운데로 옮기지 않아 남녀가 같은 자리에 선다)
+        assertEquals(400 - a.right, a.left)
+    }
 }

@@ -3,12 +3,6 @@ package com.a207.runkk.app.ui.me
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Gender
 
-/** 가입·게스트 시작의 단계: 동의 → 성별 고르기(S15P31A207-300). */
-enum class SignUpStep {
-    CONSENT,
-    GENDER
-}
-
 /**
  * 가입·게스트 공용 화면(FR-003·FR-197) 상태. 동의 단계는 필수 동의 3종 + 만 14세 확인, 선택 동의 2종(기본 꺼짐)이고,
  * 성별 단계는 남자·여자 둘 중 하나만 고른다(처음에는 고르지 않음, "밝히지 않음" 없음, S15P31A207-300).

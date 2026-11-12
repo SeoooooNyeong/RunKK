@@ -55,6 +55,7 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GpsReadiness
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.FriendInviteView
@@ -192,7 +193,9 @@ private fun ColumnScope.Waiting(state: MatchUiState, actions: MatchActions) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
-        RunkkAvatar(null, AvatarExpression.SEARCH, Modifier.size(width = 150.dp, height = 240.dp))
+        AvatarStillSlot(MY_STILL, Modifier.size(width = 150.dp, height = 240.dp)) {
+            RunkkAvatar(null, AvatarExpression.SEARCH, Modifier.size(width = 150.dp, height = 240.dp))
+        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),

@@ -48,6 +48,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 
@@ -102,7 +103,9 @@ internal fun MatchHero(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(width = 70.dp, height = 130.dp))
+            AvatarStillSlot(MY_STILL, Modifier.size(width = 70.dp, height = 130.dp)) {
+                RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(width = 70.dp, height = 130.dp))
+            }
             Text("VS", style = RunkkTextStyles.text(24, FontWeight.Bold), color = Color.White)
             QuestionCircle(size = 100.dp, color = Color.White)
         }

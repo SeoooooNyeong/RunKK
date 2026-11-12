@@ -128,20 +128,6 @@ private fun SelfieHead(
     }
 }
 
-/** 한 칸이 쓰는 셀카 머리: 마지막으로 그린 크기의 머리를 들고 있다가 크기가 바뀔 때만 [SelfieHeadArt.of]로 다시 찾는다. */
-private class SizedSelfieHead(private val layers: List<FaceLayer>) {
-    private var side = -1
-    private var art: SelfieHeadArt? = null
-
-    fun at(side: Int): SelfieHeadArt? {
-        if (side != this.side) {
-            art = SelfieHeadArt.of(layers, side)
-            this.side = side
-        }
-        return art
-    }
-}
-
 private fun DrawScope.drawHead(head: SelfieHeadArt, isInCircle: Boolean) {
     val side = minOf(size.width, size.height)
     val left = (size.width - side) / 2

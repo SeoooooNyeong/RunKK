@@ -93,9 +93,6 @@ private fun VersusSlot(isFaded: Boolean = false, content: @Composable () -> Unit
     ) { content() }
 }
 
-/** 전신 정지 그림 칸에 넘기는 사람(나). */
-private val MY_STILL = AvatarStillSubject(isMine = true)
-
 /** VS 칸 안 캐릭터 크기(칸 높이에 맞춰 크게). */
 private val VERSUS_FIGURE = 148.dp
 

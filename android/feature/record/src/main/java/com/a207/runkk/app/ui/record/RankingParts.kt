@@ -65,6 +65,7 @@ import com.a207.runkk.app.core.designsystem.TierBadge
 import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
@@ -351,7 +352,7 @@ private fun PodiumStand(entry: Ranking.Entry?, mine: Ranking.Entry?, stand: Stan
             ) {
                 // 꾸미기가 열려 있으면 전신 정지 그림(나는 내 모습, 다른 러너는 표시 성별의 기본 모습), 아니면 지금 서기 그림
                 val figure = Modifier.height(stand.avatar).aspectRatio(AVATAR_ASPECT)
-                AvatarStillSlot(AvatarStillSubject(isMine, entry.shownGender), figure) {
+                AvatarStillSlot(AvatarStillSubject(isMine, entry.shownGender?.let { it == Gender.FEMALE }), figure) {
                     RunkkAvatar(
                         faceKey = null,
                         expression = AvatarExpression.STAND,

@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
@@ -46,7 +47,10 @@ import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.TierBadge
 import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.tierName
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.account.PlacementStatus
 
 /**
@@ -132,7 +136,13 @@ private fun RandomCard(state: BattleEntrySheetState, onClick: () -> Unit) {
         spoken = listOfNotNull(title, chip, tierSpoken, caption).joinToString(", "),
         container = RunkkColors.Violet,
         onClick = onClick,
-        art = { QuestionCircle() },
+        art = {
+            // 나(전신 정지 그림) VS 모르는 상대(물음표)
+            Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
+                AvatarStillSlot(MY_STILL, Modifier.offset(x = 4.dp).size(width = 48.dp, height = ART_HEIGHT)) {}
+                Box(Modifier.offset(x = 54.dp, y = 21.dp).size(48.dp)) { QuestionMark(48.dp) }
+            }
+        },
         chevron = Color.White
     ) {
         chip?.let {
@@ -162,17 +172,29 @@ private fun FriendCard(onClick: () -> Unit) {
         onClick = onClick,
         art = {
             Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
-                RunkkAvatar(
-                    faceKey = null,
-                    expression = AvatarExpression.STAND,
-                    modifier = Modifier.offset(x = 14.dp).size(width = 48.dp, height = ART_HEIGHT)
-                )
-                RunkkAvatar(
-                    faceKey = null,
-                    expression = AvatarExpression.STAND,
-                    modifier = Modifier.offset(x = 56.dp).size(width = 48.dp, height = ART_HEIGHT),
-                    character = if (me == AvatarCharacter.MALE) AvatarCharacter.FEMALE else AvatarCharacter.MALE
-                )
+                val friend = if (me == AvatarCharacter.MALE) AvatarCharacter.FEMALE else AvatarCharacter.MALE
+                // 2026-11-12 PM 요구: 대결 고르기 카드도 얼굴 대신 아바타 몸체(전신 정지 그림)
+                AvatarStillSlot(MY_STILL, Modifier.offset(x = 14.dp).size(width = 48.dp, height = ART_HEIGHT)) {
+                    RunkkAvatar(
+                        faceKey = null,
+                        expression = AvatarExpression.STAND,
+                        modifier = Modifier.size(width = 48.dp, height = ART_HEIGHT)
+                    )
+                }
+                AvatarStillSlot(
+                    AvatarStillSubject(
+                        isMine = false,
+                        isFemale = friend == AvatarCharacter.FEMALE
+                    ),
+                    Modifier.offset(x = 56.dp).size(width = 48.dp, height = ART_HEIGHT)
+                ) {
+                    RunkkAvatar(
+                        faceKey = null,
+                        expression = AvatarExpression.STAND,
+                        modifier = Modifier.size(width = 48.dp, height = ART_HEIGHT),
+                        character = friend
+                    )
+                }
             }
         },
         chevron = RunkkColors.OnLimeFill
@@ -212,29 +234,30 @@ private fun EntryCard(
     }
 }
 
-/** 고스트 자리: 흰 점선 원 64 안 「?」 30 Bold(그림 110×90 안 (23,13)). */
+/** 고스트 자리: 흰 점선 원 [size] 안 「?」(지름 64면 30 Bold). 랜덤 대결 카드에서 내 전신 그림 오른쪽에 둔다. */
 @Composable
-private fun QuestionCircle() {
-    Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
-        Box(
-            Modifier.offset(x = 23.dp, y = 13.dp).size(64.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(Modifier.size(64.dp)) {
-                val stroke = 2.dp.toPx()
-                drawCircle(
-                    color = Color.White,
-                    radius = size.minDimension / 2 - stroke / 2,
-                    style = Stroke(
-                        width = stroke,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
-                    )
+private fun QuestionMark(size: Dp) {
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(size)) {
+            val stroke = 2.dp.toPx()
+            drawCircle(
+                color = Color.White,
+                radius = this.size.minDimension / 2 - stroke / 2,
+                style = Stroke(
+                    width = stroke,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
                 )
-            }
-            Text(QUESTION, style = RunkkTextStyles.text(30, FontWeight.Bold), color = Color.White)
+            )
         }
+        Text(
+            QUESTION,
+            style = RunkkTextStyles.text((30 * size.value / 64).toInt(), FontWeight.Bold),
+            color = Color.White
+        )
     }
 }
+
+private val MY_STILL = AvatarStillSubject(isMine = true, isLightSkin = true)
 
 private const val QUESTION = "?"
 private val SHEET_CORNER = 28.dp

@@ -311,7 +311,7 @@ private fun GenderCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             val figure = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)
-            AvatarStillSlot(AvatarStillSubject(isMine = false, gender = gender), figure) {
+            AvatarStillSlot(AvatarStillSubject(isMine = false, isFemale = gender == Gender.FEMALE), figure) {
                 Image(
                     painterResource(defaultAvatarOf(AvatarExpression.STAND, AvatarCharacter.of(gender))),
                     contentDescription = null,

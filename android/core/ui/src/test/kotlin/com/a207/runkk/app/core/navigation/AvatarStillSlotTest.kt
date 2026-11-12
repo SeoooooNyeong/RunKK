@@ -12,9 +12,6 @@ import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
-import com.a207.runkk.app.core.designsystem.LocalReleaseScope
-import com.a207.runkk.app.core.designsystem.ReleaseScope
-import com.a207.runkk.app.core.model.Gender
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -23,7 +20,7 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * 전신 정지 그림 칸(SlotKey.AVATAR_STILL, S15P31A207-300): 랭킹 시상대·기록런 VS 칸은 누구를 그릴지만 넘기고 칸 크기를 정한다.
- * 칸이 비거나 아바타 꾸미기가 닫혀 있으면 지금 그림을 그린다.
+ * 칸이 비면 지금 그림을 그리고, 칸 내용에는 지금 그림을 넘긴다(꾸미기가 닫혀 있으면 칸 내용이 그것을 그린다).
  */
 @RunWith(RobolectricTestRunner::class)
 class AvatarStillSlotTest {
@@ -48,7 +45,7 @@ class AvatarStillSlotTest {
 
     @Test
     fun `칸이 있으면 사람을 넘기고 부르는 쪽 크기 칸을 채운다`() {
-        val subject = AvatarStillSubject(isMine = false, gender = Gender.FEMALE)
+        val subject = AvatarStillSubject(isMine = false, isFemale = true)
         compose.setContent {
             CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(probe))) {
                 AvatarStillSlot(subject, Modifier.size(60.dp, 100.dp)) { Box(Modifier.testTag("fallback")) }
@@ -60,16 +57,13 @@ class AvatarStillSlotTest {
     }
 
     @Test
-    fun `아바타 꾸미기가 닫혀 있으면 칸이 있어도 지금 그림을 그린다`() {
+    fun `칸 내용에 부르는 쪽 지금 그림을 넘긴다(꾸미기 공개 여부는 칸 내용이 본다)`() {
+        val drawsFallback: @Composable () -> Unit = { LocalSlotAvatarStillFallback.current?.invoke() }
         compose.setContent {
-            CompositionLocalProvider(
-                LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(probe)),
-                LocalReleaseScope provides ReleaseScope.FIRST_RELEASE
-            ) {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(drawsFallback))) {
                 AvatarStillSlot(AvatarStillSubject(isMine = true)) { Box(Modifier.testTag("fallback")) }
             }
         }
         compose.onNodeWithTag("fallback").assertExists()
-        compose.onNodeWithTag("slot").assertDoesNotExist()
     }
 }

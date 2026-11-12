@@ -31,3 +31,6 @@ val LocalSlotAvatarFacingLeft = compositionLocalOf { false }
 
 /** 전신 정지 그림 칸(SlotKey.AVATAR_STILL)에 넘기는 사람. 칸 밖이면 null이다. [AvatarStillSlot] 참고. */
 val LocalSlotAvatarStill = compositionLocalOf<AvatarStillSubject?> { null }
+
+/** 전신 정지 그림 칸을 부른 쪽의 지금 그림. 칸 내용이 그릴 수 없을 때(꾸미기 닫힘) 대신 그린다. 칸 밖이면 null이다. */
+val LocalSlotAvatarStillFallback = compositionLocalOf<(@Composable () -> Unit)?> { null }

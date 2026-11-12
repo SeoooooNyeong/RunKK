@@ -7,11 +7,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.avatar.AVATAR_LOADING_TAG
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Gender
@@ -20,6 +23,7 @@ import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarPose
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillFallback
 import com.a207.runkk.app.core.navigation.SlotKey
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -194,7 +198,7 @@ class AvatarSlotsTest {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CompositionLocalProvider(
-                    LocalSlotAvatarStill provides AvatarStillSubject(isMine = false, gender = Gender.MALE)
+                    LocalSlotAvatarStill provides AvatarStillSubject(isMine = false, isFemale = false)
                 ) {
                     Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
                 }
@@ -203,6 +207,23 @@ class AvatarSlotsTest {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 아바타 꾸미기가 닫혀 있으면 부르는 쪽 지금 그림을 그린다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalReleaseScope provides ReleaseScope.FIRST_RELEASE,
+                    LocalSlotAvatarStill provides AvatarStillSubject(isMine = true),
+                    LocalSlotAvatarStillFallback provides { Box(Modifier.testTag("caller-fallback")) }
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.onNodeWithTag("caller-fallback").assertExists()
+        compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).assertCountEqualsTo(0, "기능 쪽 기본 그림은 그리지 않는다")
     }
 
     @Test

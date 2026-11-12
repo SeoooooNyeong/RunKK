@@ -63,6 +63,8 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import java.time.LocalDate
 
 /** 친구 대결(FR-286): 「카카오톡으로 초대하기」는 위치 권한을 확인한 뒤 초대 대기로 간다. */
@@ -179,17 +181,21 @@ private fun FriendHero() {
             )
         }
         Box(Modifier.size(width = HERO_ART_WIDTH, height = HERO_ART_HEIGHT).clearAndSetSemantics {}) {
-            RunkkAvatar(
-                null,
-                AvatarExpression.STAND,
-                Modifier.size(width = 62.dp, height = HERO_ART_HEIGHT),
-                character = if (me == AvatarCharacter.MALE) AvatarCharacter.FEMALE else AvatarCharacter.MALE
-            )
-            RunkkAvatar(
-                null,
-                AvatarExpression.STAND,
-                Modifier.offset(x = 56.dp).size(width = 62.dp, height = HERO_ART_HEIGHT)
-            )
+            val friend = if (me == AvatarCharacter.MALE) AvatarCharacter.FEMALE else AvatarCharacter.MALE
+            AvatarStillSlot(
+                AvatarStillSubject(isMine = false, isFemale = friend == AvatarCharacter.FEMALE),
+                Modifier.size(width = 62.dp, height = HERO_ART_HEIGHT)
+            ) {
+                RunkkAvatar(
+                    null,
+                    AvatarExpression.STAND,
+                    Modifier.size(width = 62.dp, height = HERO_ART_HEIGHT),
+                    character = friend
+                )
+            }
+            AvatarStillSlot(MY_STILL, Modifier.offset(x = 56.dp).size(width = 62.dp, height = HERO_ART_HEIGHT)) {
+                RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(width = 62.dp, height = HERO_ART_HEIGHT))
+            }
         }
     }
 }

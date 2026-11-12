@@ -22,9 +22,12 @@ import com.a207.runkk.app.core.avatar.RiveAvatarStill
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.defaultAvatarOf
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillFallback
 import kotlinx.coroutines.delay
 
 /** 전신 정지 그림을 만들지 못했을 때 세우는 성별 기본 전신 그림의 시험 표지. */
@@ -44,18 +47,22 @@ internal const val AVATAR_STILL_READY_TIMEOUT_MS = RUN_AVATAR_READY_TIMEOUT_MS
 @Composable
 internal fun AvatarStillSlotContent(store: MyAvatarStore) {
     val subject = LocalSlotAvatarStill.current ?: return
+    if (!LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
+        LocalSlotAvatarStillFallback.current?.invoke()
+        return
+    }
     if (subject.isMine) {
-        MyAvatarStill(store)
+        MyAvatarStill(store, subject.isLightSkin)
     } else {
-        RunnerAvatarStill(subject.gender)
+        RunnerAvatarStill(subject.isFemale?.let { if (it) Gender.FEMALE else Gender.MALE })
     }
 }
 
 @Composable
-private fun MyAvatarStill(store: MyAvatarStore) {
+private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
     LaunchedEffect(store) { store.warm() }
     val state by store.state.collectAsStateWithLifecycle()
-    val look = (state as? MyAvatarState.Ready)?.look?.rive
+    val look = (state as? MyAvatarState.Ready)?.look?.rive?.let { if (isLightSkin) it.copy(runningAmount = 0) else it }
     var isFailed by remember(look) { mutableStateOf(false) }
     var isTimedOut by remember { mutableStateOf(false) }
     LaunchedEffect(look == null) {
