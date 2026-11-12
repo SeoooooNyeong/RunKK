@@ -129,13 +129,16 @@ class AvatarServicesTest {
     }
 
     @Test
-    @DisplayName("0시 외형 재계산: 최근에 달린 회원은 기본 몸, 쉰 회원만 한 단계 통통해져 알림, 러닝 없으면 피부색 그대로")
+    @DisplayName("0시 외형 재계산: 최근에 달린 회원은 기본 몸, 쉰 회원만 한 단계 통통해져 알림, 달린 적 없으면 기본 몸·피부색 그대로")
     void refreshAll() {
         avatars.save(Avatar.create(ALICE));
         avatars.save(Avatar.create(2));
+        avatars.save(Avatar.create(3));
         when(runs.recentStartTimes(ALICE, 10))
                 .thenReturn(List.of(TODAY.minusDays(1).atTime(5, 30)));
-        when(runs.recentStartTimes(2L, 10)).thenReturn(List.of());
+        when(runs.recentStartTimes(2L, 10)).thenReturn(List.of(TODAY.minusDays(10).atTime(12, 0)));
+        // 달린 적 없는 회원은 기본 몸 그대로다([임시:D-성-212])
+        when(runs.recentStartTimes(3L, 10)).thenReturn(List.of());
 
         assertThat(appearance.refreshAll(TODAY)).isEqualTo(1);
 
@@ -143,6 +146,8 @@ class AvatarServicesTest {
         assertThat(avatars.findOrCreate(ALICE).skinTone()).isEqualTo(SkinTone.DAWN);
         assertThat(avatars.findOrCreate(2).bodyShape()).isEqualTo(BodyShape.STAGE3);
         assertThat(avatars.findOrCreate(2).skinTone()).isEqualTo(SkinTone.DAYTIME);
+        assertThat(avatars.findOrCreate(3).bodyShape()).isEqualTo(BodyShape.STAGE4);
+        assertThat(avatars.findOrCreate(3).skinTone()).isEqualTo(SkinTone.DAYTIME);
         verify(notifications, times(1))
                 .notify(
                         argThat(

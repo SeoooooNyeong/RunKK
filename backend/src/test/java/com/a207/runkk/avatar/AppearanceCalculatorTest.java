@@ -54,12 +54,12 @@ class AppearanceCalculatorTest {
     }
 
     @Test
-    @DisplayName("유효 러닝이 한 번도 없으면 쉰 날이 무한이라 이전 체형에서 내리고 1단계에서 멈춘다")
+    @DisplayName("유효 러닝이 한 번도 없으면 기본 몸(4단계)이다: 셀카·기본 아바타 몸이 가입 직후부터 같다(2026-11-12 PM 요구)")
     void bodyShape_noRunEver() {
-        assertThat(calculator.bodyShape(new AppearanceInput(null, BodyShape.STAGE2, TODAY), SHAPE))
-                .isEqualTo(BodyShape.STAGE1);
+        assertThat(calculator.bodyShape(new AppearanceInput(null, BodyShape.STAGE4, TODAY), SHAPE))
+                .isEqualTo(BodyShape.STAGE4);
         assertThat(calculator.bodyShape(new AppearanceInput(null, BodyShape.STAGE1, TODAY), SHAPE))
-                .isEqualTo(BodyShape.STAGE1);
+                .isEqualTo(BodyShape.STAGE4);
     }
 
     @Test
