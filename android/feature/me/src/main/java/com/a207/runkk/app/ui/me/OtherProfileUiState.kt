@@ -11,6 +11,8 @@ data class OtherProfileUiState(
     val isLoading: Boolean = true,
     val profile: Profile? = null,
     val faceLayers: List<FaceLayer> = emptyList(),
+    /** 얼굴 층을 받는 중이다(기본 머리 대신 중립 자리를 둔다, [임시:D-성-190]). */
+    val isFaceLoading: Boolean = false,
     val error: UiText? = null
 ) {
     /** 다른 러너의 티어 배지: 공개 티어만(확정 전이면 「배치 중」, 임시 티어 없음, D-494). */

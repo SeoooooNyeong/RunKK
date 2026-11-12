@@ -10,6 +10,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,13 +46,31 @@ class MeViewModel @Inject constructor(private val account: AccountRepository) : 
         refreshJob = viewModelScope.launch {
             when (val result = account.profile(AccountRepository.SELF)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(isLoading = false, profile = result.value) }
+                    // 얼굴은 프로필과 같은 그림(첫 그림)부터 그린다: 받아 둔 그림(홈이 받은 내 얼굴, 기기에 남긴 마지막 모습)이 있으면
+                    // 바로 쓰고, 같은 얼굴이면 지금 그림을 둔다. 둘 다 없을 때만 받는 동안 중립 자리다(기본 머리를 거치지 않는다).
+                    val faceKey = result.value.faceKey
+                    val cached = account.cachedFaceLayers(faceKey)
+                    _state.update {
+                        val isSameFace = it.profile?.faceKey == faceKey && it.faceLayers.isNotEmpty()
+                        val kept = it.faceLayers.takeIf { isSameFace }
+                        it.copy(
+                            isLoading = false,
+                            profile = result.value,
+                            faceLayers = cached ?: kept.orEmpty(),
+                            isFaceLoading = cached == null && kept == null && faceKey != null
+                        )
+                    }
+                    // 얼굴 받기와 배치 진행 읽기를 함께 한다(얼굴이 배치 진행을 기다리지 않게).
+                    val face = faceKey?.takeIf { cached == null }
+                        ?.let { key -> async { account.faceLayers(key).getOrNull() } }
                     val placement = account.placement().getOrNull()
                     val tier = placement?.let { TierDisplay.ofSelf(it.tier, it.provisionalTier) }
                         ?: TierDisplay.ofPublic(result.value.tier)
                     _state.update { it.copy(tierDisplay = tier) }
-                    val face = result.value.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
-                    _state.update { it.copy(faceLayers = face) }
+                    if (face != null) {
+                        val layers = face.await()
+                        _state.update { it.copy(faceLayers = layers ?: it.faceLayers, isFaceLoading = false) }
+                    }
                 }
 
                 is Outcome.Failure -> _state.update {

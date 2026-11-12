@@ -324,8 +324,9 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                     modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
                     contentAlignment = Alignment.Center
                 ) {
-                    // 성별을 읽기 전에는 얼굴도 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02)
-                    if (state.isAvatarReady) {
+                    // 성별을 읽기 전에는 기본 머리를 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02). 셀카 얼굴 층이 있으면
+                    // (기기에 남긴 마지막 내 얼굴) 성별과 상관없으므로 첫 그림부터 그린다.
+                    if (state.isAvatarReady || (isAvatarOpen && state.faceLayers.isNotEmpty())) {
                         RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.fillMaxSize(), state.faceLayers)
                     }
                 }

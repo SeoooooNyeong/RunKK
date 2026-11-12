@@ -105,6 +105,7 @@ fun MeScreen(state: MeUiState, onNavigate: (String) -> Unit, onRetry: () -> Unit
                     state.profile,
                     state.tierDisplay,
                     state.faceLayers,
+                    isFaceLoading = state.isFaceLoading,
                     onEdit = { onNavigate(Routes.PROFILE_EDIT) },
                     onRunimal = { onNavigate(Routes.RUNIMAL) }
                 )
@@ -152,6 +153,7 @@ private fun ProfileHeader(
     profile: Profile,
     tierDisplay: TierDisplay?,
     faceLayers: List<FaceLayer>,
+    isFaceLoading: Boolean,
     onEdit: () -> Unit,
     onRunimal: () -> Unit
 ) {
@@ -169,7 +171,8 @@ private fun ProfileHeader(
                 profile.faceKey,
                 AvatarExpression.FACE,
                 modifier = Modifier.fillMaxSize().testTag(PROFILE_FACE_TAG),
-                faceLayers = faceLayers
+                faceLayers = faceLayers,
+                isFaceLoading = isFaceLoading
             )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

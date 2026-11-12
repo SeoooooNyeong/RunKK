@@ -84,7 +84,13 @@ fun OtherProfileScreen(
                 modifier = Modifier.weight(1f)
             )
 
-            else -> OtherProfileBody(profile, state.tierDisplay, state.faceLayers, Modifier.weight(1f))
+            else -> OtherProfileBody(
+                profile,
+                state.tierDisplay,
+                state.faceLayers,
+                Modifier.weight(1f),
+                isFaceLoading = state.isFaceLoading
+            )
         }
     }
 }
@@ -98,7 +104,8 @@ private fun OtherProfileBody(
     profile: Profile,
     tierDisplay: TierDisplay?,
     faceLayers: List<FaceLayer>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isFaceLoading: Boolean = false
 ) {
     val level = profile.level?.let { stringResource(R.string.me_profile_level, it) }
     val about = aboutLine(LocalContext.current.resources, profile)
@@ -113,7 +120,8 @@ private fun OtherProfileBody(
             AvatarExpression.RUN,
             Modifier.size(120.dp),
             faceLayers,
-            character = AvatarCharacter.of(profile.shownGender)
+            character = AvatarCharacter.of(profile.shownGender),
+            isFaceLoading = isFaceLoading
         )
         Text(
             profile.displayName,
