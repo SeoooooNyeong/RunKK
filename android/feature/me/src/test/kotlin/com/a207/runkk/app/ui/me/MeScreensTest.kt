@@ -361,7 +361,7 @@ class MeScreensTest {
     }
 
     @Test
-    fun `R2-09 자유런 목표 거리 첫 칸은 자유이고 제목은 가운데다(A-5)`() {
+    fun `러닝 설정에 목표 거리와 기본 대결 거리 고르기가 없고 제목은 가운데다(A-5, 2026-11-12)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SettingsScreen(
@@ -371,8 +371,10 @@ class MeScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("자유").assertExists()
-        compose.onNodeWithText("목표 없음").assertDoesNotExist()
+        // 거리 고르기를 뺐다(2026-11-12 PM 「거리 선택이 의미가 없으니 지워」, 「배틀런 기본 대결 거리도 지워」)
+        compose.onNodeWithText("목표 거리").assertDoesNotExist()
+        compose.onNodeWithText("자유").assertDoesNotExist()
+        compose.onNodeWithText("기본 대결 거리").assertDoesNotExist()
         // 제목은 바 가운데(A-5)
         val screen = compose.onRoot().getUnclippedBoundsInRoot()
         val title = compose.onNode(hasText("러닝 설정") and isHeading()).getUnclippedBoundsInRoot()
