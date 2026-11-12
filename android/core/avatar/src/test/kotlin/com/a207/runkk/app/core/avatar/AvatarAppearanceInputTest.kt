@@ -24,13 +24,13 @@ class AvatarAppearanceInputTest {
     }
 
     @Test
-    fun `피부톤 행렬은 0이면 그대로이고 100이면 RGB를 0·70·0·50·0·32배로 줄이며 알파는 그대로다`() {
+    fun `피부톤 행렬은 0이면 그대로이고 100이면 가장 어두운 톤의 60%(RGB 0·82·0·70·0·592배)까지만 줄이며 알파는 그대로다`() {
         val identity = SkinToneFilter.matrix(0)
         assertEquals(listOf(1f, 1f, 1f, 1f), listOf(identity[0], identity[6], identity[12], identity[18]))
         val dark = SkinToneFilter.matrix(100)
-        assertEquals(.7f, dark[0], .0001f)
-        assertEquals(.5f, dark[6], .0001f)
-        assertEquals(.32f, dark[12], .0001f)
+        assertEquals(.82f, dark[0], .0001f)
+        assertEquals(.70f, dark[6], .0001f)
+        assertEquals(.592f, dark[12], .0001f)
         assertEquals(1f, dark[18])
         assertFailsWith<IllegalArgumentException> { SkinToneFilter.matrix(101) }
     }
