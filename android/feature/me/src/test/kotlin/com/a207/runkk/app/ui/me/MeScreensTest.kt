@@ -13,7 +13,9 @@ import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
@@ -418,19 +420,87 @@ class MeScreensTest {
     }
 
     @Test
-    fun `동의를 채우면 시작하기 하나로 가입하거나 게스트로 시작한다(A2)`() {
-        val submitted = mutableListOf<Boolean>()
+    fun `동의를 채우면 시작하기로 성별 단계로 가고, 성별 단계의 시작하기 하나로 가입하거나 게스트로 시작한다(A2, S15P31A207-300)`() {
+        var next = 0
+        val started = mutableListOf<Boolean>()
         var isGuest by mutableStateOf(false)
         val agreed = SignUpUiState(consents = SignUpConsents.items.associate { it.item to it.isRequired })
+        var state by mutableStateOf(agreed)
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                SignUpScreen(agreed, isGuest = isGuest, SignUpActions(onSubmit = { submitted += it }))
+                SignUpScreen(
+                    state,
+                    isGuest = isGuest,
+                    SignUpActions(onConsentNext = { next++ }, onStart = { started += it })
+                )
             }
         }
         startButton().assertIsEnabled().performClick()
+        assertEquals(1, next)
+        assertEquals(emptyList(), started, "동의 단계에서는 보내지 않는다")
+        state = agreed.copy(step = SignUpStep.GENDER, gender = Gender.MALE)
+        startButton().assertIsEnabled().performClick()
         isGuest = true
         startButton().performClick()
-        assertEquals(listOf(false, true), submitted)
+        assertEquals(listOf(false, true), started)
+    }
+
+    @Test
+    fun `성별 단계는 남자·여자 카드 둘과 2 나누기 2를 보이고 고르기 전에는 시작할 수 없다(S15P31A207-300)`() {
+        val picked = mutableListOf<Gender>()
+        var back = 0
+        var state by mutableStateOf(
+            SignUpUiState(
+                step = SignUpStep.GENDER,
+                consents = SignUpConsents.items.associate { it.item to it.isRequired }
+            )
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SignUpScreen(
+                    state,
+                    isGuest = false,
+                    SignUpActions(onGenderSelect = {
+                        picked += it
+                        state = state.copy(gender = it)
+                    }, onBack = { back++ })
+                )
+            }
+        }
+        compose.onNodeWithText("성별을 골라 주세요").assertExists()
+        compose.onNodeWithText("2 / 2").assertExists()
+        compose.onNodeWithText("밝히지 않음").assertDoesNotExist()
+        compose.onNodeWithTag(GENDER_CHECK_TAG).assertDoesNotExist()
+        startButton().assertIsNotEnabled()
+        compose.onNodeWithTag(GENDER_CARD_TAG + Gender.FEMALE.name).assertIsNotSelected().performClick()
+        compose.onNodeWithTag(GENDER_CARD_TAG + Gender.FEMALE.name).assertIsSelected()
+        compose.onNodeWithTag(GENDER_CHECK_TAG, useUnmergedTree = true).assertExists()
+        startButton().assertIsEnabled()
+        compose.onNodeWithText("남자").performClick()
+        assertEquals(listOf(Gender.FEMALE, Gender.MALE), picked)
+        compose.onNodeWithContentDescription("뒤로").performClick()
+        assertEquals(1, back)
+    }
+
+    @Test
+    fun `계정을 만든 뒤 성별 저장이 실패하면 안내를 보이고 뒤로 없이 다시 시작하게 한다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SignUpScreen(
+                    SignUpUiState(
+                        step = SignUpStep.GENDER,
+                        gender = Gender.MALE,
+                        isAccountCreated = true,
+                        submitError = UiText.Plain("잠시 뒤 다시 시도해 주세요")
+                    ),
+                    isGuest = false,
+                    SignUpActions()
+                )
+            }
+        }
+        compose.onNodeWithText("잠시 뒤 다시 시도해 주세요").assertExists()
+        compose.onNodeWithContentDescription("뒤로").assertDoesNotExist()
+        startButton().assertIsEnabled()
     }
 
     /** 상단 제목과 아래 버튼이 모두 "시작하기"다. 누를 수 있는 쪽이 버튼이다. */
@@ -512,7 +582,7 @@ class MeScreensTest {
                         canRetrySubmit = false
                     ),
                     isGuest = false,
-                    SignUpActions(onBack = { exited++ })
+                    SignUpActions(onExit = { exited++ })
                 )
             }
         }

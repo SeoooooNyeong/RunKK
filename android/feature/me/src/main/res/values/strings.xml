@@ -121,6 +121,12 @@
     <string name="me_signup_tag_optional">[선택]</string>
     <string name="me_signup_back_to_login">로그인으로 돌아가기</string>
     <string name="me_signup_submit">시작하기</string>
+    <string name="me_signup_gender_headline">성별을 골라 주세요</string>
+    <string name="me_signup_gender_body">아바타 몸이 이 성별로 정해져요.\n프로필 편집에서 바꿀 수 있어요.</string>
+    <string name="me_signup_gender_male">남자</string>
+    <string name="me_signup_gender_female">여자</string>
+    <string name="me_signup_step">%1$d / %2$d</string>
+    <string name="me_signup_step_description">%2$d단계 중 %1$d단계</string>
     <string name="me_login_guest">게스트로 시작하기</string>
     <string name="me_guest_too_many">이곳에서 게스트를 너무 많이 만들었어요. 잠시 뒤 다시 시도해 주세요.</string>
     <string name="me_guest_notice_title">게스트로 시작했어요</string>
