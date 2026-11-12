@@ -126,7 +126,7 @@ fun RunkkCard(
     )
 }
 
-/** 통계 타일: 라벨(12) + 큰 숫자(IBM Plex Sans KR Bold) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다. */
+/** 통계 타일: 라벨(12) + 큰 숫자(Barlow Condensed 기울임) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다. */
 @Composable
 fun RunkkStatTile(
     label: String,

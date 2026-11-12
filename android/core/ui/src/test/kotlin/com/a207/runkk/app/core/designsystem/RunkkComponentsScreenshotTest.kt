@@ -268,7 +268,7 @@ private fun FigmaParts() {
             )
             RunkkCard(modifier = Modifier.fillMaxWidth()) {
                 Text("테두리 없는 카드", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
-                Text("본문 14/22, IBM Plex Sans KR", style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)
+                Text("본문 14/22, Noto Sans KR", style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)
             }
             Text("2.14", style = RunkkTextStyles.DisplayHuge, color = RunkkColors.TextPrimary)
         }

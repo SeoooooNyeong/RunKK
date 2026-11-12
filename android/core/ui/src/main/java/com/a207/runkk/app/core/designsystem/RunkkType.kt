@@ -4,6 +4,8 @@ import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.style.LineBreak
@@ -11,20 +13,24 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
-/**
- * 앱 글꼴 IBM Plex Sans KR(SIL OFL 1.1, 라이선스 assets/licenses/OFL-IBMPlexSansKR.txt). 피그마 글꼴과 같고 굵기는 피그마가 쓰는
- * Regular 400·Medium 500·SemiBold 600·Bold 700 네 벌이다. 정적 TTF를 고치지 않고 그대로 넣었다(예약 글꼴 이름 "Plex"를 지키려고
- * 글자 줄이기를 하지 않는다, S15P31A207-292). 큰 숫자도 이 글꼴 Bold로 쓴다(피그마, 이전 Barlow Condensed 기울임 대체).
- */
-val IbmPlexSansKr: FontFamily = FontFamily(
-    Font(R.font.ibm_plex_sans_kr_regular, FontWeight.Normal),
-    Font(R.font.ibm_plex_sans_kr_medium, FontWeight.Medium),
-    Font(R.font.ibm_plex_sans_kr_semibold, FontWeight.SemiBold),
-    Font(R.font.ibm_plex_sans_kr_bold, FontWeight.Bold)
+private fun notoSansKr(weight: Int): Font = Font(
+    resId = R.font.noto_sans_kr,
+    weight = FontWeight(weight),
+    variationSettings = FontVariation.Settings(FontVariation.weight(weight))
 )
 
-/** 글꼴에 없는 굵기(800·900)는 Bold로 맞춘다(피그마에 Black이 없다). */
-private fun FontWeight.clampToPlex(): FontWeight = if (weight > FontWeight.Bold.weight) FontWeight.Bold else this
+/**
+ * 본문 글꼴 Noto Sans KR(OFL, 가변 글꼴). KS X 1001 한글 2,350자 + 라틴으로 줄여 넣었다. 목록에 없는 글자는 시스템 글꼴로 이어 그린다.
+ * 2026-11-12 PM 결정: 글꼴은 prod(v0.11.6)와 같게 되돌리고, 피그마 글자 크기·굵기 묶음은 그대로 쓴다.
+ */
+val NotoSansKr: FontFamily =
+    FontFamily(notoSansKr(400), notoSansKr(500), notoSansKr(600), notoSansKr(700), notoSansKr(800), notoSansKr(900))
+
+/** 숫자·영문 디스플레이 글꼴 Barlow Condensed Italic(OFL, 700·800, prod와 같다). */
+val BarlowCondensed: FontFamily = FontFamily(
+    Font(R.font.barlow_condensed_bold_italic, FontWeight.Bold, FontStyle.Italic),
+    Font(R.font.barlow_condensed_extrabold_italic, FontWeight.ExtraBold, FontStyle.Italic)
+)
 
 /**
  * 글자 크기·굵기 묶음(피그마 RunKK 글자 스타일). 이름 있는 스타일을 먼저 쓰고, 표에 없는 조합만 [text]로 만든다.
@@ -35,16 +41,16 @@ private fun FontWeight.clampToPlex(): FontWeight = if (weight > FontWeight.Bold.
  * - 버튼 글자는 [RunkkButtonSize.textStyle]: Large 16·Medium 15 SemiBold, Small 14·XSmall 12 Medium
  */
 object RunkkTextStyles {
-    /** 본문 스타일. 시안의 font-size·font-weight를 그대로 넘긴다. 800 이상은 Bold가 된다. */
+    /** 본문(Noto Sans KR) 스타일. 시안의 font-size·font-weight를 그대로 넘긴다. */
     fun text(
         size: Int,
         weight: FontWeight = FontWeight.Normal,
         lineHeight: Int? = null,
         letterSpacingEm: Float = 0f
     ): TextStyle = TextStyle(
-        fontFamily = IbmPlexSansKr,
+        fontFamily = NotoSansKr,
         fontSize = size.sp,
-        fontWeight = weight.clampToPlex(),
+        fontWeight = weight,
         lineHeight = lineHeight?.sp ?: TextUnit.Unspecified,
         letterSpacing = if (letterSpacingEm == 0f) TextUnit.Unspecified else letterSpacingEm.em,
         localeList = KoreanLocale,
@@ -58,16 +64,17 @@ object RunkkTextStyles {
     private val KoreanLocale = LocaleList("ko-KR")
     private val KoreanLineBreak = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)
 
-    /** 큰 숫자 스타일(피그마: IBM Plex Sans KR Bold, 기울이지 않음). 800 이상은 Bold가 된다. */
+    /** 디스플레이(Barlow Condensed Italic) 스타일. 기본 800(prod와 같다). */
     fun display(
         size: Int,
-        weight: FontWeight = FontWeight.Bold,
+        weight: FontWeight = FontWeight.ExtraBold,
         letterSpacingEm: Float = 0f,
         lineHeightRatio: Float? = null
     ): TextStyle = TextStyle(
-        fontFamily = IbmPlexSansKr,
+        fontFamily = BarlowCondensed,
+        fontStyle = FontStyle.Italic,
         fontSize = size.sp,
-        fontWeight = weight.clampToPlex(),
+        fontWeight = weight,
         lineHeight = lineHeightRatio?.let { (size * it).sp } ?: TextUnit.Unspecified,
         letterSpacing = if (letterSpacingEm == 0f) TextUnit.Unspecified else letterSpacingEm.em
     )
@@ -136,14 +143,14 @@ object RunkkTextStyles {
     val Overline: TextStyle = display(16, letterSpacingEm = 0.08f)
 }
 
-/** Material 컴포넌트(TextField, Dialog 등)가 쓰는 기본 글꼴을 IBM Plex Sans KR로 맞춘다. */
+/** Material 컴포넌트(TextField, Dialog 등)가 쓰는 기본 글꼴을 Noto Sans KR로 맞춘다(큰 숫자는 Barlow Condensed 기울임, prod와 같다). */
 internal val RunkkTypography: Typography = Typography().run {
     copy(
-        displayLarge = displayLarge.copy(fontFamily = IbmPlexSansKr, fontWeight = FontWeight.Bold),
-        displayMedium = displayMedium.copy(fontFamily = IbmPlexSansKr, fontWeight = FontWeight.Bold),
-        displaySmall = displaySmall.copy(fontFamily = IbmPlexSansKr, fontWeight = FontWeight.Bold),
-        headlineLarge = headlineLarge.copy(fontFamily = IbmPlexSansKr),
-        headlineMedium = headlineMedium.copy(fontFamily = IbmPlexSansKr),
+        displayLarge = displayLarge.copy(fontFamily = BarlowCondensed, fontStyle = FontStyle.Italic),
+        displayMedium = displayMedium.copy(fontFamily = BarlowCondensed, fontStyle = FontStyle.Italic),
+        displaySmall = displaySmall.copy(fontFamily = BarlowCondensed, fontStyle = FontStyle.Italic),
+        headlineLarge = headlineLarge.copy(fontFamily = NotoSansKr),
+        headlineMedium = headlineMedium.copy(fontFamily = NotoSansKr),
         headlineSmall = RunkkTextStyles.Headline,
         titleLarge = RunkkTextStyles.TopBarTitle,
         titleMedium = RunkkTextStyles.CardTitle,
