@@ -258,9 +258,12 @@ internal fun RunnerResponse.toDomain(): AvatarRunner = AvatarRunner(
     restDaysBeforeDecline = restDaysBeforeDecline
 )
 
+/** 앱에서 뺀 그림 키(2026-11-12 PM 요구: 민소매 제외). 상점·옷장에 보이지 않고, 착용 중이면 기본 상의로 그린다. 서버 아이템 ID는 지우지 않는다(D-44). */
+internal val RETIRED_ASSET_KEYS: Set<String> = setOf("top_lime_singlet")
+
 internal fun ShopResponse.toDomain(): Shop = Shop(
     items =
-        items.mapNotNull { item ->
+        items.filterNot { it.assetKey in RETIRED_ASSET_KEYS }.mapNotNull { item ->
             enumByName<ItemSlot>(item.slot)?.let {
                 Shop.Item(
                     item.itemId,

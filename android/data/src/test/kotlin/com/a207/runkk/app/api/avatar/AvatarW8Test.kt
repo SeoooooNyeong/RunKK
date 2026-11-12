@@ -86,6 +86,8 @@ class AvatarW8Test {
             """{"balance":1240,"items":[
                |{"itemId":1,"slot":"TOP","name":"라임 싱글렛","price":300,"owned":true,"onSale":true,
                |"assetKey":"top_lime_singlet","locked":false,"unlockCondition":null},
+               |{"itemId":2,"slot":"TOP","name":"크루 카라티","price":300,"owned":true,"onSale":true,
+               |"assetKey":"top_crew_tee","locked":false,"unlockCondition":null},
                |{"itemId":6,"slot":"TOP","name":"완주 기념 티","price":300,"owned":false,"onSale":true,
                |"assetKey":"top_finisher_tee","locked":true,"unlockCondition":"하프 완주하면 열려요"}]}
             """.trimMargin()
@@ -93,7 +95,8 @@ class AvatarW8Test {
 
         val items = repository.shop(ItemSlot.TOP).value().items
 
-        assertEquals("top_lime_singlet", items[0].imageKey)
+        // 민소매(top_lime_singlet)는 앱에서 뺐다(2026-11-12 PM, RETIRED_ASSET_KEYS)
+        assertEquals(listOf("top_crew_tee", "top_finisher_tee"), items.map { it.imageKey })
         assertEquals(false, items[0].isLocked)
         assertNull(items[0].unlockLabel)
         assertEquals(true, items[1].isLocked)
