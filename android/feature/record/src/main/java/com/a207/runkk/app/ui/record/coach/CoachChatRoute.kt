@@ -25,7 +25,8 @@ internal fun CoachChatRoute(viewModel: CoachChatViewModel = hiltViewModel()) {
             onNewConversation = viewModel::newConversation,
             onOpenConversation = viewModel::openConversation,
             onConsents = { navigator.navigate(Routes.COACH_CONSENTS) },
-            onRefreshConversations = viewModel::refreshConversations
+            onRefreshConversations = viewModel::refreshConversations,
+            onReloadHistory = viewModel::reloadHistory
         )
     )
 }

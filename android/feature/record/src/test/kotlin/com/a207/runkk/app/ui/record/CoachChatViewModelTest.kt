@@ -6,9 +6,11 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.coach.CoachConversation
 import com.a207.runkk.app.domain.coach.CoachEvent
 import com.a207.runkk.app.domain.coach.CoachFailure
+import com.a207.runkk.app.domain.coach.CoachMessage
 import com.a207.runkk.app.domain.coach.CoachRepository
 import com.a207.runkk.app.ui.record.coach.CoachChatTurn
 import com.a207.runkk.app.ui.record.coach.CoachChatViewModel
+import com.a207.runkk.app.ui.record.coach.toChatTurns
 import java.io.IOException
 import java.time.LocalDateTime
 import kotlin.test.assertEquals
@@ -16,6 +18,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
@@ -226,11 +229,131 @@ class CoachChatViewModelTest {
         assertEquals(1, repository.questions.size)
     }
 
+    @Test
+    fun `이전 대화를 열면 지난 문답을 읽어 위에 두고 그 아래로 이어서 묻는다`() {
+        repository.conversationResult = Outcome.Success(listOf(conversation))
+        repository.messagesResult = Outcome.Success(
+            listOf(question("이전 질문"), answer("이전 답"), question("두 번째 질문"), answer("두 번째 답"))
+        )
+        val vm = CoachChatViewModel(repository)
+        vm.openConversation("old")
+        assertEquals(listOf("old"), repository.messageRequests)
+        assertEquals("old", vm.state.value.conversationId)
+        assertEquals(
+            listOf(CoachChatTurn("이전 질문", "이전 답", true), CoachChatTurn("두 번째 질문", "두 번째 답", true)),
+            vm.state.value.history
+        )
+        assertFalse(vm.state.value.isLoadingHistory)
+        assertTrue(vm.state.value.canAsk)
+        vm.send("이어서 물어요")
+        assertEquals(listOf<Pair<String?, String>>("old" to "이어서 물어요"), repository.questions)
+        assertEquals(2, vm.state.value.history.size)
+        assertEquals(listOf(CoachChatTurn("이어서 물어요", "천천히 달려요", true)), vm.state.value.turns)
+    }
+
+    @Test
+    fun `지난 문답을 읽는 동안은 묻지 않고 다 읽으면 물을 수 있다`() {
+        repository.conversationResult = Outcome.Success(listOf(conversation))
+        val pending = CompletableDeferred<Outcome<List<CoachMessage>>>()
+        repository.messagesGate = pending
+        val vm = CoachChatViewModel(repository)
+        vm.openConversation("old")
+        assertTrue(vm.state.value.isLoadingHistory)
+        assertFalse(vm.state.value.canAsk)
+        vm.send("너무 빠른 질문")
+        assertTrue(repository.questions.isEmpty())
+        pending.complete(Outcome.Success(listOf(question("이전 질문"), answer("이전 답"))))
+        assertFalse(vm.state.value.isLoadingHistory)
+        assertEquals(listOf(CoachChatTurn("이전 질문", "이전 답", true)), vm.state.value.history)
+        assertTrue(vm.state.value.canAsk)
+    }
+
+    @Test
+    fun `지난 문답을 읽지 못하면 오류를 보이고 다시 불러오면 이어서 물을 수 있다`() {
+        repository.conversationResult = Outcome.Success(listOf(conversation))
+        repository.messagesResult = Outcome.Failure(AppError.Network)
+        val vm = CoachChatViewModel(repository)
+        vm.openConversation("old")
+        assertTrue(vm.state.value.historyError != null)
+        assertFalse(vm.state.value.isLoadingHistory)
+        assertFalse(vm.state.value.canAsk)
+        vm.send("질문")
+        assertTrue(repository.questions.isEmpty())
+
+        repository.messagesResult = Outcome.Success(listOf(question("이전 질문"), answer("이전 답")))
+        vm.reloadHistory()
+        assertEquals(listOf("old", "old"), repository.messageRequests)
+        assertNull(vm.state.value.historyError)
+        assertEquals(1, vm.state.value.history.size)
+        assertTrue(vm.state.value.canAsk)
+        vm.reloadHistory()
+        assertEquals(2, repository.messageRequests.size)
+    }
+
+    @Test
+    fun `보관 기한이 지난 대화는 만료를 안내하고 동의 철회는 동의 안내로 바꾼다`() {
+        repository.conversationResult = Outcome.Success(listOf(conversation))
+        repository.messagesResult = Outcome.Failure(AppError.Rejected("CONVERSATION_EXPIRED"))
+        val vm = CoachChatViewModel(repository)
+        vm.openConversation("old")
+        assertEquals(CoachFailure.EXPIRED, vm.state.value.failure)
+        assertFalse(vm.state.value.isLoadingHistory)
+        assertNull(vm.state.value.historyError)
+        assertFalse(vm.state.value.canAsk)
+
+        repository.messagesResult = Outcome.Failure(AppError.Rejected("CONSENT_REQUIRED"))
+        val revoked = CoachChatViewModel(repository)
+        revoked.openConversation("old")
+        assertEquals(CoachFailure.CONSENT_REQUIRED, revoked.state.value.failure)
+        assertTrue(revoked.state.value.history.isEmpty())
+    }
+
+    @Test
+    fun `지난 문답을 읽는 중 새 대화로 바꾸면 늦게 온 문답을 버린다`() {
+        repository.conversationResult = Outcome.Success(listOf(conversation))
+        val pending = CompletableDeferred<Outcome<List<CoachMessage>>>()
+        repository.messagesGate = pending
+        val vm = CoachChatViewModel(repository)
+        vm.openConversation("old")
+        vm.newConversation()
+        pending.complete(Outcome.Success(listOf(question("이전 질문"), answer("이전 답"))))
+        assertNull(vm.state.value.conversationId)
+        assertTrue(vm.state.value.history.isEmpty())
+        assertFalse(vm.state.value.isLoadingHistory)
+        assertTrue(vm.state.value.canAsk)
+    }
+
+    @Test
+    fun `지난 문답은 질문과 답을 한 쌍으로 묶고 짝이 없는 질문과 답도 남긴다`() {
+        val turns = listOf(
+            answer("앞 질문이 잘린 답"),
+            question("답을 못 받은 질문"),
+            question("질문"),
+            answer("답")
+        ).toChatTurns()
+        assertEquals(
+            listOf(
+                CoachChatTurn("", "앞 질문이 잘린 답", true),
+                CoachChatTurn("답을 못 받은 질문"),
+                CoachChatTurn("질문", "답", true)
+            ),
+            turns
+        )
+    }
+
     private val conversation = CoachConversation("old", "이전 질문", LocalDateTime.of(2026, 11, 2, 10, 0))
+
+    private fun question(text: String) =
+        CoachMessage(CoachMessage.Role.QUESTION, text, LocalDateTime.of(2026, 11, 2, 9, 0))
+
+    private fun answer(text: String) = CoachMessage(CoachMessage.Role.ANSWER, text, LocalDateTime.of(2026, 11, 2, 9, 1))
 }
 
 private class FakeCoachRepository : CoachRepository {
     val questions = mutableListOf<Pair<String?, String>>()
+    val messageRequests = mutableListOf<String>()
+    var messagesResult: Outcome<List<CoachMessage>> = Outcome.Success(emptyList())
+    var messagesGate: CompletableDeferred<Outcome<List<CoachMessage>>>? = null
     var conversationResult: Outcome<List<CoachConversation>> = Outcome.Success(emptyList())
     var events: Flow<CoachEvent> = flowOf(
         CoachEvent.Started("c1"),
@@ -245,4 +368,9 @@ private class FakeCoachRepository : CoachRepository {
     }
 
     override suspend fun conversations(): Outcome<List<CoachConversation>> = conversationResult
+
+    override suspend fun messages(conversationId: String): Outcome<List<CoachMessage>> {
+        messageRequests += conversationId
+        return messagesGate?.await() ?: messagesResult
+    }
 }

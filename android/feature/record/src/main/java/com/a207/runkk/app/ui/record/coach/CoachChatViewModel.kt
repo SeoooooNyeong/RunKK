@@ -27,6 +27,7 @@ class CoachChatViewModel @Inject constructor(private val repository: CoachReposi
     private val _state = MutableStateFlow(CoachChatUiState())
     val state = _state.asStateFlow()
     private var questionJob: Job? = null
+    private var historyJob: Job? = null
 
     init {
         refreshConversations()
@@ -46,12 +47,8 @@ class CoachChatViewModel @Inject constructor(private val repository: CoachReposi
                 }
 
                 is Outcome.Failure -> {
-                    val gate = when ((result.error as? AppError.Rejected)?.code) {
-                        "CONSENT_REQUIRED" -> CoachFailure.CONSENT_REQUIRED
-                        "FEATURE_CLOSED" -> CoachFailure.FEATURE_CLOSED
-                        else -> null
-                    }
-                    if (gate != null) questionJob?.cancel()
+                    val gate = gateOf(result.error)
+                    if (gate != null) cancelJobs()
                     _state.update {
                         if (gate == null) {
                             it.copy(
@@ -86,19 +83,81 @@ class CoachChatViewModel @Inject constructor(private val repository: CoachReposi
         ask(last.question)
     }
 
+    /** 이전 대화를 열면 그 대화의 지난 문답을 읽어 위에 그리고, 다 읽은 뒤 이어서 묻게 한다(S15P31A207-300). */
     fun openConversation(id: String) {
         if (_state.value.conversations.none { it.conversationId == id }) return
         newConversation()
         _state.update { it.copy(conversationId = id) }
+        loadHistory(id)
+    }
+
+    /** 지난 문답 읽기가 실패했을 때 같은 대화를 다시 읽는다. */
+    fun reloadHistory() {
+        val current = _state.value
+        val id = current.conversationId ?: return
+        if (current.historyError == null || current.isLoadingHistory) return
+        loadHistory(id)
     }
 
     fun newConversation() {
-        questionJob?.cancel()
-        questionJob = null
+        cancelJobs()
         _state.update {
             val gate = it.failure?.takeIf { reason -> reason.isGate() }
-            it.copy(conversationId = null, turns = emptyList(), isSending = false, failure = gate, inputError = null)
+            it.copy(
+                conversationId = null,
+                turns = emptyList(),
+                isSending = false,
+                failure = gate,
+                inputError = null,
+                history = emptyList(),
+                isLoadingHistory = false,
+                historyError = null
+            )
         }
+    }
+
+    private fun loadHistory(id: String) {
+        historyJob?.cancel()
+        _state.update { it.copy(isLoadingHistory = true, historyError = null) }
+        historyJob = viewModelScope.launch {
+            val result = repository.messages(id)
+            // 읽는 사이 다른 대화를 열었거나 새 대화로 바꿨으면 이 결과를 버린다.
+            if (_state.value.conversationId != id) return@launch
+            when (result) {
+                is Outcome.Success -> _state.update {
+                    it.copy(isLoadingHistory = false, history = result.value.toChatTurns())
+                }
+
+                is Outcome.Failure -> {
+                    val gate = gateOf(result.error)
+                    if (gate != null) questionJob?.cancel()
+                    _state.update {
+                        when {
+                            gate != null -> CoachChatUiState(failure = gate)
+
+                            // 목록을 읽은 뒤 보관 기한이 지났으면 새 대화를 열도록 안내한다.
+                            (result.error as? AppError.Rejected)?.code == "CONVERSATION_EXPIRED" ->
+                                it.copy(isLoadingHistory = false, failure = CoachFailure.EXPIRED)
+
+                            else -> it.copy(isLoadingHistory = false, historyError = RunkkErrorText.of(result.error))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun cancelJobs() {
+        questionJob?.cancel()
+        questionJob = null
+        historyJob?.cancel()
+        historyJob = null
+    }
+
+    private fun gateOf(error: AppError): CoachFailure? = when ((error as? AppError.Rejected)?.code) {
+        "CONSENT_REQUIRED" -> CoachFailure.CONSENT_REQUIRED
+        "FEATURE_CLOSED" -> CoachFailure.FEATURE_CLOSED
+        else -> null
     }
 
     private fun ask(text: String) {

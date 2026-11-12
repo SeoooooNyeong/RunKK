@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.coach.CoachEvent
 import com.a207.runkk.app.domain.coach.CoachFailure
+import com.a207.runkk.app.domain.coach.CoachMessage
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
@@ -51,6 +52,28 @@ class CoachRepositoryImplTest {
         val conversation = repository.conversations().value().single()
         assertEquals("conv-1", conversation.conversationId)
         assertEquals(LocalDateTime.of(2026, 11, 9, 9, 12), conversation.lastAskedAt)
+    }
+
+    @Test
+    fun `이전 대화의 지난 문답을 순서대로 읽고 만료 거부를 사유 코드로 전달한다`() = runTest {
+        http.reply(
+            """[{"role":"QUESTION","text":"어제 어땠어?","at":"2026-11-12T09:00:00"},""" +
+                """{"role":"ANSWER","text":"좋았어요.","at":"2026-11-12T09:00:03"}]"""
+        )
+        assertEquals(
+            listOf(
+                CoachMessage(CoachMessage.Role.QUESTION, "어제 어땠어?", LocalDateTime.of(2026, 11, 12, 9, 0)),
+                CoachMessage(CoachMessage.Role.ANSWER, "좋았어요.", LocalDateTime.of(2026, 11, 12, 9, 0, 3))
+            ),
+            repository.messages("conv-1").value()
+        )
+        val request = http.take()
+        assertEquals("GET", request.method)
+        assertEquals("/api/v1/coach/conversations/conv-1/messages", request.url.encodedPath)
+        http.reply("""{"code":"CONVERSATION_EXPIRED","message":"대화가 만료됐어요"}""", 410)
+        assertEquals(Outcome.Failure(AppError.Rejected("CONVERSATION_EXPIRED")), repository.messages("conv-1"))
+        http.reply("""[{"role":"TOOL","text":"x","at":"2026-11-12T09:00:00"}]""")
+        assertEquals(Outcome.Failure(AppError.Server(0)), repository.messages("conv-1"))
     }
 
     @Test

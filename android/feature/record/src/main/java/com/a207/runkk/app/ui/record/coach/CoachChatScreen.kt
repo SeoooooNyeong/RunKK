@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -52,6 +53,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.domain.coach.CoachFailure
 import com.a207.runkk.app.ui.record.R
 
@@ -86,10 +88,10 @@ fun CoachChatScreen(state: CoachChatUiState, actions: CoachChatActions, modifier
         return
     }
     val listState = rememberLazyListState()
-    // 새 질문·이어지는 답이 오면 마지막 말풍선이 보이게 내린다.
-    LaunchedEffect(state.turns.size, state.turns.lastOrNull()?.answer?.length, state.failure) {
+    // 지난 문답을 다 읽었거나 새 질문·이어지는 답이 오면 마지막 말풍선이 보이게 내린다.
+    LaunchedEffect(state.history.size, state.turns.size, state.turns.lastOrNull()?.answer?.length, state.failure) {
         val last = listState.layoutInfo.totalItemsCount - 1
-        if (state.turns.isNotEmpty() && last >= 0) listState.scrollToItem(last)
+        if ((state.turns.isNotEmpty() || state.history.isNotEmpty()) && last >= 0) listState.scrollToItem(last)
     }
     Column(modifier.fillMaxSize().background(RunkkColors.Background).imePadding()) {
         RunkkTopBar(title = stringResource(R.string.record_chat_title), onBack = actions.onBack)
@@ -106,7 +108,9 @@ fun CoachChatScreen(state: CoachChatUiState, actions: CoachChatActions, modifier
                     onHistory = { isHistoryOpen = true }
                 )
             }
-            if (state.turns.isEmpty()) item { StartCard(state) }
+            if (state.turns.isEmpty()) item { StartCard(state, actions.onReloadHistory) }
+            // 이전 대화를 열었으면 지난 문답을 먼저 그리고 그 아래로 이어서 묻는다(S15P31A207-300).
+            items(state.history) { turn -> ChatTurn(turn, isStreaming = false) }
             itemsIndexed(state.turns) { index, turn ->
                 ChatTurn(turn, isStreaming = state.isSending && index == state.turns.lastIndex && !turn.isComplete)
             }
@@ -185,10 +189,10 @@ private fun ConversationActions(isEnabled: Boolean, onNewConversation: () -> Uni
 
 /**
  * 질문 전 안내 카드(모서리 24, 안쪽 20, 사이 12). 새 대화면 흰 카드(G-37), 고른 이전 대화를 이어가면 연보라 카드에
- * "첫 질문 · 마지막 질문일"을 함께 보인다(G-36).
+ * "첫 질문 · 마지막 질문일"을 함께 보인다(G-36). 이어가는 카드는 지난 문답을 읽는 중·실패(다시 불러오기)도 함께 알린다.
  */
 @Composable
-private fun StartCard(state: CoachChatUiState) {
+private fun StartCard(state: CoachChatUiState, onReloadHistory: () -> Unit) {
     val isContinuing = state.conversationId != null
     RunkkCard(
         modifier = Modifier.fillMaxWidth(),
@@ -216,11 +220,7 @@ private fun StartCard(state: CoachChatUiState) {
                     color = RunkkColors.TextSecondary
                 )
             }
-            Text(
-                stringResource(R.string.record_chat_continue_body),
-                style = CARD_BODY,
-                color = RunkkColors.TextSecondary
-            )
+            HistoryStatus(state, onReloadHistory)
         } else {
             Text(stringResource(R.string.record_chat_empty), style = CARD_BODY, color = RunkkColors.TextSecondary)
             Text(stringResource(R.string.record_chat_new_body), style = CARD_BODY, color = RunkkColors.TextSecondary)
@@ -228,11 +228,55 @@ private fun StartCard(state: CoachChatUiState) {
     }
 }
 
+/** 이어가는 카드 아래 줄: 지난 문답을 읽는 중, 읽기 실패와 다시 불러오기, 다 읽은 뒤 이어서 묻는 안내. */
+@Composable
+private fun HistoryStatus(state: CoachChatUiState, onReloadHistory: () -> Unit) {
+    val error = state.historyError
+    when {
+        state.isLoadingHistory -> Text(
+            stringResource(R.string.record_chat_messages_loading),
+            style = CARD_BODY,
+            color = RunkkColors.TextSecondary,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+
+        error != null -> {
+            Text(
+                stringResource(R.string.record_chat_messages_error),
+                style = CARD_BODY,
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+            )
+            Text(error.asString(), style = CARD_BODY, color = RunkkColors.TextSecondary)
+            RunkkButton(
+                text = stringResource(R.string.record_chat_reload),
+                onClick = onReloadHistory,
+                modifier = Modifier.fillMaxWidth(),
+                style = RunkkButtonStyle.Outline,
+                size = RunkkButtonSize.Medium
+            )
+        }
+
+        else -> Text(
+            stringResource(
+                if (state.history.isEmpty()) {
+                    R.string.record_chat_continue_body_empty
+                } else {
+                    R.string.record_chat_continue_body
+                }
+            ),
+            style = CARD_BODY,
+            color = RunkkColors.TextSecondary
+        )
+    }
+}
+
 /** 문답 한 쌍: 내 질문(오른쪽 라임) 다음 코치 답(왼쪽 흰). 답을 받는 중이면 끝에 커서를 붙인다(G-25). */
 @Composable
 private fun ChatTurn(turn: CoachChatTurn, isStreaming: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        MyBubble(turn.question)
+        // 조회 상한으로 앞 질문이 잘린 지난 답은 코치 말풍선만 그린다.
+        if (turn.question.isNotEmpty()) MyBubble(turn.question)
         when {
             turn.answer.isNotEmpty() -> CoachBubble {
                 Text(
