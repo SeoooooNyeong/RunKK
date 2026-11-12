@@ -183,7 +183,7 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `기본 머리 그림은 프로필 원 목표 구도다 - 머리가 크고 정수리가 위 끝에 닿으며 목이 아래 끝까지 이어진다(임시 D-성-189)`() {
+    fun `기본 머리 그림은 프로필 원 구도다 - 머리가 크고 정수리가 원 안에 들며 제 길이 목이 아래 끝까지 이어진다(임시 D-성-189)`() {
         val resources = org.robolectric.RuntimeEnvironment.getApplication().resources
         AvatarCharacter.entries.forEach { character ->
             val bitmap = android.graphics.BitmapFactory.decodeResource(
@@ -192,17 +192,12 @@ class RunkkAvatarPortraitTest {
             )
             val size = bitmap.width
             fun alpha(x: Int, y: Int) = android.graphics.Color.alpha(bitmap.getPixel(x, y))
-            fun span(y: Int): Int {
-                var left = size / 2
-                var right = size / 2
-                while (left > 0 && alpha(left - 1, y) >= 128) left--
-                while (right < size - 1 && alpha(right + 1, y) >= 128) right++
-                return right - left + 1
-            }
             val crown = (0 until size).first { y -> (0 until size).any { alpha(it, y) >= 128 } }
-            assertTrue(crown <= size * .02f, "$character 정수리가 위 끝에 닿는다: $crown")
+            // 목을 늘리지 않고 머리를 내렸다(사용자 요청 2026-11-12): 정수리가 위 끝에서 조금 내려와 원 안에 든다.
+            assertTrue(crown in (size * .01f).toInt()..(size * .05f).toInt(), "$character 정수리가 원 안 위쪽이다: $crown")
             assertTrue(alpha(size / 2, size - 1) >= 200, "$character 목이 아래 끝까지 이어진다")
-            assertTrue(span(size - 1) < size * .3f, "$character 아래 끝은 목 폭이다: ${span(size - 1)}")
+            // 아래 끝 가운데는 목(피부색)이다(여자 긴 머리는 목 옆까지 내려와 폭으로는 가리지 않는다).
+            assertTrue(android.graphics.Color.red(bitmap.getPixel(size / 2, size - 1)) > 200, "$character 아래 끝 가운데는 목")
             val widest = (size * 15 / 100 until size * 7 / 10).maxOf { y ->
                 (0 until size).count { alpha(it, y) >= 128 }
             }
@@ -236,7 +231,7 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `원 밖 기본 머리 그림은 같은 구도에 목이 제 길이로 둥글게 끝나 아래 끝에 닿지 않는다`() {
+    fun `원 밖 기본 머리 그림은 목이 제 길이로 둥글게 끝나 아래 끝에 닿지 않는다`() {
         val resources = org.robolectric.RuntimeEnvironment.getApplication().resources
         AvatarCharacter.entries.forEach { character ->
             val bitmap = android.graphics.BitmapFactory.decodeResource(
@@ -246,7 +241,7 @@ class RunkkAvatarPortraitTest {
             val size = bitmap.width
             fun alpha(x: Int, y: Int) = android.graphics.Color.alpha(bitmap.getPixel(x, y))
             val crown = (0 until size).first { y -> (0 until size).any { alpha(it, y) >= 128 } }
-            assertTrue(crown <= size * .02f, "$character 정수리는 원 그림과 같은 자리")
+            assertTrue(crown <= size * .02f, "$character 정수리는 위 끝(-5%)에서 잘린다")
             assertTrue(alpha(size / 2, size * 88 / 100) >= 200, "$character 턱 아래 목은 있다")
             assertTrue(alpha(size / 2, size - 1) < 50, "$character 목은 아래 끝까지 늘리지 않는다")
             bitmap.recycle()

@@ -62,11 +62,20 @@ class FaceImageSourceTest {
             server.url("/api/v1/auth/refresh"),
             Json { ignoreUnknownKeys = true }
         )
-        FaceImageSource(client, server.url("/api/v1/"), selfId = { member }, now = clock::get, io = io)
+        FaceImageSource(client, server.url("/api/v1/"), selfId = {
+            member
+        }, now = clock::get, io = io, selfStore = store)
     }
 
+    /** 내 얼굴 마지막 모습 저장소(임시 폴더). */
+    private val storeDir = kotlin.io.path.createTempDirectory("my-face").toFile()
+    private val store = SelfFaceStore(storeDir)
+
     @AfterTest
-    fun tearDown() = server.close()
+    fun tearDown() {
+        server.close()
+        storeDir.deleteRecursively()
+    }
 
     @Test
     fun `selfie 키에서 접두어를 뗀 위치 + 부위로 다섯 장을 인증 헤더와 함께 받는다`() = runTest {
@@ -225,6 +234,64 @@ class FaceImageSourceTest {
         assertEquals(Outcome.Success(null), source.selfieHead("selfie:face/7/s1"))
         assertEquals(Outcome.Success(null), source.selfieHead(null))
         assertEquals(sent, paths.size)
+    }
+
+    @Test
+    fun `셀카 머리는 한 번 받으면 메모리에 두어 다시 받지 않고 바로 그리기(peek)로도 준다`() = runTest {
+        reply = { headReply() }
+        assertEquals(null, source.peek("head:12:job-1"), "받기 전에는 바로 줄 그림이 없다")
+        val first = (source.faceLayers("head:12:job-1") as Outcome.Success).value
+        val second = (source.faceLayers("head:12:job-1") as Outcome.Success).value
+
+        assertEquals(1, paths.size, "다시 받지 않는다")
+        assertEquals(first, second)
+        assertEquals(first, source.peek("head:12:job-1"))
+        assertEquals(emptyList(), source.peek("default:RABBIT"), "기본 캐릭터는 기다릴 그림이 없다")
+        assertEquals(emptyList(), source.peek(null))
+    }
+
+    @Test
+    fun `셀카 부위 그림도 메모리에 다섯 장이 다 있으면 바로 준다`() = runTest {
+        source.faceLayers("selfie:face/7/s1")
+        val layers = source.peek("selfie:face/7/s1")
+        assertEquals(FacePart.entries, layers?.map { it.part })
+        assertEquals(null, source.peek("selfie:face/7/other"))
+    }
+
+    @Test
+    fun `내 셀카 머리와 내 프로필 키는 기기에 남아 앱을 새로 켜도 바로 그린다`() = runTest {
+        member = 12
+        reply = { headReply() }
+        source.rememberSelf("head:12:job-1", "bg-1")
+        source.faceLayers("head:12:job-1")
+
+        // 새 실행: 같은 폴더의 새 저장소와 새 소스(메모리 캐시 없음).
+        val restarted = FaceImageSource(
+            OkHttpClient(),
+            server.url("/api/v1/"),
+            selfId = { member },
+            selfStore = SelfFaceStore(storeDir)
+        )
+        assertEquals(SelfFaceStore.Keys("head:12:job-1", "bg-1"), restarted.lastSelf())
+        assertEquals(listOf<Byte>(1, 2, 3), restarted.peek("head:12:job-1")?.map { it.png.single() })
+        assertEquals(1, paths.size, "새 실행은 받지 않고 남긴 것을 준다")
+    }
+
+    @Test
+    fun `다른 러너 머리는 기기에 남기지 않고 다른 계정이면 남긴 내 얼굴을 내주지 않는다`() = runTest {
+        member = 7
+        reply = { headReply() }
+        source.faceLayers("head:12:job-1")
+        assertEquals(null, SelfFaceStore(storeDir).layers(7, "head:12:job-1"), "남의 얼굴은 남기지 않는다")
+
+        member = 12
+        source.rememberSelf("head:12:job-2", null)
+        source.faceLayers("head:12:job-2")
+        member = 99
+        assertEquals(null, source.lastSelf())
+        assertEquals(null, source.peek("head:12:job-2"))
+        source.faceLayers("selfie:face/99/s1")
+        assertEquals(null, SelfFaceStore(storeDir).keys(12), "계정이 바뀌면 앞 계정의 내 얼굴을 지운다")
     }
 
     private fun headReply(): MockResponse {

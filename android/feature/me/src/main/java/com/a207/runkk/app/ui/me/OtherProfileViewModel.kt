@@ -26,9 +26,20 @@ class OtherProfileViewModel @Inject constructor(private val account: AccountRepo
         viewModelScope.launch {
             when (val result = account.profile(memberId)) {
                 is Outcome.Success -> {
-                    _state.update { it.copy(isLoading = false, profile = result.value) }
-                    val face = result.value.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
-                    _state.update { it.copy(faceLayers = face) }
+                    // 받아 둔 그림(랭킹·크루에서 본 얼굴)이 있으면 프로필과 함께 바로 그린다. 없으면 받는 동안 중립 자리다.
+                    val faceKey = result.value.faceKey
+                    val cached = account.cachedFaceLayers(faceKey)
+                    _state.update {
+                        it.copy(
+                            isLoading = false,
+                            profile = result.value,
+                            faceLayers = cached.orEmpty(),
+                            isFaceLoading = cached == null && faceKey != null
+                        )
+                    }
+                    if (cached != null) return@launch
+                    val face = faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
+                    _state.update { it.copy(faceLayers = face, isFaceLoading = false) }
                 }
 
                 is Outcome.Failure -> _state.update {

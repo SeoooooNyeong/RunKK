@@ -266,7 +266,12 @@ class CrewRunViewModel @Inject constructor(
         val keys = lobby.participants.filter {
             it.isEntered
         }.mapNotNull { it.faceKey }.filter { requestedFaces.add(it) }
-        keys.forEach { key ->
+        // 받아 둔 그림(내 얼굴, 앞 화면에서 본 크루원)은 이번 대기실 응답과 함께 바로 그린다(기본 머리를 거치지 않게).
+        val cached = keys.mapNotNull { key ->
+            crews.cachedFaceLayers(key)?.takeIf { it.isNotEmpty() }?.let { key to it }
+        }
+        if (cached.isNotEmpty()) _state.update { it.copy(mateFaces = it.mateFaces + cached) }
+        keys.filter { key -> cached.none { it.first == key } }.forEach { key ->
             viewModelScope.launch {
                 when (val r = crews.faceLayers(key)) {
                     is Outcome.Success -> r.value.takeIf { it.isNotEmpty() }?.let { layers ->
