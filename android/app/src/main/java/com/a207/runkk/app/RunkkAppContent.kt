@@ -31,8 +31,10 @@ import kotlinx.coroutines.delay
 /**
  * 앱 화면의 시작점. 로그인 상태(SessionRepository.loggedIn)를 처음 알게 되면 시작 경로를 한 번 정한다:
  * 로그인했으면 홈, 아니면 로그인. 아직 모르면([loggedIn] = null) 스플래시를 유지한다.
- * 시작 경로를 알면 첫 화면을 스플래시 아래에서 미리 그려 두고, 워드마크가 다 뛰고 첫 화면이 다 읽을 때까지(HoldSplashUntil,
+ * 워드마크가 다 뛰고 나면 첫 화면을 스플래시 아래에서 미리 그려 두고, 첫 화면이 다 읽을 때까지(HoldSplashUntil,
  * 길어도 [FIRST_SCREEN_MAX_WAIT_MS]) 스플래시를 걷지 않는다(사용자 요청 2026-10-31: 남자 캐릭터가 보였다가 여자로 바뀌지 않게).
+ * 첫 화면을 워드마크가 뛰는 동안 같이 그리면 첫 화면 구성(글꼴·아바타 그림 읽기)이 메인 스레드를 잡아 글자 뜀 프레임이 통째로
+ * 빠진다. 그래서 "런"·"크"·"크"가 차례로 뛰는 릴리스(v0.11.x) 모습이 보이도록 뜀이 끝난 뒤에 첫 화면을 그린다.
  * 시작 뒤 로그인 상태가 풀리면 RunkkNavHost가 로그인으로 돌린다.
  */
 @Composable
@@ -52,10 +54,12 @@ fun RunkkAppContent(
     // 스플래시 워드마크가 한 번 다 뛸 때까지는 시작 경로를 알아도 스플래시를 둔다.
     var isIntroDone by remember { mutableStateOf(false) }
     var isRevealed by remember { mutableStateOf(false) }
+    // 첫 화면이 한 프레임 그려졌는가: 그 프레임에 HoldSplashUntil이 붙잡은 뒤에야 걷기를 따진다
+    var isFirstScreenMounted by remember { mutableStateOf(false) }
     val gate = remember { FirstScreenGate() }
     if (startRoute == null && loggedIn != null) startRoute = startRouteFor(loggedIn)
     val start = startRoute
-    val canReveal = start != null && isIntroDone && !gate.isHeld
+    val canReveal = start != null && isIntroDone && isFirstScreenMounted && !gate.isHeld
     LaunchedEffect(canReveal) {
         if (!canReveal) return@LaunchedEffect
         // 첫 화면이 처음 그려진 프레임의 붙잡기(HoldSplashUntil)가 돈 뒤에 걷는다: 그 사이 붙잡으면 이 효과는 취소된다
@@ -68,7 +72,12 @@ fun RunkkAppContent(
         isRevealed = true
     }
     Box(modifier = modifier.fillMaxSize()) {
-        if (start != null) {
+        // 뜀이 끝나기 전에는 첫 화면을 그리지 않는다(위 설명: 뜀 프레임이 빠지지 않게)
+        if (start != null && isIntroDone) {
+            LaunchedEffect(Unit) {
+                withFrameNanos {}
+                isFirstScreenMounted = true
+            }
             CompositionLocalProvider(
                 LocalFirstScreenGate provides gate,
                 LocalCoveredBySplash provides !isRevealed
