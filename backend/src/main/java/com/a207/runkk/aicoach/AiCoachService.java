@@ -82,6 +82,19 @@ public class AiCoachService {
         return store.conversations(memberId, cutoff());
     }
 
+    /**
+     * 이전 대화를 열 때 지난 문답을 보인다(S15P31A207-300). 내 대화이고 보관 기한(마지막 질문 뒤 90일) 안일 때만 ai에 묻는다. 남의 대화와 지난
+     * 대화는 같은 CONVERSATION_EXPIRED로 거절해 대화 ID가 있는지 드러내지 않는다.
+     */
+    public List<CoachMessage> messagesOf(long memberId, String conversationId) {
+        checkAccess(memberId);
+        if (!CoachQuestion.validId(conversationId)
+                || !store.hasConversation(memberId, conversationId, cutoff())) {
+            throw new CoachRejected(CoachRejected.Reason.CONVERSATION_EXPIRED);
+        }
+        return gateway.messages(memberId, conversationId);
+    }
+
     public int purgeExpired() {
         return store.purge(cutoff());
     }

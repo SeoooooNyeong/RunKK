@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.a207.runkk.aicoach.AiCoachService;
 import com.a207.runkk.aicoach.CoachChatGateway;
+import com.a207.runkk.aicoach.CoachMessage;
 import com.a207.runkk.aicoach.CoachQuestion;
 import com.a207.runkk.aicoach.CoachRejected;
 import com.a207.runkk.aicoach.CoachStore;
@@ -34,6 +36,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +56,7 @@ import org.springframework.test.web.servlet.ResultActions;
 class AiCoachControllerTest extends WebTestSupport {
     private static final String LIST = "/api/v1/coach/conversations";
     private static final String QUESTIONS = "/api/v1/coach/questions";
+    private static final String MESSAGES = "/api/v1/coach/conversations/{id}/messages";
     private static final String CONSENT = "/api/v1/me/consents/LLM_TRANSFER";
 
     @Autowired OperationSettingService settings;
@@ -324,6 +328,77 @@ class AiCoachControllerTest extends WebTestSupport {
         assertThat(store.answered(current, now.plusSeconds(1))).isFalse();
         assertThat(store.hasConversation(owner.memberId(), id, old)).isFalse();
         verifyNoInteractions(gateway);
+    }
+
+    @Test
+    void ownerReadsPastMessagesOfLiveConversationOnly() throws Exception {
+        Session owner = eligible();
+        Session other = eligible();
+        LocalDateTime now = LocalDateTime.now();
+        String id = startedConversation(owner, "어제 어땠어?", now);
+        when(gateway.messages(owner.memberId(), id))
+                .thenReturn(
+                        List.of(
+                                new CoachMessage(
+                                        CoachMessage.Role.QUESTION,
+                                        "어제 어땠어?",
+                                        LocalDateTime.of(2026, 11, 12, 9, 0)),
+                                new CoachMessage(
+                                        CoachMessage.Role.ANSWER,
+                                        "좋았어요.",
+                                        LocalDateTime.of(2026, 11, 12, 9, 0, 3))));
+
+        mvc.perform(as(owner, get(MESSAGES, id)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$[0].role").value("QUESTION"))
+                .andExpect(jsonPath("$[0].text").value("어제 어땠어?"))
+                .andExpect(jsonPath("$[0].at").value("2026-11-12T09:00:00"))
+                .andExpect(jsonPath("$[1].role").value("ANSWER"))
+                .andExpect(jsonPath("$[1].text").value("좋았어요."));
+        mvc.perform(get(MESSAGES, id)).andExpect(status().isUnauthorized());
+        mvc.perform(as(other, get(MESSAGES, id)))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("CONVERSATION_EXPIRED"));
+        mvc.perform(as(owner, get(MESSAGES, "unknown")))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("CONVERSATION_EXPIRED"));
+
+        String expired = startedConversation(owner, "오래된 질문", now.minusDays(91));
+        mvc.perform(as(owner, get(MESSAGES, expired)))
+                .andExpect(status().isGone())
+                .andExpect(jsonPath("$.code").value("CONVERSATION_EXPIRED"));
+        verify(gateway).messages(owner.memberId(), id);
+        verifyNoMoreInteractions(gateway);
+    }
+
+    @Test
+    void pastMessagesFollowCoachGateAndAiFailures() throws Exception {
+        Session owner = eligible();
+        String id = startedConversation(owner, "질문", LocalDateTime.now());
+        when(gateway.messages(owner.memberId(), id))
+                .thenThrow(new CoachRejected(CoachRejected.Reason.RETRY));
+        mvc.perform(as(owner, get(MESSAGES, id)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("RETRY"));
+
+        mvc.perform(as(owner, delete(CONSENT))).andExpect(status().isOk());
+        mvc.perform(as(owner, get(MESSAGES, id)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("CONSENT_REQUIRED"));
+        setCoach(false);
+        mvc.perform(as(owner, get(MESSAGES, id)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FEATURE_CLOSED"));
+        verify(gateway).messages(owner.memberId(), id);
+    }
+
+    private String startedConversation(Session session, String preview, LocalDateTime at) {
+        CoachStore.Lease lease = store.claim(session.memberId(), 20, at);
+        String id = UUID.randomUUID().toString();
+        assertThat(store.started(lease, id, preview, false, at)).isTrue();
+        store.release(lease);
+        return id;
     }
 
     private Session eligible() throws Exception {
