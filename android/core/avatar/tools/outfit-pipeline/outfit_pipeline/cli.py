@@ -44,8 +44,24 @@ def main(argv: list[str] | None = None) -> int:
     render.add_argument("--shape", type=int, default=100, help="체형 0·50·100")
     render.add_argument("--out", type=Path, help="렌더를 저장할 폴더")
     render.add_argument("keys", nargs="*", help="assetKey(없으면 21가지 전부)")
+    patch = sub.add_parser(
+        "riv-patch", help="서기 riv 바이트 패치(RKP1): build는 목표 riv와의 차이로 쓰고, 없으면 검사"
+    )
+    patch.add_argument("--gender", choices=("male", "female"), help="build할 성별")
+    patch.add_argument("--target", type=Path, help="목표 riv(허리·체형 키를 고친 사본)")
     args = parser.parse_args(argv)
 
+    if args.command == "riv-patch":
+        from outfit_pipeline.riv_patch import build, check
+
+        if args.target:
+            path, count = build(args.raw, args.gender, args.target)
+            print(f"{path.name}: {count} edit(s)")
+        problems = check(args.raw)
+        for problem in problems:
+            print(problem)
+        print(f"{len(problems)} problem(s)")
+        return 1 if problems else 0
     if args.command == "stand-fix":
         from outfit_pipeline.stand_fix import fix_stand
 

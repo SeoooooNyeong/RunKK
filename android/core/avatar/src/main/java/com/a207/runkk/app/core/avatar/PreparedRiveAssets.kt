@@ -2,6 +2,7 @@ package com.a207.runkk.app.core.avatar
 
 import android.content.Context
 import java.util.EnumMap
+import timber.log.Timber
 
 /**
  * 한 몸체(남녀)를 그리는 데 드는 내장 바이트: 동작별 Rive 파일(.riv, 최대 5MB), 내장 기본 머리 12장, 앞 단계 서기 몸 PNG.
@@ -49,8 +50,15 @@ internal class PreparedRiveAssets(
             val scenes = EnumMap<AvatarMotion, ByteArray>(AvatarMotion::class.java)
             // 검수용 베이지 바탕 도형은 투명하게 해 카드 배경이 보이게 하고, 바닥 그림자는 앱이 그린다(DV-성-3, D-성-107,
             // 파일은 승인본 그대로).
-            AvatarMotion.entries.forEach {
-                scenes[it] = hideBuiltInShapes(raw(RiveAvatarScene.rawResource(gender, it)))
+            AvatarMotion.entries.forEach { motion ->
+                scenes[motion] = hideBuiltInShapes(raw(RiveAvatarScene.rawResource(gender, motion))).also { riv ->
+                    // 서기: 허리 네모·체형 2·3단계 키 바이트 패치(파일은 승인본 그대로, [RivBytePatch])
+                    RivBytePatch.resource(gender, motion)?.let {
+                        if (RivBytePatch.applyInPlace(riv, raw(it)) == RivBytePatch.Outcome.MISMATCH) {
+                            Timber.w("stand riv byte patch skipped: %s %s", gender, motion)
+                        }
+                    }
+                }
             }
             return PreparedRiveAssets(
                 gender,
