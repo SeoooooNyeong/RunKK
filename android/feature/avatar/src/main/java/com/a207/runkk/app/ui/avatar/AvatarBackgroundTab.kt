@@ -174,7 +174,7 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
             AvatarStageBackdrop(key, modifier = Modifier.matchParentSize(), stage)
             if (isLocked) {
                 Box(
-                    modifier = Modifier.size(28.dp).clip(CircleShape).background(LOCK_BADGE),
+                    modifier = Modifier.size(28.dp).clip(CircleShape).background(RunkkColors.Scrim),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -199,8 +199,6 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
 
 private const val COLUMNS = 3
 
-/** 잠긴 배경 그림 위 자물쇠 배지 바탕(검정 60%). */
-private val LOCK_BADGE = Color(0x99000000)
 private const val BACKDROP_RATIO = 95f / 126f
 private const val METERS_PER_KM = 1_000L
 

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +31,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -43,7 +45,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.RunkkAlpha
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonSize
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
+import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTagTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.domain.avatar.Shop
 
@@ -62,54 +73,55 @@ internal fun BalanceChip(balance: Int?, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(painterResource(R.drawable.avatar_ic_coin), null, Modifier.size(16.dp), tint = RunkkColors.Violet)
-        Text(formatReward(balance), style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
+        Text(formatReward(balance), style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
     }
 }
 
 /**
- * 아래 고정 단추(피그마 제안: 높이 52, 모서리 26, 아이콘 20 + 간격 6, 글자 16 Bold). [isPrimary]면 라임(primary)에 onPrimary 글자, 아니면
- * 회색(surfaceHigh)에 textPrimary 글자다. [trailing]은 글자 뒤에 붙는다(구매 단추의 코인·가격).
+ * 아래 고정 단추(디자인 시스템 RunkkButton Large 52, 알약, 아이콘 20). [isPrimary]면 라임, 아니면 외곽선(보조 단추)이다. 비활성은 회색 바탕에
+ * 보조색 글자다(실기기 DV3-7). [trailing]은 글자 뒤에 붙는다(구매 단추의 코인·가격). 디자인 시스템 단추에는 글자 뒤 칸이 없어 그때만 같은
+ * 모양(52, 16 SemiBold, 좌우 16, 간격 8)을 여기서 그린다.
  */
 @Composable
 internal fun AvatarPillButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    @DrawableRes icon: Int? = null,
+    icon: Painter? = null,
     isPrimary: Boolean = true,
     isEnabled: Boolean = true,
     trailing: (@Composable () -> Unit)? = null
 ) {
-    // 비활성은 공용 단추와 같이 회색 바탕(surfaceHigh)에 보조색 글자다(바탕이 사라져 글자만 남지 않게, 실기기 DV3-7).
-    val background = when {
-        !isEnabled -> RunkkColors.SurfaceHigh
-        isPrimary -> RunkkColors.LimeFill
-        else -> RunkkColors.SurfaceHigh
+    val style = if (isPrimary) RunkkButtonStyle.Lime else RunkkButtonStyle.Outline
+    if (trailing == null) {
+        if (icon != null) {
+            RunkkButton(text, onClick, icon, modifier, style, isEnabled = isEnabled, iconSize = BUTTON_ICON)
+        } else {
+            RunkkButton(text, onClick, modifier, style, isEnabled = isEnabled)
+        }
+        return
     }
-    val content = when {
-        !isEnabled -> RunkkColors.TextSecondary
-        isPrimary -> RunkkColors.OnLimeFill
-        else -> RunkkColors.TextPrimary
-    }
+    val background = if (isEnabled) RunkkColors.LimeFill else RunkkColors.SurfaceHigh
+    val content = if (isEnabled) RunkkColors.OnLimeFill else RunkkColors.TextSecondary
     Row(
         modifier = modifier
-            .heightIn(min = BUTTON_HEIGHT)
-            .clip(RoundedCornerShape(BUTTON_HEIGHT / 2))
+            .heightIn(min = RunkkButtonSize.Large.height)
+            .clip(RunkkShapes.Pill)
             .background(background)
             .clickable(enabled = isEnabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            .padding(horizontal = RunkkButtonSize.Large.horizontalPadding),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        icon?.let { Icon(painterResource(it), null, Modifier.size(20.dp), tint = content) }
+        icon?.let { Icon(it, null, Modifier.size(BUTTON_ICON), tint = content) }
         Text(
             text,
-            style = RunkkTextStyles.text(16, FontWeight.Bold),
+            style = RunkkButtonSize.Large.textStyle,
             color = content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        trailing?.invoke()
+        trailing()
     }
 }
 
@@ -201,42 +213,25 @@ private fun CheckBadge(background: Color, tint: Color, modifier: Modifier = Modi
             .background(background),
         contentAlignment = Alignment.Center
     ) {
-        Icon(painterResource(R.drawable.avatar_ic_check), null, Modifier.size(14.dp), tint = tint)
+        Icon(RunkkIcons.Check, null, Modifier.size(14.dp), tint = tint)
     }
 }
 
-/** 왼쪽 위 「보유」 칩(textPrimary 바탕, 글자 11 Bold surface 색). */
+/** 왼쪽 위 「보유」 칩(본문색 바탕에 표면색 글자 11, 디자인 시스템 RunkkTagPill Ink). */
 @Composable
 private fun CornerChip(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        style = RunkkTextStyles.text(11, FontWeight.Bold),
-        color = RunkkColors.Surface,
-        modifier = modifier
-            .padding(7.dp)
-            .clip(CircleShape)
-            .background(RunkkColors.TextPrimary)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-    )
+    RunkkTagPill(text, modifier.padding(7.dp), tone = RunkkTagTone.Ink)
 }
 
-/** 왼쪽 아래 잠김 칩(textPrimary 85% 바탕, 자물쇠 12 + 조건 숫자 11 Bold). 짧은 조건이 없으면 자물쇠만. */
+/** 왼쪽 아래 잠김 칩(본문색 바탕, 자물쇠 12 + 조건 숫자 11). 짧은 조건이 없으면 자물쇠만. */
 @Composable
 private fun LockChip(item: Shop.Item, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .padding(7.dp)
-            .clip(CircleShape)
-            .background(RunkkColors.TextPrimary.copy(alpha = LOCK_CHIP_ALPHA))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(painterResource(R.drawable.avatar_ic_lock), null, Modifier.size(12.dp), tint = RunkkColors.Surface)
-        unlockShortLabelRes(item.imageKey)?.let {
-            Text(stringResource(it), style = RunkkTextStyles.text(11, FontWeight.Bold), color = RunkkColors.Surface)
-        }
-    }
+    RunkkTagPill(
+        unlockShortLabelRes(item.imageKey)?.let { stringResource(it) }.orEmpty(),
+        modifier.padding(7.dp),
+        tone = RunkkTagTone.Ink,
+        leadingIcon = RunkkIcons.Lock
+    )
 }
 
 /** 마지막 칸 「상점에서 더 보기」(점선 테두리 1.5, 가운데 + 28). */
@@ -275,7 +270,7 @@ internal fun ShopMoreCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 )
             }
             Icon(
-                painterResource(R.drawable.avatar_ic_plus),
+                RunkkIcons.Plus,
                 null,
                 Modifier.size(28.dp),
                 tint = RunkkColors.TextSecondary
@@ -296,7 +291,7 @@ internal fun ShopMoreCell(onClick: () -> Unit, modifier: Modifier = Modifier) {
 internal fun PriceLine(price: Int) {
     Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(painterResource(R.drawable.avatar_ic_coin), null, Modifier.size(14.dp), tint = RunkkColors.Violet)
-        Text(formatReward(price), style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
+        Text(formatReward(price), style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
     }
 }
 
@@ -306,10 +301,29 @@ internal fun PriceNote(text: String) {
     Text(text, style = RunkkTextStyles.text(13, FontWeight.Medium), color = RunkkColors.TextSecondary)
 }
 
+/**
+ * 무대 오른쪽 위 되돌리기(디자인 시스템 원형 아이콘 단추: 지름 36, 흰 92% 유리 바탕, 테두리 없음, 아이콘 20). 바꾼 것이 없으면 흐리게
+ * 두고 누르지 않는다. 원이 48 누름 칸 오른쪽 위에 붙도록 가운데에서 6만큼 옮긴다.
+ */
+@Composable
+internal fun GlassUndoButton(label: String, isEnabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    RunkkIconButton(
+        icon = painterResource(R.drawable.avatar_ic_undo),
+        contentDescription = label,
+        onClick = onClick,
+        modifier = modifier.offset(x = UNDO_SHIFT, y = -UNDO_SHIFT),
+        visualSize = 36.dp,
+        borderColor = Color.Transparent,
+        containerColor = RunkkColors.Surface.copy(alpha = RunkkAlpha.Glass),
+        isEnabled = isEnabled
+    )
+}
+
 /** 3열 격자 칸 사이 가로 간격(피그마 11). */
 internal val GRID_GAP: Dp = 11.dp
 
-private val BUTTON_HEIGHT = 52.dp
+private val BUTTON_ICON = 20.dp
+private val UNDO_SHIFT = 6.dp
 private val THUMB = 112.dp
 private val THUMB_ART = 94.dp
 private val THUMB_RADIUS = 16.dp
@@ -317,4 +331,3 @@ private val SHOP_MORE_STROKE = 1.5.dp
 private val DASH = 6.dp
 private val DASH_GAP = 4.dp
 private const val LOCKED_ALPHA = 0.35f
-private const val LOCK_CHIP_ALPHA = 0.85f

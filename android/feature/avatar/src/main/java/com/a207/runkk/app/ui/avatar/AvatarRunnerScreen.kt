@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,9 +42,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkSpinner
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTagSize
+import com.a207.runkk.app.core.designsystem.RunkkTagTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -131,13 +139,13 @@ fun AvatarRunnerScreen(state: AvatarRunnerUiState, actions: AvatarRunnerActions,
                 AvatarPillButton(
                     stringResource(R.string.avatar_runner_decorate),
                     onClick = actions.onDecorate,
-                    icon = R.drawable.avatar_ic_hanger,
+                    icon = painterResource(R.drawable.avatar_ic_hanger),
                     modifier = Modifier.weight(1f)
                 )
                 AvatarPillButton(
                     stringResource(R.string.avatar_shop_title),
                     onClick = actions.onShop,
-                    icon = R.drawable.avatar_ic_store,
+                    icon = painterResource(R.drawable.avatar_ic_store),
                     isPrimary = false,
                     modifier = Modifier.weight(1f)
                 )
@@ -170,26 +178,17 @@ private fun RunnerStage(state: AvatarRunnerUiState, avatar: Avatar?) {
     }
 }
 
-/** 레벨 칩(흰 92%, 트로피 16 + 「Lv.12」 13 Medium). 읽기는 「레벨 12」. */
+/** 레벨 칩(디자인 시스템 유리 꼬리표: 흰 92%, 트로피 + 「Lv.12」). 읽기는 「레벨 12」. */
 @Composable
 private fun LevelChip(level: Int, modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.avatar_runner_level_description, level)
-    Row(
-        modifier = modifier
-            .clip(CircleShape)
-            .background(RunkkColors.Surface.copy(alpha = CHIP_ALPHA))
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-            .clearAndSetSemantics { contentDescription = description },
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(painterResource(R.drawable.avatar_ic_trophy), null, Modifier.size(16.dp), tint = RunkkColors.TextPrimary)
-        Text(
-            stringResource(R.string.avatar_runner_level, level),
-            style = RunkkTextStyles.text(13, FontWeight.Medium),
-            color = RunkkColors.TextPrimary
-        )
-    }
+    RunkkTagPill(
+        stringResource(R.string.avatar_runner_level, level),
+        modifier,
+        tone = RunkkTagTone.Glass,
+        size = RunkkTagSize.Small,
+        leadingIcon = RunkkIcons.Trophy,
+        spoken = stringResource(R.string.avatar_runner_level_description, level)
+    )
 }
 
 /** 숫자 타일 3개(간격 8): 이번 주 달린 횟수, 거리, 연속 러닝 일수(불꽃). 숫자 22 Bold + 단위 13 Medium. 모르면 「-」. */
@@ -229,14 +228,11 @@ private fun NumberTile(
     description: String?,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(TILE_RADIUS)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(horizontal = 14.dp, vertical = 12.dp)
-            .clearAndSetSemantics { description?.let { contentDescription = it } },
+    RunkkCard(
+        modifier = modifier.clearAndSetSemantics { description?.let { contentDescription = it } },
+        shape = RunkkShapes.Medium,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        borderColor = RunkkColors.Border,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Icon(painterResource(icon), null, Modifier.size(18.dp), tint = RunkkColors.TextSecondary)
@@ -259,13 +255,12 @@ private fun NumberTile(
 /** 진입 목록(흰 카드, 모서리 16, 줄 48): 얼굴(만드는 중이면 진행 표시), 배경(연 수/전체). */
 @Composable
 private fun RunnerLinks(state: AvatarRunnerUiState, actions: AvatarRunnerActions) {
-    val shape = RoundedCornerShape(TILE_RADIUS)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
+    RunkkCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RunkkShapes.Medium,
+        contentPadding = PaddingValues(0.dp),
+        borderColor = RunkkColors.Border,
+        verticalArrangement = Arrangement.Top
     ) {
         LinkRow(
             icon = R.drawable.avatar_ic_face,
@@ -326,7 +321,7 @@ private fun LinkRow(
         )
         trailing()
         Icon(
-            painterResource(R.drawable.avatar_ic_chevron),
+            RunkkIcons.ChevronRight,
             null,
             Modifier.size(20.dp),
             tint = RunkkColors.TextSecondary
@@ -343,12 +338,7 @@ private fun SelfieBadge(progress: SelfieProgress) {
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.clearAndSetSemantics {}
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(14.dp),
-                color = RunkkColors.Violet,
-                trackColor = RunkkColors.SurfaceHigh,
-                strokeWidth = 2.dp
-            )
+            RunkkSpinner(size = 14.dp, trackColor = RunkkColors.SurfaceHigh)
             Text(
                 stringResource(R.string.avatar_selfie_badge_working),
                 style = RunkkTextStyles.text(13, FontWeight.Medium),
@@ -375,10 +365,8 @@ private fun selfieStatus(progress: SelfieProgress): String? = when (progress) {
 }
 
 private const val PLACEHOLDER = "-"
-private const val CHIP_ALPHA = 0.92f
 private val STAGE_HEIGHT = 460.dp
 private val STAGE_RADIUS = 28.dp
-private val TILE_RADIUS = 16.dp
 
 @Preview(name = "H-2 내 러너 B안", widthDp = 390, heightDp = 844)
 @Composable

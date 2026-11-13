@@ -42,6 +42,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkButtonSize
+import com.a207.runkk.app.core.designsystem.RunkkChipSize
+import com.a207.runkk.app.core.designsystem.RunkkChipTone
+import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkDialog
 import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
@@ -147,44 +151,18 @@ private fun ShopStage(state: ShopUiState, actions: ShopActions) {
                 role = Role.Image
             }
     ) {
-        val label = stringResource(R.string.avatar_shop_take_off_try)
-        val isEnabled = state.selected != null
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .size(48.dp)
-                .clickable(
-                    enabled = isEnabled,
-                    role = Role.Button,
-                    onClickLabel = label,
-                    onClick = actions.onClearTryOn
-                )
-                .semantics { contentDescription = label },
-            contentAlignment = Alignment.TopEnd
-        ) {
-            Box(
-                Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(RunkkColors.Surface.copy(alpha = OVERLAY_ALPHA))
-                    .alpha(if (isEnabled) 1f else DISABLED_ALPHA),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painterResource(R.drawable.avatar_ic_undo),
-                    null,
-                    Modifier.size(20.dp),
-                    tint = RunkkColors.TextPrimary
-                )
-            }
-        }
+        GlassUndoButton(
+            stringResource(R.string.avatar_shop_take_off_try),
+            isEnabled = state.selected != null,
+            onClick = actions.onClearTryOn,
+            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+        )
     }
 }
 
 /**
- * 부위 칩(알약, 좌우 14·위아래 8, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 칩은 상의·하의·신발 셋이다(모자
- * 부위는 숨긴다, [임시:D-성-183]).
+ * 부위 칩(디자인 시스템 RunkkChoiceChip Ink, 높이 36 알약, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 칩은 상의·하의·신발
+ * 셋이다(모자 부위는 숨긴다, [임시:D-성-183]).
  */
 @Composable
 private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {
@@ -193,23 +171,14 @@ private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         VISIBLE_ITEM_SLOTS.forEach { entry ->
-            val isSelected = entry == slot
-            Box(
-                Modifier
-                    .heightIn(min = 48.dp)
-                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSlot(entry) }),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    stringResource(entry.decorateLabelRes),
-                    style = RunkkTextStyles.text(14, FontWeight.Bold),
-                    color = if (isSelected) RunkkColors.Surface else RunkkColors.TextSecondary,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(if (isSelected) RunkkColors.TextPrimary else RunkkColors.SurfaceHigh)
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                )
-            }
+            RunkkChoiceChip(
+                label = stringResource(entry.decorateLabelRes),
+                isSelected = entry == slot,
+                onSelectedChange = { onSlot(entry) },
+                tone = RunkkChipTone.Ink,
+                size = RunkkChipSize.Medium,
+                selectionRole = Role.Tab
+            )
         }
     }
 }
@@ -323,7 +292,7 @@ private fun BottomAction(state: ShopUiState, actions: ShopActions) {
                     if (state.isEquipped(item)) R.string.avatar_item_wearing else R.string.avatar_item_put_on
                 ),
                 onClick = actions.onEquip,
-                icon = R.drawable.avatar_ic_hanger,
+                icon = painterResource(R.drawable.avatar_ic_hanger),
                 isEnabled = !state.isEquipped(item) && !state.isEquipping,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -333,7 +302,7 @@ private fun BottomAction(state: ShopUiState, actions: ShopActions) {
                 AvatarPillButton(
                     item.name,
                     onClick = actions.onBuyRequest,
-                    icon = R.drawable.avatar_ic_bag,
+                    icon = painterResource(R.drawable.avatar_ic_bag),
                     isEnabled = !state.isBuying,
                     modifier = Modifier.fillMaxWidth().semantics { contentDescription = label }
                 ) {
@@ -346,7 +315,7 @@ private fun BottomAction(state: ShopUiState, actions: ShopActions) {
                     )
                     Text(
                         formatReward(item.price),
-                        style = RunkkTextStyles.text(16, FontWeight.Bold),
+                        style = RunkkButtonSize.Large.textStyle,
                         color = RunkkColors.OnLimeFill
                     )
                 }
@@ -356,8 +325,6 @@ private fun BottomAction(state: ShopUiState, actions: ShopActions) {
 }
 
 private const val COLUMNS = 3
-private const val OVERLAY_ALPHA = 0.92f
-private const val DISABLED_ALPHA = 0.4f
 private val STAGE_HEIGHT = 300.dp
 private val STAGE_RADIUS = 28.dp
 private val THUMB_ROW = 160.dp

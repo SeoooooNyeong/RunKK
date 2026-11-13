@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -56,6 +57,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -78,10 +81,13 @@ import androidx.core.content.FileProvider
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkAlpha
 import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatarPortrait
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkNoticeCard
+import com.a207.runkk.app.core.designsystem.RunkkNoticeTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -237,7 +243,7 @@ private fun ColumnScope.ChooseStep(state: AvatarSetupUiState, actions: AvatarSet
         ) {
             PickCard(
                 stringResource(R.string.avatar_setup_take_selfie),
-                R.drawable.avatar_ic_camera,
+                rememberVectorPainter(RunkkIcons.Camera),
                 isPrimary = true,
                 isEnabled = canPick,
                 onClick = actions.onSelfie,
@@ -245,7 +251,7 @@ private fun ColumnScope.ChooseStep(state: AvatarSetupUiState, actions: AvatarSet
             )
             PickCard(
                 stringResource(R.string.avatar_setup_pick_album),
-                R.drawable.avatar_ic_image,
+                painterResource(R.drawable.avatar_ic_image),
                 isPrimary = false,
                 isEnabled = canPick,
                 onClick = actions.onAlbum,
@@ -344,7 +350,7 @@ private fun CurrentFaceCard(state: AvatarSetupUiState) {
 @Composable
 private fun PickCard(
     text: String,
-    @DrawableRes icon: Int,
+    icon: Painter,
     isPrimary: Boolean,
     isEnabled: Boolean,
     onClick: () -> Unit,
@@ -357,7 +363,7 @@ private fun PickCard(
             .clip(shape)
             .background(if (isPrimary) RunkkColors.LimeFill else RunkkColors.Surface)
             .then(if (isPrimary) Modifier else Modifier.border(1.dp, RunkkColors.Border, shape))
-            .alpha(if (isEnabled) 1f else DISABLED_ALPHA)
+            .alpha(if (isEnabled) 1f else RunkkAlpha.Disabled)
             .clickable(enabled = isEnabled, role = Role.Button, onClick = onClick)
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -370,7 +376,7 @@ private fun PickCard(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painterResource(icon),
+                icon,
                 null,
                 Modifier.size(24.dp),
                 tint = if (isPrimary) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
@@ -378,7 +384,7 @@ private fun PickCard(
         }
         Text(
             text,
-            style = RunkkTextStyles.text(16, FontWeight.Bold),
+            style = RunkkTextStyles.CardTitle,
             color = if (isPrimary) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
         )
     }
@@ -444,7 +450,7 @@ private fun ColumnScope.ConfirmStep(state: AvatarSetupUiState, actions: AvatarSe
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(painterResource(R.drawable.avatar_ic_refresh), null, Modifier.size(16.dp), tint = Color.White)
+                    Icon(RunkkIcons.Refresh, null, Modifier.size(16.dp), tint = Color.White)
                     Text(
                         stringResource(R.string.avatar_setup_repick),
                         style = RunkkTextStyles.text(13, FontWeight.Medium),
@@ -470,7 +476,7 @@ private fun ColumnScope.ConfirmStep(state: AvatarSetupUiState, actions: AvatarSe
         AvatarPillButton(
             stringResource(if (isSending) R.string.avatar_setup_sending else R.string.avatar_setup_start),
             onClick = actions.onStart,
-            icon = R.drawable.avatar_ic_sparkle,
+            icon = painterResource(R.drawable.avatar_ic_sparkle),
             isEnabled = !isSending && state.hasFaceConsent,
             modifier = Modifier.fillMaxWidth()
         )
@@ -521,12 +527,7 @@ private fun ConsentRow(isChecked: Boolean, isEnabled: Boolean, onClick: () -> Un
             contentAlignment = Alignment.Center
         ) {
             if (isChecked) {
-                Icon(
-                    painterResource(R.drawable.avatar_ic_check),
-                    null,
-                    Modifier.size(16.dp),
-                    tint = RunkkColors.OnLimeFill
-                )
+                Icon(RunkkIcons.Check, null, Modifier.size(16.dp), tint = RunkkColors.OnLimeFill)
             }
         }
         Text(
@@ -607,7 +608,7 @@ private fun ColumnScope.WorkingStep(state: AvatarSetupUiState, actions: AvatarSe
         AvatarPillButton(
             stringResource(R.string.avatar_setup_browse),
             onClick = actions.onLater,
-            icon = R.drawable.avatar_ic_home,
+            icon = rememberVectorPainter(RunkkIcons.Home),
             isPrimary = false,
             modifier = Modifier.fillMaxWidth()
         )
@@ -623,7 +624,7 @@ private fun StepRow() {
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         StepDot(stringResource(R.string.avatar_setup_step_uploaded), RunkkColors.LimeFill, isCurrent = true) {
-            Icon(painterResource(R.drawable.avatar_ic_check), null, Modifier.size(16.dp), tint = RunkkColors.OnLimeFill)
+            Icon(RunkkIcons.Check, null, Modifier.size(16.dp), tint = RunkkColors.OnLimeFill)
         }
         StepDot(stringResource(R.string.avatar_setup_step_making), RunkkColors.Violet, isCurrent = true) {
             Icon(
@@ -655,33 +656,17 @@ private fun StepDot(label: String, color: Color, isCurrent: Boolean, content: @C
     }
 }
 
-/** 「나중에 다시 확인해도 돼요 / 다 되면 알림으로 알려 드릴게요」 상자(보라 옅은 바탕, 모서리 16, 종 22). */
+/** 「나중에 다시 확인해도 돼요 / 다 되면 알림으로 알려 드릴게요」 안내 카드(디자인 시스템 RunkkNoticeCard 보라 옅은 바탕, 모서리 16, 종 22). */
 @Composable
 private fun LaterNotice() {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(RunkkColors.SecondaryContainer)
-            .padding(16.dp)
-            .semantics(mergeDescendants = true) {},
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(painterResource(R.drawable.avatar_ic_bell), null, Modifier.size(22.dp), tint = RunkkColors.Violet)
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(
-                stringResource(R.string.avatar_setup_later_title),
-                style = RunkkTextStyles.text(15, FontWeight.Bold),
-                color = RunkkColors.TextPrimary
-            )
-            Text(
-                stringResource(R.string.avatar_setup_later_body),
-                style = RunkkTextStyles.text(13),
-                color = RunkkColors.TextSecondary
-            )
-        }
-    }
+    RunkkNoticeCard(
+        body = stringResource(R.string.avatar_setup_later_body),
+        modifier = Modifier.semantics(mergeDescendants = true) {},
+        title = stringResource(R.string.avatar_setup_later_title),
+        tone = RunkkNoticeTone.Violet,
+        icon = RunkkIcons.Bell,
+        contentPadding = PaddingValues(16.dp)
+    )
 }
 
 /** 새 얼굴: 무대 358×420에 바뀐 얼굴로 선 아바타, 「새 얼굴이 준비됐어요」, 「확인」. 결과는 워커가 이미 적용했다([임시:D-성-118]). */
@@ -735,7 +720,7 @@ private fun ColumnScope.DoneStep(state: AvatarSetupUiState, actions: AvatarSetup
         AvatarPillButton(
             stringResource(R.string.avatar_setup_done_confirm),
             onClick = actions.onDoneConfirm,
-            icon = R.drawable.avatar_ic_check,
+            icon = rememberVectorPainter(RunkkIcons.Check),
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -789,7 +774,7 @@ private fun ColumnScope.FailedStep(state: AvatarSetupUiState, actions: AvatarSet
             AvatarPillButton(
                 stringResource(R.string.avatar_setup_other_photo),
                 onClick = actions.onRetry,
-                icon = R.drawable.avatar_ic_image,
+                icon = painterResource(R.drawable.avatar_ic_image),
                 isEnabled = state.canCreateSelfie,
                 modifier = Modifier.weight(1f)
             )
@@ -883,7 +868,6 @@ private fun SentPhoto(
     }
 }
 
-private const val DISABLED_ALPHA = 0.4f
 private const val ICON_WELL_ALPHA = 0.5f
 private const val REPICK_ALPHA = 0.55f
 private const val FAILED_PHOTO_ALPHA = 0.55f

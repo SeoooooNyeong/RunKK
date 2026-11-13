@@ -56,6 +56,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.RunkkUnderlineTabs
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -161,7 +162,7 @@ fun AvatarScreen(
                 AvatarPillButton(
                     stringResource(R.string.avatar_shop_title),
                     onClick = actions.onShop,
-                    icon = R.drawable.avatar_ic_store,
+                    icon = painterResource(R.drawable.avatar_ic_store),
                     isPrimary = false,
                     modifier = Modifier.weight(1f)
                 )
@@ -207,7 +208,12 @@ private fun DecorateBody(
                 .semantics { role = Role.Image },
             description = avatar?.let { shown -> { isFallback -> figureDescription(shown, state, isFallback) } }
         ) {
-            UndoButton(state.isDirty, actions.onUndo, Modifier.align(Alignment.TopEnd).padding(12.dp))
+            GlassUndoButton(
+                stringResource(R.string.avatar_decorate_undo),
+                isEnabled = state.isDirty,
+                onClick = actions.onUndo,
+                modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+            )
         }
         Spacer(Modifier.height(8.dp))
         UnderlineTabs(state, actions)
@@ -221,75 +227,22 @@ private fun DecorateBody(
     }
 }
 
-/** 되돌리기(지름 36, 흰 92%, 되돌리기 아이콘 20). 바꾼 것이 없으면 흐리게 두고 누르지 않는다. */
-@Composable
-private fun UndoButton(isEnabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val label = stringResource(R.string.avatar_decorate_undo)
-    Box(
-        modifier
-            .size(48.dp)
-            .clickable(enabled = isEnabled, role = Role.Button, onClickLabel = label, onClick = onClick)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.TopEnd
-    ) {
-        Box(
-            Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .background(RunkkColors.Surface.copy(alpha = UNDO_ALPHA))
-                .alpha(if (isEnabled) 1f else DISABLED_ALPHA),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(painterResource(R.drawable.avatar_ic_undo), null, Modifier.size(20.dp), tint = RunkkColors.TextPrimary)
-        }
-    }
-}
-
-/** 밑줄 탭(높이 40, 글자 15 Bold textPrimary / 15 Medium textSecondary, 밑줄 40×2). */
+/** 밑줄 탭(디자인 시스템 RunkkUnderlineTabs: 글자 15 Bold textPrimary / 15 Medium textSecondary, 밑줄 40×2, 아래 선은 따로 긋는다). */
 @Composable
 private fun UnderlineTabs(state: AvatarUiState, actions: AvatarScreenActions) {
-    Row(Modifier.fillMaxWidth().selectableGroup()) {
-        VISIBLE_ITEM_SLOTS.forEach { slot ->
-            UnderlineTab(
-                stringResource(slot.decorateLabelRes),
-                isSelected = !state.isBackgroundTab && state.slot == slot,
-                onClick = { actions.onSlot(slot) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-        UnderlineTab(
-            stringResource(R.string.avatar_tab_background),
-            isSelected = state.isBackgroundTab,
-            onClick = actions.onBackgroundTab,
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-private fun UnderlineTab(text: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-            .selectable(selected = isSelected, role = Role.Tab, onClick = onClick)
-            .padding(top = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(
-            text,
-            style = RunkkTextStyles.text(15, if (isSelected) FontWeight.Bold else FontWeight.Medium),
-            color = if (isSelected) RunkkColors.TextPrimary else RunkkColors.TextSecondary,
-            maxLines = 1
-        )
-        Box(
-            Modifier
-                .width(40.dp)
-                .height(2.dp)
-                .clip(RoundedCornerShape(1.dp))
-                .background(if (isSelected) RunkkColors.TextPrimary else Color.Transparent)
-        )
-    }
+    val labels = VISIBLE_ITEM_SLOTS.map { stringResource(it.decorateLabelRes) } +
+        stringResource(R.string.avatar_tab_background)
+    val backgroundIndex = VISIBLE_ITEM_SLOTS.size
+    RunkkUnderlineTabs(
+        options = labels,
+        selectedIndex = if (state.isBackgroundTab) backgroundIndex else VISIBLE_ITEM_SLOTS.indexOf(state.slot),
+        onSelect = { index ->
+            if (index == backgroundIndex) actions.onBackgroundTab() else actions.onSlot(VISIBLE_ITEM_SLOTS[index])
+        },
+        indicatorWidth = 40.dp,
+        indicatorHeight = 2.dp,
+        hasBaseline = false
+    )
 }
 
 /** 3열 격자(칸 112, 간격 11·10): 가진 아이템(입는 중 = 라임 테두리·체크), 잠긴 아이템(흐림·조건), 마지막 칸 「상점에서 더 보기」. */
@@ -369,8 +322,6 @@ internal fun formatReward(value: Int?): String = value?.let { String.format(Loca
 internal const val FACE_TAG = RUNKK_AVATAR_FACE_TAG
 
 private const val COLUMNS = 3
-private const val UNDO_ALPHA = 0.92f
-private const val DISABLED_ALPHA = 0.4f
 private val STAGE_HEIGHT = 340.dp
 private val STAGE_RADIUS = 28.dp
 

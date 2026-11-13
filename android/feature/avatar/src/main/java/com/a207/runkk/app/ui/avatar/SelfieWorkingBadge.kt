@@ -22,7 +22,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.RunkkAlpha
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkSpinner
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 
 /** 홈 칸 진행 배지의 시험 태그. */
@@ -47,17 +49,12 @@ internal fun SelfieWorkingBadge(onClick: () -> Unit, modifier: Modifier = Modifi
         Row(
             modifier = Modifier
                 .clip(CircleShape)
-                .background(RunkkColors.Surface.copy(alpha = BADGE_ALPHA))
+                .background(RunkkColors.Surface.copy(alpha = RunkkAlpha.Glass))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(16.dp).clearAndSetSemantics {},
-                color = RunkkColors.Violet,
-                trackColor = RunkkColors.SurfaceHigh,
-                strokeWidth = 2.dp
-            )
+            RunkkSpinner(trackColor = RunkkColors.SurfaceHigh)
             Text(
                 label,
                 style = RunkkTextStyles.text(13, FontWeight.Bold),
@@ -67,5 +64,3 @@ internal fun SelfieWorkingBadge(onClick: () -> Unit, modifier: Modifier = Modifi
         }
     }
 }
-
-private const val BADGE_ALPHA = 0.92f
