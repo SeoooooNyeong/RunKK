@@ -9,6 +9,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -86,7 +87,13 @@ fun RunkkAvatarPortrait(
     Box(modifier, contentAlignment = Alignment.Center) {
         when {
             isSelfie && faceKey.startsWith(HEAD_PREFIX) ->
-                SelfieHead(faceLayers, isInCircle, Modifier.fillMaxSize().testTag(RUNKK_AVATAR_FACE_TAG)) {
+                SelfieHead(
+                    faceLayers,
+                    isInCircle,
+                    Modifier.fillMaxSize().testTag(RUNKK_AVATAR_FACE_TAG),
+                    // 내 얼굴이면 몸과 같은 그을림을 피부 층에만([임시:D-성-220])
+                    skinFilter = LocalSelfFaceTone.current.skinFilterFor(faceKey)
+                ) {
                     DefaultHead(character, isInCircle)
                 }
 
@@ -113,6 +120,7 @@ private fun SelfieHead(
     layers: List<FaceLayer>,
     isInCircle: Boolean,
     modifier: Modifier,
+    skinFilter: ColorFilter? = null,
     fallback: @Composable () -> Unit
 ) {
     // 구도는 층 내용마다 한 번 잰다(담아 둔 것이면 바로). 읽지 못하는 그림이면 기본 머리다.
@@ -124,20 +132,22 @@ private fun SelfieHead(
     // 크기가 바뀔 때만 캐시를 찾는다(다시 그릴 때마다 층 바이트로 키를 만들지 않는다).
     val sized = remember(layers) { SizedSelfieHead(layers) }
     Canvas(modifier.clipToBounds()) {
-        sized.at(minOf(size.width, size.height).roundToInt())?.let { drawHead(it, isInCircle) }
+        sized.at(minOf(size.width, size.height).roundToInt())?.let { drawHead(it, isInCircle, skinFilter) }
     }
 }
 
-private fun DrawScope.drawHead(head: SelfieHeadArt, isInCircle: Boolean) {
+private fun DrawScope.drawHead(head: SelfieHeadArt, isInCircle: Boolean, skinFilter: ColorFilter?) {
     val side = minOf(size.width, size.height)
     val left = (size.width - side) / 2
     val top = (size.height - side) / 2
     val frame = if (isInCircle) head.frame else head.freeFrame
     head.layers.forEach { image ->
+        // 피부(얼굴) 층에만 그을림을 씌운다. 눈·헤어는 그대로다.
+        val filter = if (image === head.face) skinFilter else null
         if (frame == null) {
             // 구도를 모르면 캔버스를 상자에 맞춘다(지금까지와 같다).
             val fit = side / maxOf(image.width, image.height)
-            drawLayer(image, left + (side - image.width * fit) / 2, top + (side - image.height * fit) / 2, fit)
+            drawLayer(image, left + (side - image.width * fit) / 2, top + (side - image.height * fit) / 2, fit, filter)
             return@forEach
         }
         val x = left + frame.dx * side
@@ -148,16 +158,24 @@ private fun DrawScope.drawHead(head: SelfieHeadArt, isInCircle: Boolean) {
         if (image === head.face && row != null) {
             // 목 줄 위만 그리고(목 끝 외곽선은 그리지 않는다) 그 줄을 상자 바닥까지 늘린다.
             val cut = y + row * scale
-            clipRect(bottom = cut) { drawLayer(image, x, y, scale) }
-            drawNeck(image, row, x, cut, top + side, scale)
+            clipRect(bottom = cut) { drawLayer(image, x, y, scale, filter) }
+            drawNeck(image, row, x, cut, top + side, scale, filter)
         } else {
-            drawLayer(image, x, y, scale)
+            drawLayer(image, x, y, scale, filter)
         }
     }
 }
 
 /** 얼굴 층의 목 줄 [row]를 [from]부터 상자 바닥 [to]까지 목 폭 그대로 늘려 그린다. */
-private fun DrawScope.drawNeck(face: ImageBitmap, row: Int, x: Float, from: Float, to: Float, scale: Float) {
+private fun DrawScope.drawNeck(
+    face: ImageBitmap,
+    row: Int,
+    x: Float,
+    from: Float,
+    to: Float,
+    scale: Float,
+    filter: ColorFilter?
+) {
     val start = from.roundToInt()
     val end = to.roundToInt()
     if (end <= start) return
@@ -167,16 +185,19 @@ private fun DrawScope.drawNeck(face: ImageBitmap, row: Int, x: Float, from: Floa
         srcSize = IntSize(face.width, 1),
         dstOffset = IntOffset(x.roundToInt(), start),
         dstSize = IntSize((face.width * scale).roundToInt(), end - start),
-        filterQuality = FilterQuality.Medium
+        filterQuality = FilterQuality.Medium,
+        colorFilter = filter
     )
 }
 
-private fun DrawScope.drawLayer(image: ImageBitmap, x: Float, y: Float, scale: Float) = drawImage(
-    image,
-    dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
-    dstSize = IntSize((image.width * scale).roundToInt(), (image.height * scale).roundToInt()),
-    filterQuality = FilterQuality.Medium
-)
+private fun DrawScope.drawLayer(image: ImageBitmap, x: Float, y: Float, scale: Float, filter: ColorFilter? = null) =
+    drawImage(
+        image,
+        dstOffset = IntOffset(x.roundToInt(), y.roundToInt()),
+        dstSize = IntSize((image.width * scale).roundToInt(), (image.height * scale).roundToInt()),
+        filterQuality = FilterQuality.Medium,
+        colorFilter = filter
+    )
 
 /**
  * 기본 머리 그림(512×512)을 상자 가운데에 맞춰 그린다. 그릴 크기에 맞춰 줄여 읽은 비트맵을 함께 쓴다([DefaultHeadBitmaps]): 랭킹·크루

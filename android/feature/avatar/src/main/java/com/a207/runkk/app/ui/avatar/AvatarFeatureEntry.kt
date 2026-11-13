@@ -2,8 +2,13 @@ package com.a207.runkk.app.ui.avatar
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ProvidedValue
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
+import com.a207.runkk.app.core.designsystem.LocalSelfFaceTone
+import com.a207.runkk.app.core.designsystem.SelfFaceTone
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.SlotKey
@@ -32,6 +37,17 @@ class AvatarFeatureEntry @Inject constructor(private val store: MyAvatarStore) :
         SlotKey.RUN_AVATAR to { RunAvatarSlotContent(store) },
         SlotKey.AVATAR_STILL to { AvatarStillSlotContent(store) }
     )
+
+    /**
+     * 내 얼굴 그을림([임시:D-성-220]): 얼굴 원(디자인 시스템)이 내 셀카 얼굴의 피부 층을 몸과 같은 러닝량으로 그을린다. 준비 전이면
+     * 그을리지 않는다.
+     */
+    @Composable
+    override fun providedLocals(): List<ProvidedValue<*>> {
+        val state by store.state.collectAsStateWithLifecycle()
+        val look = (state as? MyAvatarState.Ready)?.look
+        return listOf(LocalSelfFaceTone provides SelfFaceTone(look?.faceKey, look?.rive?.runningAmount ?: 0))
+    }
 
     /**
      * 미리 준비([임시:D-성-104]): RunkkNavHost는 로그인한 동안 Overlay를 늘 그리므로 로그인된 앱 시작과 로그인·가입 완료 뒤 한 번씩

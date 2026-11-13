@@ -128,11 +128,14 @@ fun RunkkNavHost(
     var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
     val guideAnchors = remember { GuideAnchors() }
     val slots = remember(featureEntries) { featureEntries.collectSlots() }
+    // 기능이 앱 전체에 내려 주는 값(예: 아바타 기능의 내 얼굴 그을림, [임시:D-성-220])
+    val featureLocals = featureEntries.flatMap { it.providedLocals() }
     CompositionLocalProvider(
         LocalRunkkNavigator provides navigator,
         LocalReleaseScope provides releaseScope,
         LocalGuideAnchors provides guideAnchors,
-        LocalSlots provides slots
+        LocalSlots provides slots,
+        *featureLocals.toTypedArray()
     ) {
         Scaffold(
             modifier = modifier.fillMaxSize(),
