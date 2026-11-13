@@ -9,9 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -22,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -33,12 +30,14 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkSelectField
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkSpinner
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -124,7 +123,7 @@ fun ProfileEditScreen(
 @Composable
 private fun SaveAction(state: ProfileEditUiState, onSave: () -> Unit) {
     if (state.isSaving) {
-        CircularProgressIndicator(color = RunkkColors.Lime, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+        RunkkSpinner(size = 20.dp, color = RunkkColors.Lime)
     } else {
         TextButton(onClick = onSave, enabled = state.canSave) {
             Text(
@@ -224,13 +223,10 @@ private fun ProfileEditForm(
 @Composable
 private fun ProfileAvatar(state: ProfileEditUiState) {
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Box(
-            modifier = Modifier
-                .testTag(PROFILE_EDIT_AVATAR_TAG)
-                .size(AVATAR_SIZE)
-                .clip(CircleShape)
-                .background(RunkkColors.SurfacePressed),
-            contentAlignment = Alignment.Center
+        RunkkAvatarCircle(
+            AVATAR_SIZE,
+            modifier = Modifier.testTag(PROFILE_EDIT_AVATAR_TAG),
+            background = RunkkColors.SurfacePressed
         ) {
             RunkkAvatar(
                 state.faceKey,

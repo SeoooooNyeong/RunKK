@@ -2,14 +2,11 @@ package com.a207.runkk.app.ui.me
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,11 +15,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunkkActionDialog
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 
@@ -63,7 +60,7 @@ private fun NicknameBox(nickname: String) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.SurfacePressed), Alignment.Center) {
+        RunkkAvatarCircle(36.dp, background = RunkkColors.SurfacePressed) {
             RunkkAvatar(faceKey = null, expression = AvatarExpression.FACE, modifier = Modifier.fillMaxSize())
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -72,7 +69,7 @@ private fun NicknameBox(nickname: String) {
                 style = RunkkTextStyles.Caption,
                 color = RunkkColors.TextSecondary
             )
-            Text(nickname, style = RunkkTextStyles.text(16, FontWeight.Bold), color = RunkkColors.TextPrimary)
+            Text(nickname, style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
         }
     }
 }

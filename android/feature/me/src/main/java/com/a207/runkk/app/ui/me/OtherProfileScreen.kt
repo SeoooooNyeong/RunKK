@@ -2,7 +2,6 @@ package com.a207.runkk.app.ui.me
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,7 +18,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
@@ -33,11 +31,12 @@ import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -146,16 +145,12 @@ private fun OtherProfileBody(
 /** 공개된 나이대·성별(작은 글자)과 한줄 소개를 담은 칸. */
 @Composable
 private fun AboutCard(about: String?, intro: String?) {
-    val shape = RunkkShapes.Large
-    Column(
+    RunkkCard(
         modifier = Modifier
             .padding(top = 8.dp)
             .fillMaxWidth()
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(16.dp)
             .semantics(mergeDescendants = true) {},
+        borderColor = RunkkColors.Border,
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         about?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
@@ -169,12 +164,7 @@ private fun AboutCard(about: String?, intro: String?) {
 @Composable
 private fun RecentRuns(runs: List<RecentRun>) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        Text(
-            stringResource(R.string.me_other_recent_runs),
-            style = RunkkTextStyles.text(15, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.padding(bottom = 8.dp).semantics { heading() }
-        )
+        RunkkSectionHeader(stringResource(R.string.me_other_recent_runs), modifier = Modifier.padding(bottom = 8.dp))
         runs.forEach { run ->
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp).semantics(mergeDescendants = true) {},

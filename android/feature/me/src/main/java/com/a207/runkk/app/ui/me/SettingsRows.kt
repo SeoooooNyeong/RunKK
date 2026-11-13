@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -32,6 +31,7 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkDialog
 import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkRadioRow
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkSegmentOption
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
@@ -158,20 +158,13 @@ internal fun ChoiceDialog(
     RunkkDialog(title = stringResource(title), onDismissRequest = onDismiss) {
         Column(modifier = Modifier.selectableGroup()) {
             options.forEach { (value, label) ->
-                val isSelected = value == selected
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = 48.dp)
-                        .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(value) }),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        stringResource(label),
-                        style = RunkkTextStyles.text(15, if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                        color = if (isSelected) RunkkColors.Lime else RunkkColors.TextPrimary
-                    )
-                }
+                RunkkRadioRow(
+                    stringResource(label),
+                    isSelected = value == selected,
+                    onClick = { onSelect(value) },
+                    minHeight = 48.dp,
+                    labelStyle = RunkkTextStyles.text(15)
+                )
             }
         }
         RunkkDialogButtons(confirmLabel = stringResource(R.string.me_legal_close), onConfirm = onDismiss)
