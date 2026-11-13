@@ -90,11 +90,12 @@ class HomeSelfieBadgeTest {
     }
 
     @Test
-    fun `홈 칸이 보이면 워커와 따로 기기 작업을 한 번 직접 확인한다(임시 D-성-188)`() {
+    fun `홈 칸이 보이면 워커와 따로 기기 작업을 직접 확인한다(임시 D-성-188, D-성-223)`() {
         repo.progress.value = SelfieProgress.Working("job-1")
         show()
         compose.waitForIdle()
-        assertEquals(1, checks)
+        // 칸이 보일 때(ON_START) 한 번, warm이 서버에서 들여온 작업 따라가기를 이은 직후 한 번
+        assertEquals(2, checks)
     }
 
     @Test
