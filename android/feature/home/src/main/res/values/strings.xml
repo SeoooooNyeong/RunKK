@@ -76,4 +76,8 @@
     <string name="home_entry_tier_spoken">%1$s 티어</string>
     <string name="home_entry_friend">친구 대결</string>
     <string name="home_entry_friend_caption">카톡으로 친구를 불러 함께</string>
+    <string name="home_run_battery_title">화면을 꺼도 러닝을 기록하려면</string>
+    <string name="home_run_battery_message">설정에서 런크크의 배터리 최적화를 해제하거나 제한 없음을 선택해 주세요. 설정을 마치면 돌아와 자유런을 다시 눌러 주세요.</string>
+    <string name="home_run_battery_open_settings">배터리 설정 열기</string>
+    <string name="home_run_battery_skip">지금 시작</string>
 </resources>
