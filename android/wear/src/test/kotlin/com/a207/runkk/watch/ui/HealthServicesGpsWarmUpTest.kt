@@ -2,11 +2,14 @@ package com.a207.runkk.watch.ui
 
 import android.annotation.SuppressLint
 import androidx.health.services.client.data.DataType
-import androidx.health.services.client.data.ExerciseState
 import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.data.ExerciseType
 import androidx.health.services.client.data.LocationAvailability
+import com.a207.runkk.app.domain.run.WatchGpsSession
 import com.a207.runkk.watch.run.FakeExerciseClient
+import com.a207.runkk.watch.run.HealthServicesGpsWarmUp
+import com.a207.runkk.watch.run.WatchExerciseSource
+import java.time.Clock
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -25,14 +28,14 @@ import org.robolectric.RobolectricTestRunner
 class HealthServicesGpsWarmUpTest {
     private val client = FakeExerciseClient()
     private var isPermitted = true
-    private val warmUp = HealthServicesGpsWarmUp(client, isLocationPermitted = { isPermitted })
+    private val source = WatchExerciseSource(client, Clock.systemUTC(), { false }, { 0L })
+    private val warmUp = HealthServicesGpsWarmUp(source, isLocationPermitted = { isPermitted })
 
-    private val callback: HealthServicesGpsWarmUp.WarmUpCallback
-        get() = client.currentCallback as HealthServicesGpsWarmUp.WarmUpCallback
+    private val callback get() = checkNotNull(client.currentCallback)
 
     @Test
     fun `모으면 달리기 위치만 예열하고 위치 가용성으로 찾는 중과 준비됨을 낸다`() = runTest {
-        val seen = mutableListOf<GpsWarmUp.Readiness>()
+        val seen = mutableListOf<WatchGpsSession.Readiness>()
         val job = backgroundScope.launch { warmUp.readiness().collect { seen += it } }
         runCurrent()
 
@@ -42,14 +45,16 @@ class HealthServicesGpsWarmUpTest {
         assertEquals(setOf(DataType.LOCATION), config.dataTypes)
 
         callback.onAvailabilityChanged(DataType.LOCATION, LocationAvailability.ACQUIRING)
+        runCurrent()
         callback.onAvailabilityChanged(DataType.LOCATION, LocationAvailability.ACQUIRED_UNTETHERED)
+        runCurrent()
         callback.onAvailabilityChanged(DataType.LOCATION, LocationAvailability.NO_GNSS)
         runCurrent()
         assertEquals(
             listOf(
-                GpsWarmUp.Readiness.SEARCHING,
-                GpsWarmUp.Readiness.READY,
-                GpsWarmUp.Readiness.SEARCHING
+                WatchGpsSession.Readiness.SEARCHING,
+                WatchGpsSession.Readiness.READY,
+                WatchGpsSession.Readiness.SEARCHING
             ),
             seen
         )
@@ -74,11 +79,11 @@ class HealthServicesGpsWarmUpTest {
         runCurrent()
         client.events.clear()
 
-        callback.onState(ExerciseState.ACTIVE)
+        source.start()
         job.cancel()
         runCurrent()
 
-        assertEquals(listOf("clearCallback"), client.events)
+        assertEquals(listOf("start"), client.events)
     }
 
     @SuppressLint("RestrictedApi")

@@ -187,10 +187,12 @@ class WatchMeasurementServiceTest {
         runCurrent()
         assertEquals(1, tracker.routeLine.value.points.size)
 
-        client.deliver(DataPointContainer(listOf(location(4, 127.00005), location(3, 127.000025))))
+        client.deliver(
+            DataPointContainer(listOf(location(5, 127.000075), location(4, 127.00005), location(3, 127.000025)))
+        )
         runCurrent()
-        advanceTimeBy(4_001)
-        assertEquals(3, tracker.routeLine.value.points.size)
+        advanceTimeBy(5_001)
+        assertEquals(4, tracker.routeLine.value.points.size)
         assertTrue(tracker.progress.value.distance.meters in 1..6)
     }
 

@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.RunProgress
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.run.WatchGpsSession
 import com.a207.runkk.watch.battle.BattleStep
 import com.a207.runkk.watch.battle.PlacementStanding
 import com.a207.runkk.watch.battle.RecordOpponent
@@ -48,10 +49,10 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * 워치 화면 흐름 상태(WatchFlow, 상태도 2.4.25)를 정하고 사용자 조작을 domain에 넘긴다(3.5, D-374). 협력 객체는 아홉이다(D-386, W52, W53):
  * 측정 RunTracker, 대결 WatchBattleFlow, 로그인 WatchSessionStore, 폰 PhoneLink(동행 표시·로그인 정보 요청), 서버 연결 NetworkState,
- * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별·배치고사 진행), 워치 시스템 위치 LocationSettingState, GPS 예열 GpsWarmUp.
+ * 안내 문구 WatchGuidanceOutput, 본인 요약 AccountRepository(티어·성별·배치고사 진행), 워치 시스템 위치 LocationSettingState, GPS 예열 WatchGpsSession.
  *
  * - GPS(W53): 메인·거리 선택·셀럽 목록이 화면에 보이는 동안(앱이 앞에 있고 저전력 표시가 아님) GPS를 예열하고 메인에 찾는 중·준비됨을
- *   보인다. 워치 위치가 꺼져 있으면 예열하지 않고 메인에 위치 안내를 보인다. 시작하면(카운트다운·매칭) 예열을 멈춘다. 측정 중에는 위치를
+ *   보인다. 워치 위치가 꺼져 있으면 예열하지 않고 메인에 위치 안내를 보인다. 카운트다운 동안 준비를 유지해 측정으로 잇는다. 측정 중에는 위치를
  *   아직 받지 못했거나 마지막 위치 뒤 [GPS_STALE_MILLIS]가 지나면 "GPS 찾는 중"이다.
  *
  * - 시작 전 확인: 폰이 측정 중이면 거부(FR-252), 위치 동의가 없으면 "폰에서 위치 수집 동의를 해 주세요"(FR-245), 워치 시스템 위치가
@@ -83,7 +84,7 @@ class WatchFlowViewModel @Inject constructor(
     private val guidance: WatchGuidanceOutput,
     private val accounts: AccountRepository,
     private val locationSetting: LocationSettingState,
-    private val gpsWarmUp: GpsWarmUp
+    private val gpsWarmUp: WatchGpsSession
 ) : ViewModel() {
     /**
      * 러닝 한 회의 화면 맥락. [opponent]는 셀프·셀럽 상대 기록, [battleId]는 서버 대결 ID(오프라인 기록 대결은 0)다. [isFinished]는
@@ -128,6 +129,7 @@ class WatchFlowViewModel @Inject constructor(
     private val endedOutcome = MutableStateFlow<FinishOutcome?>(null)
 
     private var countdownJob: Job? = null
+    private var finishingJob: Job? = null
     private var battleDefaultJob: Job? = null
     private var matchingJob: Job? = null
     private var waitingJob: Job? = null
@@ -345,7 +347,16 @@ class WatchFlowViewModel @Inject constructor(
         if (current !is WatchFlow.Running && current !is WatchFlow.Paused) return
         val active = round ?: return
         round = active.copy(isEndedByUser = true)
-        if (active.mode == WatchMode.FREE) runTracker.onFinishLongPressed() else battleFlow.forfeit()
+        if (active.mode == WatchMode.FREE) {
+            if (finishingJob?.isActive == true) return
+            val at = runTracker.measurementTime()
+            finishingJob = viewModelScope.launch {
+                gpsWarmUp.finishMeasurement(at)
+                runTracker.onFinishLongPressed(at)
+            }
+        } else {
+            battleFlow.forfeit()
+        }
     }
 
     /**
@@ -1023,7 +1034,13 @@ class WatchFlowViewModel @Inject constructor(
         showGps(null)
         gpsWarmUp.readiness().collect { readiness ->
             showGps(
-                if (readiness == GpsWarmUp.Readiness.READY) WatchFlow.GpsStatus.READY else WatchFlow.GpsStatus.SEARCHING
+                if (readiness ==
+                    WatchGpsSession.Readiness.READY
+                ) {
+                    WatchFlow.GpsStatus.READY
+                } else {
+                    WatchFlow.GpsStatus.SEARCHING
+                }
             )
         }
         showGps(null)
@@ -1196,7 +1213,8 @@ class WatchFlowViewModel @Inject constructor(
 
         /** GPS를 예열하는 화면(W53): 메인·거리 선택·셀럽 목록. */
         private fun isWarmUpScreen(flow: WatchFlow): Boolean =
-            flow is WatchFlow.Main || flow is WatchFlow.Picker || flow is WatchFlow.CelebList
+            flow is WatchFlow.Main || flow is WatchFlow.Picker || flow is WatchFlow.CelebList ||
+                flow is WatchFlow.Countdown
 
         /** 거리 선택·카운트다운 전 화면(동행 표시로 바꿔도 되는 화면). */
         private fun isIdle(flow: WatchFlow): Boolean = flow is WatchFlow.NotLoggedIn || flow is WatchFlow.Main ||

@@ -18,6 +18,7 @@ import androidx.health.services.client.data.ExerciseTypeConfig
 import androidx.health.services.client.data.HeartRateAccuracy
 import androidx.health.services.client.data.IntervalDataPoint
 import androidx.health.services.client.data.LocationAccuracy
+import androidx.health.services.client.data.LocationAvailability
 import androidx.health.services.client.data.LocationData
 import androidx.health.services.client.data.SampleDataPoint
 import androidx.health.services.client.data.WarmUpConfig
@@ -40,7 +41,10 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -71,6 +75,58 @@ class WatchExerciseSourceTest {
         client.capabilities = ExerciseCapabilities(
             mapOf(ExerciseType.RUNNING to ExerciseTypeCapabilities(types.toSet(), emptyMap(), emptyMap(), false))
         )
+    }
+
+    @Test
+    fun `화면에서 GPS를 준비하고 시작 입력까지 세션을 유지한다`() = runTest {
+        val source = source()
+        val ready = CompletableDeferred<Boolean>()
+        val requested = CompletableDeferred<Unit>()
+        val starting = async {
+            source.start(gpsWarmUpMillis = 60_000) {
+                ready.complete(it)
+                requested.await()
+            }
+        }
+        runCurrent()
+
+        val callback = checkNotNull(client.currentCallback)
+        callback.onAvailabilityChanged(DataType.LOCATION, LocationAvailability.ACQUIRED_UNTETHERED)
+        assertTrue(ready.await())
+        assertEquals(listOf("callback", "prepare"), client.events)
+
+        requested.complete(Unit)
+        assertEquals(Outcome.Success(Unit), starting.await())
+        assertEquals(listOf("callback", "prepare", "start"), client.events)
+    }
+
+    @Test
+    fun `위치가 준비되면 같은 콜백으로 예열을 끝내지 않고 운동을 시작한다`() = runTest {
+        val source = source()
+        val starting = async { source.start(gpsWarmUpMillis = 60_000) }
+        runCurrent()
+
+        assertEquals(listOf("callback", "prepare"), client.events)
+        val callback = checkNotNull(client.currentCallback)
+        callback.onAvailabilityChanged(DataType.LOCATION, LocationAvailability.ACQUIRED_UNTETHERED)
+        assertEquals(Outcome.Success(Unit), starting.await())
+        assertEquals(listOf("callback", "prepare", "start"), client.events)
+    }
+
+    @Test
+    fun `예열이 시간 초과되어도 준비 세션을 끊지 않고 시작한다`() = runTest {
+        assertEquals(Outcome.Success(Unit), source().start(gpsWarmUpMillis = 1))
+        assertEquals(listOf("callback", "prepare", "start"), client.events)
+    }
+
+    @Test
+    fun `예열 중 취소하면 운동을 시작하지 않고 준비 세션과 콜백을 정리한다`() = runTest {
+        val source = source()
+        val starting = launch { source.start(gpsWarmUpMillis = 60_000) }
+        runCurrent()
+        starting.cancelAndJoin()
+
+        assertEquals(listOf("callback", "prepare", "end", "clearCallback"), client.events)
     }
 
     @Test
@@ -198,9 +254,8 @@ class WatchExerciseSourceTest {
         val source = source()
         val locations = mutableListOf<LocationSample>()
         val heartRates = mutableListOf<HeartRateSample>()
-        backgroundScope.launch { source.locations().collect { locations += it } }
         backgroundScope.launch { source.heartRates().collect { heartRates += it } }
-        source.start()
+        source.start(onLocations = { locations += it })
         runCurrent()
 
         client.deliver(
@@ -281,6 +336,58 @@ class WatchExerciseSourceTest {
 
         client.deliverEnded()
         assertEquals(1, ended.size)
+    }
+
+    @Test
+    fun `화면 꺼짐 중 모인 위치 300개를 측정 순서대로 한 번에 넘긴다`() = runTest {
+        val batches = mutableListOf<List<LocationSample>>()
+        val source = source()
+        source.start(onLocations = { batches += it })
+        val points = (1L..300L).reversed().map { second ->
+            location(Duration.ofMillis(BOOT_MILLIS + second * 1_000), accuracy = 4.0)
+        }
+
+        client.deliver(DataPointContainer(points))
+
+        assertEquals(
+            (1L..300L).map {
+                bootInstant.plusMillis(BOOT_MILLIS + it * 1_000)
+            },
+            batches.single().map { it.at }
+        )
+    }
+
+    @Test
+    fun `저장용 운동 종료는 마지막 위치 묶음과 종료 알림을 기다린다`() = runTest {
+        val batches = mutableListOf<List<LocationSample>>()
+        val source = source()
+        source.start(onLocations = { batches += it })
+        val finishing = async { source.finish(bootInstant.plusMillis(BOOT_MILLIS + 1_000)) }
+        runCurrent()
+        assertTrue(!finishing.isCompleted)
+
+        val point = location(Duration.ofMillis(BOOT_MILLIS + 1_000), accuracy = 4.0)
+        client.deliver(DataPointContainer(listOf(point)))
+        client.deliverEnded()
+        finishing.await()
+
+        assertEquals(1, batches.single().size)
+        assertEquals(listOf("callback", "start", "end", "clearCallback"), client.events)
+    }
+
+    @Test
+    fun `준비 화면과 실제 운동이 같은 GPS 콜백을 이어 쓴다`() = runTest {
+        val source = source()
+        val preparing = backgroundScope.launch { source.gpsReadiness().collect {} }
+        runCurrent()
+
+        val callback = checkNotNull(client.currentCallback)
+        callback.onAvailabilityChanged(DataType.LOCATION, LocationAvailability.ACQUIRED_UNTETHERED)
+        assertEquals(Outcome.Success(Unit), source.start())
+        preparing.cancelAndJoin()
+
+        assertEquals(callback, client.currentCallback)
+        assertEquals(listOf("callback", "prepare", "start"), client.events)
     }
 
     private fun location(atBoot: Duration, accuracy: Double) = SampleDataPoint(

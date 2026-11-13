@@ -36,6 +36,7 @@ import com.a207.runkk.app.domain.run.GuidanceMessage
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
+import com.a207.runkk.app.domain.run.WatchGpsSession
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.watch.battle.RecordBattleMemory
 import com.a207.runkk.watch.battle.WatchBattleFlow
@@ -132,11 +133,11 @@ class WatchFlowViewModelTest {
     private var isLocationOn = true
 
     /** GPS 예열(W53). 모으는 동안만 예열 중이다([warmUps]는 지금 예열 수). */
-    private val gpsReadiness = MutableSharedFlow<GpsWarmUp.Readiness>(replay = 1)
+    private val gpsReadiness = MutableSharedFlow<WatchGpsSession.Readiness>(replay = 1)
     private var warmUps = 0
     private var warmUpStarts = 0
-    private val gpsWarmUp = object : GpsWarmUp {
-        override fun readiness(): Flow<GpsWarmUp.Readiness> = gpsReadiness
+    private val gpsWarmUp = object : WatchGpsSession {
+        override fun readiness(): Flow<WatchGpsSession.Readiness> = gpsReadiness
             .onStart {
                 warmUps++
                 warmUpStarts++
@@ -2203,17 +2204,17 @@ class WatchFlowViewModelTest {
         assertEquals(1, warmUps)
         assertNull((h.flow as WatchFlow.Main).gps)
 
-        gpsReadiness.emit(GpsWarmUp.Readiness.SEARCHING)
+        gpsReadiness.emit(WatchGpsSession.Readiness.SEARCHING)
         runCurrent()
         assertEquals(WatchFlow.GpsStatus.SEARCHING, (h.flow as WatchFlow.Main).gps)
 
-        gpsReadiness.emit(GpsWarmUp.Readiness.READY)
+        gpsReadiness.emit(WatchGpsSession.Readiness.READY)
         runCurrent()
         assertEquals(WatchFlow.GpsStatus.READY, (h.flow as WatchFlow.Main).gps)
     }
 
     @Test
-    fun `거리 선택으로 가도 예열을 이어 가고 시작하면 카운트다운 전에 예열을 멈춘다(W53)`() = flowTest {
+    fun `거리 선택부터 출발 카운트다운까지 GPS 예열을 유지한다(W53)`() = flowTest {
         val h = open()
         h.vm.onScreenShown(true)
         runCurrent()
@@ -2226,7 +2227,7 @@ class WatchFlowViewModelTest {
         h.vm.onStartPressed()
         runCurrent()
         assertIs<WatchFlow.Countdown>(h.flow)
-        assertEquals(0, warmUps)
+        assertEquals(1, warmUps)
 
         passCountdown()
         assertEquals(1, host.starts)
@@ -2238,7 +2239,7 @@ class WatchFlowViewModelTest {
         val h = open()
         h.vm.onScreenShown(true)
         runCurrent()
-        gpsReadiness.emit(GpsWarmUp.Readiness.READY)
+        gpsReadiness.emit(WatchGpsSession.Readiness.READY)
         runCurrent()
 
         h.vm.onScreenShown(false)

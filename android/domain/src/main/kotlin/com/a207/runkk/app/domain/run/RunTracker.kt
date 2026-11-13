@@ -148,7 +148,10 @@ constructor(
                     session = fresh
                     unclaimedEnd = null
                     locationFilter = LocationFilter()
-                    stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
+                    stabilizedLocationFilter = LocationFilter(
+                        isStabilizationEnabled = true,
+                        isWatch = fresh.spec.startDevice == RunStartSpec.StartDevice.WATCH
+                    )
                     coach.begin(spec.mode)
                     noticeGap = null
                     _progress.value = RunProgress.INITIAL
@@ -182,8 +185,14 @@ constructor(
             } else {
                 locationFilter
             }
-            val point = filter.accept(s) ?: return
-            if (active.onLocation(point)) _routeLine.value = _routeLine.value + point.point
+            val points = if (isFreeRun && stabilize && active.spec.startDevice == RunStartSpec.StartDevice.WATCH) {
+                filter.acceptBatch(s)
+            } else {
+                listOfNotNull(filter.accept(s))
+            }
+            for (point in points) {
+                if (active.onLocation(point)) _routeLine.value = _routeLine.value + point.point
+            }
         }
     }
 
@@ -236,11 +245,12 @@ constructor(
         hint?.let(coach::play)
     }
 
+    fun measurementTime(): Instant = runtime.now()
+
     /**
      * 화면의 종료(길게 누름, FR-181). 정지 중에도 끝낼 수 있다(FR-036). 측정 중인 세션이 없으면 NotSaved이고 아무것도 부르지 않는다.
      */
-    fun onFinishLongPressed(): FinishOutcome {
-        val now = runtime.now()
+    fun onFinishLongPressed(now: Instant = runtime.now()): FinishOutcome {
         var isFree = false
         val outcome =
             synchronized(lock) {
@@ -338,7 +348,10 @@ constructor(
                 val active = session?.takeIf { it.isActive } ?: return
                 if (!change(active, now)) return
                 if (active.spec.mode == RunMode.FREE) {
-                    stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
+                    stabilizedLocationFilter = LocationFilter(
+                        isStabilizationEnabled = true,
+                        isWatch = active.spec.startDevice == RunStartSpec.StartDevice.WATCH
+                    )
                 }
                 active to active.tick(now).also(::emitProgress)
             }

@@ -4,6 +4,8 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.hardware.SensorManager
+import android.location.LocationManager
 import android.os.Build
 import android.os.SystemClock
 import androidx.core.content.ContextCompat
@@ -15,16 +17,20 @@ import androidx.health.services.client.data.DataPointContainer
 import androidx.health.services.client.data.DataType
 import androidx.health.services.client.data.ExerciseConfig
 import androidx.health.services.client.data.ExerciseLapSummary
+import androidx.health.services.client.data.ExerciseState
 import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.data.ExerciseType
 import androidx.health.services.client.data.ExerciseUpdate
 import androidx.health.services.client.data.HeartRateAccuracy
 import androidx.health.services.client.data.LocationAccuracy
+import androidx.health.services.client.data.LocationAvailability
+import androidx.health.services.client.data.WarmUpConfig
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.CadenceMeter
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.InertialMotion
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.settings.SettingsRepository
@@ -36,12 +42,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.guava.await
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
 /**
@@ -62,7 +76,9 @@ class WatchExerciseSource internal constructor(
     private val clock: Clock,
     private val isHeartRateAllowed: () -> Boolean,
     private val elapsedRealtimeMillis: () -> Long,
-    private val isMotionAllowed: () -> Boolean = { false }
+    private val isMotionAllowed: () -> Boolean = { false },
+    private val inertialMotion: WatchInertialMotion? = null,
+    private val gnssSpeed: WatchGnssSpeed? = null
 ) {
     @Inject
     constructor(@ApplicationContext context: Context, clock: Clock, settings: SettingsRepository) : this(
@@ -72,10 +88,16 @@ class WatchExerciseSource internal constructor(
             settings.heartRateConsented() && settings.watchLinked() && heartRatePermitted(context)
         },
         elapsedRealtimeMillis = SystemClock::elapsedRealtime,
-        isMotionAllowed = { activityRecognitionPermitted(context) }
+        isMotionAllowed = { activityRecognitionPermitted(context) },
+        inertialMotion = WatchInertialMotion(context.getSystemService(SensorManager::class.java)),
+        gnssSpeed = WatchGnssSpeed(context.getSystemService(LocationManager::class.java))
     )
 
-    private val locationSamples = MutableSharedFlow<LocationSample>(extraBufferCapacity = SAMPLE_BUFFER)
+    @Volatile
+    private var onLocations: ((List<LocationSample>) -> Unit)? = null
+
+    @Volatile
+    private var finalUpdate: CompletableDeferred<Unit>? = null
     private val heartRateSamples = MutableSharedFlow<HeartRateSample>(extraBufferCapacity = SAMPLE_BUFFER)
     private val motionSamples = MutableSharedFlow<MotionSample>(extraBufferCapacity = SAMPLE_BUFFER)
 
@@ -95,6 +117,50 @@ class WatchExerciseSource internal constructor(
     private var bootInstant: Instant = Instant.EPOCH
 
     private val receiver = MetricsReceiver()
+    private val gpsAvailable = MutableStateFlow(false)
+    private var preparation: Any? = null
+
+    @Volatile
+    private var finishAt: Instant? = null
+
+    /** 준비 화면과 실제 측정이 같은 GPS 콜백을 쓴다. 준비 화면을 닫으면 남은 예열만 정리한다. */
+    internal fun gpsReadiness(): Flow<Boolean> = flow {
+        val owner = Any()
+        try {
+            val prepared = sessionLock.withLock {
+                if (isOpen || preparation != null || currentOwner() != Owner.NONE) return@withLock false
+                gpsAvailable.value = false
+                preparation = owner
+                exerciseClient.setUpdateCallback(receiver)
+                prepareGps()
+                true
+            }
+            if (prepared) emitAll(gpsAvailable)
+        } finally {
+            withContext(NonCancellable) {
+                sessionLock.withLock {
+                    if (preparation === owner) {
+                        preparation = null
+                        clearPreparation()
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun currentOwner(): Owner =
+        exerciseOwnerOf(exerciseClient.getCurrentExerciseInfoAsync().await().exerciseTrackedStatus)
+
+    private suspend fun prepareGps() {
+        exerciseClient.prepareExerciseAsync(WarmUpConfig(ExerciseType.RUNNING, setOf(DataType.LOCATION))).await()
+    }
+
+    private suspend fun clearPreparation() {
+        attempt {
+            if (currentOwner() != Owner.OTHER_APP) exerciseClient.endExerciseAsync().await()
+        }
+        attempt { exerciseClient.clearUpdateCallbackAsync(receiver).await() }
+    }
 
     /**
      * 열기·끝내기를 한 줄로 세운다(남은 위험 M2, 코드 리뷰 WR12-9). 끝내기가 끝나기 전에 새 세션을 열면 늦게 끝난 끝내기가 새 세션의
@@ -105,6 +171,7 @@ class WatchExerciseSource internal constructor(
     /** 이 앱이 연 세션이 열려 있다. 끝낸 뒤 늦게 온 운동 끝 알림은 [ended]로 보내지 않는다. */
     @Volatile
     private var isOpen = false
+    private var usesGnssSpeed = false
 
     /**
      * 이번 세션의 시작을 요청한 시각(벽시계). 이보다 먼저 시작한 세션의 끝 알림은 이전 세션(이 앱이 남긴 세션을 [open]이 끝낸 것,
@@ -114,9 +181,14 @@ class WatchExerciseSource internal constructor(
     private var requestedAt: Instant = Instant.MAX
 
     /** 세션을 연다. 다른 앱이 운동 중이면 Failure(Rejected(EXERCISE_IN_USE)), Health Services 오류는 Failure(Rejected(EXERCISE_FAILED)). */
-    suspend fun start(): Outcome<Unit> = sessionLock.withLock {
+    suspend fun start(
+        gpsWarmUpMillis: Long = 0,
+        onLocations: (List<LocationSample>) -> Unit = {},
+        useGnssSpeed: Boolean = false,
+        onGpsPrepared: suspend (Boolean) -> Unit = {}
+    ): Outcome<Unit> = sessionLock.withLock {
         try {
-            open()
+            open(gpsWarmUpMillis, onLocations, useGnssSpeed, onGpsPrepared)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -125,19 +197,25 @@ class WatchExerciseSource internal constructor(
         }
     }
 
-    private suspend fun open(): Outcome<Unit> {
+    private suspend fun open(
+        gpsWarmUpMillis: Long,
+        onLocations: (List<LocationSample>) -> Unit,
+        useGnssSpeed: Boolean,
+        onGpsPrepared: suspend (Boolean) -> Unit
+    ): Outcome<Unit> {
         // 끝내지 않은 이 앱 세션을 아래에서 끝낼 때 오는 끝 알림을 새 측정의 끝으로 보내지 않는다.
-        isOpen = false
-        when (exerciseOwnerOf(exerciseClient.getCurrentExerciseInfoAsync().await().exerciseTrackedStatus)) {
+        if (isOpen) return Outcome.Failure(AppError.Rejected(EXERCISE_IN_USE))
+        val preparedOnScreen = preparation != null
+        when (currentOwner()) {
             Owner.OTHER_APP -> return Outcome.Failure(AppError.Rejected(EXERCISE_IN_USE))
-            Owner.THIS_APP -> exerciseClient.endExerciseAsync().await()
+            Owner.THIS_APP -> if (!preparedOnScreen) exerciseClient.endExerciseAsync().await()
             Owner.NONE -> Unit
         }
         bootInstant = Instant.ofEpochMilli(clock.millis() - elapsedRealtimeMillis())
         requestedAt = clock.instant()
         stepCadence = StepCadence()
-        val motionTypes = if (isMotionAllowed()) motionDataTypes() else emptySet()
-        exerciseClient.setUpdateCallback(receiver)
+        val motionAllowed = isMotionAllowed()
+        val motionTypes = if (motionAllowed) motionDataTypes() else emptySet()
         val dataTypes = buildSet<DataType<*, *>> {
             add(DataType.LOCATION)
             if (isHeartRateAllowed()) add(DataType.HEART_RATE_BPM)
@@ -148,17 +226,43 @@ class WatchExerciseSource internal constructor(
             .setIsAutoPauseAndResumeEnabled(false)
             .setIsGpsEnabled(true)
             .build()
+        val prepareGps = gpsWarmUpMillis > 0 && !preparedOnScreen
+        preparation = null
         try {
+            if (!preparedOnScreen) exerciseClient.setUpdateCallback(receiver)
+            if (prepareGps) {
+                gpsAvailable.value = false
+                val ready = withTimeoutOrNull(gpsWarmUpMillis) {
+                    prepareGps()
+                    gpsAvailable.first { it }
+                } == true
+                Timber.i("운동 시작 전 GPS 준비 완료 여부: %b", ready)
+                onGpsPrepared(ready)
+                if (currentOwner() == Owner.OTHER_APP) {
+                    return Outcome.Failure(AppError.Rejected(EXERCISE_IN_USE))
+                }
+            }
+            this.onLocations = onLocations
+            inertialMotion?.start()
+            usesGnssSpeed = useGnssSpeed
+            if (usesGnssSpeed) gnssSpeed?.start()
             exerciseClient.startExerciseAsync(config).await()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            // 시작이 실패하면 걸어 둔 콜백을 푼다(남은 콜백이 다음 세션 값을 받지 않게).
-            attempt { exerciseClient.clearUpdateCallbackAsync(receiver).await() }
-            throw e
+            isOpen = true
+            return Outcome.Success(Unit)
+        } finally {
+            if (!isOpen) {
+                this.onLocations = null
+                inertialMotion?.stop()
+                gnssSpeed?.stop()
+                withContext(NonCancellable) {
+                    if (prepareGps || preparedOnScreen) {
+                        clearPreparation()
+                    } else {
+                        attempt { exerciseClient.clearUpdateCallbackAsync(receiver).await() }
+                    }
+                }
+            }
         }
-        isOpen = true
-        return Outcome.Success(Unit)
     }
 
     /**
@@ -178,28 +282,55 @@ class WatchExerciseSource internal constructor(
         return motionDataTypesOf(supported)
     }
 
-    /** 위치 표본(측정일시, 좌표, 수평 정확도 반경 m). 정확도를 모르면 Double.MAX_VALUE(domain LocationFilter가 거른다). */
-    fun locations(): Flow<LocationSample> = locationSamples.asSharedFlow()
-
     /** 믿을 수 있는 심박 표본. */
     fun heartRates(): Flow<HeartRateSample> = heartRateSamples.asSharedFlow()
 
     /** 기기가 잰 속도·케이던스 표본(S15P31A207-242). 세션에 넣지 않았으면 아무것도 내지 않는다. */
     fun motions(): Flow<MotionSample> = motionSamples.asSharedFlow()
 
-    suspend fun pause() {
+    suspend fun pause(): Unit = sessionLock.withLock {
+        if (!isOpen) return@withLock
         attempt { exerciseClient.pauseExerciseAsync().await() }
+        if (usesGnssSpeed) gnssSpeed?.pause()
     }
 
-    suspend fun resume() {
+    suspend fun resume(): Unit = sessionLock.withLock {
+        if (!isOpen) return@withLock
         attempt { exerciseClient.resumeExerciseAsync().await() }
+        if (usesGnssSpeed) gnssSpeed?.start()
     }
 
     /** 세션을 끝내고 콜백을 푼다. 실패해도 예외를 올리지 않는다(다음 [start]가 남은 세션을 끝낸다). */
-    suspend fun end() = sessionLock.withLock {
+    suspend fun end() = close(waitForFinalUpdate = false)
+
+    /** 마지막 센서 묶음을 처리한 뒤 자유런 기록을 확정할 수 있게 한다. */
+    suspend fun finish(at: Instant = clock.instant()) = close(waitForFinalUpdate = true, at = at)
+
+    private suspend fun close(waitForFinalUpdate: Boolean, at: Instant? = null) = sessionLock.withLock {
+        if (!isOpen) return@withLock
+        val completed = if (waitForFinalUpdate) CompletableDeferred<Unit>() else null
+        finishAt = at
+        finalUpdate = completed
         isOpen = false
-        attempt { exerciseClient.endExerciseAsync().await() }
-        attempt { exerciseClient.clearUpdateCallbackAsync(receiver).await() }
+        try {
+            val received = withTimeoutOrNull(FINAL_UPDATE_TIMEOUT_MILLIS) {
+                exerciseClient.endExerciseAsync().await()
+                completed?.await()
+                true
+            }
+            if (received == null) Timber.w("운동 종료 위치 전달 시간 초과")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Timber.w(e, "운동 종료 실패")
+        } finally {
+            onLocations = null
+            finalUpdate = null
+            finishAt = null
+            inertialMotion?.stop()
+            gnssSpeed?.stop()
+            withContext(NonCancellable) { attempt { exerciseClient.clearUpdateCallbackAsync(receiver).await() } }
+        }
     }
 
     /** Health Services 호출 하나. 실패(서비스 없음·세션 없음 등)는 기록만 하고 삼킨다. 취소는 그대로 전한다. */
@@ -216,6 +347,7 @@ class WatchExerciseSource internal constructor(
     /** 운동 세션 콜백. 측정값만 표본으로 바꾸고 나머지(랩·가용성)는 쓰지 않는다. */
     internal inner class MetricsReceiver : ExerciseUpdateCallback {
         override fun onExerciseUpdateReceived(update: ExerciseUpdate) {
+            if (update.exerciseStateInfo.state == ExerciseState.PREPARING || isPrevious(update.startTime)) return
             onMetrics(update.latestMetrics)
             val info = update.exerciseStateInfo
             onState(info.state.isEnded, update.startTime, info.endReason)
@@ -227,19 +359,39 @@ class WatchExerciseSource internal constructor(
          */
         fun onState(isEnded: Boolean, startTime: Instant?, endReason: Int) {
             if (!isEnded) return
-            val isPrevious = startTime != null && startTime.isBefore(requestedAt.minus(START_SLACK))
+            val isPrevious = isPrevious(startTime)
             Timber.i("운동 세션 끝 알림: 사유 %d, 시작 %s, 열림 %b, 이전 세션 %b", endReason, startTime, isOpen, isPrevious)
-            if (isOpen && !isPrevious) endedSignals.tryEmit(Unit)
+            if (isPrevious) return
+            val finishing = finalUpdate
+            if (finishing != null) {
+                finishing.complete(Unit)
+            } else if (isOpen) {
+                endedSignals.tryEmit(Unit)
+            }
         }
+
+        private fun isPrevious(startTime: Instant?): Boolean =
+            startTime != null && startTime.isBefore(requestedAt.minus(START_SLACK))
 
         fun onMetrics(container: DataPointContainer) {
             val boot = bootInstant
             // 화면이 꺼져 위치가 묶여 와도 필터에는 측정 시각순으로 넘긴다.
-            container.getData(DataType.LOCATION).sortedBy { it.getTimeInstant(boot) }.forEach { point ->
+            val batch = container.getData(DataType.LOCATION).sortedBy { it.getTimeInstant(boot) }.mapNotNull { point ->
                 val accuracy = (point.accuracy as? LocationAccuracy)?.horizontalPositionErrorMeters ?: Double.MAX_VALUE
                 val location = point.value
-                val geo = runCatching { GeoPoint(location.latitude, location.longitude) }.getOrNull() ?: return@forEach
-                locationSamples.tryEmit(LocationSample(point.getTimeInstant(boot), geo, accuracy))
+                val geo =
+                    runCatching { GeoPoint(location.latitude, location.longitude) }.getOrNull()
+                        ?: return@mapNotNull null
+                val at = point.getTimeInstant(boot)
+                if (finishAt?.let(at::isAfter) == true) return@mapNotNull null
+                val elapsed = Duration.between(boot, at).toMillis()
+                val motion = inertialMotion?.stateAt(elapsed, elapsedRealtimeMillis())
+                val sample = LocationSample(at, geo, accuracy, inertialMotion = motion ?: InertialMotion.UNKNOWN)
+                gnssSpeed?.applyTo(sample, elapsed) ?: sample
+            }
+            if (batch.isNotEmpty()) {
+                Timber.d("워치 위치 묶음: %d점", batch.size)
+                onLocations?.invoke(batch)
             }
             container.getData(DataType.HEART_RATE_BPM).forEach { point ->
                 val status = (point.accuracy as? HeartRateAccuracy)?.sensorStatus
@@ -281,7 +433,13 @@ class WatchExerciseSource internal constructor(
             Timber.w(throwable, "운동 세션 콜백 등록 실패")
         }
 
-        override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) = Unit
+        override fun onAvailabilityChanged(dataType: DataType<*, *>, availability: Availability) {
+            if (dataType == DataType.LOCATION && availability is LocationAvailability) {
+                gpsAvailable.value =
+                    availability == LocationAvailability.ACQUIRED_UNTETHERED ||
+                    availability == LocationAvailability.ACQUIRED_TETHERED
+            }
+        }
     }
 
     /** STEPS(구간마다 늘어난 걸음 수)를 누적해 CadenceMeter에 넘긴다. */
@@ -309,6 +467,7 @@ class WatchExerciseSource internal constructor(
         /** Health Services 호출이 실패했다(사유 코드). */
         const val EXERCISE_FAILED = "EXERCISE_FAILED"
 
+        private const val FINAL_UPDATE_TIMEOUT_MILLIS = 3_000L
         private const val SAMPLE_BUFFER = 64
         private const val API_BAKLAVA = 36
 
