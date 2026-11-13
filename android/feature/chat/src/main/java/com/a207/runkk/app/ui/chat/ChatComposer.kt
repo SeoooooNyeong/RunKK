@@ -1,8 +1,6 @@
 package com.a207.runkk.app.ui.chat
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,20 +8,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.liveRegion
@@ -31,6 +25,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
+import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 
@@ -108,33 +104,17 @@ internal fun ChatComposer(state: ChatUiState, actions: ChatActions) {
 /** 둥근 보내기 단추(보이는 크기 44dp, 터치 영역 48dp). 보낼 수 없으면 흐리게 하고 누름을 막는다. */
 @Composable
 private fun SendButton(isEnabled: Boolean, onSend: () -> Unit) {
-    val label = stringResource(R.string.chat_send)
-    Box(
-        Modifier
-            .size(48.dp)
-            .clickable(enabled = isEnabled, role = Role.Button, onClick = onSend)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            Modifier
-                .size(44.dp)
-                .graphicsLayer { alpha = if (isEnabled) 1f else DISABLED_ALPHA }
-                .clip(CircleShape)
-                .background(RunkkColors.TextPrimary),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                ChatIcons.ArrowUp,
-                contentDescription = null,
-                tint = RunkkColors.Surface,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
+    RunkkIconButton(
+        icon = RunkkIcons.ArrowUp,
+        contentDescription = stringResource(R.string.chat_send),
+        onClick = onSend,
+        visualSize = 44.dp,
+        borderColor = Color.Transparent,
+        containerColor = RunkkColors.TextPrimary,
+        iconTint = RunkkColors.Surface,
+        isEnabled = isEnabled
+    )
 }
 
 /** 입력칸이 늘어나는 최대 줄 수. */
 private const val MAX_LINES = 4
-
-private const val DISABLED_ALPHA = 0.4f
