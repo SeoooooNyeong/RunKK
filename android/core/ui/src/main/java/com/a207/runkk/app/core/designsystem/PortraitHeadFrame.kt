@@ -7,10 +7,11 @@ import kotlin.math.roundToInt
  * 프로필 원에 셀카 머리 층(GET /avatar/heads 정면 세 층, 1024 공통 캔버스)을 그릴 구도([임시:D-성-189]). 머리 크기와 가운데는
  * [TARGET](정수리~턱이 상자의 91%, 목 가운데 50%)을 따른다.
  *
- * - 원 안([of]의 isInCircle 참): 목은 늘리지 않고 제 길이 그대로 두고 머리를 내려, 목이 둥글게 끝나기 시작하는 줄([Neck.end])이 상자
- *   바닥에 오게 한다(사용자 요청 2026-11-12: 목을 늘리면 길어 보인다). 그래서 정수리가 원 안으로 들어오고 목 끝의 둥근 외곽선은 원 아래
- *   가장자리 밖에서 잘린다. 정수리가 [CROWN_MIN]..[CROWN_MAX] 밖으로 나가면 그 끝에 맞추고, 그래도 목 끝이 바닥에 닿지 않으면(아주 짧은
- *   목) 목이 끝나기 직전 줄([neckRow])을 바닥까지 목 폭 그대로 늘린다.
+ * - 원 안([of]의 isInCircle 참): 서 있는 아바타처럼 생성 목 그림을 늘리지 않고 그대로 쓴다. 머리는 정수리~턱이 상자의
+ *   [IN_CIRCLE_SPAN]이고, 목 맨 아래 줄을 [NECK_BOTTOM_Y](원 가장자리 바로 밖)에 둬 턱 아래 목이 짧게 보이고 둥근 목 끝 외곽선은 원
+ *   밖에서 잘린다. 정수리가 [CROWN_MIN]..[CROWN_MAX] 밖으로 나가면 그 끝에 맞추고, 그래도 목 끝이 바닥에 닿지 않으면(아주 짧은 목) 목이
+ *   끝나기 직전 줄([neckRow])을 바닥까지 늘린다([임시:D-성-221], 2026-11-13 PM "기본 캐릭터는 목이 있는데 직접 만든 건 목이 없다",
+ *   "아바타 서있을 때 쓴 목으로").
  * - 원 밖(대결 그림·지도 마커 등, [임시:D-성-193]): [TARGET] 그대로(정수리 -5%, 턱 86%) 두고 목은 제 길이로 둥글게 끝난다.
  *
  * 기본 머리 그림([RunkkAvatarArt.defaultHeadOf])도 같은 규칙으로 만든다(core/ui/tools/default-head). 값은 상자 한 변에 대한 비다.
@@ -52,6 +53,12 @@ internal data class PortraitHeadFrame(val scale: Float, val dx: Float, val dy: F
          */
         val TARGET = Reference(crownY = -0.05f, chinY = 0.86f, centerX = 0.5f)
 
+        /** 원 안 머리 크기: 정수리~턱이 상자 높이의 85%(서 있는 아바타처럼 턱 아래 목이 짧게 보이는 크기). */
+        const val IN_CIRCLE_SPAN = 0.85f
+
+        /** 원 안에서 생성 목의 맨 아래 줄이 놓일 자리: 원 아래 가장자리 바로 밖(둥근 목 끝 외곽선이 보이지 않는다). */
+        const val NECK_BOTTOM_Y = 1.02f
+
         /** 원 안에서 머리를 내릴 때 정수리가 놓일 수 있는 범위(상자 한 변 대비). 기본 머리 그림은 약 2~3%다. */
         const val CROWN_MIN = -0.05f
         const val CROWN_MAX = 0.08f
@@ -87,11 +94,23 @@ internal data class PortraitHeadFrame(val scale: Float, val dx: Float, val dy: F
             val crown = crownOf(hair, width, height) ?: return null
             val span = neck.chinY - crown
             if (span < height * MIN_SPAN) return null
-            val scale = (TARGET.chinY - TARGET.crownY) / span
+            if (!isInCircle) {
+                val scale = (TARGET.chinY - TARGET.crownY) / span
+                return PortraitHeadFrame(
+                    scale,
+                    TARGET.centerX - neck.centerX * scale,
+                    TARGET.chinY - neck.chinY * scale,
+                    null
+                )
+            }
+            // 원 안: 서 있는 아바타처럼 생성 목 그림을 늘리지 않고 그대로 둔다. 목 맨 아래 줄을 원 가장자리 바로 밖에 두고, 정수리가
+            // 범위를 벗어나면 그 끝에 맞춘다([임시:D-성-221]).
+            val scale = IN_CIRCLE_SPAN / span
             val dx = TARGET.centerX - neck.centerX * scale
-            if (!isInCircle) return PortraitHeadFrame(scale, dx, TARGET.chinY - neck.chinY * scale, null)
-            // 목 끝(둥글어지기 시작하는 줄)이 상자 바닥에 오게 머리를 내린다. 정수리가 범위를 벗어나면 그 끝에 맞춘다.
-            val dy = (1f - neck.end * scale).coerceIn(CROWN_MIN - crown * scale, CROWN_MAX - crown * scale)
+            val dy = (NECK_BOTTOM_Y - neck.bottom * scale).coerceIn(
+                CROWN_MIN - crown * scale,
+                CROWN_MAX - crown * scale
+            )
             val reachesBottom = neck.end * scale + dy >= 1f - 1e-4f
             // 아주 짧은 목: 목 끝 외곽선 바로 위 줄을 바닥까지 늘린다.
             val row = if (reachesBottom) {
@@ -143,11 +162,16 @@ internal data class PortraitHeadFrame(val scale: Float, val dx: Float, val dy: F
             return null
         }
 
-        /** 턱 [chin]부터 목 끝 [bottom] 사이에서 목 폭이 최대 폭의 [NECK_END_RATIO] 이상인 마지막 줄 다음(둥근 끝이 시작하는 줄). */
+        /**
+         * 턱 [chin]부터 목 끝 [bottom] 사이에서 목 폭이 목 폭 중앙값의 [NECK_END_RATIO] 이상인 마지막 줄 다음(둥근 끝이 시작하는 줄).
+         * 최대 폭이 아니라 중앙값을 본다: 생성 목은 턱 바로 아래가 가장 넓어(턱과 이어지는 곳) 최대 폭으로 보면 목 끝이 턱 바로 다음
+         * 줄로 잡혀 목이 없는 것으로 보였다([임시:D-성-221]).
+         */
         private fun neckEnd(rows: Array<Span?>, chin: Int, bottom: Int): Int {
-            val widest = (chin until bottom).maxOfOrNull { rows[it]?.width ?: 0 } ?: 0
+            val widths = (chin until bottom).map { rows[it]?.width ?: 0 }.filter { it > 0 }.sorted()
+            val median = widths.getOrNull(widths.size / 2) ?: 0
             val last =
-                (chin until bottom).lastOrNull { (rows[it]?.width ?: 0) >= widest * NECK_END_RATIO } ?: (bottom - 1)
+                (chin until bottom).lastOrNull { (rows[it]?.width ?: 0) >= median * NECK_END_RATIO } ?: (bottom - 1)
             return last + 1
         }
 

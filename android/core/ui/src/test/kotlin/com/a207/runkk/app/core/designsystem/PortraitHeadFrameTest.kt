@@ -15,23 +15,35 @@ import org.junit.Test
  */
 class PortraitHeadFrameTest {
     @Test
-    fun `원 안 - 머리 크기와 가운데는 그대로 두고 머리를 내려 목 끝이 상자 바닥에 온다(목은 늘리지 않는다)`() {
+    fun `원 안 - 서 있는 아바타처럼 목 그림을 늘리지 않고 목 맨 아래를 원 가장자리 바로 밖에 둔다`() {
         val frame = assertNotNotNull(PortraitHeadFrame.of(face(), hair(), SIZE, SIZE))
-        val target = PortraitHeadFrame.TARGET
-        assertNear(target.chinY - target.crownY, frame.mapY(CHIN.toFloat()) - frame.mapY(CROWN.toFloat()), "정수리~턱")
-        assertNear(target.centerX, frame.mapX(CENTER), "가운데")
-        assertNear(1f, frame.mapY(NECK_BOTTOM.toFloat()), "목 끝이 상자 바닥")
+        assertNear(
+            PortraitHeadFrame.IN_CIRCLE_SPAN,
+            frame.mapY(CHIN.toFloat()) - frame.mapY(CROWN.toFloat()),
+            "정수리~턱"
+        )
+        assertNear(PortraitHeadFrame.TARGET.centerX, frame.mapX(CENTER), "가운데")
+        assertNear(PortraitHeadFrame.NECK_BOTTOM_Y, frame.mapY(NECK_BOTTOM.toFloat()), "목 맨 아래")
+        assertTrue(frame.mapY(CHIN.toFloat()) < 1f, "턱 아래 목이 원 안에 보인다")
         assertNull(frame.neckRow, "목은 늘리지 않는다")
         val crown = frame.mapY(CROWN.toFloat())
-        assertTrue(crown > target.crownY + .02f, "정수리가 원래 자리(-5%)보다 내려온다: $crown")
         assertTrue(crown in PortraitHeadFrame.CROWN_MIN..PortraitHeadFrame.CROWN_MAX, "정수리 범위: $crown")
     }
 
     @Test
     fun `원 안 - 목이 둥글게 끝나는 부분(외곽선)은 상자 밖이다`() {
         val frame = assertNotNotNull(PortraitHeadFrame.of(face(roundEnd = true), hair(), SIZE, SIZE))
-        assertNear(1f, frame.mapY(ROUND_START.toFloat()), "목이 좁아지기 시작하는 줄이 상자 바닥")
+        assertTrue(frame.mapY(ROUND_START.toFloat()) <= 1f, "둥근 끝이 시작하기 전 목은 상자 안")
         assertTrue(frame.mapY(NECK_BOTTOM.toFloat()) > 1f, "둥근 끝은 상자 아래로 잘린다")
+        // 둥근 끝이 상자 안에 걸리면 그 위 줄을 늘려 둥근 외곽선은 그리지 않는다
+        frame.neckRow?.let { assertTrue(it < ROUND_START, "늘리는 줄은 둥근 끝 위: $it") }
+    }
+
+    @Test
+    fun `원 안 - 턱 바로 아래 목이 가장 넓어도 목 끝을 턱으로 잡지 않아 목이 보인다`() {
+        // 생성 셀카처럼 목이 턱에 이어지는 곳이 가장 넓고 아래로 조금 좁아진다([임시:D-성-221])
+        val frame = assertNotNotNull(PortraitHeadFrame.of(face(flaredNeck = true), hair(), SIZE, SIZE))
+        assertTrue(frame.mapY(CHIN.toFloat()) < .97f, "턱이 원 바닥에 붙지 않는다: ${frame.mapY(CHIN.toFloat())}")
         assertNull(frame.neckRow)
     }
 
@@ -91,18 +103,25 @@ class PortraitHeadFrameTest {
          * 셀카 머리 얼굴 층 꼴(GeneratedAvatarLayersTest와 같은 도형): 머리 x312..712·y300..750, 목 x467..557. [roundEnd]면 목 끝
          * [ROUND_START]부터 폭이 줄어든다(실제 머리 그림처럼 둥근 끝).
          */
-        fun face(neckBottom: Int = NECK_BOTTOM, roundEnd: Boolean = false) = IntArray(SIZE * SIZE).also {
-            fill(it, 312..712, 300 until CHIN)
-            if (!roundEnd) {
-                fill(it, 467..557, CHIN until neckBottom)
-                return@also
+        fun face(neckBottom: Int = NECK_BOTTOM, roundEnd: Boolean = false, flaredNeck: Boolean = false) =
+            IntArray(SIZE * SIZE).also {
+                fill(it, 312..712, 300 until CHIN)
+                if (flaredNeck) {
+                    // 턱 아래 4줄은 목이 넓고(턱과 이어지는 곳) 그 아래는 고른 폭이다
+                    fill(it, 457..567, CHIN until CHIN + 4)
+                    fill(it, 467..557, CHIN + 4 until neckBottom)
+                    return@also
+                }
+                if (!roundEnd) {
+                    fill(it, 467..557, CHIN until neckBottom)
+                    return@also
+                }
+                fill(it, 467..557, CHIN until ROUND_START)
+                for (y in ROUND_START until neckBottom) {
+                    val inset = (y - ROUND_START) / 2 + 2
+                    fill(it, 467 + inset..557 - inset, y..y)
+                }
             }
-            fill(it, 467..557, CHIN until ROUND_START)
-            for (y in ROUND_START until neckBottom) {
-                val inset = (y - ROUND_START) / 2 + 2
-                fill(it, 467 + inset..557 - inset, y..y)
-            }
-        }
 
         /** 헤어 층(정수리 y150). */
         fun hair() = IntArray(SIZE * SIZE).also { fill(it, 300..724, CROWN..330) }

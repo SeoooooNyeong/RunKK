@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.avatar.AvatarMotion
 import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.preloadRiveAvatar
 import com.a207.runkk.app.core.avatar.prepareRiveAvatarLook
+import com.a207.runkk.app.core.designsystem.SelfFaceTone
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
@@ -69,7 +70,11 @@ class MyAvatarStore internal constructor(
     /** 기기에 남은 셀카 작업 따라가기 잇기(리뷰 R2-3, [임시:D-성-163]). */
     private val resumeSelfie: suspend () -> Unit = {},
     /** 기기에 남은 셀카 작업을 앞 화면에서 한 번 직접 확인([임시:D-성-188]). */
-    private val checkPending: suspend () -> Unit = {}
+    private val checkPending: suspend () -> Unit = {},
+    /** 기기에 남긴 마지막 내 얼굴 그을림(앱을 켠 첫 화면부터 쓴다, [임시:D-성-222]). */
+    private val savedTone: () -> SelfFaceTone = { SelfFaceTone() },
+    /** 내 얼굴 그을림을 기기에 남긴다. 로그아웃이면 빈 값을 남긴다. */
+    private val saveTone: (SelfFaceTone) -> Unit = {}
 ) {
     @Inject
     constructor(
@@ -100,7 +105,9 @@ class MyAvatarStore internal constructor(
         loggedIn = sessions.loggedIn,
         onLoggedOut = { photo.clear() },
         resumeSelfie = { avatars.pendingSelfieJobId()?.let(follower::resume) },
-        checkPending = { follower.checkNow() }
+        checkPending = { follower.checkNow() },
+        savedTone = { FaceTonePrefs.read(context) },
+        saveTone = { FaceTonePrefs.write(context, it) }
     )
 
     /** 셀카 작업 진행(홈 칸의 진행 배지가 듣는다, 피그마 AV-7 4). */
@@ -108,6 +115,13 @@ class MyAvatarStore internal constructor(
 
     private val _state = MutableStateFlow<MyAvatarState>(MyAvatarState.Idle)
     val state: StateFlow<MyAvatarState> = _state.asStateFlow()
+
+    /**
+     * 내 얼굴 그을림(얼굴 원이 쓴다, [임시:D-성-222]). 몸 합성(Ready)을 기다리지 않는다: 아바타·러너 응답을 받자마자 바꾸고 기기에
+     * 남겨, 앱을 다시 켜면 첫 화면부터 홈·랭킹·크루런의 내 얼굴이 같은 톤이다.
+     */
+    private val _faceTone = MutableStateFlow(savedTone())
+    val faceTone: StateFlow<SelfFaceTone> = _faceTone.asStateFlow()
 
     private var generation = 0
     private var genderJob: Job? = null
@@ -200,6 +214,9 @@ class MyAvatarStore internal constructor(
         work = null
         gender = null
         _state.value = MyAvatarState.Idle
+        // 다음 회원에게 앞 회원 얼굴 톤을 남기지 않는다
+        _faceTone.value = SelfFaceTone()
+        saveTone(SelfFaceTone())
     }
 
     private fun onGender(next: AvatarGender?) {
@@ -243,6 +260,12 @@ class MyAvatarStore internal constructor(
         if (avatar !is Outcome.Success || runner !is Outcome.Success) {
             shopCall.cancel()
             return@coroutineScope MyAvatarState.Failed
+        }
+        // 얼굴 톤은 몸 합성을 기다리지 않고 바로 바꾼다([임시:D-성-222])
+        val tone = SelfFaceTone(avatar.value.faceKey, runner.value.runAmount)
+        if (tone != _faceTone.value) {
+            _faceTone.value = tone
+            saveTone(tone)
         }
         val items = shopCall.await().getOrNull()?.items.orEmpty()
         val face = heads.look(avatar.value.faceKey)

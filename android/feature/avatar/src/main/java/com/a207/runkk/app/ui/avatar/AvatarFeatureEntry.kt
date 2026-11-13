@@ -39,14 +39,13 @@ class AvatarFeatureEntry @Inject constructor(private val store: MyAvatarStore) :
     )
 
     /**
-     * 내 얼굴 그을림([임시:D-성-220]): 얼굴 원(디자인 시스템)이 내 셀카 얼굴의 피부 층을 몸과 같은 러닝량으로 그을린다. 준비 전이면
-     * 그을리지 않는다.
+     * 내 얼굴 그을림([임시:D-성-220]): 얼굴 원(디자인 시스템)이 내 셀카 얼굴의 피부 층을 몸과 같은 러닝량으로 그을린다. 몸 합성을
+     * 기다리지 않고 저장소가 바로 바꾸고 기기에 남긴 값이라 앱을 켠 첫 화면부터 같다([임시:D-성-222]).
      */
     @Composable
     override fun providedLocals(): List<ProvidedValue<*>> {
-        val state by store.state.collectAsStateWithLifecycle()
-        val look = (state as? MyAvatarState.Ready)?.look
-        return listOf(LocalSelfFaceTone provides SelfFaceTone(look?.faceKey, look?.rive?.runningAmount ?: 0))
+        val tone by store.faceTone.collectAsStateWithLifecycle()
+        return listOf(LocalSelfFaceTone provides tone)
     }
 
     /**
