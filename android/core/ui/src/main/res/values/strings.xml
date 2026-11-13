@@ -146,6 +146,10 @@
     <string name="core_location_consent_close">닫기</string>
     <!-- 바텀시트 머리 닫기 ✕(S15P31A207-292) -->
     <string name="core_sheet_close">닫기</string>
+    <!-- 디자인 시스템 공용 부품(S15P31A207-300): 잠긴 선택지, 기간 넘기기 -->
+    <string name="core_segment_locked">%1$s, 잠김</string>
+    <string name="core_period_previous">이전</string>
+    <string name="core_period_next">다음</string>
     <string name="core_location_consent_agree">동의하고 시작</string>
     <string name="core_avatar_description">내 아바타</string>
     <!-- 러닝 결과 상세(D-282, 피그마 B-6). 자유런 결과와 대결 결과 2쪽이 함께 쓴다. -->

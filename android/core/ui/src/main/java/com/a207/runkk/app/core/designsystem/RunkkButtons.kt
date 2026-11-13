@@ -31,12 +31,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -46,6 +49,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -95,8 +99,46 @@ fun RunkkButton(
         shape = size.shape,
         isEnabled = isEnabled,
         isLoading = isLoading,
-        leadingIcon = leadingIcon
+        leading = vectorLeading(leadingIcon)
     )
+}
+
+/**
+ * 그림(Painter) 아이콘을 앞에 다는 알약 버튼. 그림 리소스 아이콘(`painterResource(R.drawable.…)`)을 쓰는 화면용이고, 나머지는
+ * [RunkkButton]과 같다. 아이콘은 글자색으로 칠하고 크기는 [iconSize](기본 18)다.
+ */
+@Composable
+fun RunkkButton(
+    text: String,
+    onClick: () -> Unit,
+    leadingIcon: Painter,
+    modifier: Modifier = Modifier,
+    style: RunkkButtonStyle = RunkkButtonStyle.Lime,
+    size: RunkkButtonSize = RunkkButtonSize.Large,
+    isEnabled: Boolean = true,
+    isLoading: Boolean = false,
+    iconSize: Dp = LEADING_ICON_SIZE
+) {
+    PillButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        style = style,
+        height = size.height,
+        textStyle = size.textStyle,
+        horizontalPadding = size.horizontalPadding,
+        shape = size.shape,
+        isEnabled = isEnabled,
+        isLoading = isLoading,
+        leading = { tint ->
+            Icon(leadingIcon, contentDescription = null, tint = tint, modifier = Modifier.size(iconSize))
+        }
+    )
+}
+
+/** 벡터 아이콘을 버튼 앞 그림으로(없으면 null). */
+private fun vectorLeading(icon: ImageVector?): (@Composable (Color) -> Unit)? = icon?.let {
+    { tint -> Icon(it, contentDescription = null, tint = tint, modifier = Modifier.size(LEADING_ICON_SIZE)) }
 }
 
 /** 알약 버튼 그리기. 높이가 48 미만이면 바깥에 48dp 누름 칸을 두고 알약을 가운데 그린다. */
@@ -112,7 +154,7 @@ private fun PillButton(
     shape: Shape,
     isEnabled: Boolean,
     isLoading: Boolean = false,
-    leadingIcon: ImageVector? = null,
+    leading: (@Composable (Color) -> Unit)? = null,
     borderOverride: Color? = null,
     contentOverride: Color? = null,
     trailing: (@Composable () -> Unit)? = null
@@ -160,9 +202,7 @@ private fun PillButton(
                     strokeWidth = 3.dp
                 )
             } else {
-                if (leadingIcon != null) {
-                    Icon(leadingIcon, contentDescription = null, tint = content, modifier = Modifier.size(18.dp))
-                }
+                leading?.invoke(content)
                 Text(text = text, style = textStyle, color = content, maxLines = 1)
                 trailing?.invoke()
             }
@@ -243,7 +283,7 @@ fun RunkkSecondaryButton(
         horizontalPadding = 16.dp,
         shape = RunkkShapes.Pill,
         isEnabled = isEnabled,
-        leadingIcon = leadingIcon
+        leading = vectorLeading(leadingIcon)
     )
 }
 
@@ -267,7 +307,7 @@ fun RunkkAccentOutlinedButton(
         horizontalPadding = 16.dp,
         shape = RunkkShapes.Pill,
         isEnabled = isEnabled,
-        leadingIcon = leadingIcon,
+        leading = vectorLeading(leadingIcon),
         borderOverride = RunkkColors.Lavender,
         contentOverride = RunkkColors.Lavender
     )
@@ -340,7 +380,8 @@ fun RunkkLimePill(
 /**
  * 원형 아이콘 버튼(보이는 크기 40dp, 터치 영역 48dp). [hasBadge]가 참이면 원 오른쪽 위에 [RunkkNotificationDot]을 단다(새 알림,
  * 점 중심이 원 가장자리에서 4dp 안쪽, 피그마 알림 점).
- * [contentDescription]은 필수다(아이콘만 있는 버튼). 원 색은 [containerColor], 아이콘 색은 [iconTint]다.
+ * [contentDescription]은 필수다(아이콘만 있는 버튼). 원 색은 [containerColor], 아이콘 색은 [iconTint]다. 테두리·바탕 없는 ⋯·↻ 단추는
+ * [borderColor]·[containerColor]에 `Color.Transparent`를 넘긴다. [isEnabled]가 거짓이면 누를 수 없고 [RunkkAlpha.Disabled]로 흐리게 그린다.
  */
 @Composable
 fun RunkkIconButton(
@@ -353,21 +394,93 @@ fun RunkkIconButton(
     iconSize: Dp = 20.dp,
     borderColor: Color = RunkkColors.Border,
     containerColor: Color = RunkkColors.Surface,
-    iconTint: Color = RunkkColors.TextPrimary
+    iconTint: Color = RunkkColors.TextPrimary,
+    isEnabled: Boolean = true
+) {
+    IconButtonFrame(
+        contentDescription,
+        onClick,
+        modifier,
+        hasBadge,
+        visualSize,
+        borderColor,
+        containerColor,
+        isEnabled
+    ) {
+        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(iconSize))
+    }
+}
+
+/**
+ * 그림(Painter) 아이콘을 쓰는 원형 아이콘 버튼. 그림 리소스 아이콘(아바타 화면 `avatar_ic_*`)용이고 나머지는 [RunkkIconButton]과 같다.
+ * [iconTint]가 `Color.Unspecified`면 그림 색을 그대로 둔다.
+ */
+@Composable
+fun RunkkIconButton(
+    icon: Painter,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    hasBadge: Boolean = false,
+    visualSize: Dp = 40.dp,
+    iconSize: Dp = 20.dp,
+    borderColor: Color = RunkkColors.Border,
+    containerColor: Color = RunkkColors.Surface,
+    iconTint: Color = RunkkColors.TextPrimary,
+    isEnabled: Boolean = true
+) {
+    IconButtonFrame(
+        contentDescription,
+        onClick,
+        modifier,
+        hasBadge,
+        visualSize,
+        borderColor,
+        containerColor,
+        isEnabled
+    ) {
+        Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(iconSize))
+    }
+}
+
+/** 원형 아이콘 버튼 틀: 48 누름 칸 가운데 [visualSize] 원, 알림 점, 꺼짐 흐림. */
+@Composable
+private fun IconButtonFrame(
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier,
+    hasBadge: Boolean,
+    visualSize: Dp,
+    borderColor: Color,
+    containerColor: Color,
+    isEnabled: Boolean,
+    icon: @Composable () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
     val newBadgeDescription = stringResource(R.string.core_buttons_new_badge)
     Box(
         modifier = modifier
             .minimumInteractiveComponentSize()
-            .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = isEnabled,
+                role = Role.Button,
+                onClick = onClick
+            )
             .semantics {
                 this.contentDescription = contentDescription
                 if (hasBadge) stateDescription = newBadgeDescription
             },
         contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.size(visualSize).runkkPressScale(interaction, pressedScale = 0.95f)) {
+        Box(
+            modifier = Modifier
+                .testTag(ICON_BUTTON_BODY_TAG)
+                .size(visualSize)
+                .runkkPressScale(interaction, pressedScale = 0.95f)
+                .then(if (isEnabled) Modifier else Modifier.alpha(RunkkAlpha.Disabled))
+        ) {
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -376,12 +489,15 @@ fun RunkkIconButton(
                     .border(1.dp, borderColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(iconSize))
+                icon()
             }
             if (hasBadge) RunkkNotificationDot(Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp))
         }
     }
 }
+
+/** 원형 아이콘 버튼 몸통(보이는 원)의 시험 표지. */
+internal const val ICON_BUTTON_BODY_TAG = "runkk-icon-button-body"
 
 /**
  * 짧게·길게 누름을 나눠 받는 원형 버튼(러닝 종료·잠금 해제, D-49). 짧게 누르면 [onTap](안내만),
@@ -463,13 +579,19 @@ private fun LongPressTarget(
     ) { content() }
 }
 
-/** 글자 링크("보기", "설정", "바꾸기", 피그마 링크는 본문색 Medium). 터치 영역 48dp. */
+/**
+ * 글자 링크("보기", "설정", "바꾸기", 피그마 링크는 본문색 Medium 12). 터치 영역 48dp. 크루 "탈퇴하기"·"수정"처럼 밑줄 링크는
+ * [isUnderlined]를 켜고 [style]·[color]를 바꾼다(예: `RunkkTextStyles.text(13, lineHeight = 18)`, `RunkkColors.TextSecondary`).
+ */
 @Composable
 fun RunkkTextLink(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    contentDescription: String? = null
+    contentDescription: String? = null,
+    isUnderlined: Boolean = false,
+    style: TextStyle = TEXT_LINK_STYLE,
+    color: Color = RunkkColors.TextPrimary
 ) {
     Box(
         modifier = modifier
@@ -489,11 +611,17 @@ fun RunkkTextLink(
     ) {
         Text(
             text = text,
-            style = RunkkTextStyles.text(12, FontWeight.Medium, lineHeight = 18),
-            color = RunkkColors.TextPrimary
+            style = if (isUnderlined) style.copy(textDecoration = TextDecoration.Underline) else style,
+            color = color
         )
     }
 }
+
+/** 글자 링크 기본 글자(12/18 Medium). */
+private val TEXT_LINK_STYLE = RunkkTextStyles.text(12, FontWeight.Medium, lineHeight = 18)
+
+/** 버튼 앞 아이콘 크기. */
+private val LEADING_ICON_SIZE = 18.dp
 
 /** 누르는 칸 최소 크기(Android 접근성 48dp). */
 private val MIN_TOUCH = 48.dp

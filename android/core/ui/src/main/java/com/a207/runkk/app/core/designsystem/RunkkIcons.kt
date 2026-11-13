@@ -294,6 +294,39 @@ object RunkkIcons {
         "M21.53 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7 7 0 0 0 9.2 5.2"
     )
 
+    /** 새로고침(시계 방향 화살 고리, 크루 찾기 목록 새로고침 「↻」). */
+    val Refresh: ImageVector = line(
+        "Refresh",
+        "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8",
+        "M21 3v5h-5"
+    )
+
+    /** 더 보기 ⋯(Material more_horiz, 채움). 넘침 메뉴 단추에 쓴다. */
+    val MoreHoriz: ImageVector = filled(
+        "MoreHoriz",
+        24f,
+        "M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" +
+            "m-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+    )
+
+    /** 화살대 있는 앞으로(→, Material arrow_forward, 채움). [ArrowBack]을 좌우로 뒤집은 모양이다(주·달 넘기기 「다음」). */
+    val ArrowForward: ImageVector =
+        filled("ArrowForward", 24f, "M16.175 13L10.575 18.6L12 20L20 12L12 4L10.575 5.4L16.175 11L4 11L4 13L16.175 13Z")
+
+    /** 연필(고치기·수정). */
+    val Edit: ImageVector = line("Edit", "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z", "m15 5 4 4")
+
+    /** 엄지 위(채팅 좋아요 반응, 피그마 F-09). */
+    val ThumbsUp: ImageVector = line(
+        "ThumbsUp",
+        "M7 10v12",
+        "M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4" +
+            "a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"
+    )
+
+    /** 위 화살표(채팅·코치 보내기 단추). */
+    val ArrowUp: ImageVector = line("ArrowUp", "M12 19V5", "M5 12l7-7 7 7")
+
     /** 채움 아이콘([viewport] 격자, 크기도 격자와 같다). 색은 tint가 정한다. */
     private fun filled(name: String, viewport: Float, path: String): ImageVector = ImageVector.Builder(
         name = "Runkk.$name",
