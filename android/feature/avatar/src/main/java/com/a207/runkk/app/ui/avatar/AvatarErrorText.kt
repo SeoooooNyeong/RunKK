@@ -36,7 +36,9 @@ internal object AvatarErrorText {
         "NO_FACE_DETECTED" to R.string.avatar_error_no_face,
         "UPSTREAM_TIMEOUT" to R.string.avatar_error_timeout,
         "JOB_NOT_FOUND" to R.string.avatar_error_selfie_failed,
-        "JOB_NOT_READY" to R.string.avatar_error_selfie_failed
+        "JOB_NOT_READY" to R.string.avatar_error_selfie_failed,
+        // 앱 워커가 접수 뒤 약 16분 넘게 끝나지 않은 작업을 멈춘 사유(SelfieProgress.TIMEOUT, design-oo 05-30 6.1)
+        "SELFIE_TIMEOUT" to R.string.avatar_error_selfie_timeout
     )
 
     private const val SERVICE_UNAVAILABLE = 503
@@ -63,6 +65,7 @@ internal object AvatarErrorText {
         "ITEM_NOT_OWNED" to R.string.avatar_error_item_not_owned,
         "ITEM_NOT_FOUND" to R.string.avatar_error_item_not_found,
         "ITEM_NOT_ON_SALE" to R.string.avatar_error_item_not_on_sale,
+        "ITEM_LOCKED" to R.string.avatar_error_item_locked,
         "ALREADY_OWNED" to R.string.avatar_error_already_owned,
         "INSUFFICIENT_REWARD" to R.string.avatar_error_insufficient_reward,
         // 해금하지 않은 배경(FR-201)

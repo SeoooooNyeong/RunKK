@@ -1,8 +1,10 @@
 package com.a207.runkk.infra.integration.ai;
 
 import com.a207.runkk.aicoach.CoachChatGateway;
+import com.a207.runkk.aicoach.CoachMessage;
 import com.a207.runkk.aicoach.CoachQuestion;
 import com.a207.runkk.aicoach.CoachRejected;
+import com.a207.runkk.common.ServerZone;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +20,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -25,6 +31,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class AiServerCoachGateway implements CoachChatGateway {
     private static final int MAX_FRAME_CHARS = 64 * 1024;
+    // ai는 최근 200건까지만 돌려준다. 답이 길어도 넉넉한 상한을 두고 넘으면 읽지 않는다.
+    private static final int MAX_MESSAGES_BYTES = 2 * 1024 * 1024;
     private final HttpClient http =
             HttpClient.newBuilder().connectTimeout(AiServerClient.CONNECT_TIMEOUT).build();
     private final AiServerClient.Server server;
@@ -88,6 +96,85 @@ public class AiServerCoachGateway implements CoachChatGateway {
         } catch (IOException failure) {
             throw new CoachRejected(CoachRejected.Reason.RETRY);
         }
+    }
+
+    @Override
+    public List<CoachMessage> messages(long memberId, String conversationId) {
+        if (!CoachQuestion.validId(conversationId)) {
+            throw new CoachRejected(CoachRejected.Reason.CONVERSATION_EXPIRED);
+        }
+        HttpRequest request =
+                HttpRequest.newBuilder(
+                                URI.create(
+                                        server.serverUrl().replaceFirst("/+$", "")
+                                                + "/coach/users/"
+                                                + memberId
+                                                + "/conversations/"
+                                                + conversationId
+                                                + "/messages"))
+                        .header(AiServerClient.TOKEN_HEADER, server.internalToken())
+                        .header("Accept", "application/json")
+                        .timeout(Duration.ofSeconds(5))
+                        .GET()
+                        .build();
+        try {
+            HttpResponse<InputStream> response =
+                    http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            try (InputStream body = response.body()) {
+                if (response.statusCode() == 404) {
+                    throw new CoachRejected(CoachRejected.Reason.CONVERSATION_EXPIRED);
+                }
+                if (response.statusCode() != 200) {
+                    throw new CoachRejected(CoachRejected.Reason.RETRY);
+                }
+                byte[] bytes = body.readNBytes(MAX_MESSAGES_BYTES + 1);
+                if (bytes.length > MAX_MESSAGES_BYTES) {
+                    throw new IOException("coach messages too large");
+                }
+                return parseMessages(events.readTree(bytes), conversationId);
+            }
+        } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+            throw new CoachRejected(CoachRejected.Reason.RETRY);
+        } catch (IOException failure) {
+            throw new CoachRejected(CoachRejected.Reason.RETRY);
+        }
+    }
+
+    private static List<CoachMessage> parseMessages(JsonNode body, String conversationId)
+            throws IOException {
+        if (body == null
+                || !body.isObject()
+                || !conversationId.equals(body.path("conversationId").textValue())
+                || !body.path("messages").isArray()) {
+            throw new IOException("invalid coach messages");
+        }
+        List<CoachMessage> messages = new ArrayList<>();
+        for (JsonNode item : body.get("messages")) {
+            JsonNode content = item.get("content");
+            JsonNode at = item.get("at");
+            if (content == null || !content.isTextual() || at == null || !at.isTextual()) {
+                throw new IOException("invalid coach message");
+            }
+            CoachMessage.Role role =
+                    switch (item.path("role").asText()) {
+                        case "user" -> CoachMessage.Role.QUESTION;
+                        case "assistant" -> CoachMessage.Role.ANSWER;
+                        default -> throw new IOException("invalid coach message role");
+                    };
+            try {
+                messages.add(
+                        new CoachMessage(
+                                role,
+                                content.textValue(),
+                                OffsetDateTime.parse(at.textValue())
+                                        .atZoneSameInstant(ServerZone.ID)
+                                        .toLocalDateTime()));
+            } catch (DateTimeParseException invalid) {
+                throw new IOException("invalid coach message time", invalid);
+            }
+        }
+        return List.copyOf(messages);
     }
 
     private final class EventStream implements Stream {

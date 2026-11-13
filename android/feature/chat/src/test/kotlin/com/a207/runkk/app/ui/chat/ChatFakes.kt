@@ -1,13 +1,17 @@
 package com.a207.runkk.app.ui.chat
 
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.chat.ChatAuthorRole
 import com.a207.runkk.app.domain.chat.ChatMessage
+import com.a207.runkk.app.domain.chat.ChatMessageKind
 import com.a207.runkk.app.domain.chat.ChatPage
 import com.a207.runkk.app.domain.chat.ChatReactions
 import com.a207.runkk.app.domain.chat.ChatRepository
 import com.a207.runkk.app.domain.chat.OpenChatRoomRegistry
 import com.a207.runkk.app.domain.chat.ReactionKind
+import com.a207.runkk.app.domain.chat.Reactor
 import com.a207.runkk.app.domain.live.ChatPresence
 import com.a207.runkk.app.domain.live.ClientMessage
 import com.a207.runkk.app.domain.live.LiveChannel
@@ -49,7 +53,10 @@ fun chatMessage(
     sendState: ChatMessage.SendState = ChatMessage.SendState.SENT,
     clientMessageId: String? = null,
     authorName: String = if (isMine) "나" else "바람처럼",
-    sentAt: Instant = T0
+    sentAt: Instant = T0,
+    kind: ChatMessageKind = ChatMessageKind.TEXT,
+    authorRole: ChatAuthorRole? = null,
+    runDistance: Distance? = null
 ) = ChatMessage(
     messageId = id,
     authorId = if (isMine) 1 else 2,
@@ -61,7 +68,10 @@ fun chatMessage(
     isMine = isMine,
     canDelete = canDelete,
     clientMessageId = clientMessageId,
-    sendState = sendState
+    sendState = sendState,
+    kind = kind,
+    authorRole = authorRole,
+    runDistance = runDistance
 )
 
 class FakeChatRepository : ChatRepository {
@@ -96,6 +106,14 @@ class FakeChatRepository : ChatRepository {
         reactions += "unreact:$messageId:$kind"
         reactFailure?.let { return Outcome.Failure(it) }
         return Outcome.Success(ChatReactions(messageId, emptyMap(), emptySet()))
+    }
+
+    val reactorCalls = mutableListOf<Long>()
+    var reactorsResult: Outcome<List<Reactor>> = Outcome.Success(emptyList())
+
+    override suspend fun reactors(messageId: Long): Outcome<List<Reactor>> {
+        reactorCalls += messageId
+        return reactorsResult
     }
 
     override suspend fun delete(messageId: Long): Outcome<Unit> {

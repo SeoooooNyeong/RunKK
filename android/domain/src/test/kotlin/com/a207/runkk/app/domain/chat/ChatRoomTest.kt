@@ -499,6 +499,8 @@ private class FakeChatRepository : ChatRepository {
     override suspend fun unreact(messageId: Long, kind: ReactionKind): Outcome<ChatReactions> =
         reactFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(requireNotNull(reactResult))
 
+    override suspend fun reactors(messageId: Long): Outcome<List<Reactor>> = Outcome.Success(emptyList())
+
     override suspend fun delete(messageId: Long): Outcome<Unit> {
         deleted += messageId
         return deleteFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)

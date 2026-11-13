@@ -9,7 +9,7 @@ import java.util.function.Supplier;
 import org.springframework.stereotype.Component;
 
 /**
- * 초대 코드 가입의 실패 횟수 제한(D-132, B4 리뷰: 무차별 대입). 회원별 10분에 5번 INVALID_CODE면 그 회원의 코드 가입을 잠시 막는다(429
+ * 초대 코드 가입·미리보기의 실패 횟수 제한(D-132, B4 리뷰: 무차별 대입). 회원별 10분에 5번 INVALID_CODE면 그 회원의 코드 가입을 잠시 막는다(429
  * TOO_MANY_ATTEMPTS). crew.MembershipService가 갖던 제한을 표현 계층으로 옮겼다(crew → web.attempt는 계층 역행). 메모리
  * 값이라 재시작하면 비워진다(5.4 인스턴스 1개).
  */
@@ -51,6 +51,29 @@ class CrewJoinAttemptGuard {
         } finally {
             if (!invalidCode) {
                 failures.release(key); // 성공 뒤 reset이면 키가 없어 아무것도 하지 않는다
+            }
+        }
+    }
+
+    /**
+     * 초대 코드 미리보기(POST /crews/invite-preview, S15P31A207-295)도 가입과 같은 실패 횟수를 쓴다. 시도 한 번을 먼저 잡고(창 안
+     * 5번이면 TOO_MANY_ATTEMPTS) INVALID_CODE면 실패로 남긴다. 맞는 코드여도 실패 횟수를 지우지 않고 잡은 한 번만 되돌린다: 자기가 아는 코드로
+     * 횟수를 지운 뒤 다시 맞혀 보는 우회를 막는다(가입 성공만 지운다).
+     */
+    <T> T preview(long memberId, Supplier<T> lookup) {
+        String key = String.valueOf(memberId);
+        if (!failures.tryAcquire(key)) {
+            throw new BusinessRuleException(ReasonCode.TOO_MANY_ATTEMPTS);
+        }
+        boolean invalidCode = false;
+        try {
+            return lookup.get();
+        } catch (BusinessRuleException e) {
+            invalidCode = e.reason() == ReasonCode.INVALID_CODE;
+            throw e;
+        } finally {
+            if (!invalidCode) {
+                failures.release(key);
             }
         }
     }

@@ -28,6 +28,8 @@ const autoAlign=process.env.AUTO_ALIGN_HEAD!=='false';
 const baseURL=(process.env.GMS_BASE_URL||'https://gms.ssafy.io/gmsapi/api.openai.com/v1').replace(/\/+$/,'');
 const apiKey=(process.env.GMS_KEY||process.env.OPENAI_API_KEY||'').trim();
 const configured=Boolean(apiKey&&!apiKey.includes('your-')&&!apiKey.includes('여기에'));
+// 호출 하나의 제한은 240초다. SDK는 전역 fetch(undici)를 쓰고 그 응답 머리·본문 대기 기본값이 300초라, 이 값을 300초 넘게 올리면
+// undici가 먼저 끊는다(DV-성-9). 생성 전체(여러 호출)의 제한은 head-jobs의 generationTimeoutMs(15분)다.
 const client=measuredClient(new OpenAI({apiKey:apiKey||'missing-key',baseURL,timeout:240_000,maxRetries:0}));
 const analyzeSelfie=createSelfieAnalyzer(client,visionModel);
 const LAYER_LAYOUT=HEAD_LAYOUT;

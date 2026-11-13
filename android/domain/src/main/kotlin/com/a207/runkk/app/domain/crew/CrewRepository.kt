@@ -1,11 +1,13 @@
 package com.a207.runkk.app.domain.crew
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * 크루·게시판·크루런 대기실 REST 포트(5.7.1 /crews/…, /join-requests/…, /posts/…, /crew-runs/…). 구현 api.crew.
@@ -24,15 +26,7 @@ interface CrewRepository {
 
     suspend fun changeInfo(crewId: Long, form: CrewForm): Outcome<Unit>
 
-    suspend fun reissueInviteCode(crewId: Long): Outcome<String>
-
     suspend fun transferLeadership(crewId: Long, memberId: Long): Outcome<Unit>
-
-    /** 운영진 지정(PUT /crews/{id}/managers/{memberId}, FR-204). 크루장만. 최대 2명(MANAGER_LIMIT). */
-    suspend fun appointManager(crewId: Long, memberId: Long): Outcome<Unit>
-
-    /** 운영진 해제(DELETE /crews/{id}/managers/{memberId}, FR-204). 크루장만. */
-    suspend fun dismissManager(crewId: Long, memberId: Long): Outcome<Unit>
 
     suspend fun delete(crewId: Long): Outcome<Unit>
 
@@ -60,6 +54,17 @@ interface CrewRepository {
 
     suspend fun pendingRequests(crewId: Long): Outcome<PendingRequests>
 
+    /**
+     * 지난 공동 목표 한 쪽(GET /crews/{id}/goals/history, 피그마 F-21, contract-W7 4장). [before]는 앞 쪽의 nextBefore(첫 쪽은 null).
+     * 최신 주부터 온다.
+     */
+    suspend fun pastGoals(crewId: Long, before: LocalDate? = null): Outcome<PastGoals>
+
+    /**
+     * 지난 크루런 한 달(GET /crews/{id}/crew-runs/past, 피그마 F-20, contract-W6). [date]를 주면 runs가 그날 것만이다.
+     */
+    suspend fun pastCrewRuns(crewId: Long, month: YearMonth, date: LocalDate? = null): Outcome<PastCrewRuns>
+
     suspend fun crewRanking(crewId: Long, period: CrewRanking.Period): Outcome<CrewRanking>
 
     suspend fun race(crewId: Long, weekStart: LocalDate?): Outcome<RaceStatus>
@@ -73,8 +78,17 @@ interface CrewRepository {
 
     suspend fun deletePost(postId: Long): Outcome<Unit>
 
-    /** 일정(크루런·대면 모임) 참석 응답(PUT /posts/{id}/attendance, FR-145, D-99). */
+    /** 일정(크루런·대면 모임) 참석 응답(PUT /posts/{id}/attendance, FR-145, D-99). 앱은 참석하기에 GOING만 보낸다(W6). */
     suspend fun answerAttendance(postId: Long, answer: AttendanceAnswer): Outcome<Unit>
+
+    /** 참석 취소(DELETE /posts/{id}/attendance, 피그마 F-13b): 크루런 참석 응답을 거둔다. 응답이 없어도 성공이다. */
+    suspend fun withdrawAttendance(postId: Long): Outcome<Unit>
+
+    /** 크루런 일정 상세(GET /crew-runs/{id}, 피그마 F-13·F-11d). 크루원만. */
+    suspend fun crewRun(postId: Long): Outcome<CrewRunDetail>
+
+    /** 모집글 수정(PATCH /crew-runs/{id}, 피그마 F-13d). 작성자만, 투표 중이고 일시 전. 바뀐 상세를 돌려준다. */
+    suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail>
 
     suspend fun enterLobby(postId: Long): Outcome<Lobby>
 
@@ -98,4 +112,24 @@ interface CrewRepository {
      * 셀카 얼굴이 아니면 빈 목록, 받지 못하면 실패다. 구현이 없으면 빈 목록이다.
      */
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
+
+    /** 기다리지 않고 바로 그릴 수 있는 크루원 얼굴 그림(앞서 받아 둔 것, AccountRepository.cachedFaceLayers와 같다). 없으면 null. */
+    fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = null
+
+    /**
+     * 초대 코드로 크루 요약을 미리 본다(POST /crews/invite-preview, 피그마 F-03c). 가입시키지 않는다. 코드가 없거나 만료면
+     * AppError.Rejected(INVALID_CODE), 틀린 코드가 10분에 5번이면 TOO_MANY_ATTEMPTS. 구현이 없으면 실패다.
+     */
+    suspend fun previewByInviteCode(code: String): Outcome<CrewPreview> =
+        Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 크루 로고 JPEG(1MB 이하)를 올리고 로고 주소를 받는다(POST /crew-logos, 피그마 F-04). 구현이 없으면 실패다. */
+    suspend fun uploadLogo(jpeg: ByteArray): Outcome<String> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 로고 바이트(GET /crew-logos/{id}). 이 앱 서버의 로고 경로만 읽고 그 밖의 주소는 실패다. 구현이 없으면 실패다. */
+    suspend fun logo(url: String): Outcome<ByteArray> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    private companion object {
+        const val NOT_IMPLEMENTED = 501
+    }
 }

@@ -3,10 +3,18 @@
 <resources>
     <string name="measurement_channel_name">러닝 측정</string>
     <string name="push_channel_name">런크크 알림</string>
+    <!-- 셀카 얼굴 결과 기기 알림(design-oo 05-30 D-성-120, FR-성-21, 피그마 AV-7 5 완료 알림). 결과는 워커가 이미 적용했다. -->
+    <string name="selfie_notice_done_title">새 얼굴이 준비됐어요</string>
+    <string name="selfie_notice_done_body">눌러서 내 아바타를 확인해요</string>
+    <string name="selfie_notice_failed_title">얼굴을 만들지 못했어요</string>
+    <string name="selfie_notice_failed_body">다른 사진으로 다시 해 볼 수 있어요. 오늘 횟수는 그대로예요</string>
     <!-- 잠금 화면 진행 알림(FR-224, D-259). 문구는 피그마 B-3·C-5 그대로다. -->
-    <string name="progress_notice_free_title">자유런 · %1$s 경과</string>
-    <string name="progress_notice_crew_run_title">크루런 · %1$s 경과</string>
-    <string name="progress_notice_battle_title">vs %1$s · %2$s 경과</string>
+    <string name="progress_notice_free_title">자유런 %1$s 경과</string>
+    <string name="progress_notice_crew_run_title">크루런 %1$s 경과</string>
+    <!-- 일시정지 중 제목(실기기 관찰 DV-성 9(e)): 경과가 멈췄음을 보인다. -->
+    <string name="progress_notice_free_paused_title">자유런 %1$s 일시정지</string>
+    <string name="progress_notice_crew_run_paused_title">크루런 %1$s 일시정지</string>
+    <string name="progress_notice_battle_title">vs %1$s, %2$s 경과</string>
     <string name="progress_notice_distance">%1$s km</string>
     <string name="progress_notice_goal_remaining">목표까지 %1$skm</string>
     <string name="progress_notice_goal_reached">목표 달성</string>
@@ -19,5 +27,5 @@
 
     <string name="watch_notice_already_measuring">이미 측정 중이에요</string>
     <string name="watch_notice_open_run_screen">폰에서 러닝 화면을 여세요</string>
-    <string name="watch_notice_end_on_phone">대결·크루런은 폰에서 끝내 주세요</string>
+    <string name="watch_notice_end_on_phone">대결과 크루런은 폰에서 끝내 주세요</string>
 </resources>

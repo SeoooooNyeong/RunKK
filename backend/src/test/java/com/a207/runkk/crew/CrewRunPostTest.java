@@ -41,7 +41,7 @@ class CrewRunPostTest {
     }
 
     @Test
-    @DisplayName("작성: VOTING, 작성자는 GOING. 지난 시각·크루런 밖 거리·희망일시 뒤 마감은 CREW_RUN_INVALID")
+    @DisplayName("작성: VOTING, 작성자는 GOING. 지난 시각·크루런 밖 거리(1km, W6)·희망일시 뒤 마감은 CREW_RUN_INVALID")
     void create() {
         CrewRunPost post = post();
         assertThat(post.status()).isEqualTo(CrewRunStatus.VOTING);
@@ -54,7 +54,7 @@ class CrewRunPostTest {
                                 new CrewRunPost(
                                         9,
                                         LEADER,
-                                        new CrewRunDraft("하프", AT, StandardDistance.HALF, null),
+                                        new CrewRunDraft("1km", AT, StandardDistance.KM1, null),
                                         NOW))
                 .satisfies(e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.CREW_RUN_INVALID));
         assertThatThrownBy(

@@ -31,6 +31,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -47,6 +49,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.MetaItem
+import com.a207.runkk.app.core.designsystem.MetaRow
 import com.a207.runkk.app.core.designsystem.RouteThumbnail
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -56,11 +60,19 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigator
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigatorStyle
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedTabs
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkStatTile
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.CardKind
@@ -147,7 +159,7 @@ private fun CalendarPane(state: RecordListUiState, actions: RecordListActions, m
         }
         when {
             state.isLoading && state.runs.isEmpty() -> item(key = "loading") {
-                Box(Modifier.fillMaxWidth().height(120.dp)) { RunkkLoading() }
+                RunkkLoading(height = 120.dp)
             }
 
             state.error != null -> item(key = "error") {
@@ -173,25 +185,14 @@ private fun CalendarPane(state: RecordListUiState, actions: RecordListActions, m
 @Composable
 private fun MonthHeader(month: YearMonth, onPreviousMonth: () -> Unit, onNextMonth: () -> Unit) {
     val monthFormat = rememberDateFormatter(R.string.record_month_pattern)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        RunkkIconButton(
-            RunkkIcons.Back,
-            contentDescription = stringResource(R.string.record_list_previous_month),
-            onClick = onPreviousMonth
-        )
-        Text(
-            monthFormat.format(month),
-            style = RunkkTextStyles.CardTitle,
-            color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f).semantics { heading() }
-        )
-        RunkkIconButton(
-            RunkkIcons.ChevronRight,
-            contentDescription = stringResource(R.string.record_list_next_month),
-            onClick = onNextMonth
-        )
-    }
+    RunkkPeriodNavigator(
+        label = monthFormat.format(month),
+        onPrevious = onPreviousMonth,
+        onNext = onNextMonth,
+        style = RunkkPeriodNavigatorStyle.Circled,
+        previousDescription = stringResource(R.string.record_list_previous_month),
+        nextDescription = stringResource(R.string.record_list_next_month)
+    )
 }
 
 /** 월 요약 세 칸: 횟수 n번, 거리 n km, 연속 n주째와 그 아래 n일째(서버 값을 그대로 쓴다, D-279). 모르면 "-". */
@@ -223,15 +224,22 @@ private fun androidx.compose.foundation.layout.RowScope.SummaryCell(
     value: String,
     sub: String? = null
 ) {
-    Column(
-        modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {},
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(stringResource(label), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-        Text(value, style = RunkkTextStyles.text(20, FontWeight.Black), color = RunkkColors.TextPrimary)
-        sub?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
-    }
+    RunkkStatTile(
+        label = stringResource(label),
+        value = StatTileValue(value),
+        modifier = Modifier.weight(1f),
+        caption = sub,
+        style = StatTileStyle(
+            valueStyle = RunkkTextStyles.text(20, FontWeight.Black),
+            valueColor = RunkkColors.TextPrimary,
+            isCentered = true,
+            shape = RectangleShape,
+            contentPadding = PaddingValues(0.dp),
+            labelStyle = RunkkTextStyles.Caption,
+            background = Color.Transparent,
+            spacing = 4.dp
+        )
+    )
 }
 
 /** 달력: 일요일 시작 7열. 유효 기록이 있는 날은 칸에 날짜와 km를 보인다. 어느 날이든 누르면 그날 기록 줄을 보인다. */
@@ -319,7 +327,7 @@ private fun DayCell(
     }
 }
 
-/** 고른 날 기록 줄: 경로 썸네일, "10월 16일 (목) · 오전 7:12", "5.21km · 32:04 · 6'09"". */
+/** 고른 날 기록 줄: 경로 썸네일, "10월 16일 (목) 오전 7:12", "5.21km, 32:04, 6'09"". */
 @Composable
 private fun DayRunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
     val dateFormat = rememberDateFormatter(R.string.record_day_row_pattern)
@@ -353,7 +361,7 @@ private fun ListPane(state: RecordListUiState, actions: RecordListActions, modif
     ) {
         when {
             state.isRecentLoading && state.recentRuns.isEmpty() -> item(key = "loading") {
-                Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
+                RunkkLoading(height = 160.dp)
             }
 
             state.recentError != null -> item(key = "error") {
@@ -386,17 +394,17 @@ private fun LazyListScope.runGroup(
 ) {
     if (runs.isEmpty()) return
     item(key = "title-$key") {
-        Text(
+        RunkkSectionHeader(
             stringResource(title),
-            style = RunkkTextStyles.text(13, FontWeight.Bold),
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.padding(top = 8.dp).semantics { heading() }
+            modifier = Modifier.padding(top = 8.dp),
+            size = RunkkSectionHeaderSize.Small,
+            titleColor = RunkkColors.TextSecondary
         )
     }
     items(runs, key = { "$key-" + it.recordId }) { run -> ListRunRow(run, zone, onClick = { onRun(run.recordId) }) }
 }
 
-/** 목록 행: 경로 썸네일, 거리와 태그, "10/16 목 · 32:04 · 6'09"". */
+/** 목록 행: 경로 썸네일, 거리와 태그, 메타 줄(날짜·시간·페이스 아이콘, 가운뎃점 없이 MetaRow). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ListRunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
@@ -412,33 +420,24 @@ private fun ListRunRow(run: RunSummary, zone: ZoneId, onClick: () -> Unit) {
                 style = RunkkTextStyles.text(17, FontWeight.Black),
                 color = RunkkColors.TextPrimary
             )
-            tags.forEach { RecordTagChip(it.asString()) }
+            tags.forEach { RunkkTagPill(it.asString()) }
         }
-        Text(
-            stringResource(
-                R.string.record_list_row_caption,
-                dateFormat.format(run.startedAt.atZone(zone)),
-                RunkkFormat.duration(run.elapsed),
-                paceMarks(run.averagePace)
-            ),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
+        MetaRow(
+            listOf(
+                MetaItem(RunkkIcons.CalendarToday, dateFormat.format(run.startedAt.atZone(zone))),
+                MetaItem(
+                    RunkkIcons.Schedule,
+                    RunkkFormat.duration(run.elapsed),
+                    spoken = RunkkFormat.durationSpoken(run.elapsed)
+                ),
+                MetaItem(
+                    RunkkIcons.DirectionsRun,
+                    paceMarks(run.averagePace),
+                    spoken = RunkkFormat.paceSpoken(run.averagePace)
+                )
+            )
         )
     }
-}
-
-@Composable
-private fun RecordTagChip(label: String) {
-    val shape = RoundedCornerShape(50)
-    Text(
-        label,
-        style = RunkkTextStyles.text(11, FontWeight.Medium),
-        color = RunkkColors.TextPrimary,
-        modifier = Modifier
-            .clip(shape)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
-    )
 }
 
 // ---------- 공용 ----------

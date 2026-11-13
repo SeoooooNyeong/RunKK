@@ -6,11 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -35,7 +37,12 @@ import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigator
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigatorStyle
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTagSize
+import com.a207.runkk.app.core.designsystem.RunkkTagTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
@@ -72,38 +79,17 @@ private fun WeekHeader(state: RunBodyUiState, actions: RunBodyActions) {
             color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f).semantics { heading() }
         )
-        WeekArrow(
-            RunkkIcons.Back,
-            stringResource(R.string.record_runbody_week_previous),
-            state.canGoPreviousWeek,
-            actions.onPreviousWeek
+        // 피그마 arrow_back·arrow_forward 24, 누름 칸 48
+        RunkkPeriodNavigator(
+            label = stringResource(R.string.record_runbody_week_label, month, week),
+            onPrevious = actions.onPreviousWeek.takeIf { state.canGoPreviousWeek },
+            onNext = actions.onNextWeek.takeIf { state.canGoNextWeek },
+            modifier = Modifier.width(IntrinsicSize.Max),
+            style = RunkkPeriodNavigatorStyle.Arrow,
+            labelStyle = RunkkTextStyles.BodyStrong,
+            previousDescription = stringResource(R.string.record_runbody_week_previous),
+            nextDescription = stringResource(R.string.record_runbody_week_next)
         )
-        Text(
-            stringResource(R.string.record_runbody_week_label, month, week),
-            style = RunkkTextStyles.text(14, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        )
-        WeekArrow(
-            RunkkIcons.ChevronRight,
-            stringResource(R.string.record_runbody_week_next),
-            state.canGoNextWeek,
-            actions.onNextWeek
-        )
-    }
-}
-
-@Composable
-private fun WeekArrow(icon: ImageVector, label: String, isEnabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable(enabled = isEnabled, onClickLabel = label, role = Role.Button, onClick = onClick)
-            .graphicsLayer { alpha = if (isEnabled) 1f else DISABLED_ALPHA },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = label, tint = RunkkColors.TextPrimary, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -129,8 +115,8 @@ private fun WeekBody(week: RunBodyWeek) {
                 )
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                WeekChip(RunkkIcons.Walk, stringResource(R.string.record_runbody_week_runs, week.runs))
-                WeekChip(RunkkIcons.Clock, RunkkFormat.duration(week.elapsed))
+                WeekChip(RunkkIcons.DirectionsRun, stringResource(R.string.record_runbody_week_runs, week.runs))
+                WeekChip(RunkkIcons.Schedule, RunkkFormat.duration(week.elapsed))
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -143,17 +129,7 @@ private fun WeekBody(week: RunBodyWeek) {
 
 @Composable
 private fun WeekChip(icon: ImageVector, text: String) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(CHIP_RADIUS))
-            .background(RunkkColors.Border)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = RunkkColors.TextPrimary, modifier = Modifier.size(16.dp))
-        Text(text, style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.TextPrimary)
-    }
+    RunkkTagPill(text, tone = RunkkTagTone.Neutral, size = RunkkTagSize.Small, leadingIcon = icon)
 }
 
 /** 요일 이름 + 원(달린 날은 라임 채움에 거리, 쉰 날은 빈 원). 보조 기술은 "월요일 4.2km"처럼 한 번에 읽는다. */
@@ -180,7 +156,7 @@ private fun DayCell(day: DayOfWeek, distance: Distance?) {
             Modifier
                 .size(DAY_SIZE)
                 .clip(CircleShape)
-                .background(if (km != null) RunkkColors.LimeFill else RunkkColors.Border),
+                .background(if (km != null) RunkkColors.LimeFill else RunkkColors.SurfaceHigh),
             contentAlignment = Alignment.Center
         ) {
             km?.let {
@@ -236,10 +212,9 @@ private fun AverageTile(icon: ImageVector, label: String, value: String?, unit: 
     }
 }
 
-/** 러닝 코멘트(G-14·G-33): 말풍선 + 보라 제목, 본문. 코멘트가 없으면 "코멘트 준비 중"을 흐리게. */
+/** 러닝 코멘트(G-14·G-33): 말풍선 + 보라 제목, 본문(14 Regular 본문색). 코멘트가 없어도 같은 글자색으로 "코멘트 준비 중"(G-33). */
 @Composable
 internal fun CommentCard(state: RunBodyUiState) {
-    val hasComment = state.report?.comment != null
     SummaryTile(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, spacing = 8.dp) {
         TileHeader(
             RunkkIcons.ChatBubble,
@@ -250,7 +225,7 @@ internal fun CommentCard(state: RunBodyUiState) {
         Text(
             state.commentText.asString(),
             style = RunkkTextStyles.text(14, lineHeight = 21),
-            color = if (hasComment) RunkkColors.TextPrimary else RunkkColors.TextSecondary
+            color = RunkkColors.TextPrimary
         )
     }
 }
@@ -275,6 +250,4 @@ private fun SummaryTile(modifier: Modifier, spacing: Dp = 6.dp, content: @Compos
     )
 }
 
-private const val DISABLED_ALPHA = 0.3f
 private val DAY_SIZE = 40.dp
-private val CHIP_RADIUS = 999.dp

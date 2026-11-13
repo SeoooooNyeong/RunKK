@@ -51,7 +51,13 @@ class HomeViewModel @Inject constructor(
     private val pendingRuns: PendingRunRepository,
     private val clock: Clock
 ) : ViewModel() {
-    private val _state = MutableStateFlow(HomeUiState())
+    // 기기에 남긴 마지막 내 얼굴(셀카 머리)을 첫 값으로 둬 앱을 켠 첫 그림부터 상단 얼굴이 내 얼굴이다. 셀카 그림은 성별과 상관없으므로
+    // 본인 요약을 읽기 전에도 그린다(기본 머리는 성별을 알아야 해 그대로 기다린다, TF-V12-02).
+    private val _state = MutableStateFlow(
+        account.lastMyAvatar()?.takeIf { it.faceLayers.isNotEmpty() }
+            ?.let { HomeUiState(faceKey = it.faceKey, faceLayers = it.faceLayers, backgroundKey = it.backgroundKey) }
+            ?: HomeUiState()
+    )
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
 
     private val _events = Channel<HomeEvent>(Channel.BUFFERED)
@@ -146,7 +152,11 @@ class HomeViewModel @Inject constructor(
             }
             val me = profile.await()
             val memberSettings = settings.await()
-            val face = me?.faceKey?.let { account.faceLayers(it).getOrNull() }.orEmpty()
+            // 받아 둔 그림이 있으면 다시 받지 않는다. 받지 못하면 null.
+            val face = me?.let {
+                account.cachedFaceLayers(it.faceKey)
+                    ?: it.faceKey?.let { key -> account.faceLayers(key).getOrNull() }
+            }
             val summary = dashboardResult.getOrNull()
             applyPlacement(placement.await(), placementTurnNow)
             _state.update {
@@ -159,7 +169,13 @@ class HomeViewModel @Inject constructor(
                     isHeaderLoading = false,
                     isAvatarReady = it.isAvatarReady || me != null,
                     faceKey = if (me != null) me.faceKey else it.faceKey,
-                    faceLayers = if (me != null) face else it.faceLayers,
+                    // 받지 못했으면 같은 얼굴일 때 지금 그림을 둔다(내 얼굴이 기본 머리로 바뀌지 않게).
+                    faceLayers = when {
+                        me == null -> it.faceLayers
+                        face != null -> face
+                        me.faceKey == it.faceKey -> it.faceLayers
+                        else -> emptyList()
+                    },
                     backgroundKey = if (me != null) me.avatarBackgroundKey else it.backgroundKey,
                     isRunVoiceOn = memberSettings?.values?.get(RUN_VOICE)?.toBooleanStrictOrNull() ?: it.isRunVoiceOn,
                     isRunVibrationOn =
@@ -213,7 +229,8 @@ private fun HomeUiState.withSummary(summary: Dashboard?, today: LocalDate): Home
     this
 } else {
     copy(
-        weeklyDistance = summary.weekly?.actualDistance ?: Distance.ZERO,
+        // 주간 목표가 없어도 이번 주 달린 거리를 보인다(실기기 DV3-4). 옛 서버면 목표 실적, 그것도 없으면 0이다.
+        weeklyDistance = summary.weekDistance ?: summary.weekly?.actualDistance ?: Distance.ZERO,
         weeklyGoal = summary.weekly?.goalDistance?.takeIf { it.meters > 0 },
         streakWeeks = summary.streakWeeks,
         summary = HomeSummary.of(summary, today)

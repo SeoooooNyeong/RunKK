@@ -101,7 +101,7 @@ class CrewRunViews {
         return new CrewRunResultView(
                 post.getId(),
                 post.status(),
-                titleOf(post.body()),
+                post.title(),
                 post.distance(),
                 post.departedAt().orElse(null),
                 total,
@@ -154,14 +154,6 @@ class CrewRunViews {
         }
         long secondsPerKm = Math.round(elapsed.toMillis() / (double) distance.meters());
         return secondsPerKm > 0 ? new Pace((int) secondsPerKm) : null;
-    }
-
-    /** 모집글 본문 첫 줄(앱이 제목과 본문을 줄바꿈으로 이어 싣는다). 비었으면 null. */
-    static String titleOf(String body) {
-        if (body == null || body.isBlank()) {
-            return null;
-        }
-        return body.strip().lines().findFirst().map(String::strip).orElse(null);
     }
 
     /**

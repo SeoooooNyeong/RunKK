@@ -10,18 +10,36 @@ import java.time.Duration
 import java.util.Locale
 
 /**
- * 페이스를 분·초 기호로 적는다: 348초/km → 5'48". 없으면 -'--". 기록 목록의 paceMarks(ui.record RecordFormats)와 같은 형식이다.
- * ui.record를 import하면 허용 표 화살표가 하나 늘어 같은 규칙을 여기 둔다.
+ * 페이스를 피그마처럼 분·초 기호(프라임 ′, 겹프라임 ″)로 적는다: 348초/km → 5′48″. 없으면 -′--″. 보조 기술에는
+ * [com.a207.runkk.app.core.designsystem.RunkkFormat.paceSpoken]("5분 48초")을 쓴다.
  */
 internal fun runBodyPace(pace: Pace?): String {
     val seconds = pace?.secondsPerKm ?: return NO_PACE
-    return String.format(Locale.US, "%d'%02d\"", seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
+    return String.format(Locale.US, "%d′%02d″", seconds / SECONDS_PER_MINUTE, seconds % SECONDS_PER_MINUTE)
 }
 
 /** 짧은 기록 시간 m:ss(개인 최고 1km 4:52, 2km 10:05). */
 internal fun runBodyShortTime(duration: Duration): String {
     val total = duration.seconds.coerceAtLeast(0)
     return String.format(Locale.US, "%d:%02d", total / SECONDS_PER_MINUTE, total % SECONDS_PER_MINUTE)
+}
+
+/** 활동 시간 시:분:초 두 자리(피그마 G-20 "00:30:10"). 1시간 미만도 00시로 적는다. 음수는 0이다. */
+internal fun runBodyClock(duration: Duration): String {
+    val total = duration.seconds.coerceAtLeast(0)
+    return String.format(
+        Locale.US,
+        "%02d:%02d:%02d",
+        total / SECONDS_PER_HOUR,
+        total % SECONDS_PER_HOUR / SECONDS_PER_MINUTE,
+        total % SECONDS_PER_MINUTE
+    )
+}
+
+/** 주간 거리 막대에서 라임으로 칠할 가장 긴 주(앞선 주 우선). 모든 주가 0이거나 주가 없으면 null(모두 보라). */
+internal fun longestWeekIndex(meters: List<Long>): Int? {
+    val longest = meters.maxOrNull()?.takeIf { it > 0 } ?: return null
+    return meters.indexOf(longest)
 }
 
 /** km 소수 첫째 자리(5.2). 구간 길이처럼 작은 값은 소수 둘째 자리까지 버리지 않는다(0.25). */
@@ -71,8 +89,9 @@ internal fun timeOfDayRes(hour: Int): Int = when (hour) {
     else -> R.string.record_runbody_night
 }
 
-private const val NO_PACE = "-'--\""
+private const val NO_PACE = "-′--″"
 private const val SECONDS_PER_MINUTE = 60
+private const val SECONDS_PER_HOUR = 3_600
 private const val DAWN_END = 4
 private const val MORNING_END = 10
 private const val DAYTIME_END = 16

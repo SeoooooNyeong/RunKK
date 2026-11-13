@@ -111,6 +111,9 @@ fun runFrameMillis(pace: Pace?): Long {
     return (RUN_FRAME_MILLIS_AT_REF * seconds / REF_PACE_SECONDS).coerceIn(RUN_FRAME_MILLIS_MIN, RUN_FRAME_MILLIS_MAX)
 }
 
+/** Rive 달리기 동작 재생 빠르기: 6:00/km에서 1, 빠를수록 크게([runFrameMillis]와 같은 비율, 약 0.54~2.14). */
+fun runMotionSpeed(pace: Pace?): Float = RUN_FRAME_MILLIS_AT_REF.toFloat() / runFrameMillis(pace)
+
 private const val STILL_AFTER_MILLIS = 3_000L
 private const val REF_PACE_SECONDS = 360L
 private const val RUN_FRAME_MILLIS_AT_REF = 150L

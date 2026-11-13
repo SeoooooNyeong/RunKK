@@ -6,9 +6,9 @@ import json
 
 import pytest
 
-from runkk_ai.coach import ChatEvent, ChatIn, ChatRejected, CoachTools, InMemoryCoachStore, ToolCall
-from runkk_ai.coach.service import MAX_TOOL_ROUNDS
-from tests.coach.conftest import FakeCoachModel, Script, make_service
+from runkk_ai.coach import ChatEvent, ChatIn, ChatRejected, CoachMessage, CoachTools, InMemoryCoachStore, ToolCall
+from runkk_ai.coach.service import HISTORY_VIEW_MESSAGES, MAX_TOOL_ROUNDS
+from tests.coach.conftest import NOW, FakeCoachModel, Script, make_service
 
 USER = "u_demo"
 
@@ -139,3 +139,31 @@ async def test_direct_answer_without_tools_is_sent(tools: CoachTools) -> None:
         ("delta", "케이던스는 "),
         ("delta", "조금씩 올려요."),
     ]
+
+
+async def test_history_returns_saved_turns_only_to_owner(tools: CoachTools) -> None:
+    """지난 문답 조회(S15P31A207-300): 대화를 연 사용자에게만 질문·답을 오래된 순으로 돌려준다."""
+    store = InMemoryCoachStore()
+    service = make_service(tools, FakeCoachModel([Script(texts=["첫 답"])]), store)
+    conversation_id, _ = await _collect(service, ChatIn(userId=USER, message="안녕"))
+
+    history = await service.history(USER, conversation_id)
+
+    assert [(m.role, m.content) for m in history] == [("user", "안녕"), ("assistant", "첫 답")]
+    assert await service.history(USER, "unknown") == []
+    with pytest.raises(ChatRejected) as rejected:
+        await service.history("someone_else", conversation_id)
+    assert (rejected.value.status, rejected.value.reason) == (404, "CONVERSATION_NOT_FOUND")
+
+
+async def test_history_is_capped_to_recent_messages(tools: CoachTools) -> None:
+    store = InMemoryCoachStore()
+    for i in range(HISTORY_VIEW_MESSAGES + 2):
+        role = "user" if i % 2 == 0 else "assistant"
+        await store.append(CoachMessage("c1", USER, role, f"m{i}", NOW))  # type: ignore[arg-type]
+    service = make_service(tools, None, store)
+
+    history = await service.history(USER, "c1")
+
+    assert len(history) == HISTORY_VIEW_MESSAGES
+    assert history[0].content == "m2"

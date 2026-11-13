@@ -35,30 +35,26 @@ class CrewHomeNavigationTest {
     }
 
     @Test
-    fun `탭 줄 채팅 칸은 크루 채팅방으로 간다(M4)`() {
-        actions.onChat()
-        assertEquals(listOf<NavKey>(Routes.CrewChat(11)), navigated)
+    fun `크루 정보의 지난 크루런·지난 목표는 W7 경로로 간다(F-20·F-21)`() {
+        actions.onPastRuns()
+        actions.onPastGoals()
+        assertEquals(listOf<NavKey>(Routes.CrewPastRuns(11), Routes.CrewPastGoals(11)), navigated)
     }
 
     @Test
-    fun `크루원 줄은 그 러너의 프로필로 간다(F8)`() {
-        actions.onMember(members.members[1])
-        assertEquals(listOf<NavKey>(Routes.MemberProfile(2)), navigated)
+    fun `크루런 제목은 일정 상세, 지난 크루런 링크는 지난 크루런 화면으로 간다(W6)`() {
+        actions.onRunOpen(crewRunPosts.posts[0])
+        actions.onPastRuns()
+        assertEquals(listOf<NavKey>(Routes.CrewRunDetail(31), Routes.CrewPastRuns(11)), navigated)
     }
 
     @Test
-    fun `일정 만들기, 대기실, 결과, 크루 관리 경로는 그대로다`() {
+    fun `일정 만들기, 대기실, 결과 경로는 그대로다(크루 관리 경로는 지웠다, W7)`() {
         actions.onWriteSchedule()
         actions.onLobby(crewRunPosts.posts[0])
         actions.onResult(crewRunPosts.posts[0])
-        actions.onManage()
         assertEquals(
-            listOf<NavKey>(
-                Routes.CrewRunWrite(11),
-                Routes.CrewRunLobby(31),
-                Routes.CrewRunResult(31),
-                Routes.CrewManage(11)
-            ),
+            listOf<NavKey>(Routes.CrewRunWrite(11), Routes.CrewRunLobby(31), Routes.CrewRunResult(31)),
             navigated
         )
     }
@@ -82,63 +78,27 @@ class CrewWireLinksScreensTest {
     )
 
     @Test
-    fun `크루원 쪽에서 다른 크루원 줄을 누르면 프로필을 열고 내 줄은 누르지 않는다(E4, F8)`() {
+    fun `크루원 쪽에서 줄을 누르면 크루원 정보 팝업을 연다(F-22b, W7)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
                     home(CrewTab.RACE).copy(page = CrewHomePage.MEMBERS),
-                    CrewHomeActions(onMember = { calls += "member:${it.memberId}" })
+                    CrewHomeActions(onMemberOpen = { calls += "member:${it.memberId}" })
                 )
             }
         }
         compose.onNode(hasText("달빛") and hasClickAction(), useUnmergedTree = false).performScrollTo().performClick()
-        compose.onNode(hasText("나") and hasClickAction()).assertDoesNotExist()
         assertEquals(listOf("member:2"), calls)
     }
 
     @Test
-    fun `탭 줄의 채팅 칸은 채팅방을 연다(E2, M4)`() {
+    fun `탭 줄의 채팅 칸은 채팅 탭을 고르고, 채팅 탭은 목록 밖 칸에 채팅 내용을 그린다(D-성-21)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                CrewHomeScreen(home(CrewTab.RACE), CrewHomeActions(onChat = { calls += "chat" }))
+                CrewHomeScreen(home(CrewTab.RACE), CrewHomeActions(onTab = { calls += it.name }))
             }
         }
         compose.onNodeWithText("채팅").performClick()
-        assertEquals(listOf("chat"), calls)
-    }
-
-    private fun manage(menu: Boolean) = CrewManageUiState(
-        crewId = 11,
-        detail = crewDetail(role = CrewRole.LEADER),
-        isLoading = false,
-        members = members,
-        menuMember = if (menu) members.members[1] else null
-    )
-
-    @Test
-    fun `크루 관리 - 크루원 메뉴의 프로필 보기는 그 러너의 프로필로(I10, F8)`() {
-        compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                CrewManageScreen(
-                    manage(menu = true),
-                    CrewManageActions(onProfile = {
-                        calls += "profile:${it.memberId}"
-                    })
-                )
-            }
-        }
-        compose.onNodeWithText("프로필 보기").performClick()
-        assertEquals(listOf("profile:2"), calls)
-    }
-
-    @Test
-    fun `크루 관리 - 주간 공동 목표 설정 줄은 목표 화면으로(I3, M8)`() {
-        compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                CrewManageScreen(manage(menu = false), CrewManageActions(onGoalEdit = { calls += "goal" }))
-            }
-        }
-        compose.onNodeWithText("주간 공동 목표 설정").performScrollTo().performClick()
-        assertEquals(listOf("goal"), calls)
+        assertEquals(listOf("CHAT"), calls)
     }
 }

@@ -9,7 +9,7 @@
     <string name="me_menu_records">러닝 기록</string>
     <string name="me_menu_growth">성장 분석</string>
     <string name="me_menu_report">런바디</string>
-    <string name="me_menu_coach">목표·러닝 코치</string>
+    <string name="me_menu_coach">목표와 러닝 코치</string>
     <string name="me_menu_logout">로그아웃</string>
     <string name="me_menu_withdraw">회원 탈퇴</string>
     <string name="me_logout_title">로그아웃할까요?</string>
@@ -121,6 +121,12 @@
     <string name="me_signup_tag_optional">[선택]</string>
     <string name="me_signup_back_to_login">로그인으로 돌아가기</string>
     <string name="me_signup_submit">시작하기</string>
+    <string name="me_signup_gender_headline">성별을 골라 주세요</string>
+    <string name="me_signup_gender_body">아바타 몸이 이 성별로 정해져요.\n프로필 편집에서 바꿀 수 있어요.</string>
+    <string name="me_signup_gender_male">남자</string>
+    <string name="me_signup_gender_female">여자</string>
+    <string name="me_signup_step">%1$d / %2$d</string>
+    <string name="me_signup_step_description">%2$d단계 중 %1$d단계</string>
     <string name="me_login_guest">게스트로 시작하기</string>
     <string name="me_guest_too_many">이곳에서 게스트를 너무 많이 만들었어요. 잠시 뒤 다시 시도해 주세요.</string>
     <string name="me_guest_notice_title">게스트로 시작했어요</string>
@@ -177,7 +183,8 @@
     <string name="me_alert_group_battle_description">매칭 성사, 대결 결과</string>
     <string name="me_alert_group_plan">러닝 계획</string>
     <string name="me_alert_group_avatar">아바타</string>
-    <string name="me_alert_group_avatar_description">체형 변화, 랜드마크 배경 해금</string>
+    <!-- 체형 변화는 2차 배포에서 뺐다([임시:D-성-218]). 서버 BODY_SHAPE_RELEASED를 켜면 "체형 변화, "를 앞에 되돌린다. -->
+    <string name="me_alert_group_avatar_description">랜드마크 배경 해금</string>
     <string name="me_alert_group_crew_news">크루 소식</string>
     <string name="me_alert_group_crew_news_description">가입 신청 결과, 운영진 지정, 신고 처리 결과</string>
     <string name="me_alert_group_crew_notice">크루 공지, 일정</string>
@@ -193,7 +200,7 @@
     <string name="me_profile_birth_year_label">출생연도</string>
     <string name="me_profile_birth_year_option">%1$d년</string>
     <string name="me_profile_gender_title">성별</string>
-    <string name="me_profile_visibility_value">%1$s · %2$s</string>
+    <string name="me_profile_visibility_value">%1$s, %2$s</string>
     <string name="me_profile_public">공개</string>
     <string name="me_profile_private">비공개</string>
     <string name="me_withdraw_notice_deleted">프로필, 러닝 기록, 위치 경로는 7일 안에 모두 지워져요</string>

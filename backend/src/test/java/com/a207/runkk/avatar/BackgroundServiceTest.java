@@ -70,6 +70,8 @@ class BackgroundServiceTest {
     @BeforeEach
     void defaults() {
         when(policy.landmarkTable()).thenReturn(DEFAULTS);
+        when(runs.validDistanceOf(anyLong())).thenReturn(Distance.ofMeters(0));
+        when(runs.validDistanceBefore(anyLong(), any())).thenReturn(Distance.ofMeters(0));
     }
 
     private void total(long memberId, long meters) {
@@ -126,12 +128,12 @@ class BackgroundServiceTest {
 
         assertThat(added)
                 .extracting(UnlockedBackground::landmarkKey)
-                .containsExactly("INCHEON", "KAESONG", "DAEJEON");
+                .containsExactly("INCHEON", "CHUNCHEON", "DAEJEON");
         assertThat(added).allSatisfy(u -> assertThat(u.unlockedAt()).isEqualTo(N));
         NotificationRequest req = onlyNotification();
         assertThat(req.recipientId()).isEqualTo(M);
         assertThat(req.type()).isEqualTo(NotificationType.BACKGROUND_UNLOCKED);
-        assertThat(req.content()).isEqualTo("새 배경 3개를 해금했어요: 인천, 개성, 대전");
+        assertThat(req.content()).isEqualTo("새 배경 3개를 해금했어요: 인천, 춘천, 대전");
         assertThat(req.target().screen()).isEqualTo(Screen.AVATAR_BACKGROUND);
 
         assertThat(service.unlockReached(M, N.plusMinutes(1))).isEmpty();
@@ -142,17 +144,17 @@ class BackgroundServiceTest {
     @Test
     @DisplayName("TC-6160 ③ 표에서 빠진 해금 배경은 목록 끝에 해금 상태로 남는다(해금은 취소하지 않는다)")
     void removedFromTable_staysUnlockedAtEnd() {
-        total(M, 130_000);
+        total(M, 160_000);
         service.unlockReached(M, N);
-        List<Landmark> withoutKaesong =
-                DEFAULTS.landmarks().stream().filter(l -> !l.key().equals("KAESONG")).toList();
-        when(policy.landmarkTable()).thenReturn(new LandmarkTable(withoutKaesong));
+        List<Landmark> withoutChuncheon =
+                DEFAULTS.landmarks().stream().filter(l -> !l.key().equals("CHUNCHEON")).toList();
+        when(policy.landmarkTable()).thenReturn(new LandmarkTable(withoutChuncheon));
 
         BackgroundsView view = service.backgrounds(M, N.plusDays(1));
 
         assertThat(view.backgrounds()).hasSize(22);
         BackgroundsView.Item last = view.backgrounds().get(21);
-        assertThat(last.key()).isEqualTo("KAESONG");
+        assertThat(last.key()).isEqualTo("CHUNCHEON");
         assertThat(last.unlocked()).isTrue();
         assertThat(last.unlockedAt()).isEqualTo(N);
         assertThat(view.backgrounds().get(0).key()).isEqualTo("INCHEON");
@@ -162,24 +164,24 @@ class BackgroundServiceTest {
     @Test
     @DisplayName("TC-6161 choose: 해금한 키 선택 / 잠긴 키·없는 키 BACKGROUND_LOCKED(선택 그대로) / 비우면 기본 배경")
     void choose() {
-        total(M, 130_000);
+        total(M, 160_000);
         service.unlockReached(M, N);
 
-        assertThat(service.choose(M, "KAESONG").selectedKey()).isEqualTo("KAESONG");
+        assertThat(service.choose(M, "CHUNCHEON").selectedKey()).isEqualTo("CHUNCHEON");
         for (String locked : List.of("BUSAN", "NO_SUCH")) {
             assertThatThrownBy(() -> service.choose(M, locked))
                     .isInstanceOf(BusinessRuleException.class)
                     .extracting(e -> ((BusinessRuleException) e).reason())
                     .isEqualTo(ReasonCode.BACKGROUND_LOCKED);
         }
-        assertThat(service.backgrounds(M, N).selectedKey()).isEqualTo("KAESONG");
+        assertThat(service.backgrounds(M, N).selectedKey()).isEqualTo("CHUNCHEON");
         assertThat(service.useDefault(M).selectedKey()).isNull();
     }
 
     @Test
     @DisplayName("TC-6162 배포 전에 넘은 랜드마크는 조회 때 알림 없이 채우고 목록은 개인 랜드마크 22개 표 순서다")
     void backgrounds_backfillsWithoutNotification() {
-        total(M, 130_000);
+        total(M, 160_000);
 
         BackgroundsView view = service.backgrounds(M, N);
 
@@ -196,7 +198,7 @@ class BackgroundServiceTest {
                 .extracting(BackgroundsView.Item::key, BackgroundsView.Item::unlockedAt)
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple("INCHEON", N),
-                        org.assertj.core.groups.Tuple.tuple("KAESONG", N));
+                        org.assertj.core.groups.Tuple.tuple("CHUNCHEON", N));
         assertThat(view.backgrounds().get(2).unlockedAt()).isNull();
         assertThat(view.backgrounds().get(2).distance()).isEqualTo(Distance.ofKm(280));
         assertThat(view.backgrounds().get(2).stage()).isEqualTo("DOMESTIC");
@@ -213,7 +215,7 @@ class BackgroundServiceTest {
         when(members.hasConsent(anyLong(), any(ConsentItem.class))).thenReturn(true);
         AvatarService avatarService =
                 new AvatarService(avatars, rewards, policy, service, tx, clock);
-        total(M, 130_000);
+        total(M, 160_000);
 
         assertThat(avatarService.view(M).backgroundKey()).isNull();
         assertThat(avatars.findOrCreate(M).unlockedBackgrounds()).hasSize(2);
@@ -228,14 +230,14 @@ class BackgroundServiceTest {
     void backfill_onlyFirstFill_keepsNewUnlockNotification() {
         total(M, 60_000);
         service.unlockReached(M, N);
-        total(M, 130_000);
+        total(M, 160_000);
 
         assertThat(service.backfillReached(M, N)).isEmpty();
         assertThat(service.backgrounds(M, N).backgrounds().get(1).unlocked()).isFalse();
 
         assertThat(service.unlockReached(M, N))
                 .extracting(UnlockedBackground::landmarkKey)
-                .containsExactly("KAESONG");
+                .containsExactly("CHUNCHEON");
         verify(notifications, times(2)).notify(any());
     }
 
@@ -276,7 +278,7 @@ class BackgroundServiceTest {
         assertThat(service.reconcile(N)).isEqualTo(1);
 
         assertThat(avatars.findOrCreate(3).unlockedBackgrounds()).hasSize(3);
-        assertThat(onlyNotification().content()).isEqualTo("새 배경 3개를 해금했어요: 인천, 개성, 대전");
+        assertThat(onlyNotification().content()).isEqualTo("새 배경 3개를 해금했어요: 인천, 춘천, 대전");
         assertThat(service.reconcile(N)).isEqualTo(1);
         verify(notifications, times(1)).notify(any());
     }
@@ -310,5 +312,39 @@ class BackgroundServiceTest {
                 true,
                 valid ? 1 : 0,
                 N);
+    }
+
+    // W8 남은 거리(S15P31A207-299, contract-W8.md 2.2)
+
+    @Test
+    @DisplayName("목록에 내 누적 거리와 배경마다 남은 거리를 싣는다: 해금했으면 0, 잠겼으면 기준 − 누적")
+    void remainingDistance() {
+        total(M, 287_000);
+        service.unlockReached(M, N);
+
+        BackgroundsView view = service.backgrounds(M, N);
+
+        assertThat(view.total()).isEqualTo(Distance.ofMeters(287_000));
+        BackgroundsView.Item daejeon = view.backgrounds().get(2);
+        BackgroundsView.Item jeonju = view.backgrounds().get(3);
+        assertThat(daejeon.key()).isEqualTo("DAEJEON");
+        assertThat(daejeon.unlocked()).isTrue();
+        assertThat(daejeon.unlockedAt()).isEqualTo(N);
+        assertThat(daejeon.remaining()).isEqualTo(Distance.ZERO);
+        assertThat(jeonju.key()).isEqualTo("JEONJU");
+        assertThat(jeonju.unlocked()).isFalse();
+        assertThat(jeonju.remaining()).isEqualTo(Distance.ofMeters(113_000));
+        assertThat(service.useDefault(M).total()).isEqualTo(Distance.ofMeters(287_000));
+    }
+
+    @Test
+    @DisplayName("누적 거리가 기준을 넘었는데 아직 해금 전이면 남은 거리는 0이다(음수 없음)")
+    void remainingDistance_neverNegative() {
+        when(runs.validDistanceOf(M)).thenReturn(Distance.ofMeters(500_000));
+
+        BackgroundsView view = service.useDefault(M);
+
+        assertThat(view.backgrounds().get(3).unlocked()).isFalse();
+        assertThat(view.backgrounds().get(3).remaining()).isEqualTo(Distance.ZERO);
     }
 }

@@ -13,6 +13,7 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.CrewRunStatus
+import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.live.CrewRunCancelled
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
@@ -495,5 +496,77 @@ class CrewRunViewModelTest {
         advanceTimeBy(60 * 60_000L)
         runCurrent()
         assertEquals(stopped, w.crews.calls.count { it.startsWith("result") })
+    }
+
+    @Test
+    fun `대기실 - 들어온 참가자의 셀카 얼굴 그림을 얼굴 키마다 한 번 받고 미입장은 받지 않는다(D-성-12)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.lobbyState = lobby.copy(
+            participants = listOf(
+                Lobby.Participant("바람처럼", true, 1, faceKey = "selfie:face/1/a"),
+                Lobby.Participant("달빛", false, 2, isEntered = false, faceKey = "selfie:face/2/b"),
+                Lobby.Participant("새벽곰", false, 7, isMe = true, faceKey = "selfie:face/7/c"),
+                Lobby.Participant("들바람", false, 9, faceKey = "default:FOX")
+            )
+        )
+        val vm = lobbyVm(w, vms)
+        assertEquals(
+            setOf("selfie:face/1/a", "selfie:face/7/c"),
+            vm.state.value.mateFaces.keys,
+            "들어온 참가자(나 포함)의 셀카 얼굴만 담고 빈 목록(기본 캐릭터)은 담지 않는다"
+        )
+        assertFalse(w.crews.calls.contains("face:selfie:face/2/b"), "미입장은 점선 원이라 받지 않는다")
+        vm.enter()
+        runCurrent()
+        assertEquals(1, w.crews.calls.count { it == "face:selfie:face/1/a" }, "다시 읽어도 또 받지 않는다")
+        // 미입장이던 크루원이 들어오면(준비 응답) 그때 받는다.
+        w.crews.lobbyState = w.crews.lobbyState.copy(
+            participants = w.crews.lobbyState.participants.map { it.copy(isEntered = true) }
+        )
+        vm.onReadyToggle()
+        runCurrent()
+        assertTrue("selfie:face/2/b" in vm.state.value.mateFaces.keys)
+    }
+
+    @Test
+    fun `대기실 - 얼굴 그림을 받지 못하면 다음 대기실 응답에서 다시 받는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.lobbyState = lobby.copy(
+            participants = listOf(Lobby.Participant("바람처럼", true, 1, faceKey = "selfie:face/1/a"))
+        )
+        w.crews.fail["face"] = AppError.Network
+        val vm = lobbyVm(w, vms)
+        assertTrue(vm.state.value.mateFaces.isEmpty())
+        w.crews.fail.remove("face")
+        vm.enter()
+        runCurrent()
+        assertEquals(setOf("selfie:face/1/a"), vm.state.value.mateFaces.keys)
+    }
+
+    @Test
+    fun `진행 - 대기실 응답 없이 다시 들어오면 크루런 거리도 결과 응답에서 채운다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        lobbyVm(w, vms)
+        w.crews.fail["enter"] = AppError.Rejected("ALREADY_STARTED")
+        val vm = vms.track(CrewRunViewModel(w.crews, w.coordinator, w.clock, ServerClock(w.clock)))
+        vm.bind(Routes.CrewRunLobby(31))
+        runCurrent()
+        assertEquals(null, vm.state.value.distance)
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("바람처럼", "달빛", "나")))
+        runCurrent()
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        w.channels.channel.push(relay(Triple("나", 300L, CrewRunRelay.State.RUNNING)))
+        runCurrent()
+        assertEquals(Distance(5_000), vm.state.value.distance)
+    }
+
+    @Test
+    fun `대기실 남은 시간은 앞자리 0 없이 분과 초다(F-14, F-14c)`() {
+        assertEquals("0:00", untilLabel(Duration.ZERO))
+        assertEquals("12:34", untilLabel(Duration.ofSeconds(12 * 60 + 34L)))
+        assertEquals("5:07", untilLabel(Duration.ofSeconds(5 * 60 + 7L)))
+        assertEquals("1:02:03", untilLabel(Duration.ofSeconds(3_723)))
+        assertEquals("-", untilLabel(null))
     }
 }

@@ -19,6 +19,8 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+    // 크루 로고 사진의 EXIF 방향(휴대폰 세로 사진)을 읽어 돌린다(리뷰 M5).
+    implementation(libs.androidx.exifinterface)
     implementation(project(":feature:share"))
     implementation(libs.timber)
 

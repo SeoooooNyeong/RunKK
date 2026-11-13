@@ -9,6 +9,10 @@ internal data class PendingRequestsResponse(val requests: List<Request> = emptyL
         val requestId: Long,
         val memberId: Long,
         val displayName: String? = null,
-        val requestedAt: String
+        val requestedAt: String,
+        val tier: String? = null,
+        val level: Int? = null,
+        val ageBand: String? = null,
+        val gender: String? = null
     )
 }

@@ -22,10 +22,6 @@ import java.util.Locale
 /** 크루 태그 두 줄(평일, 주말) × 시간대 넷(피그마 F-01b·F-04). */
 internal val CREW_TAG_CATEGORIES: List<RunkkTagCategory> = RunkkTags.categories
 
-/** 크루런 거리(FR-132): 1·3·5·10km. */
-internal val CREW_RUN_DISTANCES: List<Distance> =
-    listOf(Distance(1_000), Distance(3_000), Distance(5_000), Distance(10_000))
-
 internal val JoinPolicy.labelRes: Int
     @StringRes get() = when (this) {
         JoinPolicy.APPROVAL -> R.string.crew_join_policy_approval
@@ -91,7 +87,7 @@ internal fun crewRunStatusLabelRes(status: CrewRunStatus): Int = when (status) {
 }
 
 /**
- * 크루런 모집글 한 줄 요약: "5km · 10월 24일(토) 07:00 · 참석 3명" (+ 끝났으면 "n명 참여"). 크루런 합산 방식에서 서버
+ * 크루런 모집글 한 줄 요약: "5km, 10월 24일(토) 07:00, 참석 3명" (+ 끝났으면 "n명 참여"). 크루런 합산 방식에서 서버
  * finisherCount는 완주 인원이 아니라 함께 달린(진행 참가) 인원이다.
  */
 internal fun crewRunSummary(
@@ -99,12 +95,12 @@ internal fun crewRunSummary(
     info: PostList.CrewRunInfo,
     zone: ZoneId = ZoneId.systemDefault()
 ): String = listOfNotNull(
-    RunkkFormat.targetLabel(info.distance),
+    crewRunDistanceLabel(resources, info.distance),
     meetLabel(resources, info.scheduledAt, zone),
     resources.getString(R.string.crew_run_going_count, info.goingCount),
     info.takeIf { it.status == CrewRunStatus.FINISHED }
         ?.let { resources.getString(R.string.crew_run_participant_count, it.finisherCount) }
-).joinToString(" · ")
+).joinToString(", ")
 
 /** 화면에서 쓰는 [crewRunSummary]. */
 @Composable

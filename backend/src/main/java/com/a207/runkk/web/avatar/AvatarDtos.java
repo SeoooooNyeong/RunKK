@@ -5,6 +5,7 @@ import com.a207.runkk.avatar.AvatarView;
 import com.a207.runkk.avatar.BackgroundsView;
 import com.a207.runkk.avatar.DefaultCharacter;
 import com.a207.runkk.avatar.EquipChange;
+import com.a207.runkk.avatar.RunnerView;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.ServerZone;
 import com.a207.runkk.reward.ShopView;
@@ -138,7 +139,10 @@ final class AvatarDtos {
                                                     e.name(),
                                                     e.price(),
                                                     e.owned(),
-                                                    e.onSale()))
+                                                    e.onSale(),
+                                                    e.assetKey(),
+                                                    e.locked(),
+                                                    e.unlockCondition()))
                             .toList(),
                     view.balance());
         }
@@ -152,6 +156,9 @@ final class AvatarDtos {
          * @param price 가격
          * @param owned 보유 여부
          * @param onSale 판매 중
+         * @param assetKey 앱 그림 키(영문 소문자·숫자·밑줄), 없으면 null(W8)
+         * @param locked 해금 조건을 못 채웠고 보유하지 않아 살 수 없음(W8)
+         * @param unlockCondition 해금 조건 문구, 조건이 없으면 null(W8)
          */
         record Item(
                 long itemId,
@@ -159,7 +166,10 @@ final class AvatarDtos {
                 String name,
                 int price,
                 boolean owned,
-                boolean onSale) {}
+                boolean onSale,
+                String assetKey,
+                boolean locked,
+                String unlockCondition) {}
     }
 
     /**
@@ -183,8 +193,9 @@ final class AvatarDtos {
      *
      * @param selectedKey 고른 배경 키, null이면 기본 배경
      * @param backgrounds 배경
+     * @param totalMeters 내 누적 유효 거리(m, W8)
      */
-    record BackgroundsResponse(String selectedKey, List<Background> backgrounds) {
+    record BackgroundsResponse(String selectedKey, List<Background> backgrounds, long totalMeters) {
 
         static BackgroundsResponse of(BackgroundsView view) {
             return new BackgroundsResponse(
@@ -202,8 +213,10 @@ final class AvatarDtos {
                                                             ? null
                                                             : b.unlockedAt()
                                                                     .atZone(SEOUL)
-                                                                    .toOffsetDateTime()))
-                            .toList());
+                                                                    .toOffsetDateTime(),
+                                                    b.remaining().meters()))
+                            .toList(),
+                    view.total().meters());
         }
 
         /**
@@ -214,7 +227,8 @@ final class AvatarDtos {
          * @param stage DOMESTIC | EAST_ASIA | INTERCONTINENTAL
          * @param distanceMeters 해금 누적 거리(m)
          * @param unlocked 해금됨
-         * @param unlockedAt 해금 일시, 잠겼으면 null
+         * @param unlockedAt 해금 일시, 잠겼으면 null. 앱 해금 팝업이 기기에 남긴 확인 기록과 비교한다(W8)
+         * @param remainingMeters 해금까지 남은 거리(m) = max(0, distanceMeters − totalMeters), 해금했으면 0(W8)
          */
         record Background(
                 String key,
@@ -222,7 +236,43 @@ final class AvatarDtos {
                 String stage,
                 long distanceMeters,
                 boolean unlocked,
-                OffsetDateTime unlockedAt) {}
+                OffsetDateTime unlockedAt,
+                long remainingMeters) {}
+    }
+
+    /**
+     * 내 러너(W8 GET /avatar/runner, 피그마 H-2, contract-W8.md 2.1·6절).
+     *
+     * @param bodyShape 체형 4단계(FR-163)
+     * @param bodyVariant 화면·W9 렌더러 3단계 체형(0 기본, 1 변화 1, 2 변화 2)
+     * @param skinTone 피부톤(시간대, FR-164)
+     * @param typicalStartHour 피부톤 근거 대표 시각(시 0~23), 없으면 null
+     * @param recentRunCount 오늘 포함 최근 7일 유효 러닝 수
+     * @param recentDistanceMeters 같은 7일 유효 거리(m)
+     * @param runAmount W9 피부톤 입력 러닝량 0~100
+     * @param restDaysBeforeDecline 체형규칙 쉼 일수
+     */
+    record RunnerResponse(
+            String bodyShape,
+            int bodyVariant,
+            String skinTone,
+            Integer typicalStartHour,
+            int recentRunCount,
+            long recentDistanceMeters,
+            int runAmount,
+            int restDaysBeforeDecline) {
+
+        static RunnerResponse of(RunnerView v) {
+            return new RunnerResponse(
+                    v.bodyShape().name(),
+                    v.bodyVariant(),
+                    v.skinTone().name(),
+                    v.typicalStartHour(),
+                    v.recentRunCount(),
+                    v.recentDistance().meters(),
+                    v.runAmount(),
+                    v.restDaysBeforeDecline());
+        }
     }
 
     /**

@@ -1,0 +1,10 @@
+Use your image generation tool (edit the attached image). Save the result as base_stand_a.png and a second variation base_stand_b.png in the current folder, each exactly 1024x1536 pixels, PNG with a fully TRANSPARENT background.
+
+The first attached image is a game avatar TEXTURE ATLAS: a headless chibi body seen from the FRONT (1024x1536). It is mapped onto a 2D mesh, so every body part must stay at EXACTLY the same pixel position and size. Do not move, scale, crop, or re-pose anything.
+
+Task: make the clothing-free BASE BODY of this same atlas.
+- Remove the white T-shirt, the dark shorts, the socks and the sneakers.
+- Paint bare skin where they were, in exactly the same soft painterly chibi style, skin color, warm brown outline (same thickness) and soft shading as the visible forearms and legs: the neck base and collarbone area, round shoulders, full upper arms joining the existing forearms, a smooth simple torso (mannequin-like, no anatomical details), bare knees/shins, ankles and simple rounded bare feet standing on the same ground line where the shoes were.
+- Add plain light grey (#C9CCD3) boxer briefs on the hips, same width and height as where the shorts were but slightly shorter (end 40% higher).
+- Keep the hands, forearms, thighs and calves EXACTLY as in the image (same pixels).
+- Everything outside the body stays transparent. No head, no text, no shadow on the ground.

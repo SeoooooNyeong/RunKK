@@ -581,7 +581,7 @@ class CrewV011ScenarioTest {
         race.onRunSaved(saved(c.r2(), 3_000, now()));
         RaceStatusView done = race.status(c.l(), c.id(), Optional.empty());
         assertThat(done.achievedAt()).isNotNull();
-        assertThat(done.goalProgressPercent()).isEqualTo(100);
+        assertThat(done.goalProgressPercent()).as("10.5km ÷ 10km, 100을 넘겨 둔다(C2)").isEqualTo(105);
         assertThat(done.celebration().participantCount()).isEqualTo(2);
         assertThat(done.celebration().goalMeters()).isEqualTo(Distance.ofMeters(10_000));
         for (long x : new long[] {c.l(), c.m(), c.r1(), c.r2()}) {

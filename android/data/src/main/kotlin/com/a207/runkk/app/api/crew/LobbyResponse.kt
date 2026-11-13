@@ -2,13 +2,13 @@ package com.a207.runkk.app.api.crew
 
 import kotlinx.serialization.Serializable
 
-/** 서버 CrewDtos.LobbyResponse. 모집 일시는 scheduledAt, 크루런 거리는 distanceMeters다. */
+/** 서버 CrewDtos.LobbyResponse. 모집 일시는 scheduledAt, 크루런 거리는 distanceMeters(null이면 제한 없음, W6)다. */
 @Serializable
 internal data class LobbyResponse(
     val postId: Long,
     val participants: List<Participant> = emptyList(),
     val scheduledAt: String,
-    val distanceMeters: Long
+    val distanceMeters: Long? = null
 ) {
     /** me는 열람자 본인 줄이다. */
     @Serializable

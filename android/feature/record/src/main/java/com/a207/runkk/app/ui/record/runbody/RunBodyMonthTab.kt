@@ -4,8 +4,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
@@ -24,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigator
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -80,60 +83,48 @@ private fun MonthHeader(state: RunBodyUiState, actions: RunBodyActions) {
         stringResource(R.string.record_runbody_month_label),
         Locale.KOREAN
     ).format(state.month)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        MonthArrow(
-            RunkkIcons.Back,
-            stringResource(R.string.record_runbody_month_previous),
-            isEnabled = state.canGoPreviousMonth,
-            actions.onPreviousMonth
-        )
-        Text(label, style = RunkkTextStyles.text(17, FontWeight.Black), color = RunkkColors.TextPrimary)
-        MonthArrow(
-            RunkkIcons.ChevronRight,
-            stringResource(R.string.record_runbody_month_next),
-            isEnabled = state.canGoNextMonth,
-            actions.onNextMonth
-        )
-    }
+    // 피그마 "‹  2026년 10월  ›"(16 Bold, 왼쪽 정렬). 화살표는 누름 칸 48을 두고 꺾쇠가 본문 왼쪽 끝에 오게 당긴다.
+    RunkkPeriodNavigator(
+        label = label,
+        onPrevious = actions.onPreviousMonth.takeIf { state.canGoPreviousMonth },
+        onNext = actions.onNextMonth.takeIf { state.canGoNextMonth },
+        modifier = Modifier.offset(x = -ARROW_INSET).width(IntrinsicSize.Max),
+        previousDescription = stringResource(R.string.record_runbody_month_previous),
+        nextDescription = stringResource(R.string.record_runbody_month_next)
+    )
 }
 
-@Composable
-private fun MonthArrow(icon: ImageVector, label: String, isEnabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(40.dp)
-            .clickable(enabled = isEnabled, onClickLabel = label, role = Role.Button, onClick = onClick)
-            .alpha(if (isEnabled) 1f else DISABLED_ALPHA),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = label, tint = RunkkColors.TextPrimary, modifier = Modifier.size(18.dp))
-    }
-}
-
-/** 월간 러닝 분석: 점수가 있는 축마다 이름·점수·막대. 가장 높은 축은 라임, 나머지는 보라. */
+/** 월간 러닝 분석(간격 14): 점수가 있는 축마다 이름(13 Medium)·점수(17 Bold)·막대(6, 트랙 surfaceHigh). 가장 높은 축은 라임, 나머지는 보라. */
 @Composable
 private fun AxesCard(month: RunBodyMonth) {
     val best = month.averages.maxByOrNull { it.value }?.key
-    RunBodyCard(stringResource(R.string.record_runbody_month_title), titleSize = PROFILE_TITLE_SIZE) {
+    RunBodyCard(
+        stringResource(R.string.record_runbody_month_title),
+        titleSize = PROFILE_TITLE_SIZE,
+        spacing = 14.dp
+    ) {
         RunBodyCaption(stringResource(R.string.record_runbody_month_caption))
         month.averages.forEach { (axis, average) ->
-            Column(Modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.semantics(mergeDescendants = true) {}) {
+                Row {
                     Text(
                         stringResource(axis.labelRes()),
-                        style = RunkkTextStyles.Label,
+                        style = RunkkTextStyles.text(13, FontWeight.Medium),
                         color = RunkkColors.TextSecondary,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).alignByBaseline()
                     )
                     Text(
                         stringResource(R.string.record_runbody_points, average),
-                        style = RunkkTextStyles.text(17, FontWeight.Black),
-                        color = RunkkColors.TextPrimary
+                        style = RunkkTextStyles.text(17, FontWeight.Bold),
+                        color = RunkkColors.TextPrimary,
+                        modifier = Modifier.alignByBaseline()
                     )
                 }
                 RunkkProgressBar(
                     average / MAX_SCORE,
-                    color = if (axis == best) RunkkColors.LimeFill else RunkkColors.Violet
+                    height = BAR_HEIGHT,
+                    color = if (axis == best) RunkkColors.LimeFill else RunkkColors.Violet,
+                    trackColor = RunkkColors.SurfaceHigh
                 )
             }
         }
@@ -168,7 +159,8 @@ private fun BaselineCard(baseline: RunBodyMonth.Baseline) {
             baseline.pace?.let {
                 RunBodyValueRow(
                     stringResource(R.string.record_stat_avg_pace),
-                    stringResource(R.string.record_runbody_pace_per_km, runBodyPace(it))
+                    stringResource(R.string.record_runbody_pace_per_km, runBodyPace(it)),
+                    spokenValue = RunkkFormat.paceSpoken(it)
                 )
             }
             baseline.averageHeartRate?.let {
@@ -267,13 +259,20 @@ private fun BestsCard(bests: RunBodyMonth.Bests, isCurrentMonth: Boolean) {
     }
 }
 
-/** 주간 거리(1주부터, 주마다 같은 축의 막대) + 밤에 달린 비율. */
+/** 주간 거리(1주부터, 주마다 같은 축의 막대, 가장 긴 주만 라임) + 밤에 달린 비율. */
 @Composable
 private fun WeeksCard(month: RunBodyMonth) {
-    val axis = weekAxisMeters(month.weeks.maxOfOrNull { it.distance.meters } ?: 0L)
+    val meters = month.weeks.map { it.distance.meters }
+    val axis = weekAxisMeters(meters.maxOrNull() ?: 0L)
+    val longest = longestWeekIndex(meters)
     RunBodyCard(stringResource(R.string.record_runbody_weeks)) {
         month.weeks.forEachIndexed { index, week ->
-            WeekBarRow(stringResource(R.string.record_runbody_week, index + 1), week.distance, axis)
+            WeekBarRow(
+                stringResource(R.string.record_runbody_week, index + 1),
+                week.distance,
+                axis,
+                isLongest = index == longest
+            )
         }
         val total = month.nightRuns + month.dayRuns
         if (total > 0) {
@@ -288,9 +287,9 @@ private fun WeeksCard(month: RunBodyMonth) {
     }
 }
 
-/** 주 이름(1주) + 공통 축 막대 + 거리. */
+/** 주 이름(1주) + 공통 축 막대(트랙 surfaceHigh, 가장 긴 주는 라임) + 거리(칸 54). */
 @Composable
-private fun WeekBarRow(label: String, distance: Distance, axisMeters: Long) {
+private fun WeekBarRow(label: String, distance: Distance, axisMeters: Long, isLongest: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         verticalAlignment = Alignment.CenterVertically,
@@ -300,8 +299,9 @@ private fun WeekBarRow(label: String, distance: Distance, axisMeters: Long) {
         RunkkProgressBar(
             distance.meters / axisMeters.toFloat(),
             modifier = Modifier.weight(1f),
-            height = 6.dp,
-            color = RunkkColors.Violet
+            height = BAR_HEIGHT,
+            color = if (isLongest) RunkkColors.LimeFill else RunkkColors.Violet,
+            trackColor = RunkkColors.SurfaceHigh
         )
         Text(
             km(distance),
@@ -329,6 +329,7 @@ private fun kmSpaced(distance: Distance): String =
 
 private const val MAX_SCORE = 100f
 private const val PERCENT = 100
-private const val DISABLED_ALPHA = 0.3f
 private const val WEEK_AXIS_STEP_METERS = 5_000L
-private val WEEK_VALUE_WIDTH = 72.dp
+private val WEEK_VALUE_WIDTH = 54.dp
+private val BAR_HEIGHT = 6.dp
+private val ARROW_INSET = 16.dp

@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +22,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -48,7 +48,7 @@ internal fun WriteScaffold(
             onMessageShown()
         }
     }
-    Box(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(Modifier.fillMaxSize()) {
             RunkkTopBar(title = title, onBack = onBack)
             Column(
@@ -60,12 +60,12 @@ internal fun WriteScaffold(
                     Text(
                         it.asString(),
                         style = RunkkTextStyles.text(13, FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.secondary,
+                        color = RunkkColors.Violet,
                         modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                     )
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = RunkkColors.Border)
             RunkkPrimaryButton(
                 submitLabel,
                 onClick = onSubmit,

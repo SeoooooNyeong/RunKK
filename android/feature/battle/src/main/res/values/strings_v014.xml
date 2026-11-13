@@ -76,7 +76,7 @@
     <string name="battle_result_swipe_detail">밀어서 상세 결과 보기 ›</string>
     <string name="battle_result_back_to_verdict">‹ 대결 결과로</string>
     <string name="battle_result_detail_waiting">상세 기록을 불러오고 있어요</string>
-    <string name="battle_result_date_pattern">M.dd E · a h:mm</string>
+    <string name="battle_result_date_pattern">M.dd E a h:mm</string>
     <string name="battle_result_page_desc">%2$d쪽 중 %1$d쪽</string>
     <string name="battle_cancel_desc">러닝 취소</string>
     <string name="battle_cancel_caption">취소</string>

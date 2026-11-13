@@ -27,7 +27,7 @@ class ServerContractTest {
             .filter { "CREW_RUN" in it[2].split(',') }
             .map { it[1].toLong() }
             .toSet()
-        assertEquals(server, CREW_RUN_DISTANCES.map { it.meters }.toSet())
+        assertEquals(server, CrewRunDistanceChoice.entries.mapNotNull { it.distance?.meters }.toSet())
     }
 
     @Test

@@ -40,6 +40,8 @@ class CrewRunResultViewModel internal constructor(
     private val coordinator: CrewRunCoordinator,
     private val timeSource: TimeSource,
     private val myAvatar: suspend () -> MyAvatar? = { null },
+    /** 첫 그림의 내 아바타(기기에 남긴 마지막 모습, 없으면 null). */
+    lastAvatar: () -> MyAvatar? = { null },
     private val details: CrewRunDetailSource
 ) : ViewModel() {
     @Inject
@@ -48,9 +50,11 @@ class CrewRunResultViewModel internal constructor(
         coordinator: CrewRunCoordinator,
         details: CrewRunDetailSource,
         account: AccountRepository
-    ) : this(crews, coordinator, TimeSource.Monotonic, { account.myAvatar() }, details)
+    ) : this(crews, coordinator, TimeSource.Monotonic, { account.myAvatar() }, account::lastMyAvatar, details)
 
-    private val _state = MutableStateFlow(CrewRunResultUiState())
+    // 기기에 남긴 마지막 내 아바타(AccountRepository.lastMyAvatar)를 첫 값으로 그려 기본 아바타가 보였다가 바뀌지 않게 한다.
+    private val _state = MutableStateFlow(CrewRunResultUiState(myAvatar = lastAvatar()))
+    private var isAvatarRead = false
     val state: StateFlow<CrewRunResultUiState> = _state.asStateFlow()
     private var loaded: Long? = null
     private var job: Job? = null
@@ -82,9 +86,12 @@ class CrewRunResultViewModel internal constructor(
 
     /** 내 아바타(홈과 같은 얼굴·배경)를 한 번 읽는다. 못 읽으면 기본 아바타 그대로다. */
     private fun readMyAvatar() {
-        if (_state.value.myAvatar != null || avatarJob?.isActive == true) return
+        if (isAvatarRead || avatarJob?.isActive == true) return
         avatarJob = viewModelScope.launch {
-            myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
+            myAvatar()?.let { look ->
+                isAvatarRead = true
+                _state.update { it.copy(myAvatar = look) }
+            }
         }
     }
 
@@ -152,7 +159,12 @@ class CrewRunResultViewModel internal constructor(
     /** 아바타 줄 크루원의 셀카 얼굴 부위 그림을 얼굴 키마다 한 번 받는다. 받지 못하면 얼굴 키만으로 그린다. */
     private fun readMateFaces(result: CrewRunResult) {
         val keys = result.participants.filter { !it.isMe }.mapNotNull { it.faceKey }.filter { requestedFaces.add(it) }
-        keys.forEach { key ->
+        // 받아 둔 그림(대기실에서 본 크루원)은 결과와 함께 바로 그린다(기본 머리를 거치지 않게).
+        val cached = keys.mapNotNull { key ->
+            crews.cachedFaceLayers(key)?.takeIf { it.isNotEmpty() }?.let { key to it }
+        }
+        if (cached.isNotEmpty()) _state.update { it.copy(mateFaces = it.mateFaces + cached) }
+        keys.filter { key -> cached.none { it.first == key } }.forEach { key ->
             viewModelScope.launch {
                 (crews.faceLayers(key) as? Outcome.Success)?.value?.takeIf { it.isNotEmpty() }?.let { layers ->
                     _state.update { it.copy(mateFaces = it.mateFaces + (key to layers)) }

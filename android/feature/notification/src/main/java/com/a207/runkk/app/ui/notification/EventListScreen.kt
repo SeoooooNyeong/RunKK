@@ -43,6 +43,9 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPageDots
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatusChip
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -185,7 +188,7 @@ private fun Banner(
         modifier = Modifier
             .fillMaxWidth()
             .height(212.dp)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RunkkShapes.ExtraLarge)
             .background(RunkkColors.Violet)
             .clickable(role = Role.Button, onClick = onClick)
     ) {
@@ -211,19 +214,13 @@ private fun Banner(
 /** 목록 머리: "진행 중인 이벤트 3". */
 @Composable
 private fun ListHeader(tab: EventTab, count: Int) {
-    Row(
-        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp).semantics(
-            mergeDescendants = true
-        ) { heading() },
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(
-            stringResource(tab.headerRes),
-            style = RunkkTextStyles.text(17, FontWeight.Bold),
-            color = RunkkColors.TextPrimary
-        )
-        Text(count.toString(), style = RunkkTextStyles.text(17, FontWeight.Bold), color = RunkkColors.Lavender)
-    }
+    RunkkSectionHeader(
+        stringResource(tab.headerRes),
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp),
+        count = count.toString(),
+        size = RunkkSectionHeaderSize.Large,
+        countColor = RunkkColors.Lavender
+    )
 }
 
 /**
@@ -242,7 +239,7 @@ private fun EventCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) {}
@@ -250,14 +247,14 @@ private fun EventCard(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(84.dp).clip(RoundedCornerShape(16.dp)).background(RunkkColors.Violet)) {
+        Box(Modifier.size(84.dp).clip(RunkkShapes.Medium).background(RunkkColors.Violet)) {
             EventImage(event.thumbnailImageUrl, loadImage, EVENT_THUMB_PX)
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             EventChip.of(event).let { RunkkStatusChip(stringResource(it.labelRes), it.tone) }
             Text(
                 event.title,
-                style = RunkkTextStyles.text(16, FontWeight.Bold),
+                style = RunkkTextStyles.CardTitle,
                 color = RunkkColors.TextPrimary,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis

@@ -39,7 +39,7 @@ class SelfieJobServiceTest {
         when(members.hasConsent(anyLong(), eq(ConsentItem.FACE_TRANSFER))).thenReturn(true);
         when(policy.features()).thenReturn(new FeatureToggles(true, true));
         when(policy.selfieLimit()).thenReturn(new SelfieLimit(1));
-        when(gateway.submit(eq(1L), any())).thenReturn(queued);
+        when(gateway.submit(eq(1L), any(), anyInt())).thenReturn(queued);
         when(gateway.status(1, "job-1")).thenReturn(queued);
         when(gateway.result(1, "job-1")).thenReturn(head);
         service = service(clock);
@@ -68,7 +68,7 @@ class SelfieJobServiceTest {
     void samePhotoReturnsSameJobWithoutSubmittingTwice() {
         service.submit(1, new byte[] {1});
         assertThat(service.submit(1, new byte[] {1}).jobId()).isEqualTo("job-1");
-        verify(gateway, times(1)).submit(eq(1L), any());
+        verify(gateway, times(1)).submit(eq(1L), any(), anyInt());
     }
 
     @Test
@@ -78,7 +78,7 @@ class SelfieJobServiceTest {
                 .isInstanceOfSatisfying(
                         BusinessRuleException.class,
                         e -> assertThat(e.reason()).isEqualTo(ReasonCode.SELFIE_IN_PROGRESS));
-        verify(gateway, times(1)).submit(eq(1L), any());
+        verify(gateway, times(1)).submit(eq(1L), any(), anyInt());
     }
 
     @Test
@@ -176,7 +176,8 @@ class SelfieJobServiceTest {
 
     @Test
     void uncertainSubmissionWithoutJobIdIsNotCurrent() {
-        when(gateway.submit(eq(1L), any())).thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
+        when(gateway.submit(eq(1L), any(), anyInt()))
+                .thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
         assertThatThrownBy(() -> service.submit(1, new byte[] {1}))
                 .isInstanceOf(FaceJobRejectedException.class);
         assertThat(service.current(1)).isEmpty();
@@ -195,17 +196,18 @@ class SelfieJobServiceTest {
         assertThat(avatars.findOrCreate(1).creationCount()).isZero();
         assertThat(avatars.findOrCreate(1).face()).isEmpty();
         when(policy.selfieLimit()).thenReturn(new SelfieLimit(1));
-        when(gateway.submit(eq(1L), any()))
+        when(gateway.submit(eq(1L), any(), anyInt()))
                 .thenReturn(new FaceJob("job-2", FaceJob.Status.QUEUED, null, null));
         assertThat(service.submit(1, new byte[] {2}).jobId()).isEqualTo("job-2");
     }
 
     @Test
     void uncertainSubmissionCanRetrySamePhotoAfterLease() {
-        when(gateway.submit(eq(1L), any())).thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
+        when(gateway.submit(eq(1L), any(), anyInt()))
+                .thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
         assertThatThrownBy(() -> service.submit(1, new byte[] {1}))
                 .isInstanceOf(FaceJobRejectedException.class);
-        when(gateway.submit(eq(1L), any())).thenReturn(queued);
+        when(gateway.submit(eq(1L), any(), anyInt())).thenReturn(queued);
         assertThat(service(Clock.offset(clock, Duration.ofSeconds(31))).submit(1, new byte[] {1}))
                 .isEqualTo(queued);
         assertThat(avatars.findOrCreate(1).creationCount()).isZero();
@@ -213,10 +215,11 @@ class SelfieJobServiceTest {
 
     @Test
     void expiredUnknownSubmissionAllowsRetakingPhoto() {
-        when(gateway.submit(eq(1L), any())).thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
+        when(gateway.submit(eq(1L), any(), anyInt()))
+                .thenThrow(new FaceJobRejectedException(504, "TIMEOUT"));
         assertThatThrownBy(() -> service.submit(1, new byte[] {1}))
                 .isInstanceOf(FaceJobRejectedException.class);
-        when(gateway.submit(eq(1L), any())).thenReturn(queued);
+        when(gateway.submit(eq(1L), any(), anyInt())).thenReturn(queued);
         assertThat(service(Clock.offset(clock, Duration.ofSeconds(31))).submit(1, new byte[] {2}))
                 .isEqualTo(queued);
     }
@@ -228,7 +231,7 @@ class SelfieJobServiceTest {
                 .thenThrow(new FaceJobRejectedException(404, "JOB_NOT_FOUND"));
         assertThatThrownBy(() -> service.status(1, "job-1"))
                 .isInstanceOf(FaceJobRejectedException.class);
-        when(gateway.submit(eq(1L), any()))
+        when(gateway.submit(eq(1L), any(), anyInt()))
                 .thenReturn(new FaceJob("job-2", FaceJob.Status.QUEUED, null, null));
         assertThat(service.submit(1, new byte[] {1}).jobId()).isEqualTo("job-2");
         assertThat(avatars.findOrCreate(1).creationCount()).isZero();
@@ -282,6 +285,97 @@ class SelfieJobServiceTest {
         assertThatThrownBy(() -> service.status(1, "job-1"))
                 .isInstanceOf(FaceJobRejectedException.class);
         assertThat(jobs.rows).isEmpty();
+    }
+
+    private static FaceJob failed(String jobId, String code) {
+        return new FaceJob(jobId, FaceJob.Status.FAILED, null, new FaceJob.Error(code, "실패"));
+    }
+
+    @Test
+    void unknownOutcomeIsRecoveredWhenAiLaterReportsSuccess() {
+        // DV-성-9: Node가 결과를 확정하지 못하고 실패로 끝냈지만 그 뒤 머리를 저장해 작업을 성공으로 회수했다
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "GENERATION_OUTCOME_UNKNOWN"));
+        assertThat(service.status(1, "job-1").status()).isEqualTo(FaceJob.Status.FAILED);
+        assertThat(service.current(1)).isEmpty();
+        when(gateway.status(1, "job-1"))
+                .thenReturn(new FaceJob("job-1", FaceJob.Status.SUCCEEDED, "head-1", null));
+        assertThat(service.status(1, "job-1").status()).isEqualTo(FaceJob.Status.SUCCEEDED);
+        assertThat(service.current(1).orElseThrow().jobId()).isEqualTo("job-1");
+        service.result(1, "job-1");
+        assertThat(avatars.findOrCreate(1).creationCount()).isEqualTo(1);
+        assertThat(avatars.findOrCreate(1).face().orElseThrow().renderKey())
+                .isEqualTo("head:1:job-1");
+        verify(gateway, times(1)).submit(eq(1L), any(), anyInt());
+    }
+
+    @Test
+    void definiteFailureIsNotAskedAgain() {
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "NO_FACE_DETECTED"));
+        service.status(1, "job-1");
+        service.status(1, "job-1");
+        verify(gateway, times(1)).status(1, "job-1");
+    }
+
+    @Test
+    void unknownOutcomeIsNotAskedAfterTheRecoveryWindow() {
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "UPSTREAM_TIMEOUT"));
+        service.status(1, "job-1");
+        service(Clock.offset(clock, Duration.ofMinutes(61))).status(1, "job-1");
+        verify(gateway, times(1)).status(1, "job-1");
+    }
+
+    @Test
+    void recoveredHeadIsNotAppliedOverDefaultChosenAfterFailure() {
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "GENERATION_OUTCOME_UNKNOWN"));
+        service.status(1, "job-1");
+        avatars.findForUpdate(1).orElseThrow().chooseDefault(DefaultCharacter.FOX);
+        when(gateway.status(1, "job-1"))
+                .thenReturn(new FaceJob("job-1", FaceJob.Status.SUCCEEDED, "head-1", null));
+        assertThat(service.status(1, "job-1").status()).isEqualTo(FaceJob.Status.FAILED);
+        assertThat(avatars.findOrCreate(1).face().orElseThrow().renderKey())
+                .isEqualTo("default:FOX");
+    }
+
+    @Test
+    void retryingSamePhotoAfterUnknownFailureMakesNewAttemptOnce() {
+        // 같은 사진 재전송은 같은 작업을 돌려준다(멱등). 실패가 확정된 뒤 다시 고르면 새 시도 번호로 새 작업을 만든다
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "GENERATION_OUTCOME_UNKNOWN"));
+        service.status(1, "job-1");
+        FaceJob second = new FaceJob("job-2", FaceJob.Status.QUEUED, null, null);
+        when(gateway.submit(eq(1L), any(), eq(2))).thenReturn(second);
+        when(gateway.status(1, "job-2")).thenReturn(second);
+        assertThat(service.submit(1, new byte[] {1}).jobId()).isEqualTo("job-2");
+        assertThat(service.submit(1, new byte[] {1}).jobId()).isEqualTo("job-2");
+        verify(gateway, times(1)).submit(eq(1L), any(), eq(1));
+        verify(gateway, times(1)).submit(eq(1L), any(), eq(2));
+        assertThat(service.current(1).orElseThrow().jobId()).isEqualTo("job-2");
+    }
+
+    @Test
+    void retryingSamePhotoReturnsRecoveredJobInsteadOfPayingAgain() {
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "UPSTREAM_TIMEOUT"));
+        service.status(1, "job-1");
+        when(gateway.status(1, "job-1"))
+                .thenReturn(new FaceJob("job-1", FaceJob.Status.SUCCEEDED, "head-1", null));
+        assertThat(service.submit(1, new byte[] {1}).status()).isEqualTo(FaceJob.Status.SUCCEEDED);
+        verify(gateway, times(1)).submit(eq(1L), any(), anyInt());
+    }
+
+    @Test
+    void samePhotoRejectedForQualityIsNotRegenerated() {
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "SELFIE_QUALITY_REJECTED"));
+        service.status(1, "job-1");
+        FaceJob again = service.submit(1, new byte[] {1});
+        assertThat(again.jobId()).isEqualTo("job-1");
+        assertThat(again.error().code()).isEqualTo("SELFIE_QUALITY_REJECTED");
+        verify(gateway, times(1)).submit(eq(1L), any(), anyInt());
     }
 
     static class MemoryJobs implements SelfieJobRepository {

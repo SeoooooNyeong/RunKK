@@ -69,7 +69,7 @@ class RunScreensTest {
             )
         )
         compose.onNodeWithText("자유런 · 5km").assertDoesNotExist()
-        compose.onNodeWithText("5km · 음성 · 진동 · 코치보이스").assertExists()
+        compose.onNodeWithText("5km, 음성, 진동, 코치보이스").assertExists()
         compose.onNodeWithText("GPS", substring = true).assertDoesNotExist()
         compose.onNodeWithText("워치", substring = true).assertDoesNotExist()
         compose.onNodeWithText("바꾸기").assertDoesNotExist()

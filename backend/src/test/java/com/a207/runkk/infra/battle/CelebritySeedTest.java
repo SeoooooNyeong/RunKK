@@ -27,7 +27,7 @@ class CelebritySeedTest {
     private static List<String> inserts(Path file) throws IOException {
         return Files.readAllLines(file, StandardCharsets.UTF_8).stream()
                 .map(String::strip)
-                .filter(line -> line.startsWith("INSERT"))
+                .filter(line -> line.startsWith("INSERT INTO celebrity_record"))
                 .toList();
     }
 

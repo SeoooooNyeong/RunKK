@@ -7,6 +7,7 @@ import com.a207.runkk.app.domain.chat.ChatPage
 import com.a207.runkk.app.domain.chat.ChatReactions
 import com.a207.runkk.app.domain.chat.ChatRepository
 import com.a207.runkk.app.domain.chat.ReactionKind
+import com.a207.runkk.app.domain.chat.Reactor
 import javax.inject.Inject
 
 /**
@@ -27,6 +28,9 @@ constructor(private val api: ChatApi) : ChatRepository {
 
     override suspend fun unreact(messageId: Long, kind: ReactionKind): Outcome<ChatReactions> =
         ApiErrorMapper.call { api.unreact(messageId, kind.name).toDomain() }
+
+    override suspend fun reactors(messageId: Long): Outcome<List<Reactor>> =
+        ApiErrorMapper.call { api.reactors(messageId).toDomain() }
 
     override suspend fun delete(messageId: Long): Outcome<Unit> = ApiErrorMapper.call { api.delete(messageId) }
 }
