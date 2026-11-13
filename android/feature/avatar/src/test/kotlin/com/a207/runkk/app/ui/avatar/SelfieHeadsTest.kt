@@ -58,11 +58,17 @@ class SelfieHeadsTest {
     @Test
     fun `최근 얼굴 몇 개만 두고 오래된 것은 다시 받는다`() = runTest {
         repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
-        heads.look("head:7:a")
-        heads.look("head:7:b")
-        heads.look("head:7:c")
-        heads.look("head:7:d")
+        listOf("a", "b", "c", "d", "e", "f", "g").forEach { heads.look("head:7:$it") }
         heads.look("head:7:a")
         assertEquals(2, repo.calls.count { it == "head:head:7:a" })
+    }
+
+    @Test
+    fun `내 얼굴과 랭킹 시상대 세 러너, 막 바꾼 얼굴까지는 다시 받지 않는다(S15P31A207-300)`() = runTest {
+        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        val keys = listOf("head:7:me", "head:1:a", "head:2:b", "head:3:c", "head:7:new")
+        keys.forEach { heads.look(it) }
+        keys.forEach { heads.look(it) }
+        assertEquals(keys.map { "head:$it" }, repo.calls)
     }
 }

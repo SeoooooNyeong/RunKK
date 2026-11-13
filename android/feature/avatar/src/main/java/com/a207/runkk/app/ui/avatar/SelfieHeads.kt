@@ -13,7 +13,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * 얼굴 키마다 [FaceLook]을 한 번 만들어 최근 [ENTRIES]개를 프로세스에 두고 내 러너·꾸미기 화면이 나눠 쓴다(리뷰 M1).
+ * 얼굴 키마다 [FaceLook]을 한 번 만들어 최근 [ENTRIES]개를 프로세스에 두고 내 러너·꾸미기 화면과 랭킹 시상대 전신 정지 그림이 나눠
+ * 쓴다(리뷰 M1, S15P31A207-300).
  * - 셀카 머리("head:…")는 GET /avatar/heads 본문을 한 번만 받아 대체 그림과 머리 레이어를 같은 본문에서 만든다. 머리 레이어는 그림을
  *   풀고 다시 묶어 무거우므로 [worker]에서 만든다.
  * - 받지 못하면(연결·서버 실패, 취소) 두지 않아 다음에 다시 받는다. 받았지만 형식이 틀려 만들지 못하면 기본 머리로 두고 다시 받지 않는다.
@@ -55,8 +56,11 @@ class SelfieHeads internal constructor(private val avatars: AvatarRepository, pr
     }
 
     private companion object {
-        /** 둘 얼굴 수(내 얼굴과 막 바꾼 얼굴 정도). 머리 레이어가 크므로 작게 둔다. */
-        const val ENTRIES = 3
+        /**
+         * 둘 얼굴 수: 내 얼굴과 막 바꾼 얼굴, 랭킹 시상대 다른 러너 셋(S15P31A207-300)에 한 자리 여유. 머리 레이어가 크므로 이보다
+         * 늘리지 않는다(4위부터 얼굴 원은 머리 레이어가 아니라 부위 그림을 따로 받는다).
+         */
+        const val ENTRIES = 6
         const val LOAD_FACTOR = 0.75f
     }
 }

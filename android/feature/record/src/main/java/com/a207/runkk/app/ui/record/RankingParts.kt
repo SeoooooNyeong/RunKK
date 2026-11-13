@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
@@ -39,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.layout.onVisibilityChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -57,6 +59,7 @@ import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.LocalRunkkTierColors
+import com.a207.runkk.app.core.designsystem.LocalSelfFaceTone
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkCard
@@ -71,16 +74,19 @@ import com.a207.runkk.app.core.designsystem.RunkkRowDivider
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.designsystem.SelfFaceTone
 import com.a207.runkk.app.core.designsystem.TierBadge
 import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Ranking
+import com.a207.runkk.app.domain.record.RunnerLook
 import java.time.Duration
 import java.time.LocalDate
 
@@ -284,7 +290,7 @@ private fun Top3Label(period: AggregationPeriod, modifier: Modifier = Modifier) 
 
 /**
  * 받침(위가 밝은 그라데이션)과 그 위에 서 있는 아바타·발밑 그림자. 아바타는 머리·몸·의상이 다 보이는 전신 정지 그림이다
- * (SlotKey.AVATAR_STILL, S15P31A207-300). 읽기는 아래 정보 띠가 맡는다.
+ * (SlotKey.AVATAR_STILL, S15P31A207-300). 다른 러너는 랭킹 줄의 모습을 칸에 넘긴다. 읽기는 아래 정보 띠가 맡는다.
  */
 @Composable
 private fun PodiumStand(entry: Ranking.Entry?, mine: Ranking.Entry?, stand: Stand, modifier: Modifier = Modifier) {
@@ -302,9 +308,15 @@ private fun PodiumStand(entry: Ranking.Entry?, mine: Ranking.Entry?, stand: Stan
                     )
                 }
             ) {
-                // 꾸미기가 열려 있으면 전신 정지 그림(나는 내 모습, 다른 러너는 표시 성별의 기본 모습), 아니면 지금 서기 그림
+                // 꾸미기가 열려 있으면 전신 정지 그림(나는 내 모습, 다른 러너는 랭킹 줄의 그 사람 모습, 모습이 없으면 표시 성별의 기본
+                // 모습, S15P31A207-300), 아니면 지금 서기 그림
                 val figure = Modifier.height(stand.avatar).aspectRatio(AVATAR_ASPECT)
-                AvatarStillSlot(AvatarStillSubject(isMine, entry.shownGender?.let { it == Gender.FEMALE }), figure) {
+                val subject = AvatarStillSubject(
+                    isMine = isMine,
+                    isFemale = entry.shownGender?.let { it == Gender.FEMALE },
+                    look = if (isMine) null else entry.look?.let(::stillLookOf)
+                )
+                AvatarStillSlot(subject, figure) {
                     RunkkAvatar(
                         faceKey = null,
                         expression = AvatarExpression.STAND,
@@ -387,9 +399,17 @@ private fun DrawScope.sparkle(center: Offset, radius: Float) {
     drawPath(path, Color.White)
 }
 
-/** 4위부터 목록 카드(둥근 24, 테두리): 행 사이에만 안쪽 구분선을 긋는다. */
+/**
+ * 4위부터 목록 카드(둥근 24, 테두리): 행 사이에만 안쪽 구분선을 긋는다. 얼굴 원은 줄 모습의 얼굴([faces], 얼굴 키 → 층)로 그리고, 원이
+ * 화면에 보이면 [onFaceShown]으로 그 얼굴을 받게 한다(S15P31A207-300, 목록이 길어 보이는 줄만 받는다).
+ */
 @Composable
-internal fun RankingListCard(rest: List<Ranking.Entry>, mine: Ranking.Entry?) {
+internal fun RankingListCard(
+    rest: List<Ranking.Entry>,
+    mine: Ranking.Entry?,
+    faces: Map<String, List<FaceLayer>> = emptyMap(),
+    onFaceShown: (String) -> Unit = {}
+) {
     if (rest.isEmpty()) return
     RunkkCard(
         modifier = Modifier.fillMaxWidth(),
@@ -399,14 +419,24 @@ internal fun RankingListCard(rest: List<Ranking.Entry>, mine: Ranking.Entry?) {
         verticalArrangement = Arrangement.Top
     ) {
         rest.forEachIndexed { index, entry ->
-            RankingListRow(entry, isMine = entry == mine, showDivider = index < rest.lastIndex)
+            RankingListRow(entry, isMine = entry == mine, showDivider = index < rest.lastIndex, faces, onFaceShown)
         }
     }
 }
 
-/** 4위부터 한 줄(최소 높이 62): 순위·아바타 40·닉네임 + 배지·거리. 순위 변동은 서버 값이 생길 때까지 그리지 않는다. */
+/**
+ * 4위부터 한 줄(최소 높이 62): 순위·아바타 40·닉네임 + 배지·거리. 순위 변동은 서버 값이 생길 때까지 그리지 않는다. 얼굴 원은 줄 모습의
+ * 얼굴(셀카면 받은 층, 받기 전이면 빈 자리, 받지 못했거나 얼굴이 없으면 성별 기본 머리)이고, 다른 러너 얼굴은 그 러너의 러닝량으로
+ * 그을린다([rankingFaceTone]).
+ */
 @Composable
-private fun RankingListRow(entry: Ranking.Entry, isMine: Boolean, showDivider: Boolean) {
+private fun RankingListRow(
+    entry: Ranking.Entry,
+    isMine: Boolean,
+    showDivider: Boolean,
+    faces: Map<String, List<FaceLayer>>,
+    onFaceShown: (String) -> Unit
+) {
     val spoken = rankingSpoken(entry, isMine)
     RunkkPersonRow(
         name = entry.name,
@@ -422,12 +452,7 @@ private fun RankingListRow(entry: Ranking.Entry, isMine: Boolean, showDivider: B
                 maxLines = 1,
                 modifier = Modifier.width(30.dp)
             )
-            RunkkAvatarCircle(
-                faceKey = null,
-                size = 40.dp,
-                character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender),
-                background = RunkkColors.RunimalTile
-            )
+            RankingFaceCircle(entry, isMine, faces, onFaceShown)
         },
         badge = rankingTier(entry)?.let { tier -> { TierBadge(tier, TierBadgeSize.XSMALL) } },
         trailing = { KmText(entry.distance, 18, RunkkColors.TextPrimary, RunkkColors.TextSecondary) },
@@ -436,6 +461,55 @@ private fun RankingListRow(entry: Ranking.Entry, isMine: Boolean, showDivider: B
         nameStyle = RunkkTextStyles.text(15, FontWeight.Bold)
     )
 }
+
+@Composable
+private fun RankingFaceCircle(
+    entry: Ranking.Entry,
+    isMine: Boolean,
+    faces: Map<String, List<FaceLayer>>,
+    onFaceShown: (String) -> Unit
+) {
+    val faceKey = entry.look?.faceKey
+    val circle = @Composable {
+        RunkkAvatarCircle(
+            faceKey = faceKey,
+            size = 40.dp,
+            modifier = if (faceKey != null) {
+                Modifier.onVisibilityChanged(minFractionVisible = FACE_VISIBLE_FRACTION) {
+                    if (it) onFaceShown(faceKey)
+                }
+            } else {
+                Modifier
+            },
+            faceLayers = faceKey?.let(faces::get).orEmpty(),
+            character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender),
+            isFaceLoading = faceKey != null && faceKey !in faces,
+            background = RunkkColors.RunimalTile
+        )
+    }
+    val tone = rankingFaceTone(entry, isMine)
+    if (tone != null) CompositionLocalProvider(LocalSelfFaceTone provides tone, content = circle) else circle()
+}
+
+/**
+ * 얼굴 원 그을림(S15P31A207-300): 다른 러너는 그 러너의 얼굴 키·러닝량으로 피부 층을 그을린다. 나는 앱 전체에 내려 준 내 톤을 그대로
+ * 쓰고(null), 모습이나 얼굴이 없는 줄도 그을릴 얼굴이 없다(null).
+ */
+internal fun rankingFaceTone(entry: Ranking.Entry, isMine: Boolean): SelfFaceTone? {
+    if (isMine) return null
+    val look = entry.look ?: return null
+    return look.faceKey?.let { SelfFaceTone(it, look.runAmount) }
+}
+
+/** 랭킹 줄 모습 → 전신 정지 그림 칸 모습(원시값, S15P31A207-300). */
+internal fun stillLookOf(look: RunnerLook): AvatarStillSubject.Look = AvatarStillSubject.Look(
+    faceKey = look.faceKey,
+    topKey = look.topKey,
+    bottomKey = look.bottomKey,
+    shoesKey = look.shoesKey,
+    bodyVariant = look.bodyVariant,
+    runAmount = look.runAmount
+)
 
 /**
  * 내 순위(하단 탭 바로 위에 고정, 랭킹 v3): 바이올렛 카드에 순위·얼굴·「나」와 배지·바로 위 순위까지 남은 거리 막대·내 거리.
@@ -547,6 +621,9 @@ private const val SPARKLE_WAIST = 0.22f
 private const val TRACK_ALPHA = 0.22f
 private const val UNIT_ALPHA = 0.8f
 private const val HOURS_IN_DAY = 24L
+
+/** 얼굴 원이 이만큼 보이면 얼굴을 받는다. */
+private const val FACE_VISIBLE_FRACTION = 0.1f
 
 /**
  * 내 바로 위 순위 번호(랭킹 v3 「n위까지」, PL5-A2). 같은 거리는 같은 순위이고 다음 순위는 사람 수만큼 건너뛰므로(FR-070, 1·2·2·4위)

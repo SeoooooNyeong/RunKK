@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.RecordRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -41,6 +42,22 @@ class RankingViewModel @Inject constructor(private val records: RecordRepository
         refresh()
     }
 
+    /** 받기를 시작한 얼굴 키(같은 얼굴을 다시 받지 않는다). */
+    private val requestedFaces = mutableSetOf<String>()
+
+    /**
+     * 얼굴 원이 화면에 보일 때(S15P31A207-300): 그 얼굴 키의 셀카 얼굴을 한 번만 받는다. 목록이 최대 100줄이라 보이는 줄만 받는다.
+     * 셀카가 아니면(기본 캐릭터) 받을 것이 없고, 받지 못하면 빈 층(기본 머리)으로 둔다.
+     */
+    fun onFaceShown(faceKey: String) {
+        if (!faceKey.startsWith(HEAD_PREFIX) && !faceKey.startsWith(SELFIE_PREFIX)) return
+        if (!requestedFaces.add(faceKey)) return
+        viewModelScope.launch {
+            val layers = records.faceLayers(faceKey).getOrNull().orEmpty()
+            _state.update { it.copy(faces = it.faces + (faceKey to layers)) }
+        }
+    }
+
     fun refresh() {
         val s = _state.value
         _state.update {
@@ -62,3 +79,6 @@ class RankingViewModel @Inject constructor(private val records: RecordRepository
         }
     }
 }
+
+private const val HEAD_PREFIX = "head:"
+private const val SELFIE_PREFIX = "selfie:"

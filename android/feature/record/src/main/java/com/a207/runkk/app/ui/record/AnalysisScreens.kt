@@ -265,7 +265,8 @@ fun RankingRoute(viewModel: RankingViewModel = hiltViewModel()) {
         state,
         onScope = viewModel::onScopeSelected,
         onPeriod = viewModel::onPeriodSelected,
-        onRetry = viewModel::refresh
+        onRetry = viewModel::refresh,
+        onFaceShown = viewModel::onFaceShown
     )
 }
 
@@ -273,14 +274,16 @@ fun RankingRoute(viewModel: RankingViewModel = hiltViewModel()) {
  * 랭킹 탭(D-286, FR-070, 시상대 FR-290, 랭킹 v3 피그마 「랭킹 (v3 2026-11-05) 메인 탭, TOP3 시상대」): 상단 바 오른쪽 「개인 | 크루」
  * (크루가 닫혀 있으면 크루 칸은 자물쇠로 잠긴다), 주간·월간 칩과 집계 기간·마감까지 남은 시간, TOP3 시상대 카드, 4위부터 목록 카드,
  * 하단 탭 바로 위에 고정한 내 순위 카드(바로 위 순위까지 남은 거리). 이름 옆에 아주 작은 공개 티어 배지(J24-14R)를 둔다.
- * 순위 변동·집계 시각은 그리지 않는다(서버에 지난 주기 순위가 없다). 서버 응답에 아바타 키가 없어 모든 행이 기본 아바타다.
+ * 순위 변동·집계 시각은 그리지 않는다(서버에 지난 주기 순위가 없다). 다른 러너도 줄 모습(얼굴·의상·체형·러닝량)으로 그리고, 모습이
+ * 없는 줄(크루·탈퇴·옛 서버)은 표시 성별의 기본 아바타다(S15P31A207-300). 4위부터 얼굴 원이 보이면 [onFaceShown]으로 얼굴을 받는다.
  */
 @Composable
 fun RankingScreen(
     state: RankingUiState,
     onScope: (RankingScope) -> Unit,
     onPeriod: (AggregationPeriod) -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onFaceShown: (String) -> Unit = {}
 ) {
     val isCrewOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)
     val error = state.error
@@ -324,7 +327,7 @@ fun RankingScreen(
 
                     error != null -> RunkkErrorState(error.asString(), onRetry = onRetry)
 
-                    ranking != null -> RankingBody(state, ranking)
+                    ranking != null -> RankingBody(state, ranking, onFaceShown)
                 }
             }
         }
@@ -351,14 +354,14 @@ fun RankingScreen(
 
 /** TOP3 시상대 카드와 4위부터 목록. 순위가 없으면 빈 안내만. */
 @Composable
-private fun RankingBody(state: RankingUiState, ranking: Ranking) {
+private fun RankingBody(state: RankingUiState, ranking: Ranking, onFaceShown: (String) -> Unit) {
     val podium = state.podium ?: return
     if (ranking.entries.isEmpty()) {
         RunkkEmptyState(stringResource(R.string.record_ranking_empty))
         return
     }
     RankingTop3Card(podium, ranking.mine, state.period)
-    RankingListCard(podium.rest, ranking.mine)
+    RankingListCard(podium.rest, ranking.mine, state.faces, onFaceShown)
 }
 
 /** 고정한 내 순위 카드에 가리지 않게 목록 아래에 비워 둘 높이와, 카드 뒤 아래 흐림 높이. */

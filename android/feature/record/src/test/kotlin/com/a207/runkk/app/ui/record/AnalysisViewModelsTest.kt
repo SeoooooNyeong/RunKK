@@ -207,6 +207,29 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `랭킹 얼굴은 보일 때 키마다 한 번만 받고, 받기 전에는 없고, 실패하면 기본 머리다(S15P31A207-300)`() {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EARS, byteArrayOf(1))
+        )
+        records.faceResults["head:4:a"] = Outcome.Success(layers)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        records.faceGates["head:4:a"] = gate
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("head:4:a")
+        vm.onFaceShown("head:4:a")
+        assertNull(vm.state.value.faces["head:4:a"], "받는 중")
+        gate.complete(Unit)
+        assertEquals(layers, vm.state.value.faces["head:4:a"])
+
+        vm.onFaceShown("head:5:b")
+        assertEquals(emptyList(), vm.state.value.faces["head:5:b"], "받지 못하면 빈 층(기본 머리)")
+        vm.onFaceShown("default:RABBIT")
+        assertEquals(listOf("face:head:4:a", "face:head:5:b"), records.calls.filter { it.startsWith("face:") })
+        assertNull(vm.state.value.faces["default:RABBIT"], "기본 캐릭터 키는 받을 것이 없다")
+    }
+
+    @Test
     fun `코치는 이번 주(월~일) 계획 현황을 읽고 오늘 계획·주간 목표를 정한다(FR-072~FR-075)`() {
         val vm = CoachViewModel(records, todayPlans, clock)
         assertEquals("progress:2026-10-19..2026-10-25", records.calls.first())
