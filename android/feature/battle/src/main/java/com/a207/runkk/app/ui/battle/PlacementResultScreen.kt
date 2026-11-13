@@ -162,7 +162,9 @@ private fun ResultBody(state: PlacementResultUiState, result: BattleResult, onRe
             dateLine = dateLine(summary.startedAt, stringResource(R.string.placement_result_date_pattern)),
             kindLabel = null,
             faceKey = state.myAvatar?.faceKey,
-            faceLayers = state.myAvatar?.faceLayers.orEmpty()
+            faceLayers = state.myAvatar?.faceLayers.orEmpty(),
+            // 히어로 아바타는 내 전신 정지 그림(S15P31A207-300)
+            avatarSlot = MY_STILL_SLOT
         )
         RunMetricCard(
             elapsed = summary.elapsed,

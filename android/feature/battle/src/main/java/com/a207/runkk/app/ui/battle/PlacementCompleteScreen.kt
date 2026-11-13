@@ -61,6 +61,7 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.splitPace
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.PlacementRound
@@ -152,7 +153,7 @@ private fun CompleteBody(tier: String, state: PlacementCompleteUiState) {
 }
 
 /**
- * 축하 히어로 350×212(피그마 61361 축하 5장): 흰 원 188(75%) 위 티어 배지 크게(엠블럼 112 + 이름), 왼쪽 기뻐하는 아바타 110×176, 축하 조각 10개.
+ * 축하 히어로 350×212(피그마 61361 축하 5장): 흰 원 188(75%) 위 티어 배지 크게(엠블럼 112 + 이름), 왼쪽 내 전신 아바타 110×176, 축하 조각 10개.
  * 조각 위치·크기·각도는 피그마 7-5 그대로, 색은 라임·보라·금(podiumFirst #EBC66A). 그림은 장식이라 배지 낭독만 남긴다.
  */
 @Composable
@@ -183,11 +184,12 @@ private fun CelebrationHero(tier: String) {
                     .background(color)
             )
         }
-        RunkkAvatar(
-            null,
-            AvatarExpression.JOY,
-            Modifier.offset(x = 30.dp, y = 30.dp).size(width = 110.dp, height = 176.dp).clearAndSetSemantics {}
-        )
+        // 축하 아바타는 내 전신 정지 그림(S15P31A207-300). 칸이 비면 기쁜 기본 아바타다.
+        Box(Modifier.offset(x = 30.dp, y = 30.dp).clearAndSetSemantics {}) {
+            AvatarStillSlot(MY_STILL, Modifier.size(width = 110.dp, height = 176.dp)) {
+                RunkkAvatar(null, AvatarExpression.JOY, Modifier.size(width = 110.dp, height = 176.dp))
+            }
+        }
         TierBadgeLarge(TierDisplay.Confirmed(tier), Modifier.offset(x = 152.dp, y = 50.dp).width(136.dp))
     }
 }
