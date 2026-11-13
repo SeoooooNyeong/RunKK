@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.RunkkAlpha
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -162,13 +163,21 @@ private fun SendButton(isEnabled: Boolean, onClick: () -> Unit, modifier: Modifi
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(if (isEnabled) RunkkColors.LimeFill else RunkkColors.TextPrimary.copy(alpha = 0.1f)),
+                .background(
+                    if (isEnabled) RunkkColors.LimeFill else RunkkColors.TextPrimary.copy(alpha = SEND_OFF_FILL_ALPHA)
+                ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 RunkkIcons.Send,
                 contentDescription = null,
-                tint = if (isEnabled) RunkkColors.OnLimeFill else RunkkColors.TextPrimary.copy(alpha = 0.38f),
+                tint = if (isEnabled) {
+                    RunkkColors.OnLimeFill
+                } else {
+                    RunkkColors.TextPrimary.copy(
+                        alpha = RunkkAlpha.DisabledContent
+                    )
+                },
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -181,3 +190,6 @@ private val FIELD_HEIGHT = 56.dp
 
 /** 라벨 줄 높이(16)의 절반: 테두리가 라벨 가운데를 지나게 칸을 이만큼 내린다. */
 private val LABEL_HALF = 8.dp
+
+/** 꺼진 보내기 원 채움(글자색 10%, Material 꺼짐 채움). */
+private const val SEND_OFF_FILL_ALPHA = 0.1f
