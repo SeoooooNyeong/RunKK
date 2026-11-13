@@ -16,7 +16,9 @@ import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 운영자가 등록한 유명인 공개 기록 하나(설계 6.1.6, FR-170~FR-172). 표시 티어는 없다(UNRANKED). 구간 기록이 없으면 평균 페이스로
@@ -31,6 +33,9 @@ public class CelebrityRecord implements OpponentRecord {
 
     /** 캐릭터 그림 키 최대 길이(V32). */
     static final int FIGURE_KEY_MAX = 20;
+
+    /** 셀럽런 목록에 보이는 코치 그림 키(주세빈 "joo", 김선교 "kim", D130). */
+    static final Set<String> COACH_FIGURE_KEYS = Set.of("joo", "kim");
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -152,6 +157,14 @@ public class CelebrityRecord implements OpponentRecord {
     @Override
     public Optional<String> figureKey() {
         return Optional.ofNullable(figureKey);
+    }
+
+    /**
+     * SSAFY 코치 기록인가(그림 키 "joo"·"kim", D130). 셀럽런 목록은 코치만 보이고 다른 셀럽은 숨긴다(2026-11-13 PM 결정,
+     * [임시:D-성-219]). 행은 지우지 않아 지난 대결 이력은 그대로다.
+     */
+    public boolean isCoach() {
+        return figureKey != null && COACH_FIGURE_KEYS.contains(figureKey.toLowerCase(Locale.ROOT));
     }
 
     /** 구간 기록이 없어 평균 페이스로 추정한 표인가(화면 "평균 페이스로 추정", A-006). */

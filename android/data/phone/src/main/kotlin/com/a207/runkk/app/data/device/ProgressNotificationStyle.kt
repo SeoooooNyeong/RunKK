@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import androidx.core.app.NotificationCompat
+import com.a207.runkk.app.core.model.RunNoticeExtras
 import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.run.ProgressNotice
 
@@ -34,15 +35,22 @@ interface ProgressNotificationStyle {
 
 /**
  * 두 표현이 함께 쓰는 알림 바탕: 채널·아이콘·제목·본문·앱 열기·동작 버튼. 소리·진동은 내지 않는다(LOW 채널, onlyAlertOnce).
- * 동작 버튼은 MeasurementService를 action과 함께 부른다(D-260).
+ * 동작 버튼은 MeasurementService를 action과 함께 부른다(D-260). 앱 열기는 [progressOpenIntent]다: 매초 다시 그리므로 실은 값이
+ * 바뀌면 덮어쓴다(FLAG_UPDATE_CURRENT).
  */
 internal fun progressNotificationBase(context: Context, text: ProgressNoticeText): NotificationCompat.Builder {
     val open = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let {
-        PendingIntent.getActivity(context, 0, it, PendingIntent.FLAG_IMMUTABLE)
+        PendingIntent.getActivity(
+            context,
+            0,
+            progressOpenIntent(it, text),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
     }
     val builder = NotificationCompat
         .Builder(context, MeasurementService.CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+        // 런크크 단색 아이콘(피그마 F-15b 앱 아이콘 자리). 큰 숫자, 둥근 버튼은 승격 알림이 사용자 지정 뷰를 받지 않아 그리지 않는다.
+        .setSmallIcon(R.drawable.ic_stat_runkk)
         .setContentTitle(text.title)
         .setContentText(text.body)
         .setOngoing(true)
@@ -66,3 +74,10 @@ internal fun progressNotificationBase(context: Context, text: ProgressNoticeText
     }
     return builder
 }
+
+/**
+ * 알림을 눌렀을 때 여는 인텐트: 앱 실행 인텐트에 대결 알림이면 대결 ID를 싣는다(S15P31A207-278). 앱이 그 대결 진행 화면으로
+ * 돌아간다. 자유런 알림은 앱만 연다. [launch] 원본은 바꾸지 않는다.
+ */
+internal fun progressOpenIntent(launch: Intent, text: ProgressNoticeText): Intent =
+    Intent(launch).apply { text.battleId?.let { putExtra(RunNoticeExtras.BATTLE_ID, it) } }

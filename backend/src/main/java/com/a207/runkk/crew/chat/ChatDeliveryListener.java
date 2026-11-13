@@ -1,6 +1,7 @@
 package com.a207.runkk.crew.chat;
 
 import com.a207.runkk.crew.CrewMembershipReader;
+import com.a207.runkk.crew.CrewRole;
 import com.a207.runkk.crew.chat.live.CrewChatPosted;
 import com.a207.runkk.crew.chat.live.CrewChatReactionChanged;
 import com.a207.runkk.crew.chat.live.CrewChatRemoved;
@@ -33,7 +34,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * 떠난 회원은 방 상태가 남아 있어도 받지 못한다. 새 메시지는 요청 스레드에서 곧바로 방 안에 보낸다(NFR-040). 이때 읽기는 막 커밋한 트랜잭션의 영속성 문맥과 연결을
  * 그대로 쓰고 연결을 더 빌리지 않는다. 방 밖 크루원(구성원 − 방 안 − 작성자)의 CREW_CHAT 묶음 알림은 수신자마다 DB 쓰기와 FCM 호출이 따르므로 애플리케이션
  * 실행기(applicationTaskExecutor)로 넘겨 수신자마다 새 트랜잭션에서 보낸다(요청 스레드가 연결 둘을 쥐지 않고 보내기 응답도 늦어지지 않는다, 리뷰
- * H1·H2). 수신 한 건의 실패는 로그만 남기고 이미 커밋된 요청과 다른 수신자를 막지 않는다. 연결이 없던 회원은 앱이 재연결 뒤 ?after=로 메운다.
+ * H1·H2). 러닝 완료 시스템 메시지(RUN_FINISHED, W5)는 방 안에만 보내고 방 밖 알림은 없다. 수신 한 건의 실패는 로그만 남기고 이미 커밋된 요청과 다른
+ * 수신자를 막지 않는다. 연결이 없던 회원은 앱이 재연결 뒤 ?after=로 메운다.
  */
 @Component
 class ChatDeliveryListener {
@@ -101,7 +103,13 @@ class ChatDeliveryListener {
                             authorName,
                             message.content(),
                             message.sentAtIn(clock.getZone()),
-                            message.clientMessageId()));
+                            message.clientMessageId(),
+                            message.kind(),
+                            roleName(e.crewId(), message.authorId()),
+                            message.runDistanceMeters()));
+            if (message.isSystem()) {
+                return; // 러닝 완료 시스템 메시지는 방 밖 푸시를 보내지 않는다(W5 결정)
+            }
             active.removeAll(inRoom);
             active.remove(e.authorId());
             notifyOutside(
@@ -150,6 +158,15 @@ class ChatDeliveryListener {
                     failure.getClass().getSimpleName(),
                     failure);
         }
+    }
+
+    /** 작성자의 지금 크루 역할 이름(크루장 배지, W5). 탈퇴했거나 크루를 떠났으면 null. */
+    private String roleName(long crewId, Long authorId) {
+        if (authorId == null) {
+            return null;
+        }
+        CrewRole role = membership.rolesIn(crewId, List.of(authorId)).get(authorId);
+        return role == null ? null : role.name();
     }
 
     private Set<Long> inRoom(long crewId, Set<Long> active) {

@@ -41,8 +41,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkElevation
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
+import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.splitPace
 import com.a207.runkk.app.core.model.CardKind
@@ -60,7 +65,12 @@ internal fun SummaryToggle(onToggle: () -> Unit, modifier: Modifier = Modifier) 
     Row(
         modifier = modifier
             .minimumInteractiveComponentSize()
-            .shadow(TOGGLE_SHADOW, CircleShape, ambientColor = SHADOW, spotColor = SHADOW)
+            .shadow(
+                RunkkElevation.Medium,
+                CircleShape,
+                ambientColor = RunkkColors.ShadowSoft,
+                spotColor = RunkkColors.ShadowSoft
+            )
             .clip(CircleShape)
             .background(RunkkColors.Surface)
             .clickable(role = Role.Button, onClick = onToggle)
@@ -96,11 +106,16 @@ internal fun SummaryPanel(
     onRecords: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RunkkShapes.ExtraLarge
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(PANEL_SHADOW, shape, ambientColor = SHADOW, spotColor = SHADOW)
+            .shadow(
+                RunkkElevation.High,
+                shape,
+                ambientColor = RunkkColors.ShadowSoft,
+                spotColor = RunkkColors.ShadowSoft
+            )
             .clip(shape)
             .background(RunkkColors.Surface)
             .border(1.dp, RunkkColors.Border, shape)
@@ -126,13 +141,7 @@ internal fun SummaryPanel(
 @Composable
 private fun PanelHeader(onCollapse: () -> Unit) {
     val expanded = stringResource(R.string.home_summary_state_expanded)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            stringResource(R.string.home_summary_title),
-            style = RunkkTextStyles.text(17, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f).semantics { heading() }
-        )
+    RunkkSectionHeader(stringResource(R.string.home_summary_title), size = RunkkSectionHeaderSize.Large) {
         Row(
             modifier = Modifier
                 .minimumInteractiveComponentSize()
@@ -207,7 +216,7 @@ private fun SummaryCell(
     val open = stringResource(R.string.home_summary_records_open)
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RunkkShapes.Medium)
             .background(RunkkColors.Background)
             .clickable(role = Role.Button, onClickLabel = open, onClick = onClick)
             .clearAndSetSemantics {
@@ -258,7 +267,7 @@ private fun LatestRun(run: RunSummary?, onLatestRun: (String) -> Unit) {
                 color = RunkkColors.TextSecondary,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(RunkkShapes.Medium)
                     .background(RunkkColors.Background)
                     .padding(horizontal = 12.dp, vertical = 14.dp)
             )
@@ -287,7 +296,7 @@ private fun LatestRunRow(run: RunSummary, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RunkkShapes.Medium)
             .background(RunkkColors.Background)
             .clickable(role = Role.Button, onClickLabel = open, onClick = onClick)
             .clearAndSetSemantics {
@@ -311,16 +320,7 @@ private fun LatestRunRow(run: RunSummary, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    kind,
-                    style = RunkkTextStyles.text(11, FontWeight.Medium),
-                    color = RunkkColors.TextPrimary,
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(RunkkColors.Surface)
-                        .border(1.dp, RunkkColors.Border, CircleShape)
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                )
+                RunkkTagPill(kind)
                 Text(
                     date,
                     style = RunkkTextStyles.Caption,
@@ -349,7 +349,7 @@ private fun Metric(value: String, unit: String?, modifier: Modifier = Modifier) 
     Row(modifier = modifier, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             value,
-            style = RunkkTextStyles.text(16, FontWeight.Bold),
+            style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary,
             modifier = Modifier.alignByBaseline()
         )
@@ -460,8 +460,3 @@ private fun kindLabelRes(kind: CardKind): Int = when (kind) {
 
 private const val SECONDS_PER_MINUTE = 60L
 private val GRASS_GAP = 4.dp
-private val TOGGLE_SHADOW = 6.dp
-private val PANEL_SHADOW = 8.dp
-
-/** 알약·패널 그림자(피그마 rgba(23,26,18,0.12)). */
-private val SHADOW = Color(0x1F171A12)

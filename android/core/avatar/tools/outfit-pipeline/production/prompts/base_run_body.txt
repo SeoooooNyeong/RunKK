@@ -1,0 +1,5 @@
+Use your image generation tool (edit the attached image). Save the result as base_run_body_a.png and base_run_body_b.png in the current folder, each exactly 1024x1536 pixels, PNG with a fully TRANSPARENT background.
+
+The attached image is a game avatar TEXTURE (1024x1536): the SIDE-VIEW torso of a chibi runner wearing a white T-shirt (no head, no arms). It is mapped onto a mesh, so the silhouette must stay at EXACTLY the same pixel position and size.
+
+Task: remove the T-shirt and paint a smooth simple bare torso in the same silhouette (mannequin-like, no anatomical details), same warm light skin color, soft painterly shading and the same warm brown outline as the skin of the neck at the top. Keep the small neck piece at the top. Transparent everywhere else. No text.

@@ -1,5 +1,6 @@
 package com.a207.runkk.crew.chat;
 
+import com.a207.runkk.crew.CrewRole;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,9 @@ public record ChatPage(List<Line> messages, boolean hasMore) {
      * @param mine 요청자 메시지
      * @param canDelete 요청자가 지울 수 있음(본인 또는 크루장·운영진)
      * @param clientMessageId 앱 메시지 ID(본인 메시지만, 아니면 null)
+     * @param kind 메시지 종류(보통 TEXT, 러닝 완료 RUN_FINISHED, W5)
+     * @param authorRole 작성자의 지금 크루 역할, 탈퇴했거나 크루를 떠났으면 null(크루장 배지, W5)
+     * @param runDistanceMeters 러닝 완료 메시지의 거리(미터), 보통 메시지면 null(W5)
      */
     public record Line(
             long messageId,
@@ -41,11 +45,19 @@ public record ChatPage(List<Line> messages, boolean hasMore) {
             Set<ReactionKind> myReactions,
             boolean mine,
             boolean canDelete,
-            String clientMessageId) {
+            String clientMessageId,
+            ChatMessageKind kind,
+            CrewRole authorRole,
+            Long runDistanceMeters) {
 
         public Line {
             reactions = Map.copyOf(reactions);
             myReactions = Set.copyOf(myReactions);
+        }
+
+        /** 작성자 역할 상수 이름(web.chat은 crew를 import하지 않아 이름으로 싣는다), 없으면 null. */
+        public String authorRoleName() {
+            return authorRole == null ? null : authorRole.name();
         }
     }
 }

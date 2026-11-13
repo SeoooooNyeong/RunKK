@@ -6,6 +6,8 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.MyAvatar
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.PlacementRoundState
@@ -43,6 +45,20 @@ class PlacementResultViewModelTest {
         }
 
     private fun BattleWorld.resultCalls() = battles.calls.count { it.startsWith("result:") }
+
+    @Test
+    fun `히어로 아바타는 홈과 같은 내 아바타이고 다시 읽어도 한 번만 읽는다`() = main.runVmTest { vms ->
+        accounts.placementResult = Outcome.Success(placing(1, "GOLD"))
+        accounts.summaryResult = Outcome.Success(MySummary("달리는곰", "GOLD", 3, "default:CAT", "bg-park", 12))
+        val w = world()
+        w.battles.resultResult = Outcome.Success(placementResult(PlacementRoundState.COUNTED))
+        val vm = open(w, vms)
+        assertEquals(MyAvatar("default:CAT", emptyList(), "bg-park"), vm.state.value.myAvatar)
+        accounts.summaryResult = Outcome.Success(MySummary("달리는곰", "GOLD", 3, "default:FOX", null, 12))
+        vm.load(9, isForced = true)
+        runCurrent()
+        assertEquals("default:CAT", vm.state.value.myAvatar?.faceKey)
+    }
 
     @Test
     fun `TC-5880 판정 대기는 2초 간격 15번까지 다시 읽는다`() = main.runVmTest { vms ->

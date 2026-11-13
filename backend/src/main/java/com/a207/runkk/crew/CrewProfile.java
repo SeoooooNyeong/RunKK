@@ -10,7 +10,7 @@ import com.a207.runkk.common.TagSet;
  *
  * @param name 크루명
  * @param intro 한줄소개, 40자 이하
- * @param tags 성향 태그(TagOwner.CREW)
+ * @param tags 크루 태그(TagOwner.CREW, 1~3개)
  * @param visibility 공개 여부
  * @param joinPolicy 가입 방식
  * @param logoUrl 로고 이미지 주소, 없을 수 있음

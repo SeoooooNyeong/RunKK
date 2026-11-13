@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.run
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /** 워치 통신 포트. 구현 data.watch.WatchLink(D-20). RunWatchBridge만 부른다(D-95). */
 interface WatchGateway {
@@ -15,6 +16,12 @@ interface WatchGateway {
     val pauseRequests: Flow<PauseAction>
 
     val heartRates: Flow<List<HeartRateSample>>
+
+    /**
+     * 동행 워치가 잰 손목 케이던스(S15P31A207-242). 심박과 같은 허용 규칙(심박 동의·워치연동)을 따른다. 워치 단독 측정 구현은 운동 세션을
+     * RunTracker.onMotionSample로 바로 넘기므로 비어 있다.
+     */
+    val motions: Flow<List<MotionSample>> get() = emptyFlow()
 
     fun isConnected(): Boolean
 

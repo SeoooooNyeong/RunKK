@@ -8,7 +8,8 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 internal data class ProfileEditRequest(
-    val nickname: String,
+    /** null이면 서버가 그대로 둔다(크루 내 정보 시트의 공개 토글만 저장). */
+    val nickname: String?,
     val intro: String?,
     val ageBandVisibility: String,
     val genderVisibility: String,

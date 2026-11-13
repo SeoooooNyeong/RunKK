@@ -195,7 +195,8 @@ class MeControllerTest extends WebTestSupport {
                                                                 "name",
                                                                 "탈퇴시험" + leader.memberId(),
                                                                 "tags",
-                                                                java.util.List.of("SOCIAL_RUN"),
+                                                                java.util.List.of(
+                                                                        "WEEKDAY_EVENING"),
                                                                 "visibility",
                                                                 "PUBLIC",
                                                                 "joinPolicy",

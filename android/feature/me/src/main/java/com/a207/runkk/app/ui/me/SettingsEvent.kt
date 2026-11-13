@@ -4,4 +4,6 @@ package com.a207.runkk.app.ui.me
 sealed interface SettingsEvent {
     /** 로그아웃 끝(FR-002): 로그인 화면으로. */
     data object LoggedOut : SettingsEvent
+
+    data object LlmConsentSaved : SettingsEvent
 }

@@ -82,7 +82,7 @@ class V011ContractShellTest extends WebTestSupport {
         Map<String, Object> form = new HashMap<>();
         form.put("name", "계약" + (System.nanoTime() % 100000));
         form.put("intro", "소개");
-        form.put("tags", List.of("SOCIAL_RUN"));
+        form.put("tags", List.of("WEEKDAY_EVENING"));
         form.put("visibility", "PUBLIC");
         form.put("joinPolicy", "FREE");
         long crewId =
@@ -119,7 +119,12 @@ class V011ContractShellTest extends WebTestSupport {
         run.put("kind", "CREW_RUN");
         run.put("body", "같이 뛰어요");
         run.put("distanceMeters", 3000);
-        run.put("scheduledAt", java.time.OffsetDateTime.now().plusDays(2).withNano(0).toString());
+        run.put(
+                "scheduledAt",
+                java.time.OffsetDateTime.now()
+                        .plusDays(2)
+                        .truncatedTo(java.time.temporal.ChronoUnit.HOURS)
+                        .toString()); // 5분 단위(W6)
         perform(
                         "POST",
                         "/crews/" + crewId + "/posts",

@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="runimal_share_save">기기 저장</string>
-    <string name="runimal_share_system">다른 앱</string>
-    <string name="runimal_share_story">스토리</string>
+    <string name="runimal_share_save">기기에 저장</string>
+    <string name="runimal_share_system">더 보기</string>
+    <string name="runimal_share_story">인스타그램 스토리</string>
+    <string name="runimal_share">공유</string>
+    <string name="runimal_share_title">Runimal 공유</string>
     <string name="runimal_remaining_provisional">임시 유형까지 %1$d회</string>
     <string name="runimal_remaining_confirm">다음 확정까지 %1$d회</string>
     <string name="runimal_share_no_type">유형이 생기면 카드를 공유할 수 있어요</string>
     <string name="runimal_saved_to_gallery">사진첩에 저장했어요</string>
     <string name="runimal_load_failed">러니멀을 불러오지 못했어요</string>
     <string name="runimal_empty_title">아직 유형이 없어요</string>
-    <string name="runimal_share_with">%1$s로 카드 공유</string>
     <string name="runimal_type_provisional">임시 유형</string>
     <string name="runimal_axis_description">%1$s %2$d%%</string>
     <string name="runimal_percent">%1$d%%</string>
@@ -36,7 +37,6 @@
     <string name="runimal_types_never_confirmed">확정받은 적 없음</string>
     <string name="runimal_type_title">유형 상세</string>
     <string name="runimal_type_traits_title">이런 러너예요</string>
-    <string name="runimal_type_trait">· %1$s</string>
     <string name="runimal_type_share">러너 중 %1$d%%가 이 유형이에요</string>
     <string name="evaluation_valid_runs">유효 러닝 %1$d회 달성</string>
     <string name="evaluation_title">새 평가가 나왔어요</string>

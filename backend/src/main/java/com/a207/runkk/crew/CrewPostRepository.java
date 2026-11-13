@@ -43,8 +43,23 @@ public interface CrewPostRepository {
     /** 크루 삭제 때 끝낼 크루런: 그 크루의 삭제 안 된 LOBBY_OPEN·RUNNING 글(D-66). */
     List<CrewRunPost> findActiveCrewRunsOf(long crewId);
 
+    /** 그 크루의 마친(FINISHED) 크루런 수, 지운 글·신고 숨김 글은 빼고 센다(누적 크루런 횟수, S15P31A207-295, 코드 리뷰 M8). */
+    int countFinishedCrewRuns(long crewId);
+
+    /** 그 크루의 마친 크루런 limit개, 희망일시 최신순(지운 글·신고 숨김 글 제외, 최근 크루런 S15P31A207-295, 코드 리뷰 M8). */
+    List<CrewRunPost> findRecentFinishedCrewRuns(long crewId, int limit);
+
     /** 회원이 참여한 크루런(희망일시가 기간 안). Runimal 동행 축·첫 크루런 여부에 쓴다. */
     List<CrewRunPost> findCrewRunsOf(long memberId, DateRange range);
+
+    /**
+     * 지난 크루런(W6): 그 크루의 보이는(삭제·숨김 아닌) 크루런 중 FINISHED·CANCELLED이고 일시가 [from, to)인 글, 일시 최신순(같으면 ID
+     * 내림차순). 부분 색인 idx_crew_post_crew_run_past.
+     */
+    List<CrewRunPost> findPastCrewRuns(long crewId, LocalDateTime from, LocalDateTime to);
+
+    /** 그 크루의 가장 이른 지난 크루런 일시(W6, 기간 휠 시작). 없으면 비어 있다. */
+    Optional<LocalDateTime> findEarliestPastCrewRun(long crewId);
 
     /** 회원이 쓴 글(탈퇴 익명화). */
     List<CrewPost> findByAuthor(long memberId);
@@ -64,6 +79,6 @@ public interface CrewPostRepository {
     /** 회원 탈퇴(FR-021, D-117): 그 회원의 투표 응답과 대면 모임 참석 행을 모두 지운다. */
     int deleteResponsesByMember(long memberId);
 
-    /** 크루의 글과 딸린 행(참여·참석·선택지·응답·사진)을 모두 지운다. */
+    /** 크루의 글과 딸린 행(참여·참석·선택지·응답·사진)과 크루런 반복(crew_run_series, W6)을 모두 지운다. */
     void deleteByCrew(long crewId);
 }

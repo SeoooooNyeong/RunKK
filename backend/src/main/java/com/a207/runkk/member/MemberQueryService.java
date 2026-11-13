@@ -1,6 +1,7 @@
 package com.a207.runkk.member;
 
 import com.a207.runkk.common.Tier;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -9,6 +10,7 @@ import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -17,6 +19,15 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional(readOnly = true)
 public class MemberQueryService {
+
+    /** AI 파기 누락 보정용 최소 투영. 탈퇴한 회원의 ID와 탈퇴 시각만 내준다. */
+    public Map<Long, LocalDateTime> withdrawalsBefore(LocalDateTime cutoff) {
+        Map<Long, LocalDateTime> result = new LinkedHashMap<>();
+        for (Member member : memberRepository.findWithdrawnBefore(cutoff)) {
+            result.put(member.getId(), member.withdrawnAt());
+        }
+        return result;
+    }
 
     /** 나이대 단위(10살). */
     private static final int AGE_BAND = 10;
@@ -61,7 +72,25 @@ public class MemberQueryService {
 
     /** 프로필 화면의 레벨·사진·소개·나이대·성별(profile, FR-005). year 기준 나이대. */
     public MemberProfile profileOf(long memberId, int year) {
-        Member m = MemberLoader.load(memberRepository, memberId);
+        return profileOf(MemberLoader.load(memberRepository, memberId), year);
+    }
+
+    /**
+     * profileOf를 여러 명에게 한 번의 조회로(크루원 목록·가입 신청 목록의 레벨·나이대·성별, 피그마 맞춤 W7). 공개 값으로 거르지 않고 그대로 내주며 거르기는
+     * 부르는 쪽이 한다. 없는 회원은 맵에 없다.
+     */
+    public Map<Long, MemberProfile> profilesOf(Collection<Long> memberIds, int year) {
+        if (memberIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, MemberProfile> result = new HashMap<>();
+        for (Member m : memberRepository.findAllById(memberIds)) {
+            result.put(m.getId(), profileOf(m, year));
+        }
+        return result;
+    }
+
+    private static MemberProfile profileOf(Member m, int year) {
         OptionalInt age = m.ageIn(year);
         String ageBand = age.isPresent() ? (age.getAsInt() / AGE_BAND * AGE_BAND) + "대" : null;
         return new MemberProfile(
@@ -81,6 +110,15 @@ public class MemberQueryService {
                 .orElse(OptionalInt.empty());
     }
 
+    /** 출생연도. 없거나 회원이 없으면 비어 있음(runbody 분석 요청의 최대 심박 추정, D-444). */
+    public OptionalInt birthYearOf(long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .map(Member::birthYear)
+                .map(OptionalInt::of)
+                .orElse(OptionalInt.empty());
+    }
+
     /** 회원 닉네임이 이미 있는가(battle.VirtualRecordService의 nicknameTaken, H-11'). */
     public boolean isNicknameTaken(String nickname) {
         return memberRepository.existsByNickname(nickname);
@@ -89,6 +127,21 @@ public class MemberQueryService {
     /** 동의 여부만 묻는다(battle 위치, avatar 얼굴 변환, analysis LLM 전송). 없는 회원은 false. */
     public boolean hasConsent(long memberId, ConsentItem item) {
         return memberRepository.findById(memberId).map(m -> m.hasConsent(item)).orElse(false);
+    }
+
+    public boolean hasCurrentCoachConsent(long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .map(Member::hasCurrentCoachConsent)
+                .orElse(false);
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean lockCurrentCoachConsent(long memberId) {
+        return memberRepository
+                .findByIdForUpdate(memberId)
+                .map(Member::hasCurrentCoachConsent)
+                .orElse(false);
     }
 
     /** ACTIVE 회원의 닉네임을 한 번의 조회로. 탈퇴했거나 없는 회원은 맵에 없다(event 이벤트 응모자 명단, S15P31A207-275). */

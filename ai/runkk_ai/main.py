@@ -22,6 +22,7 @@ from runkk_ai.coach import (
     ClaudeCoachModel,
     CoachMessageStore,
     CoachModel,
+    CoachRetention,
     CoachRouter,
     CoachService,
     CoachTools,
@@ -30,7 +31,7 @@ from runkk_ai.coach import (
 from runkk_ai.comment import COMMENT_TIMEOUT_S, ClaudeClient, CommentRouter, CommentService, LlmClient, OpenAiClient
 from runkk_ai.core import HealthRouter, InternalTokenMiddleware, Settings
 from runkk_ai.face import AvatarClient, AvatarService, FaceRouter, NodeAvatarClient
-from runkk_ai.privacy import PrivacyRouter, WithdrawalService
+from runkk_ai.privacy import PrivacyRouter, UserDataPurger, WithdrawalService
 from runkk_ai.runbody import (
     InMemoryResultRepository,
     MonthlyRouter,
@@ -132,10 +133,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.runbody_service = runbody
         monthly = MonthlyService(repository)
         app.state.monthly_service = monthly
-        # 탈퇴 파기(S15P31A207-219): 회원별 행을 가진 저장소를 모두 등록한다. 새 테이블이 생기면 여기에도 더한다
-        app.state.withdrawal_service = WithdrawalService(
-            {"sessionResults": repository, "coachMessages": coach_store}, timeout_s=settings.purge_timeout_s
-        )
+        # 탈퇴 파기(S15P31A207-219·257): 회원별 자료를 가진 저장소를 모두 등록한다. 새 테이블이 생기면 여기에도 더한다.
+        # 아바타 서버는 켠 환경에서만 넣는다(끈 환경에서 넣으면 탈퇴가 늘 503이 된다)
+        purgers: dict[str, UserDataPurger] = {"sessionResults": repository, "coachMessages": coach_store}
+        if settings.face_api_url:
+            purgers["avatarImages"] = app.state.face_service
+        app.state.withdrawal_service = WithdrawalService(purgers, timeout_s=settings.purge_timeout_s)
+        # 코치 대화 본문 90일 파기(S15P31A207-258). 기동 때 한 번, 그 뒤 6시간마다
+        retention = CoachRetention(coach_store)
+        retention.start()
+        resources.push_async_callback(retention.stop)
+        app.state.coach_retention = retention
         coach_model = _build_coach_model(settings)
         if coach_model is not None:
             resources.push_async_callback(coach_model.aclose)

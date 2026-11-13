@@ -118,6 +118,13 @@ public class RunRecord {
     @Column(name = "heart_rate_max")
     private Integer heartRateMax;
 
+    /**
+     * 기기가 잰 속도·케이던스 표본(MotionSamples 압축 바이너리, V41, S15P31A207-242). 없거나 옛 앱 기록이면 null. 경로를 파기하면 함께
+     * 지운다(속도는 위치에서 나온 값이다).
+     */
+    @Column(name = "motion_data", columnDefinition = "bytea")
+    private byte[] motionData;
+
     /** 신기록 "종류;거리;이전 값" 줄 목록. */
     @Column(name = "new_records", nullable = false, columnDefinition = "text")
     private String newRecordsData;
@@ -126,11 +133,11 @@ public class RunRecord {
     @Column(name = "saved_at", nullable = false, updatable = false)
     private LocalDateTime savedAt;
 
-    /** 정지 구간 "시작;끝" 줄 목록(자유런만, V21). */
+    /** 정지 구간 "시작;끝" 줄 목록(자유런·크루런만, V21·V43). */
     @Column(name = "pauses", nullable = false, updatable = false, columnDefinition = "text")
     private String pausesData;
 
-    /** 정지 구간 길이의 합(ms). 자유런이 아니면 0(ck_run_record_pause, V21). */
+    /** 정지 구간 길이의 합(ms). 대결이면 0(ck_run_record_pause, V21·V43). */
     @Column(name = "paused_millis", nullable = false, updatable = false)
     private long pausedMillis;
 
@@ -218,6 +225,8 @@ public class RunRecord {
             this.heartRates = HeartRateSeries.of(startedAt, upload.heartRates());
             storeHeartRates();
         }
+        this.motionData =
+                MotionSamples.encode(startedAt, MotionSamples.normalize(upload.motions()));
         this.newRecordsData = "";
     }
 
@@ -365,6 +374,7 @@ public class RunRecord {
         track().purge();
         this.routeData = null;
         this.routePurged = true;
+        this.motionData = null;
     }
 
     /** 심박 원자료 파기. 요약값(평균·최고)은 남긴다(FR-029). */
@@ -536,6 +546,11 @@ public class RunRecord {
         return memberId;
     }
 
+    /** 종료 일시(런바디 요청, D-444). */
+    LocalDateTime endedAt() {
+        return endedAt;
+    }
+
     public LocalDateTime getStartedAt() {
         return startedAt;
     }
@@ -611,6 +626,17 @@ public class RunRecord {
 
     List<UnstableSegment> unstableSegments() {
         return decodeSegments(unstableSegmentsData);
+    }
+
+    /** 심박 원자료(시간순). 없거나 파기했으면 빈 목록(런바디 요청, D-444). */
+    List<HeartRateSample> heartRateSamples() {
+        HeartRateSeries series = heartRateSeries();
+        return series == null ? List.of() : series.samples();
+    }
+
+    /** 기기가 잰 속도·케이던스 표본(시간순). 없거나 경로를 파기했으면 빈 목록(런바디 요청, S15P31A207-242). */
+    List<MotionSample> motionSamples() {
+        return MotionSamples.decode(startedAt, motionData);
     }
 
     HeartRateSummary heartRateSummary() {

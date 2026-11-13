@@ -15,8 +15,9 @@ class SettingKeyTest {
 
     @Test
     void has21SettingItemsPlusOperatorWhitelist() {
-        // v0.14 CREW_RELEASED(FR-223, D-247), AVATAR_RELEASED(D138)
-        assertThat(SettingKey.values()).hasSize(24);
+        // v0.14 CREW_RELEASED(FR-223, D-247), AVATAR_RELEASED(D138), RUNBODY_ENABLED(05-19 D-440)
+        // BODY_SHAPE_RELEASED: 체형 변화는 2차 배포에서 뺀다([임시:D-성-218])
+        assertThat(SettingKey.values()).hasSize(28);
         assertThat(Arrays.stream(SettingKey.values()).map(Enum::name))
                 .contains(
                         "OPERATOR_WHITELIST",
@@ -24,7 +25,11 @@ class SettingKeyTest {
                         "SHOP_ITEMS",
                         "ITEM_PRICES",
                         "CREW_RELEASED",
-                        "AVATAR_RELEASED");
+                        "AVATAR_RELEASED",
+                        "BODY_SHAPE_RELEASED",
+                        "RUNBODY_ENABLED",
+                        "COACH_ENABLED",
+                        "COACH_DAILY_LIMIT");
     }
 
     @ParameterizedTest
@@ -91,7 +96,7 @@ class SettingKeyTest {
                 "LANDMARKS|{\"landmarks\":[]}|false",
                 "LANDMARKS|{\"landmarks\":[{\"key\":\"LM_1\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|true",
                 "LANDMARKS|{\"landmarks\":[{\"key\":\"incheon\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
-                "LANDMARKS|{\"landmarks\":[{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true},{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"개성\",\"distance\":{\"meters\":120000},\"roundTrip\":true}]}|false",
+                "LANDMARKS|{\"landmarks\":[{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true},{\"key\":\"INCHEON\",\"stage\":\"DOMESTIC\",\"name\":\"춘천\",\"distance\":{\"meters\":150000},\"roundTrip\":true}]}|false",
                 "LANDMARKS|{\"landmarks\":[{\"key\":\"\",\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
                 "LANDMARKS|{\"landmarks\":[{\"stage\":\"DOMESTIC\",\"name\":\"인천\",\"distance\":{\"meters\":60000},\"roundTrip\":true}]}|false",
                 "VIRTUAL_RECORD_RULE|{\"openLowScore\":27,\"openHighScore\":48,\"paceOffsets\":[-0.05,-0.025,0,0.025,0.05],\"distances\":[{\"meters\":1000}]}|true",
@@ -136,7 +141,7 @@ class SettingKeyTest {
         assertThat(table.landmarks().stream().map(Landmark::key).toList())
                 .containsExactly(
                         "INCHEON",
-                        "KAESONG",
+                        "CHUNCHEON",
                         "DAEJEON",
                         "JEONJU",
                         "YEOSU",
@@ -167,6 +172,44 @@ class SettingKeyTest {
                         "KM_1M");
         assertThat(table.landmarks().stream().filter(l -> l.stage() != LandmarkStage.CREW_TOTAL))
                 .hasSize(22);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "D-성-129 기본 랜드마크에 북한 도시·강릉이 없고 국내 앞부분은 인천 60 → 춘천 150 → 대전 280 왕복이다")
+    void landmarks_domesticHeadIsIncheonChuncheonDaejeon() {
+        LandmarkTable table =
+                (LandmarkTable) SettingKey.LANDMARKS.parse(SettingKey.LANDMARKS.defaultValue());
+        java.util.List<String> keys = table.landmarks().stream().map(Landmark::key).toList();
+        java.util.List<String> names = table.landmarks().stream().map(Landmark::name).toList();
+        assertThat(keys).doesNotContain("KAESONG", "PYONGYANG", "SINUIJU", "WONSAN", "GANGNEUNG");
+        assertThat(names).doesNotContain("개성", "평양", "신의주", "원산", "강릉");
+        assertThat(table.landmarks().subList(0, 3))
+                .extracting(
+                        Landmark::key,
+                        Landmark::name,
+                        Landmark::stage,
+                        Landmark::distance,
+                        Landmark::roundTrip)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(
+                                "INCHEON",
+                                "인천",
+                                LandmarkStage.DOMESTIC,
+                                com.a207.runkk.common.Distance.ofKm(60),
+                                true),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "CHUNCHEON",
+                                "춘천",
+                                LandmarkStage.DOMESTIC,
+                                com.a207.runkk.common.Distance.ofKm(150),
+                                true),
+                        org.assertj.core.groups.Tuple.tuple(
+                                "DAEJEON",
+                                "대전",
+                                LandmarkStage.DOMESTIC,
+                                com.a207.runkk.common.Distance.ofKm(280),
+                                true));
     }
 
     @Test

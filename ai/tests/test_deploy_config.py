@@ -65,3 +65,20 @@ def test_ai_container_is_hardened() -> None:
     for line in ("read_only: true", "cap_drop: [ALL]", "no-new-privileges:true", "mem_limit:"):
         assert line in block
     assert "ports:" not in block  # api만 내부 망으로 부른다(D-23)
+
+
+def test_backup_mounts_avatar_volume_read_only() -> None:
+    """아바타 결과 볼륨도 매일 백업한다. 백업 컨테이너는 읽기만 하고, 스크립트가 보는 경로와 연결 경로가 같아야 한다."""
+    mount = re.search(r"^      - avatar-data:(/\S+):ro$", _service_block("backup"), flags=re.MULTILINE)
+    script = (COMPOSE.parent / "backup" / "pg-backup.sh").read_text(encoding="utf-8")
+
+    assert mount is not None
+    assert f"AVATAR_DIR={mount.group(1)}" in script
+
+
+def test_avatar_volume_is_declared_outside_profiles() -> None:
+    """avatar 프로필이 꺼진 환경에서도 백업 서비스가 뜨려면 볼륨이 프로필과 무관하게 선언돼 있어야 한다."""
+    volumes = COMPOSE.read_text(encoding="utf-8").split("\nvolumes:\n", 1)[1]
+
+    assert re.search(r"^  avatar-data:", volumes, flags=re.MULTILINE)
+    assert "profiles:" not in _service_block("backup")

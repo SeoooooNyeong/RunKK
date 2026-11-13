@@ -51,10 +51,13 @@ internal data class PostListResponse(val posts: List<Item> = emptyList(), val ne
         @Serializable
         data class Photo(val photoId: Long, val url: String)
 
-        /** 크루런 모집글의 크루런 정보(서버 PostListResponse.CrewRun). myAnswer는 GOING·NOT_GOING·UNDECIDED, 답하지 않았으면 null. */
+        /**
+         * 크루런 모집글의 크루런 정보(서버 PostListResponse.CrewRun). myAnswer는 GOING·NOT_GOING·UNDECIDED, 답하지 않았으면 null.
+         * distanceMeters가 null이면 제한 없음, title은 크루런 제목(W6, 옛 서버면 null)이다.
+         */
         @Serializable
         data class CrewRun(
-            val distanceMeters: Long,
+            val distanceMeters: Long? = null,
             val scheduledAt: String,
             val voteDeadline: String? = null,
             val status: String? = null,
@@ -63,7 +66,8 @@ internal data class PostListResponse(val posts: List<Item> = emptyList(), val ne
             val finisherCount: Int = 0,
             val raceContributionMeters: Long? = null,
             val notGoingCount: Int = 0,
-            val undecidedCount: Int = 0
+            val undecidedCount: Int = 0,
+            val title: String? = null
         )
     }
 }

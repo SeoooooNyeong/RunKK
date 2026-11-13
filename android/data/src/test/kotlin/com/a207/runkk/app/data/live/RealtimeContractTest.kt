@@ -98,17 +98,17 @@ class RealtimeContractTest {
                 "CrewRunRelay" to
                     CrewRunRelay(
                         77,
+                        Distance(7_600),
                         listOf(
                             CrewRunRelay.Entry(
                                 "새벽곰",
                                 Distance(3_120),
-                                1,
-                                CrewRunRelay.Connection.CONNECTED,
+                                CrewRunRelay.State.RUNNING,
                                 11,
                                 isMe = true
                             ),
-                            CrewRunRelay.Entry("달리는여우", Distance(2_980), 2, CrewRunRelay.Connection.CHECKING, 12),
-                            CrewRunRelay.Entry("한강토끼", Distance(1_500), null, CrewRunRelay.Connection.QUIT, 13)
+                            CrewRunRelay.Entry("달리는여우", Distance(2_980), CrewRunRelay.State.PAUSED, 12),
+                            CrewRunRelay.Entry("한강토끼", Distance(1_500), CrewRunRelay.State.ENDED, 13)
                         )
                     ),
                 "CrewRunEnded" to CrewRunEnded(77),
@@ -137,13 +137,16 @@ class RealtimeContractTest {
     }
 
     @Test
-    fun `mine 없는 옛 크루런 중계는 memberId와 접근 토큰 회원 ID가 같은 줄을 본인으로 본다`() {
+    fun `mine 없는 크루런 중계는 memberId와 접근 토큰 회원 ID가 같은 줄을 본인으로 보고 합산 거리가 없으면 줄 거리를 더한다`() {
         val legacy =
             """{"type":"CrewRunRelay","postId":77,"entries":[
-              |{"name":"a","distance":3,"rank":1,"connection":"CONNECTED","memberId":11},
-              |{"name":"b","distance":2,"rank":2,"connection":"CHECKING","memberId":12},
-              |{"name":"c","distance":1,"connection":"QUIT"}]}
+              |{"name":"a","distance":3,"state":"RUNNING","memberId":11},
+              |{"name":"b","distance":2,"state":"CHECKING","memberId":12},
+              |{"name":"c","distance":1,"state":"SOMETHING_NEW"}]}
             """.trimMargin()
+        val decoded = ServerMessageDecoder { 12L }.decode(legacy) as CrewRunRelay
+        assertEquals(Distance(6), decoded.totalDistance)
+        assertEquals(CrewRunRelay.State.RUNNING, decoded.entries[2].state, "모르는 상태는 달리는 중")
 
         assertEquals(
             listOf(false, true, false),
@@ -197,7 +200,9 @@ class RealtimeContractTest {
                 "새벽곰",
                 "내일 7시 출발 🏃",
                 Instant.parse("2026-10-22T10:07:03Z"),
-                "0f8fad5b-d9cb-469f-a165-70867728950e"
+                "0f8fad5b-d9cb-469f-a165-70867728950e",
+                messageKind = "TEXT",
+                authorRole = "LEADER"
             ),
             decoder.decode(read("CrewChatPosted.json"))
         )
@@ -223,7 +228,23 @@ class RealtimeContractTest {
             decoder.decode(read("CrewChatRemoved-hidden.json"))
         )
         assertEquals(
-            CrewChatReactionChanged(7, 801, mapOf("LIKE" to 2, "HEART" to 1)),
+            CrewChatPosted(
+                7,
+                803,
+                4,
+                "느긋한고래",
+                "느긋한고래님이 5.02km를 달렸어요",
+                Instant.parse("2026-10-22T10:40:00Z"),
+                "9b2f4c3e-6a1d-3c5b-8e7f-0a1b2c3d4e5f",
+                messageKind = "RUN_FINISHED",
+                authorRole = "MEMBER",
+                runDistanceMeters = 5_021
+            ),
+            decoder.decode(read("CrewChatPosted-runFinished.json")),
+            "W5 러닝 완료 시스템 메시지는 종류·직책·거리를 싣는다"
+        )
+        assertEquals(
+            CrewChatReactionChanged(7, 801, mapOf("LIKE" to 2, "HEART" to 1, "CHECK" to 3)),
             decoder.decode(read("CrewChatReactionChanged.json"))
         )
         assertEquals(
@@ -244,8 +265,8 @@ class RealtimeContractTest {
         val relay =
             ServerMessageDecoder { 11L }.decode(
                 """{"type":"CrewRunRelay","postId":1,"entries":[
-                  |{"name":"a","distance":1,"connection":"CONNECTED","memberId":11,"mine":false},
-                  |{"name":"b","distance":2,"connection":"CONNECTED","memberId":12,"mine":true}]}
+                  |{"name":"a","distance":1,"state":"RUNNING","memberId":11,"mine":false},
+                  |{"name":"b","distance":2,"state":"RUNNING","memberId":12,"mine":true}]}
                 """.trimMargin()
             ) as CrewRunRelay
 
@@ -354,6 +375,7 @@ class RealtimeContractTest {
                 "inbound-progress-offset.json",
                 "CrewChatPosted.json",
                 "CrewChatPosted-withdrawn.json",
+                "CrewChatPosted-runFinished.json",
                 "CrewChatRemoved.json",
                 "CrewChatRemoved-hidden.json",
                 "CrewChatReactionChanged.json",

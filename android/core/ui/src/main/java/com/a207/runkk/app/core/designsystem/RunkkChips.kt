@@ -26,11 +26,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -42,8 +47,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * 고르기 칩(높이 40, 모서리 20): 성향 태그처럼 여러 개를 켜고 끄는 선택. 켜면 라임으로 채우고 글자 앞에 체크를 붙인다(A-5).
- * 보조 기술에는 켜짐/꺼짐 토글로 보인다.
+ * 고르기 칩(피그마 RunKK / Chip / 시간대 칩, S15P31A207-292): 높이 32, 알약, 좌우 12, 글자 13. 안 고른 칩은 divider 테두리에
+ * 본문색 Regular, 고른 칩은 [RunkkColors.ChipSelected](#67705B) 채움에 굵은 글자이고 체크를 붙이지 않는다. 누르는 칸은 48dp다.
+ * 보조 기술에는 켜짐/꺼짐 토글로 보인다. [selectionRole]에 `Role.RadioButton`·`Role.Tab`을 넘기면 하나만 고르는 칩이 되어
+ * 보조 기술에 고름/안 고름으로 보이고 누르면 `onSelectedChange(true)`를 부른다(묶음에 `Modifier.selectableGroup()`을 건다).
+ * 색은 [tone]([RunkkChipTone]), 높이·글자는 [size]([RunkkChipSize])로 고르고, [leadingIcon]은 글자 앞 14 아이콘이다.
  */
 @Composable
 fun RunkkChoiceChip(
@@ -51,49 +59,108 @@ fun RunkkChoiceChip(
     isSelected: Boolean,
     onSelectedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    isEnabled: Boolean = true
+    isEnabled: Boolean = true,
+    tone: RunkkChipTone = RunkkChipTone.Neutral,
+    size: RunkkChipSize = RunkkChipSize.Small,
+    leadingIcon: ImageVector? = null,
+    selectionRole: Role = Role.Checkbox
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RunkkShapes.Pill
+    val content = chipContent(tone, isSelected)
+    val border = chipBorder(tone, isSelected)
+    val selection = if (selectionRole == Role.Checkbox) {
+        Modifier.toggleable(
+            value = isSelected,
+            interactionSource = interaction,
+            indication = null,
+            enabled = isEnabled,
+            role = Role.Checkbox,
+            onValueChange = onSelectedChange
+        )
+    } else {
+        Modifier.selectable(
+            selected = isSelected,
+            interactionSource = interaction,
+            indication = null,
+            enabled = isEnabled,
+            role = selectionRole,
+            onClick = { onSelectedChange(true) }
+        )
+    }
     Box(
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .toggleable(
-                value = isSelected,
-                interactionSource = interaction,
-                indication = null,
-                enabled = isEnabled,
-                role = Role.Checkbox,
-                onValueChange = onSelectedChange
-            ),
+        modifier = modifier.minimumInteractiveComponentSize().then(selection),
         contentAlignment = Alignment.Center
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .heightIn(min = 40.dp)
+                .testTag(CHOICE_CHIP_BODY_TAG)
+                .heightIn(min = size.height)
                 .runkkPressScale(interaction)
                 .clip(shape)
-                .background(if (isSelected) RunkkColors.LimeFill else RunkkColors.Surface)
-                .border(1.dp, if (isSelected) RunkkColors.LimeFill else RunkkColors.BorderStrong, shape)
-                .padding(start = if (isSelected) CHECKED_START else 16.dp, end = 16.dp),
-            contentAlignment = Alignment.Center
+                .background(chipFill(tone, isSelected))
+                .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier)
+                .padding(horizontal = size.horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(CHIP_ICON_GAP),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isSelected) ChipCheck(RunkkColors.OnLimeFill)
-                Text(
-                    text = label,
-                    style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Black else FontWeight.Normal),
-                    color = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextSecondary
-                )
+            if (leadingIcon != null) {
+                Icon(leadingIcon, contentDescription = null, tint = content, modifier = Modifier.size(CHIP_ICON_SIZE))
             }
+            Text(
+                text = label,
+                style = RunkkTextStyles.text(size.textSize, chipWeight(tone, isSelected)),
+                color = content
+            )
         }
     }
 }
 
+/** 칩 채움. */
+@Composable
+private fun chipFill(tone: RunkkChipTone, isSelected: Boolean): Color = when (tone) {
+    RunkkChipTone.Neutral -> if (isSelected) RunkkColors.ChipSelected else Color.Transparent
+    RunkkChipTone.Lime -> if (isSelected) RunkkColors.LimeFill else RunkkColors.SurfacePressed
+    RunkkChipTone.Violet -> if (isSelected) RunkkColors.Violet else Color.Transparent
+    RunkkChipTone.Ink -> if (isSelected) RunkkColors.TextPrimary else RunkkColors.SurfaceHigh
+}
+
+/** 칩 테두리(없으면 null). 테두리는 바탕 없는 안 고른 칩에만 있다. */
+@Composable
+private fun chipBorder(tone: RunkkChipTone, isSelected: Boolean): Color? = when {
+    isSelected -> null
+    tone == RunkkChipTone.Neutral || tone == RunkkChipTone.Violet -> RunkkColors.Border
+    else -> null
+}
+
+/** 칩 글자·아이콘 색. */
+@Composable
+private fun chipContent(tone: RunkkChipTone, isSelected: Boolean): Color = when (tone) {
+    RunkkChipTone.Neutral -> if (isSelected) RunkkColors.OnChipSelected else RunkkColors.TextPrimary
+    RunkkChipTone.Lime -> if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextSecondary
+    RunkkChipTone.Violet -> if (isSelected) RunkkColors.OnSecondary else RunkkColors.TextPrimary
+    RunkkChipTone.Ink -> if (isSelected) RunkkColors.Surface else RunkkColors.TextSecondary
+}
+
+/** 칩 글자 굵기: 고르면 Bold, 안 고르면 기본 Regular·브랜드 톤 Medium·잉크 Bold. */
+private fun chipWeight(tone: RunkkChipTone, isSelected: Boolean): FontWeight = when {
+    isSelected || tone == RunkkChipTone.Ink -> FontWeight.Bold
+    tone == RunkkChipTone.Neutral -> FontWeight.Normal
+    else -> FontWeight.Medium
+}
+
+private val CHIP_ICON_SIZE: Dp = 14.dp
+private val CHIP_ICON_GAP: Dp = 4.dp
+
+/** 고르기 칩 몸통(보이는 알약)의 시험 표지. */
+internal const val CHOICE_CHIP_BODY_TAG = "runkk-choice-chip-body"
+
 /**
- * 하나만 고르는 선택지(높이 40, 모서리 12): 공개 범위처럼 고른 칸은 [RunkkColors.SelectedFill]로 칠하고 글자 앞에 체크를 붙인다
- * (다크는 라임 테두리 + 어두운 라임 배경, 라이트는 라임 채움 + 검은 글자, D85, A-5). 칸이 좁은 줄(테마, 거리 단위)은 [isCheckShown]을
- * 꺼 체크를 뺀다. 여러 개를 [RunkkSegmentRow]로 묶으면 라디오 묶음이 된다.
+ * 하나만 고르는 선택지 한 칸(피그마 M3 Segmented button 한 칸): 보이는 높이 40, 글자 14 Medium. 고른 칸은 [RunkkColors.SelectedFill]
+ * (라임)로 칠하고 글자 앞에 체크(18, 간격 8)를 붙인다. 안 고른 칸은 표면에 divider 테두리다. 칸이 좁은 줄(테마, 거리 단위)은
+ * [isCheckShown]을 꺼 체크를 뺀다. [shape]로 붙은 줄의 양 끝만 둥글게 한다. 여러 개를 [RunkkSegmentRow]로 묶으면 라디오 묶음이 된다.
+ * [tone]이 [RunkkSegmentTone.Violet]이면 고른 칸이 보라 채움에 흰 글자다. [isLocked]면 체크 자리에 자물쇠를 달고 보조 글자색으로
+ * 그리며 누를 수 없다(보조 기술에는 "라벨, 잠김"으로 읽힌다).
  */
 @Composable
 fun RunkkSegmentOption(
@@ -102,38 +169,62 @@ fun RunkkSegmentOption(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     height: Dp = 40.dp,
-    isCheckShown: Boolean = true
+    isCheckShown: Boolean = true,
+    shape: Shape = RunkkShapes.Pill,
+    tone: RunkkSegmentTone = RunkkSegmentTone.Lime,
+    isLocked: Boolean = false
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val shape = RunkkShapes.Small
+    val lockedLabel = stringResource(R.string.core_segment_locked, label)
+    val isFilled = isSelected && !isLocked
+    val fill = when {
+        !isFilled -> RunkkColors.Surface
+        tone == RunkkSegmentTone.Violet -> RunkkColors.Violet
+        else -> RunkkColors.SelectedFill
+    }
+    val content = when {
+        isLocked -> RunkkColors.TextSecondary
+        !isFilled -> RunkkColors.TextPrimary
+        tone == RunkkSegmentTone.Violet -> RunkkColors.OnSecondary
+        else -> RunkkColors.OnSelectedFill
+    }
+    val action = if (isLocked) {
+        Modifier.clearAndSetSemantics {
+            contentDescription = lockedLabel
+            disabled()
+        }
+    } else {
+        Modifier.selectable(
+            selected = isSelected,
+            interactionSource = interaction,
+            indication = null,
+            role = Role.RadioButton,
+            onClick = onClick
+        )
+    }
     Box(
-        modifier = modifier
-            .minimumInteractiveComponentSize()
-            .selectable(
-                selected = isSelected,
-                interactionSource = interaction,
-                indication = null,
-                role = Role.RadioButton,
-                onClick = onClick
-            ),
+        modifier = modifier.minimumInteractiveComponentSize().then(action),
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = height)
-                .runkkPressScale(interaction)
                 .clip(shape)
-                .background(if (isSelected) RunkkColors.SelectedFill else Color.Transparent)
-                .border(1.dp, if (isSelected) RunkkColors.SelectedBorder else RunkkColors.BorderStrong, shape),
+                .background(fill)
+                .border(1.dp, RunkkColors.Border, shape)
+                .padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (isSelected && isCheckShown) ChipCheck(RunkkColors.OnSelectedFill)
+                when {
+                    isLocked -> ChipCheck(content, RunkkIcons.Lock, CHIP_LOCK_TAG)
+                    isSelected && isCheckShown -> ChipCheck(content)
+                }
                 Text(
                     text = label,
-                    style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                    color = if (isSelected) RunkkColors.OnSelectedFill else RunkkColors.TextSecondary,
+                    style = RunkkTextStyles.text(14, FontWeight.Medium, lineHeight = 20),
+                    color = content,
                     textAlign = TextAlign.Center,
                     maxLines = 1
                 )
@@ -142,27 +233,31 @@ fun RunkkSegmentOption(
     }
 }
 
-/** 고른 칩 글자 앞 체크(18, 글자와 8 띄움, 피그마 Filter chip). 읽는 글자가 아니다. */
+/** 고른 선택지 글자 앞 체크(18, 글자와 8 띄움, 피그마 Segmented button Selected icon). 읽는 글자가 아니다. */
 @Composable
-private fun ChipCheck(tint: Color) {
+private fun ChipCheck(tint: Color, icon: ImageVector = RunkkIcons.Check, tag: String = CHIP_CHECK_TAG) {
     Icon(
-        RunkkIcons.Check,
+        icon,
         contentDescription = null,
         tint = tint,
-        modifier = Modifier.padding(end = CHECK_GAP).size(CHECK_SIZE).testTag(CHIP_CHECK_TAG)
+        modifier = Modifier.padding(end = CHECK_GAP).size(CHECK_SIZE).testTag(tag)
     )
 }
 
-/** 고른 칩 체크의 시험 표지. */
+/** 고른 선택지 체크의 시험 표지. */
 internal const val CHIP_CHECK_TAG = "runkk-chip-check"
+
+/** 잠긴 선택지 자물쇠의 시험 표지. */
+internal const val CHIP_LOCK_TAG = "runkk-chip-lock"
 
 private val CHECK_SIZE: Dp = 18.dp
 private val CHECK_GAP: Dp = 8.dp
-private val CHECKED_START: Dp = 8.dp
 
 /**
- * [RunkkSegmentOption]을 같은 너비로 나란히 놓은 라디오 묶음. [groupLabel]이 있으면 위에 묶음 이름(12, 보조색)을 보이고,
- * [spokenLabels]가 있으면 선택지마다 보조 기술이 그 문구로 읽는다("4회" → "주 4회").
+ * [RunkkSegmentOption]을 같은 너비로 붙여 놓은 라디오 묶음(피그마 M3 Segmented button: 칸이 붙고 양 끝만 알약, 테두리 divider).
+ * [groupLabel]이 있으면 위에 묶음 이름(12, 보조색)을 보이고, [spokenLabels]가 있으면 선택지마다 보조 기술이 그 문구로 읽는다
+ * ("4회" → "주 4회"). [tone]은 고른 칸 색, [lockedIndices]는 잠겨 누를 수 없는 칸(자물쇠, 랭킹 크루 범위), [optionHeight]는
+ * 칸 높이다.
  */
 @Composable
 fun RunkkSegmentRow(
@@ -171,7 +266,10 @@ fun RunkkSegmentRow(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
     groupLabel: String? = null,
-    spokenLabels: List<String>? = null
+    spokenLabels: List<String>? = null,
+    tone: RunkkSegmentTone = RunkkSegmentTone.Lime,
+    lockedIndices: Set<Int> = emptySet(),
+    optionHeight: Dp = 40.dp
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // 묶음 이름은 선택 묶음 노드가 읽는다(보이는 글자는 두 번 읽지 않게 숨긴다).
@@ -196,7 +294,8 @@ fun RunkkSegmentRow(
                         Modifier
                     }
                 ),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // 이웃 칸 테두리가 겹쳐 한 줄로 보이게(피그마 간격 -1).
+            horizontalArrangement = Arrangement.spacedBy((-1).dp)
         ) {
             options.forEachIndexed { index, label ->
                 val spoken = spokenLabels?.getOrNull(index)
@@ -206,6 +305,10 @@ fun RunkkSegmentRow(
                     onClick = { onSelect(index) },
                     // 칸이 5개 이상이면 칸이 좁아 체크를 넣으면 글자("7회")가 잘린다
                     isCheckShown = options.size <= MAX_OPTIONS_WITH_CHECK,
+                    shape = segmentShape(index, options.size),
+                    height = optionHeight,
+                    tone = tone,
+                    isLocked = index in lockedIndices,
                     modifier = Modifier
                         .weight(1f)
                         .then(if (spoken != null) Modifier.semantics { contentDescription = spoken } else Modifier)
@@ -213,6 +316,14 @@ fun RunkkSegmentRow(
             }
         }
     }
+}
+
+/** 붙은 줄의 칸 모양: 첫 칸은 왼쪽만, 끝 칸은 오른쪽만 알약, 가운데는 네모. */
+private fun segmentShape(index: Int, count: Int): Shape = when {
+    count == 1 -> RunkkShapes.Pill
+    index == 0 -> RoundedCornerShape(topStartPercent = 50, bottomStartPercent = 50)
+    index == count - 1 -> RoundedCornerShape(topEndPercent = 50, bottomEndPercent = 50)
+    else -> RectangleShape
 }
 
 /**
@@ -296,35 +407,141 @@ private fun Modifier.spokenIfDifferent(label: String): Modifier {
     return if (spoken == label) this else semantics { contentDescription = spoken }
 }
 
-/** 작은 꼬리표(높이 28, 모서리 8): "자유런", "유효 러닝"(라임), "전체공개". */
-enum class RunkkBadgeTone { Neutral, Lime, Muted }
+/** 작은 꼬리표(높이 28, 모서리 8): "자유런", "유효 러닝"(라임), "전체공개", 대결 "승"(반전: 본문색 채움에 배경색 글자). */
+enum class RunkkBadgeTone { Neutral, Lime, Muted, Inverted }
 
+/** 작은 꼬리표(높이 28, 모서리 8 기본). 모양은 [shape]로 바꾼다(대결 승패 배지는 `RunkkShapes.Pill`). */
 @Composable
-fun RunkkBadge(label: String, modifier: Modifier = Modifier, tone: RunkkBadgeTone = RunkkBadgeTone.Neutral) {
+fun RunkkBadge(
+    label: String,
+    modifier: Modifier = Modifier,
+    tone: RunkkBadgeTone = RunkkBadgeTone.Neutral,
+    shape: Shape = BADGE_SHAPE
+) {
+    val background = when (tone) {
+        RunkkBadgeTone.Lime -> RunkkColors.LimeContainer
+        RunkkBadgeTone.Inverted -> RunkkColors.TextPrimary
+        else -> RunkkColors.Surface
+    }
+    val isBold = tone == RunkkBadgeTone.Lime || tone == RunkkBadgeTone.Inverted
     Box(
         modifier = modifier
             .heightIn(min = 28.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (tone == RunkkBadgeTone.Lime) RunkkColors.LimeContainer else RunkkColors.Surface)
+            .clip(shape)
+            .background(background)
             .padding(horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            style = RunkkTextStyles.text(12, if (tone == RunkkBadgeTone.Lime) FontWeight.Bold else FontWeight.Normal),
+            style = RunkkTextStyles.text(12, if (isBold) FontWeight.Bold else FontWeight.Normal),
             color = when (tone) {
                 RunkkBadgeTone.Neutral -> RunkkColors.TextPrimary
                 RunkkBadgeTone.Lime -> RunkkColors.Lime
                 RunkkBadgeTone.Muted -> RunkkColors.TextSecondary
+                RunkkBadgeTone.Inverted -> RunkkColors.Background
             }
         )
     }
 }
 
+private val BADGE_SHAPE: Shape = RoundedCornerShape(8.dp)
+
 /**
- * 탭 전환(자유런/배틀런, 달력/목록). [isCompact]면 높이 32(상단 바 안), 아니면 40. 고른 탭은 [RunkkColors.TabSelected]
- * (다크는 회색, 라이트는 라임 채움, D85).
- * 보조 기술에는 탭으로 보인다.
+ * 세그먼트(피그마 RunKK / Control / 세그먼트, S15P31A207-292): surfaceHigh 트랙(높이 44, 모서리 22, 안쪽 4)에 같은 너비 칸(높이 36,
+ * 모서리 18)을 놓는다. 고른 칸은 [selection]이 [RunkkSegmentedSelection.White]면 흰색(color/segmentSelected, 2탭 폼),
+ * [RunkkSegmentedSelection.Lime]이면 라임(크루 홈 3탭)이고 글자는 14 Bold, 안 고른 칸은 14 Regular 본문색이다.
+ * 누르는 칸 높이는 48dp다. 보조 기술에는 탭으로 보인다.
+ *
+ * ```
+ * RunkkSegmented(listOf("공개", "비공개"), selectedIndex = 0, onSelect = onVisibility)
+ * RunkkSegmented(listOf("레이스", "크루런", "채팅"), selected, onSelect, selection = RunkkSegmentedSelection.Lime)
+ * ```
+ */
+@Composable
+fun RunkkSegmented(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    selection: RunkkSegmentedSelection = RunkkSegmentedSelection.White
+) {
+    Box(modifier = modifier.heightIn(min = SEGMENT_TOUCH_HEIGHT), contentAlignment = Alignment.Center) {
+        // 트랙(44)은 48 누름 줄 뒤에 위아래 2씩 들여 그린다. 칸은 48 높이로 눌리고 36 알약만 보인다.
+        Box(
+            Modifier
+                .matchParentSize()
+                .padding(vertical = (SEGMENT_TOUCH_HEIGHT - SEGMENT_TRACK_HEIGHT) / 2)
+                .clip(RunkkShapes.Pill)
+                .background(RunkkColors.SurfaceHigh)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = SEGMENT_TRACK_PADDING)
+                .selectableGroup(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            options.forEachIndexed { index, label ->
+                val isSelected = index == selectedIndex
+                val fill = when {
+                    !isSelected -> Color.Transparent
+                    selection == RunkkSegmentedSelection.White -> RunkkColors.SegmentSelected
+                    else -> RunkkColors.TabSelected
+                }
+                val content = if (isSelected && selection == RunkkSegmentedSelection.Lime) {
+                    RunkkColors.OnTabSelected
+                } else {
+                    RunkkColors.TextPrimary
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = SEGMENT_TOUCH_HEIGHT)
+                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(index) }),
+                    contentAlignment = Alignment.Center
+                ) {
+                    SegmentPill(label, fill, content, isSelected)
+                }
+            }
+        }
+    }
+}
+
+/** 세그먼트 한 칸의 보이는 알약(높이 36, 모서리 18). */
+@Composable
+private fun SegmentPill(label: String, fill: Color, content: Color, isSelected: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = SEGMENT_HEIGHT)
+            .clip(RunkkShapes.Pill)
+            .background(fill)
+            .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = RunkkTextStyles.text(
+                14,
+                if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                lineHeight = 17
+            ),
+            color = content,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+private val SEGMENT_TRACK_HEIGHT: Dp = 44.dp
+private val SEGMENT_TOUCH_HEIGHT: Dp = 48.dp
+private val SEGMENT_TRACK_PADDING: Dp = 4.dp
+private val SEGMENT_HEIGHT: Dp = 36.dp
+
+/**
+ * 탭 전환(자유런/배틀런, 달력/목록). 피그마 세그먼트([RunkkSegmented], 고른 칸 라임) 모양이다. [isCompact]면 상단 바 안에 넣는
+ * 작은 줄(칸 높이 32, 글자 13)이고 칸 너비가 글자에 맞는다. 보조 기술에는 탭으로 보인다.
  */
 @Composable
 fun RunkkSegmentedTabs(
@@ -334,39 +551,34 @@ fun RunkkSegmentedTabs(
     modifier: Modifier = Modifier,
     isCompact: Boolean = false
 ) {
-    val container = if (isCompact) RunkkColors.Surface else RunkkColors.Background
-    val outer = if (isCompact) RunkkShapes.Small else RunkkShapes.Medium
-    val inner = if (isCompact) RoundedCornerShape(8.dp) else RunkkShapes.Small
+    if (!isCompact) {
+        RunkkSegmented(options, selectedIndex, onSelect, modifier, selection = RunkkSegmentedSelection.Lime)
+        return
+    }
     Row(
-        modifier = modifier.clip(outer).background(container).padding(4.dp).selectableGroup(),
+        modifier = modifier.clip(RunkkShapes.Pill).background(RunkkColors.SurfaceHigh).padding(4.dp).selectableGroup(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         options.forEachIndexed { index, label ->
             val isSelected = index == selectedIndex
-            val itemModifier = if (isCompact) Modifier else Modifier.weight(1f)
             Box(
-                modifier = itemModifier
+                modifier = Modifier
                     .heightIn(min = 48.dp)
                     .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(index) }),
                 contentAlignment = Alignment.Center
             ) {
                 Box(
                     modifier = Modifier
-                        .then(if (isCompact) Modifier else Modifier.fillMaxWidth())
-                        .heightIn(min = if (isCompact) 32.dp else 40.dp)
-                        .clip(inner)
+                        .heightIn(min = 32.dp)
+                        .clip(RunkkShapes.Pill)
                         .background(if (isSelected) RunkkColors.TabSelected else Color.Transparent)
                         .padding(horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = label,
-                        style = if (isCompact) {
-                            RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                        } else {
-                            RunkkTextStyles.text(15, if (isSelected) FontWeight.Black else FontWeight.Normal)
-                        },
-                        color = if (isSelected) RunkkColors.OnTabSelected else RunkkColors.TextSecondary
+                        style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Normal),
+                        color = if (isSelected) RunkkColors.OnTabSelected else RunkkColors.TextPrimary
                     )
                 }
             }
@@ -375,46 +587,11 @@ fun RunkkSegmentedTabs(
 }
 
 /**
- * 같은 너비 탭 줄(시안 HiMyCrew: 높이 40, 글자 13, 고른 탭은 라임). [RunkkSegmentedTabs]는 15sp라 네 칸에서 긴 탭 이름이
- * 줄바꿈되므로 탭이 많을 때 쓴다. 보조 기술에는 탭으로 보인다.
+ * 같은 너비 탭 줄(탭이 많을 때, 시안 HiMyCrew). 피그마 세그먼트([RunkkSegmented], 고른 칸 라임)와 같다. 보조 기술에는 탭으로 보인다.
  */
 @Composable
 fun RunkkTabRow(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(RunkkColors.Surface)
-            .padding(4.dp)
-            .selectableGroup()
-    ) {
-        options.forEachIndexed { index, label ->
-            val isSelected = index == selectedIndex
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(index) }),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 40.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isSelected) RunkkColors.LimeFill else Color.Transparent),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        label,
-                        style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Black else FontWeight.Normal),
-                        color = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    }
+    RunkkSegmented(options, selectedIndex, onSelect, modifier, selection = RunkkSegmentedSelection.Lime)
 }
 
 /** 분류 제목 + 고르기 칩 줄(가입 성향 태그, 크루 태그). */

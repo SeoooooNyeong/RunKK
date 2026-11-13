@@ -1,9 +1,13 @@
 package com.a207.runkk.app.domain.crew
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * 크루·게시판·크루런 대기실 REST 포트(5.7.1 /crews/…, /join-requests/…, /posts/…, /crew-runs/…). 구현 api.crew.
@@ -22,15 +26,7 @@ interface CrewRepository {
 
     suspend fun changeInfo(crewId: Long, form: CrewForm): Outcome<Unit>
 
-    suspend fun reissueInviteCode(crewId: Long): Outcome<String>
-
     suspend fun transferLeadership(crewId: Long, memberId: Long): Outcome<Unit>
-
-    /** 운영진 지정(PUT /crews/{id}/managers/{memberId}, FR-204). 크루장만. 최대 2명(MANAGER_LIMIT). */
-    suspend fun appointManager(crewId: Long, memberId: Long): Outcome<Unit>
-
-    /** 운영진 해제(DELETE /crews/{id}/managers/{memberId}, FR-204). 크루장만. */
-    suspend fun dismissManager(crewId: Long, memberId: Long): Outcome<Unit>
 
     suspend fun delete(crewId: Long): Outcome<Unit>
 
@@ -58,52 +54,41 @@ interface CrewRepository {
 
     suspend fun pendingRequests(crewId: Long): Outcome<PendingRequests>
 
+    /**
+     * 지난 공동 목표 한 쪽(GET /crews/{id}/goals/history, 피그마 F-21, contract-W7 4장). [before]는 앞 쪽의 nextBefore(첫 쪽은 null).
+     * 최신 주부터 온다.
+     */
+    suspend fun pastGoals(crewId: Long, before: LocalDate? = null): Outcome<PastGoals>
+
+    /**
+     * 지난 크루런 한 달(GET /crews/{id}/crew-runs/past, 피그마 F-20, contract-W6). [date]를 주면 runs가 그날 것만이다.
+     */
+    suspend fun pastCrewRuns(crewId: Long, month: YearMonth, date: LocalDate? = null): Outcome<PastCrewRuns>
+
     suspend fun crewRanking(crewId: Long, period: CrewRanking.Period): Outcome<CrewRanking>
 
     suspend fun race(crewId: Long, weekStart: LocalDate?): Outcome<RaceStatus>
 
     suspend fun posts(crewId: Long, kind: PostList.Kind?, cursor: Long? = null): Outcome<PostList>
 
-    suspend fun writeCheer(crewId: Long, body: String): Outcome<Long>
-
     suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long>
-
-    /** 공지 쓰기(FR-205). 운영진 이상. 고정 공지는 3개까지(PIN_LIMIT). */
-    suspend fun writeNotice(crewId: Long, body: String, isPinned: Boolean): Outcome<Long>
-
-    /** 공지 고정·해제(PUT /posts/{id}/pin, FR-205). */
-    suspend fun pin(postId: Long, isPinned: Boolean): Outcome<Unit>
-
-    /** 투표 쓰기(FR-206). */
-    suspend fun writePoll(crewId: Long, form: PollForm): Outcome<Long>
-
-    /** 투표 응답(FR-206). 마감 뒤에는 POLL_CLOSED. */
-    suspend fun respondPoll(postId: Long, optionNo: Int): Outcome<Unit>
-
-    suspend fun pollResult(postId: Long): Outcome<PollResult>
-
-    /** 대면 모임 일정 쓰기(FR-207). 작성자는 GOING으로 들어간다. */
-    suspend fun writeMeetup(crewId: Long, form: MeetupForm): Outcome<Long>
-
-    /** 게시판 글 쓰기(FR-211). [photoUris]는 기기 사진 주소이고 api.crew가 줄여서 보낸다(최대 5장, D-100). */
-    suspend fun writeBoard(crewId: Long, body: String, photoUris: List<String>): Outcome<Long>
-
-    /**
-     * 게시판·앨범 사진 한 장의 JPEG 바이트(GET /crew-photos/{id}, FR-212, D-100). 인증된 연결로 읽고, 크루 밖·숨김·삭제면 거부가 온다.
-     * 사진 주소 대신 ID로 받아 인증 헤더가 서버 밖 주소로 나가지 않게 한다.
-     */
-    suspend fun photo(photoId: Long): Outcome<ByteArray>
-
-    /** 크루 앨범(GET /crews/{id}/album, FR-212). */
-    suspend fun album(crewId: Long, cursor: Long? = null): Outcome<Album>
 
     /** 이번 주 공동 목표 정하기(PUT /crews/{id}/goal, FR-138). 운영진 이상. 1km 미만은 GOAL_INVALID. */
     suspend fun setWeeklyGoal(crewId: Long, goal: Distance): Outcome<RaceStatus>
 
     suspend fun deletePost(postId: Long): Outcome<Unit>
 
-    /** 일정(크루런·대면 모임) 참석 응답(PUT /posts/{id}/attendance, FR-145, D-99). */
+    /** 일정(크루런·대면 모임) 참석 응답(PUT /posts/{id}/attendance, FR-145, D-99). 앱은 참석하기에 GOING만 보낸다(W6). */
     suspend fun answerAttendance(postId: Long, answer: AttendanceAnswer): Outcome<Unit>
+
+    /** 참석 취소(DELETE /posts/{id}/attendance, 피그마 F-13b): 크루런 참석 응답을 거둔다. 응답이 없어도 성공이다. */
+    suspend fun withdrawAttendance(postId: Long): Outcome<Unit>
+
+    /** 크루런 일정 상세(GET /crew-runs/{id}, 피그마 F-13·F-11d). 크루원만. */
+    suspend fun crewRun(postId: Long): Outcome<CrewRunDetail>
+
+    /** 모집글 수정(PATCH /crew-runs/{id}, 피그마 F-13d). 작성자만, 투표 중이고 일시 전. 바뀐 상세를 돌려준다. */
+    suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail>
 
     suspend fun enterLobby(postId: Long): Outcome<Lobby>
 
@@ -111,8 +96,40 @@ interface CrewRepository {
 
     suspend fun leaveLobby(postId: Long): Outcome<Lobby>
 
-    /** 크루런 중간 그만두기(POST /crew-runs/{id}/quit). CrewRunCoordinator.quit이 부른다. */
-    suspend fun quit(postId: Long): Outcome<Unit>
+    /**
+     * 내 크루런 끝내기(POST /crew-runs/{id}/quit, 합산 방식). [distanceMeters]·[elapsed]는 끝낼 때의 내 진행값이다(모르면 null,
+     * 서버가 마지막 중계 값을 쓴다). CrewRunCoordinator.quit이 부른다.
+     */
+    suspend fun quit(postId: Long, distanceMeters: Long? = null, elapsed: Duration? = null): Outcome<Unit>
+
+    /** 내 일시정지를 알린다(POST /crew-runs/{id}/pause). 재개는 서버가 늘어난 경과의 진행값으로 판단한다. */
+    suspend fun pause(postId: Long, elapsed: Duration): Outcome<Unit>
 
     suspend fun crewRunResult(postId: Long): Outcome<CrewRunResult>
+
+    /**
+     * 크루원 얼굴 그림: 대기실·결과 참가자의 faceKey(셀카 아바타)로 부위 그림을 받는다(AccountRepository.faceLayers와 같은 그림).
+     * 셀카 얼굴이 아니면 빈 목록, 받지 못하면 실패다. 구현이 없으면 빈 목록이다.
+     */
+    suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
+
+    /** 기다리지 않고 바로 그릴 수 있는 크루원 얼굴 그림(앞서 받아 둔 것, AccountRepository.cachedFaceLayers와 같다). 없으면 null. */
+    fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = null
+
+    /**
+     * 초대 코드로 크루 요약을 미리 본다(POST /crews/invite-preview, 피그마 F-03c). 가입시키지 않는다. 코드가 없거나 만료면
+     * AppError.Rejected(INVALID_CODE), 틀린 코드가 10분에 5번이면 TOO_MANY_ATTEMPTS. 구현이 없으면 실패다.
+     */
+    suspend fun previewByInviteCode(code: String): Outcome<CrewPreview> =
+        Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 크루 로고 JPEG(1MB 이하)를 올리고 로고 주소를 받는다(POST /crew-logos, 피그마 F-04). 구현이 없으면 실패다. */
+    suspend fun uploadLogo(jpeg: ByteArray): Outcome<String> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 로고 바이트(GET /crew-logos/{id}). 이 앱 서버의 로고 경로만 읽고 그 밖의 주소는 실패다. 구현이 없으면 실패다. */
+    suspend fun logo(url: String): Outcome<ByteArray> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    private companion object {
+        const val NOT_IMPLEMENTED = 501
+    }
 }

@@ -114,8 +114,8 @@ class RunTrackerNoticeTest {
     }
 
     @Test
-    fun `TC-9618 대결·크루런 중 알림 일시정지는 무시한다`() = runTest {
-        for (mode in listOf(RunMode.BATTLE, RunMode.CREW_RUN)) {
+    fun `TC-9618 대결 중 알림 일시정지는 무시한다`() = runTest {
+        for (mode in listOf(RunMode.BATTLE)) {
             val tracker = started(
                 RunStartSpec(mode = mode, cardKind = CardKind.BATTLE_RUN, battleId = 3, recordId = "b-$mode")
             )
@@ -124,6 +124,17 @@ class RunTrackerNoticeTest {
             assertTrue(output.played.none { it.kind == Guidance.Kind.PAUSE })
             tracker.endRun()
         }
+    }
+
+    @Test
+    fun `크루런 알림은 크루런 종류이고 알림 일시정지로 정지한다 (S15P31A207-236)`() = runTest {
+        val tracker = started(
+            RunStartSpec(mode = RunMode.CREW_RUN, cardKind = CardKind.CREW_RUN, crewRunPostId = 7, recordId = "c-1")
+        )
+        tracker.onNotificationPauseTapped()
+        assertTrue(tracker.progress.value.isPaused)
+        assertTrue(assertIs<ProgressNotice.CrewRun>(tracker.notice.value).isPaused)
+        tracker.endRun()
     }
 
     @Test

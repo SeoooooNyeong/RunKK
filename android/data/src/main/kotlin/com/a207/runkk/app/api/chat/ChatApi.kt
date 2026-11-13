@@ -29,6 +29,10 @@ internal interface ChatApi {
     @PUT("chat-messages/{id}/reactions/{kind}")
     suspend fun react(@Path("id") messageId: Long, @Path("kind") kind: String): ReactionResponse
 
+    /** 반응한 사람(contract-W5). kind를 비우면 모든 종류. */
+    @GET("chat-messages/{id}/reactions")
+    suspend fun reactors(@Path("id") messageId: Long, @Query("kind") kind: String? = null): ReactorListResponse
+
     @DELETE("chat-messages/{id}/reactions/{kind}")
     suspend fun unreact(@Path("id") messageId: Long, @Path("kind") kind: String): ReactionResponse
 }

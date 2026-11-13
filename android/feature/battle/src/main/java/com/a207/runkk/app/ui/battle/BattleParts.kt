@@ -50,6 +50,10 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
+import com.a207.runkk.app.domain.account.MyAvatar
 import java.time.Duration
 import java.time.LocalDate
 
@@ -112,12 +116,17 @@ private fun FigureCard(figure: Figure, character: AvatarCharacter, celebrityFigu
             .clearAndSetSemantics {},
         contentAlignment = Alignment.Center
     ) {
-        OpponentFigure(figure, size = 96.dp, character = character, celebrityFigure = celebrityFigure)
+        // 셀프런 카운트다운(D-2)의 과거의 나도 결과 화면처럼 반투명한 내 전신 정지 그림이다(S15P31A207-300).
+        if (figure == Figure.PAST_SELF) {
+            PastSelfStill(size = 96.dp, colorFilter = null)
+        } else {
+            OpponentFigure(figure, size = 96.dp, character = character, celebrityFigure = celebrityFigure)
+        }
     }
 }
 
 /**
- * 대결자 그림 하나. 나는 기본 아바타, 배틀런 상대는 상대 성별([character])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은
+ * 대결자 그림 하나. 나는 내 아바타([myAvatar]가 있으면 홈과 같은 얼굴, 없으면 기본 아바타), 배틀런 상대는 상대 성별([character])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은
  * 키([celebrityFigure])의 전용 캐릭터이고 키가 없으면 공통 흐린 그림이다(D-254, D73·D74, 사용자 결정 2026-10-31).
  */
 @Composable
@@ -127,12 +136,26 @@ internal fun OpponentFigure(
     expression: AvatarExpression = AvatarExpression.STAND,
     colorFilter: ColorFilter? = null,
     character: AvatarCharacter = AvatarCharacter.MALE,
-    celebrityFigure: String? = null
+    celebrityFigure: String? = null,
+    myAvatar: MyAvatar? = null
 ) {
     when (figure) {
-        Figure.AVATAR -> RunkkAvatar(null, expression, Modifier.size(size), colorFilter = colorFilter)
+        Figure.AVATAR -> StillOr(MY_STILL, size) {
+            RunkkAvatar(
+                myAvatar?.faceKey,
+                expression,
+                Modifier.size(size),
+                myAvatar?.faceLayers.orEmpty(),
+                colorFilter = colorFilter
+            )
+        }
 
-        Figure.RIVAL -> RivalAvatar(Modifier.size(size), colorFilter, character)
+        Figure.RIVAL -> StillOr(
+            AvatarStillSubject(isMine = false, isFemale = character == AvatarCharacter.FEMALE),
+            size
+        ) {
+            RivalAvatar(Modifier.size(size), colorFilter, character)
+        }
 
         Figure.PAST_SELF -> RunkkAvatar(
             null,
@@ -145,6 +168,34 @@ internal fun OpponentFigure(
 
         Figure.UNKNOWN -> QuestionCircle(size = size * UNKNOWN_CIRCLE_RATIO, color = RunkkColors.TextSecondary)
     }
+}
+
+/**
+ * 대결 화면의 전신 정지 그림 칸(2026-11-12 PM 요구: 배틀런 친구대결·랜덤대결도 얼굴 대신 아바타 몸체). 밤 거르개를 쓰는 결과 화면도
+ * 정지 그림으로 그린다(2026-11-13 PM 요구: 대결 결과도 전부 몸체, S15P31A207-300). 정지 그림에는 거르개를 주지 않고(홈 Rive 칸과 같음)
+ * [fallback](지금 그림)만 거르개를 쓴다.
+ */
+@Composable
+internal fun StillOr(subject: AvatarStillSubject, size: Dp, fallback: @Composable () -> Unit) {
+    AvatarStillSlot(subject, Modifier.size(size), fallback)
+}
+
+/** 내 전신 정지 그림(의상·체형·러닝량·셀카 머리 그대로). */
+internal val MY_STILL = AvatarStillSubject(isMine = true)
+
+/** 카운트다운·결과 화면의 과거의 나(셀프런): 반투명한 내 전신 정지 그림(S15P31A207-300). 칸이 비면 반투명 기본 서기 그림이다. */
+@Composable
+internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?) {
+    Box(Modifier.alpha(PAST_SELF_ALPHA)) {
+        AvatarStillSlot(MY_STILL, Modifier.size(size)) {
+            RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(size), colorFilter = colorFilter)
+        }
+    }
+}
+
+/** 결과 상세·판 결과 히어로의 내 아바타 칸(디자인 시스템 avatarSlot): 내 전신 정지 그림, 칸이 비면 지금 그림(S15P31A207-300). */
+internal val MY_STILL_SLOT: @Composable (Modifier, @Composable () -> Unit) -> Unit = { modifier, fallback ->
+    AvatarStillSlot(MY_STILL, modifier, fallback)
 }
 
 /** 나 VS 상대 한 줄. */

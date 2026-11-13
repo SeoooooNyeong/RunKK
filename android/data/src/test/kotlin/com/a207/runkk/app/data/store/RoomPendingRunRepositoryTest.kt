@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.LateHeartRates
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -86,6 +87,22 @@ class RoomPendingRunRepositoryTest {
         repository.save(run)
 
         assertEquals(Outcome.Success(listOf(run)), repository.pending())
+    }
+
+    @Test
+    fun `기기가 잰 속도·케이던스를 왕복하고 경로 파기 때 함께 지운다(S15P31A207-242)`() = runTest {
+        val motions = listOf(
+            MotionSample(Instant.parse("2026-10-22T10:00:01Z"), speedMps = 3.25),
+            MotionSample(Instant.parse("2026-10-22T10:00:02Z"), cadenceSpm = 171.5),
+            MotionSample(Instant.parse("2026-10-22T10:00:03Z"), speedMps = 3.3, cadenceSpm = 172.0)
+        )
+        val run = completedRun("r-m").copy(motions = motions)
+
+        repository.save(run)
+        assertEquals(motions, (repository.pending() as Outcome.Success).value.single().motions)
+
+        repository.purgeRoutes()
+        assertEquals(emptyList(), (repository.pending() as Outcome.Success).value.single().motions)
     }
 
     @Test

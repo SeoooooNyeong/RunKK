@@ -69,7 +69,7 @@ class RunScreensTest {
             )
         )
         compose.onNodeWithText("자유런 · 5km").assertDoesNotExist()
-        compose.onNodeWithText("5km · 음성 · 진동 · 코치보이스").assertExists()
+        compose.onNodeWithText("5km, 음성, 진동, 코치보이스").assertExists()
         compose.onNodeWithText("GPS", substring = true).assertDoesNotExist()
         compose.onNodeWithText("워치", substring = true).assertDoesNotExist()
         compose.onNodeWithText("바꾸기").assertDoesNotExist()
@@ -118,6 +118,40 @@ class RunScreensTest {
         androidx.test.espresso.Espresso.pressBack()
         compose.waitForIdle()
         assertEquals(listOf("dismiss"), calls)
+    }
+
+    @Test
+    fun `S15P31A207-251 운영 빌드 결과 화면은 크루 반영 줄을 보이고 크루가 닫힌 범위는 숨긴다`() {
+        var scope by mutableStateOf(ReleaseScope.of(isLockingUnreleased = true))
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides scope) {
+                RunkkTheme(reduceMotion = true) {
+                    RunResultScreen(
+                        RunResultUiState(
+                            isLoading = false,
+                            recordId = "r",
+                            distance = Distance(5_210),
+                            elapsed = java.time.Duration.ofSeconds(1_668),
+                            achievements = listOf(
+                                AchievementRow(
+                                    AchievementIcon.CREW,
+                                    UiText.Res(R.string.run_result_crew, listOf("새벽런")),
+                                    "+5.21km"
+                                )
+                            ),
+                            startedAt = start,
+                            isUploaded = true
+                        ),
+                        onCard = {},
+                        onHome = {},
+                        onRetry = {}
+                    )
+                }
+            }
+        }
+        compose.onNodeWithContentDescription("새벽런 크루 목표에 반영, +5.21km").assertExists()
+        scope = ReleaseScope.FIRST_RELEASE
+        compose.onNodeWithContentDescription("새벽런 크루 목표에 반영, +5.21km").assertDoesNotExist()
     }
 
     @Test

@@ -54,6 +54,8 @@ class RunRecordPauseMigrationIntegrationTest {
         Flyway.configure()
                 .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
                 .locations("classpath:db/migration")
+                // V29(analytics)가 ai 계정 비밀번호를 플레이스홀더로 받는다(application-integration.yml과 같은 값)
+                .placeholders(Map.of("runkk_ai_password", "integration-test"))
                 .target(version)
                 .load()
                 .migrate();
@@ -117,6 +119,43 @@ class RunRecordPauseMigrationIntegrationTest {
                                 jdbc.update(
                                         "UPDATE run_record SET paused_millis = -1 WHERE mode ="
                                                 + " 'FREE'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    @DisplayName("V43(MR !91 BR-1): 크루런 정지는 받고 대결 정지·음수 정지는 여전히 CHECK 위반")
+    void crewRunPauseAllowedFromV43() {
+        record("00000000-0000-4000-8000-000000000001", "FREE", "FREE_RUN", null);
+        record("00000000-0000-4000-8000-000000000002", "BATTLE", "BATTLE_RUN", 7L);
+        record("00000000-0000-4000-8000-000000000003", "CREW_RUN", "CREW_RUN", null);
+        migrateTo("42");
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE run_record SET paused_millis = 1000 WHERE mode ="
+                                                + " 'CREW_RUN'"))
+                .as("V42까지는 자유런만")
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        migrateTo("43");
+
+        assertThat(
+                        jdbc.update(
+                                "UPDATE run_record SET pauses = ?, paused_millis = 600000 WHERE"
+                                        + " mode = 'CREW_RUN'",
+                                "2026-10-22T07:10;2026-10-22T07:20"))
+                .isEqualTo(1);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE run_record SET paused_millis = 1000 WHERE mode ="
+                                                + " 'BATTLE'"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(
+                        () ->
+                                jdbc.update(
+                                        "UPDATE run_record SET paused_millis = -1 WHERE mode ="
+                                                + " 'CREW_RUN'"))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

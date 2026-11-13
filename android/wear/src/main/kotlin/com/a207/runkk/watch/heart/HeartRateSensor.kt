@@ -1,11 +1,15 @@
 package com.a207.runkk.watch.heart
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 
 /** 심박 센서 포트. 구현은 Health Services 운동 세션을 하나씩 여는 [ExerciseHeartRateSensor]. 구독하는 동안만 잰다. */
 interface HeartRateSensor {
     /** 차가운 흐름: 모으기 시작하면 측정을 켜고, 취소하면 끈다. 센서를 쓸 수 없으면 예외로 끝난다. */
     fun heartRates(): Flow<WatchHeartRate>
+
+    /** [heartRates]를 모으는 동안 함께 잰 손목 걸음(S15P31A207-242). 걸음을 재지 않는 센서는 비어 있다. */
+    val steps: Flow<WatchSteps> get() = emptyFlow()
 
     /**
      * 이 앱이 열었다가 프로세스가 죽어 남은 운동 세션을 끝낸다(앱 시작 때, NFR-023). 다른 앱의 세션은 건드리지 않고,

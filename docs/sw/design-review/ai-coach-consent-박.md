@@ -1,4 +1,4 @@
-# AI 코치 화면 변경 범위 설계 검토 (다음 판 변경)
+# AI 코치 화면 변경 범위 설계 검토 (design-review.md v0.21)
 > 작성: 2026-11-03 | 작성자: 박재영 | 입력: 위키 SRS v0.22·설계 v0.27, 05-19 D-434~D-455, 저장소 c0e0eb3f | 스킬: sw-design review
 
 ## 범위와 기준
@@ -24,11 +24,11 @@
 | ui.record.coach → core.model | Outcome 성공·실패 | 스탬프 | 허용 |
 | domain.coach → core.model | Outcome | 스탬프 | 허용 |
 
-새 화살표 4, 폰 허용 표 150→154, 워치 5 유지. 순환·공통 가변 상태·도메인의 Android 의존은 없다. 상위 ui.record가 코치의 형식이나 상태를 import하지 않는다. ui.record.coach가 ui.record.R을 읽는 것은 같은 Android 모듈의 생성 리소스이며 부모 코드 접근은 허용하지 않는다.
+새 화살표 4, 폰 허용 표 150→154, 워치 5 유지(작업 기준 develop c29df9fa. 병합 뒤 develop 기준은 155→159·워치 37, design-oo 12.4 v0.28). 순환·공통 가변 상태·도메인의 Android 의존은 없다. 상위 ui.record가 코치의 형식이나 상태를 import하지 않는다. ui.record.coach가 ui.record.R을 읽는 것은 같은 Android 모듈의 생성 리소스이며 부모 코드 접근은 허용하지 않는다.
 
 ## 결정과 남은 경계
 
-- [임시:D-박-1] D-453의 앱 배치를 ui.record 하위 coach 패키지로 좁힌다. D-455·5.1.2·12.4의 공용 반영은 pending으로 요청한다.
+- D-474 D-453의 앱 배치를 ui.record 하위 coach 패키지로 좁힌다. D-455·5.1.2·12.4의 공용 반영은 pending으로 요청한다.
 - CoachFailure에 CONSENT_REQUIRED·FEATURE_CLOSED를 추가해 설계 3.1의 HTTP 거부를 화면에 전달할 자리를 마련했다. RETRY·QUOTA·EXPIRED·TOO_LONG은 그대로다. JSON·HTTP 매핑은 아직 구현하지 않았다.
 - 질문 상한은 FR-261의 제안 500 코드 포인트를 화면 초안 검증값으로 사용한다. 계약 시험에서 서버와 맞춰야 한다.
 - D-438 재동의 버전은 제안이므로 저장·조회·강제 재동의를 추가하지 않는다.

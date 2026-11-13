@@ -5,11 +5,16 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.AchievementIcon
 import com.a207.runkk.app.core.designsystem.AchievementRow
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.getOrNull
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.MyAvatar
+import com.a207.runkk.app.domain.account.myAvatar
+import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,13 +40,26 @@ import kotlinx.coroutines.withTimeoutOrNull
  * 거리·시간·페이스는 서버가 초과 시속 구간을 뺀 값이다(FR-047). 유효·집계 제외는 화면에 보이지 않는다(D29).
  * 휴식(정지 구간 합)은 기기 보관 기록의 정지 구간이나 서버 pausedSeconds로 보인다.
  * 측정 직후 연 결과에서 서버 기록에 티어 평가(evaluation)가 실리면 평가 화면으로 한 번 이동한다(대결 결과와 같은 방식, D-284, U8-6).
+ * 히어로의 아바타는 홈과 같은 내 아바타(AccountRepository.myAvatar)다(S15P31A207-248).
  */
 @HiltViewModel
-class RunResultViewModel @Inject constructor(
+class RunResultViewModel internal constructor(
     private val pendingRuns: PendingRunRepository,
-    private val records: RecordRepository
+    private val records: RecordRepository,
+    /** 내 아바타(홈과 같은 출처). 못 읽으면 null이고 기본 아바타를 그린다. */
+    private val myAvatar: suspend () -> MyAvatar? = { null },
+    /** 첫 그림의 내 아바타(기기에 남긴 마지막 모습, 없으면 null). */
+    lastAvatar: () -> MyAvatar? = { null }
 ) : ViewModel() {
-    private val _state = MutableStateFlow(RunResultUiState())
+    @Inject
+    constructor(
+        pendingRuns: PendingRunRepository,
+        records: RecordRepository,
+        account: AccountRepository
+    ) : this(pendingRuns, records, { account.myAvatar() }, account::lastMyAvatar)
+
+    // 기기에 남긴 마지막 내 아바타(AccountRepository.lastMyAvatar)를 첫 값으로 그려 기본 아바타가 보였다가 바뀌지 않게 한다.
+    private val _state = MutableStateFlow(RunResultUiState(myAvatar = lastAvatar()))
     val state: StateFlow<RunResultUiState> = _state.asStateFlow()
 
     private val _events = Channel<RunResultEvent>(Channel.BUFFERED)
@@ -63,7 +81,8 @@ class RunResultViewModel @Inject constructor(
         if (opensEvaluation && _state.value.recordId == null) isEvaluationDue = true
         if (!isForced && _state.value.recordId == recordId) return
         loadJob?.cancel()
-        _state.value = RunResultUiState(recordId = recordId)
+        _state.value = RunResultUiState(recordId = recordId, myAvatar = _state.value.myAvatar)
+        readMyAvatar()
         loadJob = viewModelScope.launch {
             val local = withTimeoutOrNull(LOCAL_WAIT_MILLIS) {
                 pendingRuns.observePending().mapNotNull { runs -> runs.firstOrNull { it.recordId == recordId } }.first()
@@ -94,6 +113,16 @@ class RunResultViewModel @Inject constructor(
         }
     }
 
+    private var avatarJob: Job? = null
+
+    /** 내 아바타를 한 번 읽는다. 다른 기록을 다시 읽어도 그대로 둔다. */
+    private fun readMyAvatar() {
+        if (avatarJob != null) return
+        avatarJob = viewModelScope.launch {
+            myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
+        }
+    }
+
     /** 서버 기록을 읽어 상태에 더한다. 읽었으면 true. 실패하면 [shouldShowError]일 때만 오류 문구를 보인다. */
     private suspend fun applyServer(recordId: String, shouldShowError: Boolean): Boolean =
         when (val server = records.run(recordId)) {
@@ -118,7 +147,7 @@ class RunResultViewModel @Inject constructor(
                         // 서버는 출생연도가 있을 때만 구간을 준다: 심박은 있는데 구간이 없으면 출생연도가 없다.
                         hasBirthYear = (detail.averageHeartRate ?: it.averageHeartRate) == null ||
                             detail.heartRateZones.isNotEmpty(),
-                        achievements = achievementsOf(detail.newRecords, detail.rewardPoints),
+                        achievements = achievementsOf(detail),
                         pausedTotal = detail.paused.takeIf { paused -> !paused.isZero } ?: it.pausedTotal
                     )
                 }
@@ -148,17 +177,28 @@ class RunResultViewModel @Inject constructor(
         /** 서버 신기록 문구의 이름·값 구분자("최장 거리 신기록 · 직전 4.80km"). */
         const val RECORD_SEPARATOR = " · "
 
-        /** 성과 줄: 신기록(서버 문구를 이름·값으로 나눈다)과 리워드 합계 「리워드」 「+n」. */
-        fun achievementsOf(newRecords: List<String>, rewardPoints: Int?): List<AchievementRow> = newRecords.map {
+        /**
+         * 성과 줄(피그마 B-6 v2): 신기록(서버 문구를 이름·값으로 나눈다), 크루 반영 「새벽런 크루 목표에 반영」 「+5.21km」
+         * (S15P31A207-251, 크루가 닫힌 범위면 AchievementCard가 그리지 않는다), 리워드 합계 「리워드」 「+n」 순서다.
+         */
+        fun achievementsOf(detail: RecordDetail): List<AchievementRow> = detail.newRecords.map {
             AchievementRow(
                 AchievementIcon.STAR,
                 UiText.Plain(it.substringBefore(RECORD_SEPARATOR)),
                 it.substringAfter(RECORD_SEPARATOR, missingDelimiterValue = "")
             )
         } + listOfNotNull(
-            rewardPoints?.let {
+            detail.crewContribution?.let { crewRowOf(it, detail.contributedCrewName) },
+            detail.rewardPoints?.let {
                 AchievementRow(AchievementIcon.REWARD, UiText.Res(R.string.run_result_reward), "+$it")
             }
+        )
+
+        private fun crewRowOf(contribution: Distance, crewName: String?): AchievementRow = AchievementRow(
+            AchievementIcon.CREW,
+            crewName?.let { UiText.Res(R.string.run_result_crew, listOf(it)) }
+                ?: UiText.Res(R.string.run_result_crew_unnamed),
+            "+${RunkkFormat.km(contribution)}km"
         )
     }
 

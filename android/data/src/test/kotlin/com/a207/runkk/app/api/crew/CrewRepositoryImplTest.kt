@@ -3,12 +3,16 @@ package com.a207.runkk.app.api.crew
 import com.a207.runkk.app.api.core.ApiTestServer
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewRole
+import com.a207.runkk.app.domain.crew.CrewRunDetail
+import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
@@ -18,6 +22,7 @@ import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
+import java.time.Duration
 import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -28,8 +33,7 @@ import retrofit2.create
 /** api.crew 매퍼(14장 단위(앱 데이터)): 크루 목록·게시판·대기실·크루런 결과 DTO → 도메인, 갈래별 엔드포인트(D-36). */
 class CrewRepositoryImplTest {
     private val api = ApiTestServer()
-    private val photos = FakePhotos()
-    private val repository = CrewRepositoryImpl(api.retrofit.create(), photos.compressor)
+    private val repository = CrewRepositoryImpl(api.retrofit.create(), api.faces)
 
     @AfterTest
     fun tearDown() = api.close()
@@ -56,7 +60,7 @@ class CrewRepositoryImplTest {
     }
 
     @Test
-    fun `크루런 모집글은 거리·모임 시각을 실어 게시판으로 보낸다`() = runTest {
+    fun `크루런 모집글은 제목·내용·거리·모임 시각·반복을 따로 실어 게시판으로 보낸다(W6)`() = runTest {
         api.reply("""{"id":77}""")
 
         val id =
@@ -69,9 +73,65 @@ class CrewRepositoryImplTest {
         val request = api.take()
         assertEquals("/api/v1/crews/5/posts", request.url.encodedPath)
         assertEquals(
-            """{"kind":"CREW_RUN","body":"토요 한강런","distanceMeters":10000,"scheduledAt":"2026-10-25T06:00:00+09:00"}""",
+            """{"kind":"CREW_RUN","body":"","distanceMeters":10000,"scheduledAt":"2026-10-25T06:00:00+09:00",""" +
+                """"title":"토요 한강런","repeat":"NONE"}""",
             request.body!!.utf8()
         )
+    }
+
+    @Test
+    fun `제한 없음 반복 모집글은 거리를 싣지 않고 WEEKLY를 보낸다(W6)`() = runTest {
+        api.reply("""{"id":78}""")
+        repository.writeCrewRun(
+            5,
+            CrewRunForm("멀리", "8번 출구", null, Instant.parse("2026-10-24T21:00:00Z"), CrewRunRepeat.WEEKLY)
+        )
+        assertEquals(
+            """{"kind":"CREW_RUN","body":"8번 출구","scheduledAt":"2026-10-25T06:00:00+09:00",""" +
+                """"title":"멀리","repeat":"WEEKLY"}""",
+            api.take().body!!.utf8()
+        )
+    }
+
+    @Test
+    fun `일정 상세·수정·참석 취소는 crew-runs와 attendance 경로를 쓰고 상세를 읽는다(W6)`() = runTest {
+        val detailJson =
+            """{"postId":42,"crewId":7,"title":"토요일 한강","body":"","authorId":3,"authorName":"곰","mine":true,
+               |"writtenAt":"2026-10-21T10:12:00+09:00","scheduledAt":"2026-10-24T07:00:00+09:00",
+               |"voteDeadline":"2026-10-24T07:00:00+09:00","status":"VOTING","goingCount":1,"myAnswer":"GOING",
+               |"canEdit":true,"canDelete":true,"repeat":"WEEKLY","repeatDayOfWeek":"SATURDAY",
+               |"attendees":[{"memberId":3,"displayName":"곰","author":true,"me":true,"faceKey":null,"shownGender":"MALE",
+               |"distanceMeters":3200},{"memberId":4,"displayName":"범","author":false,"me":false}]}
+            """.trimMargin()
+        api.reply(detailJson)
+        val detail = repository.crewRun(42).value()
+        assertEquals("GET /api/v1/crew-runs/42", api.take().let { "${it.method} ${it.url.encodedPath}" })
+        assertEquals(null, detail.distance)
+        assertEquals(CrewRunRepeat.WEEKLY, detail.repeat)
+        assertEquals(java.time.DayOfWeek.SATURDAY, detail.repeatDay)
+        assertEquals(true, detail.isGoing)
+        assertEquals(
+            CrewRunDetail.Attendee(
+                3,
+                "곰",
+                isAuthor = true,
+                isMe = true,
+                shownGender = Gender.MALE,
+                distance = Distance(3_200)
+            ),
+            detail.attendees[0]
+        )
+        assertEquals(null, detail.attendees[1].distance, "달린 거리가 없으면(마치기 전·안 달림) null(DV-성-2)")
+
+        api.reply(detailJson)
+        repository.editCrewRun(42, CrewRunEdit("하프", null, Distance(21_097), CrewRunRepeat.NONE))
+        val edit = api.take()
+        assertEquals("PATCH /api/v1/crew-runs/42", "${edit.method} ${edit.url.encodedPath}")
+        assertEquals("""{"title":"하프","body":"","distanceMeters":21097,"repeat":"NONE"}""", edit.body!!.utf8())
+
+        api.reply("""{"postId":42,"myAnswer":null,"goingCount":0,"notGoingCount":0,"undecidedCount":0}""")
+        assertEquals(Outcome.Success(Unit), repository.withdrawAttendance(42))
+        assertEquals("DELETE /api/v1/posts/42/attendance", api.take().let { "${it.method} ${it.url.encodedPath}" })
     }
 
     @Test
@@ -252,18 +312,22 @@ class CrewRepositoryImplTest {
     }
 
     @Test
-    fun `대기실·투표·결과를 바꾼다`() = runTest {
+    fun `대기실·투표·결과를 바꾼다(크루원 얼굴 키·표시 성별 포함, 옛 서버면 null)`() = runTest {
         api.reply(
             """{"postId":77,"scheduledAt":"2026-10-25T06:00:00","distanceMeters":3000,"remainingSeconds":600,
-               |"status":"LOBBY_OPEN","participants":[{"memberId":3,"displayName":"곰","readiness":"READY","ready":true,"me":false},
+               |"status":"LOBBY_OPEN","participants":[{"memberId":3,"displayName":"곰","readiness":"READY","ready":true,"me":false,
+               |"faceKey":"default:FOX","shownGender":"FEMALE"},
                |{"memberId":7,"displayName":"나","readiness":"ENTERING","ready":false,"me":true}]}
             """.trimMargin()
         )
         api.reply("""{"postId":77,"myAnswer":"GOING","goingCount":3,"notGoingCount":1,"undecidedCount":0}""")
         api.reply(
-            """{"postId":77,"finishers":[{"rank":1,"displayName":"곰","elapsedSeconds":3000,"averagePaceSecondsPerKm":300,
-               |"quit":false,"memberId":3,"me":false},{"displayName":"토끼","quit":true,"memberId":7,"me":true}],
-               |"firstCrewRun":true,"raceContributionMeters":20000}
+            """{"postId":77,"status":"FINISHED","title":"오늘 저녁 한강 5km","distanceMeters":5000,
+               |"startedAt":"2026-10-25T06:00:03+09:00","totalDistanceMeters":9100,
+               |"participants":[{"memberId":3,"displayName":"곰","distanceMeters":5280,"elapsedSeconds":1712,
+               |"averagePaceSecondsPerKm":324,"ended":true,"me":false,"faceKey":"default:FOX","shownGender":"MALE"},
+               |{"memberId":7,"displayName":"토끼","distanceMeters":3820,"ended":true,"me":true}],
+               |"myRecordId":"rec-7","firstCrewRun":true,"raceContributionMeters":20000}
             """.trimMargin()
         )
 
@@ -274,7 +338,18 @@ class CrewRepositoryImplTest {
         assertEquals(
             Lobby(
                 77,
-                listOf(Lobby.Participant("곰", true, 3, isMe = false), Lobby.Participant("나", false, 7, isMe = true)),
+                listOf(
+                    Lobby.Participant(
+                        "곰",
+                        true,
+                        3,
+                        isMe = false,
+                        isEntered = true,
+                        faceKey = "default:FOX",
+                        shownGender = Gender.FEMALE
+                    ),
+                    Lobby.Participant("나", false, 7, isMe = true, isEntered = true)
+                ),
                 Instant.parse("2026-10-24T21:00:00Z"),
                 Distance(3_000)
             ),
@@ -286,15 +361,49 @@ class CrewRepositoryImplTest {
         assertEquals("""{"answer":"GOING"}""", attendance.body!!.utf8())
         assertEquals(
             CrewRunResult(
-                77,
-                listOf(
-                    CrewRunResult.Finisher(1, "곰", 3_000, 300, hasQuit = false, memberId = 3, isMe = false),
-                    CrewRunResult.Finisher(null, "토끼", null, null, hasQuit = true, memberId = 7, isMe = true)
+                postId = 77,
+                participants = listOf(
+                    CrewRunResult.Participant(
+                        "곰",
+                        Distance(5_280),
+                        1_712,
+                        324,
+                        hasEnded = true,
+                        memberId = 3,
+                        faceKey = "default:FOX",
+                        shownGender = Gender.MALE
+                    ),
+                    CrewRunResult.Participant("토끼", Distance(3_820), null, null, memberId = 7, isMe = true)
                 ),
-                true,
-                Distance(20_000)
+                totalDistance = Distance(9_100),
+                isFirstCrewRun = true,
+                raceContribution = Distance(20_000),
+                status = CrewRunStatus.FINISHED,
+                title = "오늘 저녁 한강 5km",
+                distance = Distance(5_000),
+                startedAt = Instant.parse("2026-10-24T21:00:03Z"),
+                myRecordId = "rec-7"
             ),
             result
         )
+    }
+
+    @Test
+    fun `내 크루런 끝내기는 마지막 거리·경과를, 일시정지는 정지 때 경과를 싣는다`() = runTest {
+        api.replyEmpty()
+        api.replyEmpty()
+        api.replyEmpty()
+
+        repository.quit(77, 4_870, Duration.ofSeconds(1_668))
+        repository.pause(77, Duration.ofSeconds(754))
+        repository.quit(78)
+
+        val quit = api.take()
+        assertEquals("POST /api/v1/crew-runs/77/quit", "${quit.method} ${quit.url.encodedPath}")
+        assertEquals("""{"distanceMeters":4870,"elapsedSeconds":1668}""", quit.body!!.utf8())
+        val pause = api.take()
+        assertEquals("POST /api/v1/crew-runs/77/pause", "${pause.method} ${pause.url.encodedPath}")
+        assertEquals("""{"elapsedSeconds":754}""", pause.body!!.utf8())
+        assertEquals("""{}""", api.take().body!!.utf8())
     }
 }

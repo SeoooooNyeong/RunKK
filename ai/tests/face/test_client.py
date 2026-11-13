@@ -193,3 +193,37 @@ async def test_request_body_has_no_unknown_fields() -> None:
     names = re.findall(rb'form-data; name="([^"]+)"', seen["body"])
 
     assert sorted(names) == [b"clientRequestId", b"selfie", b"userId"]
+
+
+async def test_delete_user_calls_node_and_reports_whether_anything_was_there() -> None:
+    """탈퇴 파기(S15P31A207-257): Node 사용자 폴더(셀카 작업·머리·옆모습)를 지운다."""
+    seen: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(f"{request.method} {request.url}")
+        return _json(200, {"userId": "42", "deleted": len(seen) == 1})
+
+    client = _client(handler)
+
+    assert await client.delete_user("42") is True
+    assert await client.delete_user("42") is False
+    assert seen == [f"DELETE {BASE}/users/42"] * 2
+
+
+async def test_delete_user_while_generating_is_upstream_failed() -> None:
+    """생성 중이면 Node가 409 USER_BUSY. ai는 503으로 돌려 api가 다시 부르게 한다(지웠다고 하지 않는다)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _json(409, {"code": "USER_BUSY", "message": "만드는 중"})
+
+    with pytest.raises(AvatarError) as info:
+        await _client(handler).delete_user("42")
+    assert info.value.reason == "UPSTREAM_FAILED"
+
+
+async def test_delete_user_on_old_node_without_route_is_upstream_failed() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _json(404, {"code": "NOT_FOUND", "message": "없는 경로"})
+
+    with pytest.raises(AvatarError):
+        await _client(handler).delete_user("42")

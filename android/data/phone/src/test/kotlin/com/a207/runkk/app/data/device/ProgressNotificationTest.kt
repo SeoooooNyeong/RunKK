@@ -2,6 +2,7 @@ package com.a207.runkk.app.data.device
 
 import android.app.Notification
 import android.content.Context
+import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.test.core.app.ApplicationProvider
 import com.a207.runkk.app.core.model.CardKind
@@ -9,6 +10,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.core.model.RunNoticeExtras
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.FreeRunGoalState
 import com.a207.runkk.app.domain.run.Guidance
@@ -83,7 +85,7 @@ class ProgressNotificationTest {
     @Test
     fun `TC-9605 자유런 알림은 경과 제목, 거리, 목표까지 남은 거리, 일시정지 버튼이다`() {
         val n = OngoingProgressStyle(context).build(free(712, 2_140, FreeRunGoalState.Remaining(Distance(2_860))))
-        assertEquals("자유런 · 11:52 경과", n.title())
+        assertEquals("자유런 11:52 경과", n.title())
         assertEquals("2.14 km   목표까지 2.86km", n.body())
         assertEquals(listOf("일시정지"), n.actionTitles())
         val text = ProgressNoticeText.of(context, free(712, 2_140, FreeRunGoalState.Reached))
@@ -93,11 +95,40 @@ class ProgressNotificationTest {
 
     @Test
     fun `TC-9606 대결 알림은 상대 이름 제목과 앞섬·뒤처짐 줄이고 연결 확인 중이면 줄이 없다`() {
-        assertEquals("vs 바람처럼 · 15:40 경과", ProgressNoticeText.of(context, battle(42)).title)
+        assertEquals("vs 바람처럼, 15:40 경과", ProgressNoticeText.of(context, battle(42)).title)
         assertEquals("앞서는 중 +42 m", ProgressNoticeText.of(context, battle(42)).detail)
         assertEquals("뒤처지는 중 -118 m", ProgressNoticeText.of(context, battle(-118)).detail)
         assertNull(ProgressNoticeText.of(context, battle(null)).detail)
         assertEquals("앞서는 중 +0 m", ProgressNoticeText.of(context, battle(0)).detail)
+    }
+
+    @Test
+    fun `크루런 알림은 경과 제목, 거리, 일시정지·재개 버튼이고 막대가 없다 (F-15b)`() {
+        val running = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = false)
+        val text = ProgressNoticeText.of(context, running)
+        assertEquals("크루런 15:40 경과", text.title)
+        assertEquals("2.84 km", text.body)
+        assertEquals("2.84 km", text.chip)
+        assertNull(text.progressMax)
+        assertEquals(listOf("일시정지"), OngoingProgressStyle(context).build(running).actionTitles())
+        assertEquals(listOf("재개"), OngoingProgressStyle(context).build(running.copy(isPaused = true)).actionTitles())
+    }
+
+    @Test
+    fun `일시정지 중에는 제목이 경과가 아니라 일시정지다(자유런·크루런, DV-성 9(e))`() {
+        assertEquals(
+            "자유런 11:52 일시정지",
+            ProgressNoticeText.of(context, free(712, 2_140, FreeRunGoalState.None, isPaused = true)).title
+        )
+        val paused = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = true)
+        assertEquals("크루런 15:40 일시정지", ProgressNoticeText.of(context, paused).title)
+    }
+
+    @Test
+    fun `진행 알림 작은 아이콘은 런크크 단색 아이콘이다(F-15b, D-성-16)`() {
+        val running = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = false)
+        val icon = OngoingProgressStyle(context).build(running).smallIcon
+        assertEquals(com.a207.runkk.app.data.phone.R.drawable.ic_stat_runkk, icon.resId)
     }
 
     @Test
@@ -124,6 +155,18 @@ class ProgressNotificationTest {
         assertEquals(0, none.extras.getInt(Notification.EXTRA_PROGRESS_MAX))
         val versus = ProgressNoticeText.of(context, battle(10).copy(distance = Distance(1_000)))
         assertEquals(1_000 to 3_000, versus.progress to versus.progressMax)
+    }
+
+    @Test
+    fun `S15P31A207-278 대결 알림을 누르면 대결 ID를 실어 앱을 열고 자유런 알림은 싣지 않는다`() {
+        val launch = Intent(Intent.ACTION_MAIN).setPackage(context.packageName)
+        val versus = progressOpenIntent(launch, ProgressNoticeText.of(context, battle(42).copy(battleId = 9)))
+        assertEquals(9L, versus.getLongExtra(RunNoticeExtras.BATTLE_ID, 0))
+        val unknown = progressOpenIntent(launch, ProgressNoticeText.of(context, battle(42)))
+        assertFalse(unknown.hasExtra(RunNoticeExtras.BATTLE_ID), "대결 ID가 없으면 앱만 연다")
+        val free = progressOpenIntent(launch, ProgressNoticeText.of(context, free(10, 100, FreeRunGoalState.None)))
+        assertFalse(free.hasExtra(RunNoticeExtras.BATTLE_ID))
+        assertFalse(launch.hasExtra(RunNoticeExtras.BATTLE_ID), "실행 인텐트 원본은 바꾸지 않는다")
     }
 
     // ---------- 표현 선택 (TC-9611~TC-9613, TC-9755~TC-9757, TC-9771) ----------
@@ -171,7 +214,7 @@ class ProgressNotificationTest {
         val notice = free(712, 2_140, FreeRunGoalState.Remaining(Distance(2_860)))
         val ongoing = OngoingProgressStyle(context).build(notice)
         val live = LiveUpdateStyle(context).build(notice)
-        assertEquals("자유런 · 11:52 경과", ongoing.title())
+        assertEquals("자유런 11:52 경과", ongoing.title())
         assertEquals("2.14 km   목표까지 2.86km", ongoing.body())
         assertEquals(ongoing.title(), live.title())
         assertEquals(ongoing.body(), live.body())
@@ -228,7 +271,7 @@ class ProgressNotificationTest {
             runCurrent()
         }
         assertEquals(10, posted.size, "1초 tick 10번에 10번 갱신")
-        assertEquals((1..10).map { "자유런 · 00:%02d 경과".format(it) }, posted.map { it.title() })
+        assertEquals((1..10).map { "자유런 00:%02d 경과".format(it) }, posted.map { it.title() })
     }
 
     @Test

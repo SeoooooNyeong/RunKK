@@ -85,12 +85,7 @@ public class OperationPolicy {
                         .map(
                                 item -> {
                                     Object price = prices.get(item.id());
-                                    return new ShopItem(
-                                            item.id(),
-                                            item.name(),
-                                            item.slot(),
-                                            price instanceof Integer p ? p : item.price(),
-                                            item.onSale());
+                                    return price instanceof Integer p ? item.withPrice(p) : item;
                                 })
                         .toList());
     }
@@ -101,7 +96,21 @@ public class OperationPolicy {
                 selfieAllowed && valueOf(SettingKey.SELFIE_ENABLED, Boolean.class),
                 valueOf(SettingKey.AI_COMMENT_ENABLED, Boolean.class),
                 valueOf(SettingKey.CREW_RELEASED, Boolean.class),
-                valueOf(SettingKey.AVATAR_RELEASED, Boolean.class));
+                valueOf(SettingKey.AVATAR_RELEASED, Boolean.class),
+                valueOf(SettingKey.RUNBODY_ENABLED, Boolean.class));
+    }
+
+    /** 체형 변화 공개(BODY_SHAPE_RELEASED, 기본 false, [임시:D-성-218]). */
+    public boolean bodyShapeReleased() {
+        return valueOf(SettingKey.BODY_SHAPE_RELEASED, Boolean.class);
+    }
+
+    public boolean coachEnabled() {
+        return valueOf(SettingKey.COACH_ENABLED, Boolean.class);
+    }
+
+    public int coachDailyLimit() {
+        return valueOf(SettingKey.COACH_DAILY_LIMIT, Integer.class);
     }
 
     public SelfieLimit selfieLimit() {

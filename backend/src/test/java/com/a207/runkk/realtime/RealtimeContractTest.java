@@ -18,6 +18,7 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewRunMessage;
 import com.a207.runkk.crew.RelayEntry;
+import com.a207.runkk.crew.chat.ChatMessageKind;
 import com.a207.runkk.crew.chat.CrewChatSignal;
 import com.a207.runkk.crew.chat.ReactionKind;
 import com.a207.runkk.crew.chat.live.ChatRemovalReason;
@@ -252,6 +253,7 @@ class RealtimeContractTest {
         Map<ReactionKind, Integer> reactions = new LinkedHashMap<>();
         reactions.put(ReactionKind.LIKE, 2);
         reactions.put(ReactionKind.HEART, 1);
+        reactions.put(ReactionKind.CHECK, 3);
         return Map.of(
                 "CrewChatPosted",
                 new CrewChatPosted(
@@ -261,7 +263,10 @@ class RealtimeContractTest {
                         "새벽곰",
                         "내일 7시 출발 🏃",
                         OffsetDateTime.of(2026, 10, 22, 19, 7, 3, 0, seoul),
-                        "0f8fad5b-d9cb-469f-a165-70867728950e"),
+                        "0f8fad5b-d9cb-469f-a165-70867728950e",
+                        ChatMessageKind.TEXT,
+                        "LEADER",
+                        null),
                 "CrewChatPosted-withdrawn",
                 new CrewChatPosted(
                         7,
@@ -270,7 +275,23 @@ class RealtimeContractTest {
                         "탈퇴한 사용자",
                         "먼저 갈게요",
                         OffsetDateTime.of(2026, 10, 22, 19, 7, 3, 500_000_000, seoul),
-                        "7c9e6679-7425-40de-944b-e07fc1f90ae7"),
+                        "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+                        ChatMessageKind.TEXT,
+                        null,
+                        null),
+                // W5 러닝 완료 시스템 메시지(S15P31A207-296, C7): 닉네임·거리만
+                "CrewChatPosted-runFinished",
+                new CrewChatPosted(
+                        7,
+                        803,
+                        4L,
+                        "느긋한고래",
+                        "느긋한고래님이 5.02km를 달렸어요",
+                        OffsetDateTime.of(2026, 10, 22, 19, 40, 0, 0, seoul),
+                        "9b2f4c3e-6a1d-3c5b-8e7f-0a1b2c3d4e5f",
+                        ChatMessageKind.RUN_FINISHED,
+                        "MEMBER",
+                        5_021L),
                 "CrewChatRemoved",
                 new CrewChatRemoved(7, 801, ChatRemovalReason.DELETED),
                 "CrewChatRemoved-hidden",
@@ -281,7 +302,8 @@ class RealtimeContractTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "채팅 메시지 3종(표본 5개)을 앱 표본과 같은 JSON으로 직렬화한다(sentAt +09:00, 탈퇴 작성자 null, 사유 상수 이름)")
+            "채팅 메시지 3종(표본 6개, W5 러닝 완료 포함)을 앱 표본과 같은 JSON으로 직렬화한다(sentAt +09:00, 탈퇴 작성자 null, 사유 상수"
+                    + " 이름)")
     void chatMessages_matchAppSamples() throws IOException {
         for (Map.Entry<String, CrewChatSignal> e : chatMessages().entrySet()) {
             JsonNode expected = JSON.readTree(sample(e.getKey() + ".json"));
@@ -347,26 +369,20 @@ class RealtimeContractTest {
         DisplayName rabbit = DisplayName.of("한강토끼");
         return new CrewRunRelay(
                 77,
+                Distance.ofMeters(7_600),
                 List.of(
                         new RelayEntry(
                                 bear,
                                 Distance.ofMeters(3_120),
-                                1,
-                                RelayEntry.Connection.CONNECTED,
+                                RelayEntry.State.RUNNING,
                                 11,
                                 false),
                         new RelayEntry(
-                                fox,
-                                Distance.ofMeters(2_980),
-                                2,
-                                RelayEntry.Connection.CHECKING,
-                                12,
-                                false),
+                                fox, Distance.ofMeters(2_980), RelayEntry.State.PAUSED, 12, false),
                         new RelayEntry(
                                 rabbit,
                                 Distance.ofMeters(1_500),
-                                null,
-                                RelayEntry.Connection.QUIT,
+                                RelayEntry.State.ENDED,
                                 13,
                                 false)));
     }

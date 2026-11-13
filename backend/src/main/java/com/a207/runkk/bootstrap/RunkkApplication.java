@@ -28,6 +28,8 @@ public class RunkkApplication {
     }
 
     public static void main(String[] args) {
+        // 연결 풀과 Flyway가 DB 세션 시간대를 정하기 전에 JVM 시간대를 한국 시각으로 맞춘다(DF-073)
+        ServerZone.useAsJvmDefault();
         SpringApplication.run(RunkkApplication.class, args);
     }
 }

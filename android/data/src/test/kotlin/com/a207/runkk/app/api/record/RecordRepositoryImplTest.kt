@@ -343,4 +343,16 @@ class RecordRepositoryImplTest {
         )
         assertEquals(Duration.ofSeconds(185), repository.run("r-5").value().paused)
     }
+
+    @Test
+    fun `크루 반영 거리와 반영된 크루 이름을 읽는다(S15P31A207-251)`() = runTest {
+        api.reply(
+            """{"summary":{"recordId":"r-6","startedAt":"2026-10-21T19:12:00+09:00","distanceMeters":5210,"elapsedSeconds":1668,
+               |"valid":true,"mode":"FREE","cardKind":"FREE_RUN"},"crewContributionMeters":5210,"contributedCrewName":"새벽런"}
+            """.trimMargin()
+        )
+        val detail = repository.run("r-6").value()
+        assertEquals(Distance(5_210), detail.crewContribution)
+        assertEquals("새벽런", detail.contributedCrewName)
+    }
 }

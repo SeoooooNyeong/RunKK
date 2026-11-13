@@ -1,13 +1,11 @@
 package com.a207.runkk.avatar;
 
-import com.a207.runkk.common.DateRange;
 import com.a207.runkk.notification.NavigationTarget;
 import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.notification.Screen;
 import com.a207.runkk.policy.OperationPolicy;
-import com.a207.runkk.running.DayStats;
 import com.a207.runkk.running.RunQueryService;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -21,9 +19,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class AppearanceService {
-
-    /** 체형을 정하는 최근 기간(일). */
-    static final int RECENT_DAYS = 7;
 
     /** 피부색을 정하는 최근 유효 러닝 수. */
     static final int RECENT_RUNS = 10;
@@ -53,8 +48,8 @@ public class AppearanceService {
     }
 
     /**
-     * 회원마다 최근 7일(어제까지) 유효 횟수·마지막 유효 러닝 일시·이전 체형으로 체형을, 최근 유효 10회 시작 시각으로 피부색을 정해
-     * Avatar.updateAppearance. 체형이 바뀌면 BODY_SHAPE_CHANGED 알림. 바뀐 수를 돌려준다. 러닝이 없으면 피부색은 그대로다.
+     * 회원마다 마지막 유효 러닝 일시·이전 체형으로 체형을, 최근 유효 10회 시작 시각으로 피부색을 정해 Avatar.updateAppearance. 체형이 바뀌면
+     * BODY_SHAPE_CHANGED 알림. 바뀐 수를 돌려준다. 러닝이 없으면 피부색은 그대로다.
      */
     public int refreshAll(LocalDate today) {
         List<Long> memberIds =
@@ -70,25 +65,24 @@ public class AppearanceService {
     }
 
     private boolean refresh(long memberId, LocalDate today) {
-        DateRange recent = new DateRange(today.minusDays(RECENT_DAYS), today.minusDays(1));
-        int runs =
-                runQueryService.dailyStats(memberId, recent).values().stream()
-                        .mapToInt(DayStats::count)
-                        .sum();
         List<LocalDateTime> starts = runQueryService.recentStartTimes(memberId, RECENT_RUNS);
         LocalDateTime last = starts.stream().max(Comparator.naturalOrder()).orElse(null);
         Avatar avatar = avatarRepository.findForUpdate(memberId).orElseThrow();
+        // 체형 변화 미공개면 기본 몸으로 두고 알리지 않는다([임시:D-성-218])
+        boolean shapeReleased = operationPolicy.bodyShapeReleased();
         BodyShape shape =
-                appearanceCalculator.bodyShape(
-                        new AppearanceInput(runs, last, avatar.bodyShape(), today),
-                        operationPolicy.bodyShapeRule());
+                shapeReleased
+                        ? appearanceCalculator.bodyShape(
+                                new AppearanceInput(last, avatar.bodyShape(), today),
+                                operationPolicy.bodyShapeRule())
+                        : BodyShape.STAGE4;
         SkinTone tone =
                 starts.isEmpty()
                         ? avatar.skinTone()
                         : appearanceCalculator.skinTone(starts, operationPolicy.skinToneRule());
         boolean changed = avatar.updateAppearance(shape, tone);
         avatarRepository.save(avatar);
-        if (changed) {
+        if (changed && shapeReleased) {
             notificationService.notify(
                     new NotificationRequest(
                             memberId,

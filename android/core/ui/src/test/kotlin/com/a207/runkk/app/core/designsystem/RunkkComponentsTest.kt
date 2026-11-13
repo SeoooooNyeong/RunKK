@@ -327,7 +327,7 @@ class RunkkComponentsTest {
     }
 
     @Test
-    fun `고른 칩과 고른 선택지에는 체크 아이콘이 붙고 고르지 않은 칸에는 없다(A-5)`() {
+    fun `고른 선택지에는 체크 아이콘이 붙고 고르기 칩에는 붙지 않는다(피그마 세그먼트·시간대 칩)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 androidx.compose.foundation.layout.Column {
@@ -337,7 +337,7 @@ class RunkkComponentsTest {
                 }
             }
         }
-        compose.onAllNodesWithTag(CHIP_CHECK_TAG, useUnmergedTree = true).assertCountEquals(2)
+        compose.onAllNodesWithTag(CHIP_CHECK_TAG, useUnmergedTree = true).assertCountEquals(1)
         val check = compose.onAllNodesWithTag(CHIP_CHECK_TAG, useUnmergedTree = true)[0].getUnclippedBoundsInRoot()
         val label = compose.onNodeWithText("5km", useUnmergedTree = true).getUnclippedBoundsInRoot()
         assertTrue(check.right <= label.left, "체크는 글자 앞")

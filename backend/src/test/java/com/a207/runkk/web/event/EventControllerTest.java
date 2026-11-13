@@ -20,6 +20,7 @@ import com.a207.runkk.web.WebTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
@@ -248,7 +249,9 @@ class EventControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.maxEntryCount").value(2))
                 .andExpect(jsonPath("$.items[0].key").value("celebrity-" + celebrityA))
                 .andExpect(jsonPath("$.items[0].done").value(true))
-                .andExpect(jsonPath("$.items[0].doneAt").value(judgedAt.toString()))
+                .andExpect(
+                        jsonPath("$.items[0].doneAt")
+                                .value(judgedAt.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)))
                 .andExpect(jsonPath("$.items[1].done").value(false));
 
         for (int i = 0; i < 2; i++) {
@@ -335,7 +338,7 @@ class EventControllerTest extends WebTestSupport {
         assertThat(first.get("nickname").asText()).isNotBlank();
         assertThat(first.get("entryCount").asInt()).isEqualTo(2);
         assertThat(first.get("items").get(0).get("doneAt").asText())
-                .isEqualTo(at.minusMinutes(1).toString());
+                .isEqualTo(at.minusMinutes(1).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         assertThat(all.get("entrants").get(1).get("memberId").asLong()).isEqualTo(one.memberId());
         assertThat(all.get("entrants").get(1).get("entryCount").asInt()).isEqualTo(1);
         assertThat(all.get("nextCursor").isNull()).isTrue();

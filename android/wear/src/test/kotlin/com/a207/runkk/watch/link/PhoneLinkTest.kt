@@ -2,6 +2,7 @@ package com.a207.runkk.watch.link
 
 import com.a207.runkk.watch.alert.ProximityAlertPlayer
 import com.a207.runkk.watch.heart.HeartRateCollector
+import com.a207.runkk.watch.heart.WatchSteps
 import com.a207.runkk.watch.testing.FakeAlertOutput
 import com.a207.runkk.watch.testing.FakeHeartRateSensor
 import com.a207.runkk.watch.testing.FakeSensorPermission
@@ -59,6 +60,8 @@ class PhoneLinkTest {
         backgroundScope.launch { link.displays.collect { displays += it } }
         link.start()
         runCurrent()
+        // 시작 때 보낸 표시 요청(DISPLAY_REQUEST)은 아래 따로 시험한다. 다른 시험은 그 뒤에 보낸 것만 본다.
+        dataLayer.sentMessages.clear()
         return Harness(link, collector, displays, player, alerts)
     }
 
@@ -181,6 +184,45 @@ class PhoneLinkTest {
             )
         }
         assertEquals(HeartRateBatchMessage(expected), HeartRateBatchMessage.decode(bytes))
+    }
+
+    @Test
+    fun `손목 걸음은 심박 묶음의 steps로 함께 보내고 걸음만 있어도 보낸다(S15P31A207-242)`() = runTest {
+        harness()
+        receive(display())
+        sensor.emitSteps(WatchSteps(T0 + 1_000, perMinute = 172))
+        sensor.emitSteps(WatchSteps(T0 + 2_000, total = 340))
+        runCurrent()
+
+        advanceTimeBy(PhoneLink.FLUSH_INTERVAL_MILLIS + 1)
+        runCurrent()
+
+        val (path, bytes) = dataLayer.deliveredItems.single()
+        assertEquals("${WearPaths.HEART_RATE_BATCH}/${T0 + 1_000}-0", path)
+        assertEquals(
+            HeartRateBatchMessage(
+                emptyList(),
+                listOf(
+                    HeartRateBatchMessage.Step(T0 + 1_000, perMinute = 172),
+                    HeartRateBatchMessage.Step(T0 + 2_000, total = 340)
+                )
+            ),
+            HeartRateBatchMessage.decode(bytes)
+        )
+    }
+
+    @Test
+    fun `수집 금지 플래그가 오면 보내지 않은 손목 걸음도 버린다`() = runTest {
+        harness()
+        receive(display())
+        sensor.emitSteps(WatchSteps(T0 + 1_000, perMinute = 172))
+        runCurrent()
+
+        receive(display(allowed = false))
+        advanceTimeBy(PhoneLink.FLUSH_INTERVAL_MILLIS + 1)
+        runCurrent()
+
+        assertTrue(dataLayer.deliveredItems.isEmpty())
     }
 
     @Test
@@ -685,4 +727,52 @@ class PhoneLinkTest {
         assertTrue(h.link.recheckConnection())
         assertTrue(h.link.phoneConnected.value)
     }
+
+    @Test
+    fun `S15P31A207-278 앱이 시작되면 폰에 지금 표시를 요청한다(워치 프로세스가 표시를 잃었어도 동행 표시를 되찾는다)`() = runTest {
+        val collector = HeartRateCollector(sensor, permission, backgroundScope)
+        val link = PhoneLink(dataLayer, collector, alertPlayer(), SchedulerClock(testScheduler), backgroundScope)
+
+        link.start()
+        runCurrent()
+
+        val (node, path, bytes) = dataLayer.sentMessages.single()
+        assertEquals("phone", node)
+        assertEquals(WearPaths.DISPLAY_REQUEST, path)
+        assertEquals(0, bytes.size, "본문 없음")
+    }
+
+    @Test
+    fun `S15P31A207-278 폰에 닿은 표시 요청 뒤 간격 안의 요청은 건너뛰고 간격이 지나면 다시 보낸다`() = runTest {
+        val h = harness()
+        advanceTimeBy(PhoneLink.DISPLAY_REQUEST_GAP_MILLIS + 1) // 시작 때 보낸 요청의 간격을 넘긴다.
+
+        h.link.requestDisplay()
+        runCurrent()
+        h.link.requestDisplay()
+        runCurrent()
+        assertEquals(1, displayRequests())
+
+        advanceTimeBy(PhoneLink.DISPLAY_REQUEST_GAP_MILLIS + 1)
+        h.link.requestDisplay()
+        runCurrent()
+        assertEquals(2, displayRequests())
+    }
+
+    @Test
+    fun `S15P31A207-278 폰 노드가 없어 닿지 못한 표시 요청은 간격 없이 다음 요청에서 다시 보낸다`() = runTest {
+        val h = harness()
+        advanceTimeBy(PhoneLink.DISPLAY_REQUEST_GAP_MILLIS + 1) // 시작 때 보낸 요청의 간격을 넘긴다.
+        dataLayer.nodes = emptyList()
+
+        h.link.requestDisplay()
+        runCurrent()
+        dataLayer.nodes = listOf("phone")
+        h.link.requestDisplay()
+        runCurrent()
+
+        assertEquals(1, displayRequests())
+    }
+
+    private fun displayRequests(): Int = dataLayer.sentMessages.count { it.second == WearPaths.DISPLAY_REQUEST }
 }

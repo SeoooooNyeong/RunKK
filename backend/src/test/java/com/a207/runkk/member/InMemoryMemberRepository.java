@@ -25,6 +25,11 @@ public class InMemoryMemberRepository implements MemberRepository {
     }
 
     @Override
+    public Optional<Member> findByIdForUpdate(long id) {
+        return findById(id);
+    }
+
+    @Override
     public Optional<Member> findByAccount(SocialAccount account) {
         return members.values().stream().filter(m -> account.equals(m.account())).findFirst();
     }

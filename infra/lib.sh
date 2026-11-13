@@ -12,6 +12,14 @@ env_value() {  # <file> <key> <default>
   echo "${value:-$3}"
 }
 
+# .env의 COMPOSE_PROFILES(쉼표 구분)에 그 프로필이 있으면 참. load_app_env 뒤에 부른다
+app_profile_enabled() {  # <profile>
+  case ",$(env_value "$APP_ENV_FILE" COMPOSE_PROFILES "")," in
+    *,"$1",*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 # Git Bash(Windows)에서는 docker compose가 읽을 수 있게 C:/ 형식으로 받는다. Linux에는 pwd -W가 없어 pwd를 쓴다
 INFRA_DIR="$(pwd -W 2>/dev/null || pwd)"
 EDGE_ENV_FILE="$INFRA_DIR/edge.env"

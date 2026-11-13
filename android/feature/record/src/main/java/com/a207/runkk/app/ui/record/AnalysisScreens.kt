@@ -115,7 +115,7 @@ private fun AnalysisScaffold(
         ) {
             header()
             when {
-                isLoading -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp)) { RunkkLoading() }
+                isLoading -> RunkkLoading(height = LOADING_HEIGHT)
                 error != null -> RunkkErrorState(error.asString(), onRetry = onRetry)
                 else -> content()
             }
@@ -252,64 +252,6 @@ private fun GrowthBestsCard(growth: Growth) {
                     color = RunkkColors.TextPrimary
                 )
             }
-        }
-    }
-}
-
-// ---------- 리포트 ----------
-
-@Composable
-fun ReportRoute(viewModel: ReportViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val navigator = LocalRunkkNavigator.current
-    ReportScreen(state, onBack = navigator::back, onRetry = viewModel::refresh)
-}
-
-@Composable
-fun ReportScreen(state: ReportUiState, onBack: () -> Unit, onRetry: () -> Unit) {
-    AnalysisScaffold(
-        title = stringResource(R.string.record_report_title),
-        isLoading = state.isLoading && state.report == null,
-        error = state.error,
-        onBack = onBack,
-        onRetry = onRetry
-    ) {
-        val report = state.report ?: return@AnalysisScaffold
-        RunkkCard(Modifier.fillMaxWidth(), shape = RunkkShapes.ExtraLarge) {
-            Text(
-                stringResource(R.string.record_report_summary_title),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-            Text(state.summaryText.asString(), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
-        }
-        ReportCommentCard(state.commentText.asString(), report.comment != null, report.commentSource)
-    }
-}
-
-/** 코치 코멘트 카드. 코멘트가 있으면 라임 테두리, 규칙 기반 문구면 안내를 덧붙인다. */
-@Composable
-private fun ReportCommentCard(comment: String, hasComment: Boolean, source: String?) {
-    RunkkCard(
-        Modifier.fillMaxWidth(),
-        borderColor = if (hasComment) RunkkColors.Lime else RunkkColors.Border
-    ) {
-        Text(
-            stringResource(R.string.record_report_comment_title),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary
-        )
-        Text(
-            comment,
-            style = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 24),
-            color = if (hasComment) RunkkColors.TextPrimary else RunkkColors.TextSecondary
-        )
-        if (source == "RULE" || source == "FALLBACK") {
-            Text(
-                stringResource(R.string.record_report_rule_based),
-                style = RunkkTextStyles.Micro,
-                color = RunkkColors.TextSecondary
-            )
         }
     }
 }
@@ -633,3 +575,6 @@ private val PLAN_CHOICES = listOf(3, 5, 7, 10)
 private val PACE_CHOICES = (180..600 step 10).toList()
 private val GOAL_CHOICES = listOf(10, 20, 30, 40)
 private val PERIOD_DATE = DateTimeFormatter.ofPattern("M/d", Locale.KOREAN)
+
+/** 불러오는 칸 높이(위아래 48 + 원 40). */
+private val LOADING_HEIGHT = 136.dp

@@ -12,13 +12,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,7 +28,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkDialog
+import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkRadioRow
 import com.a207.runkk.app.core.designsystem.RunkkSectionTitle
 import com.a207.runkk.app.core.designsystem.RunkkSegmentOption
 import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
@@ -155,34 +155,18 @@ internal fun ChoiceDialog(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = RunkkColors.Surface,
-        title = { Text(stringResource(title), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary) },
-        text = {
-            Column(modifier = Modifier.selectableGroup()) {
-                options.forEach { (value, label) ->
-                    val isSelected = value == selected
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .defaultMinSize(minHeight = 48.dp)
-                            .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onSelect(value) }),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            stringResource(label),
-                            style = RunkkTextStyles.text(15, if (isSelected) FontWeight.Bold else FontWeight.Normal),
-                            color = if (isSelected) RunkkColors.Lime else RunkkColors.TextPrimary
-                        )
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.me_legal_close), color = RunkkColors.TextSecondary)
+    RunkkDialog(title = stringResource(title), onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.selectableGroup()) {
+            options.forEach { (value, label) ->
+                RunkkRadioRow(
+                    stringResource(label),
+                    isSelected = value == selected,
+                    onClick = { onSelect(value) },
+                    minHeight = 48.dp,
+                    labelStyle = RunkkTextStyles.text(15)
+                )
             }
         }
-    )
+        RunkkDialogButtons(confirmLabel = stringResource(R.string.me_legal_close), onConfirm = onDismiss)
+    }
 }

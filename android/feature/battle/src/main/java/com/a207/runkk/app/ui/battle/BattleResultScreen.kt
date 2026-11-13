@@ -48,23 +48,28 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunResultDetailState
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPageDots
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.record.RecordDetail
@@ -141,21 +146,17 @@ fun BattleResultScreen(
 ) {
     val result = state.result
     val isDecided = result != null && !result.isPending
+    // 배경은 홈과 같다: 아바타 꾸미기가 열렸으면 내 배경 키, 아니면 기본 배경.
+    val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         if (isDecided) {
             AvatarBackdrop(
-                backgroundKey = null,
+                backgroundKey = if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
                 modifier = Modifier.fillMaxSize().graphicsLayer { alpha = verdictPageVisibility(pagerState) }
             )
         }
         Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                stringResource(resultTitleRes(state.kind)),
-                style = RunkkTextStyles.TopBarTitle,
-                color = RunkkColors.TextPrimary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).semantics { heading() }
-            )
+            RunkkTopBar(stringResource(resultTitleRes(state.kind)))
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     result == null && state.isLoading -> RunkkLoading()
@@ -215,7 +216,7 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
                 liveRegion = LiveRegionMode.Polite
             }
         )
-        Figures(kind, verdict, AvatarCharacter.of(result.opponentGender), result.celebrityFigure)
+        Figures(kind, verdict, AvatarCharacter.of(result.opponentGender), result.celebrityFigure, state.myAvatar)
         Text(
             message,
             style = RunkkTextStyles.text(17, FontWeight.Black),
@@ -234,11 +235,18 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
 }
 
 /**
- * 내 아바타와 상대 그림(D-254): 배틀런 상대는 상대 성별([rival])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 결과 응답의
- * 셀럽 그림 키([celebrity])로 고른 전용 캐릭터(없으면 공통 흐린 그림).
+ * 내 아바타와 상대 그림(D-254): 나는 내 전신 정지 그림, 배틀런 상대는 상대 성별([rival])의 기본 전신 정지 그림, 과거의 나는 반투명한
+ * 내 전신 정지 그림, 셀럽은 결과 응답의 셀럽 그림 키([celebrity])로 고른 전용 캐릭터(없으면 공통 흐린 그림)다. 얼굴 원은 쓰지 않는다
+ * (2026-11-13 PM 요구, S15P31A207-300). 정지 그림 칸이 비면(꾸미기 닫힘·미리보기) 지금 그림(기쁨·슬픔 기본 아바타)이다.
  */
 @Composable
-private fun Figures(kind: OpponentKind, verdict: Verdict?, rival: AvatarCharacter, celebrity: String?) {
+private fun Figures(
+    kind: OpponentKind,
+    verdict: Verdict?,
+    rival: AvatarCharacter,
+    celebrity: String?,
+    myAvatar: MyAvatar?
+) {
     val expression = resultExpression(verdict)
     val opponent = when (kind) {
         OpponentKind.SELF -> Figure.PAST_SELF
@@ -247,16 +255,26 @@ private fun Figures(kind: OpponentKind, verdict: Verdict?, rival: AvatarCharacte
     }
     Box(modifier = Modifier.size(width = 260.dp, height = 220.dp).clearAndSetSemantics {}) {
         Box(Modifier.align(Alignment.CenterStart)) {
-            OpponentFigure(Figure.AVATAR, size = 180.dp, expression = expression, colorFilter = sceneAvatarFilter())
+            OpponentFigure(
+                Figure.AVATAR,
+                size = 180.dp,
+                expression = expression,
+                colorFilter = sceneAvatarFilter(),
+                myAvatar = myAvatar
+            )
         }
         Box(Modifier.align(Alignment.CenterEnd).offset(y = 12.dp)) {
-            OpponentFigure(
-                opponent,
-                size = 110.dp,
-                colorFilter = sceneAvatarFilter(),
-                character = rival,
-                celebrityFigure = celebrity
-            )
+            if (opponent == Figure.PAST_SELF) {
+                PastSelfStill(size = 110.dp, colorFilter = sceneAvatarFilter())
+            } else {
+                OpponentFigure(
+                    opponent,
+                    size = 110.dp,
+                    colorFilter = sceneAvatarFilter(),
+                    character = rival,
+                    celebrityFigure = celebrity
+                )
+            }
         }
     }
 }
@@ -322,7 +340,14 @@ private fun DetailPage(state: BattleResultUiState, result: BattleResult, onBack:
     ) {
         val detail = state.detail
         if (detail != null) {
-            RunResultDetail(detail.toDetailState(state.verdict, result))
+            // 결과 상세의 아바타도 내 전신 정지 그림이다(S15P31A207-300). 칸이 비면 내 아바타(홈과 같은 얼굴)다.
+            RunResultDetail(
+                detail.toDetailState(state.verdict, result).copy(
+                    faceKey = state.myAvatar?.faceKey,
+                    faceLayers = state.myAvatar?.faceLayers.orEmpty()
+                ),
+                avatarSlot = MY_STILL_SLOT
+            )
         } else {
             Text(
                 stringResource(R.string.battle_result_detail_waiting),
@@ -359,7 +384,7 @@ private fun RecordDetail.toDetailState(verdict: Verdict?, result: BattleResult):
         expression = detailExpression(verdict)
     )
 
-/** "10.16 목 · 오전 7:12 · 배틀런". */
+/** "10.16 목 오전 7:12, 배틀런". */
 @Composable
 private fun dateLine(startedAt: java.time.Instant, kind: CardKind): String {
     val pattern = stringResource(R.string.battle_result_date_pattern)
@@ -371,29 +396,20 @@ private fun dateLine(startedAt: java.time.Instant, kind: CardKind): String {
             else -> R.string.battle_header_battle_name
         }
     )
-    return "$date · $label"
+    return "$date, $label"
 }
 
-/** 쪽 점 두 개. */
+/** 쪽 점 두 개(디자인 시스템 RunkkPageDots, 결과 화면은 간격 6과 강한 테두리색). */
 @Composable
 private fun PageDots(current: Int) {
-    val description = stringResource(R.string.battle_result_page_desc, current + 1, PAGES)
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clearAndSetSemantics {
-            contentDescription =
-                description
-        },
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
-    ) {
-        repeat(PAGES) { index ->
-            Box(
-                Modifier
-                    .size(width = if (index == current) 18.dp else 6.dp, height = 6.dp)
-                    .clip(CircleShape)
-                    .background(if (index == current) RunkkColors.TextPrimary else RunkkColors.BorderStrong)
-            )
-        }
-    }
+    RunkkPageDots(
+        current = current,
+        count = PAGES,
+        description = stringResource(R.string.battle_result_page_desc, current + 1, PAGES),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        gap = 6.dp,
+        inactiveColor = RunkkColors.BorderStrong
+    )
 }
 
 /** 판정을 기다리는 중(도착 직후) 또는 다시 읽기를 멈춘 뒤에도 판정이 없음(직접 다시 읽기). */
@@ -403,7 +419,7 @@ private fun PendingBody(isAwaiting: Boolean, onRetry: () -> Unit) {
         RunkkCard(modifier = Modifier.fillMaxWidth(), borderColor = RunkkColors.Lavender) {
             if (isAwaiting) {
                 val waiting = stringResource(R.string.battle_result_waiting)
-                Box(Modifier.fillMaxWidth().height(96.dp)) { RunkkLoading(label = waiting) }
+                RunkkLoading(label = waiting, height = 96.dp)
                 Text(
                     waiting,
                     style = RunkkTextStyles.CardTitle,

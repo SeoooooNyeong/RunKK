@@ -1,10 +1,14 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.ProgressReport;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -58,19 +62,46 @@ public class CrewRunLiveService {
         }
     }
 
-    /** 그만둠 표시 → 다른 참가자에게 "그만둠"(FR-192). */
-    public void markQuit(long memberId, long postId) {
+    /** 일시정지 표시 → 모든 참가자에게 "멈춤"(합산 방식). 세션이 없거나 참가자가 아니면 무시한다. */
+    public void markPaused(long memberId, long postId, Duration elapsedAt) {
+        change(postId, session -> session.markPaused(memberId, elapsedAt));
+    }
+
+    /** 끝냄 표시(마지막 값 반영) → 모든 참가자에게 "끝냄"(합산 방식). */
+    public void markEnded(long memberId, long postId, LiveProgress last) {
+        change(postId, session -> session.markEnded(memberId, last));
+    }
+
+    /** 참가자별 최신 진행값(크루런 종료 때 아직 끝내지 않은 참가자를 마감할 값). 세션이 없으면 비어 있다. */
+    public Map<Long, LiveProgress> latest(long postId) {
+        synchronized (lockOf(postId)) {
+            Map<Long, LiveProgress> out = new HashMap<>();
+            crewLiveSessionStore
+                    .load(postId)
+                    .ifPresent(
+                            session ->
+                                    session.participants()
+                                            .forEach(
+                                                    id ->
+                                                            session.latestOf(id)
+                                                                    .ifPresent(
+                                                                            p -> out.put(id, p))));
+            return out;
+        }
+    }
+
+    private void change(long postId, Predicate<CrewRunLiveSession> change) {
         synchronized (lockOf(postId)) {
             Optional<CrewRunLiveSession> loaded = crewLiveSessionStore.load(postId);
             if (loaded.isEmpty()) {
                 return;
             }
             CrewRunLiveSession session = loaded.get();
-            session.markQuit(memberId);
+            if (!change.test(session)) {
+                return;
+            }
             crewLiveSessionStore.save(session);
-            crewRunMessenger.sendAll(
-                    session.participants().stream().filter(id -> id != memberId).toList(),
-                    session.relay());
+            crewRunMessenger.sendAll(session.participants(), session.relay());
         }
     }
 

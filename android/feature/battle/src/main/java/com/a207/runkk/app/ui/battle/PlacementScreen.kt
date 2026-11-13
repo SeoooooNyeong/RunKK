@@ -28,6 +28,8 @@ import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -94,7 +96,7 @@ fun PlacementScreen(state: PlacementUiState, actions: PlacementActions, modifier
                 when {
                     progress != null -> PlacementProgressBeforeRound(progress)
 
-                    state.isLoading -> Box(Modifier.fillMaxWidth().height(PROGRESS_CARD_HEIGHT)) { RunkkLoading() }
+                    state.isLoading -> RunkkLoading(height = PROGRESS_CARD_HEIGHT)
 
                     else -> RunkkErrorState(
                         state.error?.asString() ?: stringResource(R.string.placement_load_failed),
@@ -102,7 +104,10 @@ fun PlacementScreen(state: PlacementUiState, actions: PlacementActions, modifier
                     )
                 }
                 MatchHero()
-                EntrySectionTitle(stringResource(R.string.random_battle_distance_title))
+                RunkkSectionHeader(
+                    stringResource(R.string.random_battle_distance_title),
+                    size = RunkkSectionHeaderSize.Card
+                )
                 DistanceChips(state.distance, actions.onDistance)
             }
             VioletBottomBar(

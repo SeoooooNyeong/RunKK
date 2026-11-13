@@ -12,6 +12,7 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.SignalState
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
@@ -197,6 +198,32 @@ class RunScreenshotTest {
         FirstRelease { RunResultScreen(result, onCard = {}, onHome = {}, onRetry = {}) }
     }
 
+    /** B-6 v2(피그마 61370:2110) 운영 빌드: 신기록, 크루 반영 「새벽런 크루 목표에 반영」, 리워드(S15P31A207-251). */
+    @Test
+    fun resultCrewLight() = compose.captureRunkkScreen("B6_run_result_crew_light", isDarkTheme = false) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.a207.runkk.app.core.designsystem.LocalReleaseScope provides
+                com.a207.runkk.app.core.designsystem.ReleaseScope.of(isLockingUnreleased = true)
+        ) {
+            RunResultScreen(
+                result.copy(
+                    achievements = listOf(
+                        result.achievements.first(),
+                        AchievementRow(
+                            AchievementIcon.CREW,
+                            UiText.Res(R.string.run_result_crew, listOf("새벽런")),
+                            "+5.21km"
+                        ),
+                        result.achievements.last()
+                    )
+                ),
+                onCard = {},
+                onHome = {},
+                onRetry = {}
+            )
+        }
+    }
+
     /** TC-5852 다크, 심박 있음(가장 빠른 구간 숫자 Lavender). */
     @Test
     fun result() = compose.captureRunkkScreen("B4_run_result") {
@@ -249,6 +276,17 @@ class RunScreenshotTest {
                 elapsed = Duration.ofMinutes(20),
                 averagePace = Pace(400)
             ),
+            onCard = {},
+            onHome = {},
+            onRetry = {}
+        )
+    }
+
+    /** 2차 배포(아바타 꾸미기 열림): 히어로 아바타가 홈과 같은 내 아바타(기본 캐릭터 고양이)다(S15P31A207-248). */
+    @Test
+    fun resultMyAvatar() = compose.captureRunkkScreen("B4_run_result_my_avatar") {
+        RunResultScreen(
+            result.copy(myAvatar = MyAvatar("default:CAT", emptyList(), null)),
             onCard = {},
             onHome = {},
             onRetry = {}

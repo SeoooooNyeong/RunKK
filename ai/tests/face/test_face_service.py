@@ -50,6 +50,24 @@ async def test_same_user_and_photo_give_the_same_request_id() -> None:
     assert all(uuid.UUID(k).version == 5 for k in keys)
 
 
+async def test_explicit_retry_attempt_gives_a_new_request_id() -> None:
+    """DV-성-9: 같은 사진을 사용자가 명시적으로 다시 시도하면(attempt 2 이상) Node가 새 작업을 만들도록 다른 키를 쓴다.
+    attempt 1은 기존 키와 같다(같은 요청 재전송은 같은 작업)."""
+    client = FakeAvatarClient()
+    service = _service(client)
+
+    await service.submit("42", SELFIE)
+    await service.submit("42", SELFIE, attempt=1)
+    await service.submit("42", SELFIE, attempt=2)
+    await service.submit("42", SELFIE, attempt=2)
+    await service.submit("42", SELFIE, attempt=3)
+
+    keys = [k for _, k, _ in client.submitted]
+    assert keys[0] == keys[1]
+    assert keys[2] == keys[3]
+    assert len({keys[0], keys[2], keys[4]}) == 3
+
+
 def test_exposes_limits() -> None:
     service = _service(FakeAvatarClient(), max_image_bytes=4321, max_image_pixels=99)
 
@@ -148,3 +166,23 @@ async def test_selfie_never_touches_disk(
     assert response.status_code == 202
     assert writes == []
     assert "SELFIE-SECRET" not in caplog.text
+
+
+async def test_purge_user_counts_deleted_folder(caplog: pytest.LogCaptureFixture) -> None:
+    """WithdrawalService가 부르는 규약(purge_user → 지운 수). 폴더 하나라 1 또는 0."""
+    caplog.set_level(logging.INFO)
+    client = FakeAvatarClient()
+    service = _service(client)
+
+    assert await service.purge_user("42") == 1
+    assert await service.purge_user("42") == 0
+    assert client.deleted == ["42", "42"]
+    assert "avatar_call op=delete result=ok" in caplog.text
+    assert "42" not in caplog.text.replace("avatar_call", "")
+
+
+async def test_purge_user_failure_raises() -> None:
+    service = _service(FakeAvatarClient(error=AvatarError("UPSTREAM_FAILED")))
+
+    with pytest.raises(AvatarError):
+        await service.purge_user("42")

@@ -190,6 +190,51 @@ class AnalysisServicesTest {
         assertThat(alone.weekly()).isNull();
     }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName("대시보드: 이번 주(월요일~기준일) 유효 횟수·거리는 주간 목표가 있든 없든 준다(실기기 DV3-4)")
+    void dashboard_thisWeekTotalsWithoutGoal() {
+        DashboardService service =
+                new DashboardService(runs, goals, crews, members, policy, rewards, clock);
+        LocalDate monday = LocalDate.of(2026, 10, 19);
+        LocalDate lastSunday = monday.minusDays(1);
+        when(runs.dailyStats(eq(ME), any()))
+                .thenReturn(
+                        Map.of(
+                                lastSunday,
+                                new DayStats(
+                                        lastSunday, Distance.ofKm(9), Duration.ofMinutes(50), 1),
+                                monday,
+                                new DayStats(monday, Distance.ofKm(3), Duration.ofMinutes(18), 1),
+                                TODAY,
+                                new DayStats(TODAY, Distance.ofKm(5), Duration.ofMinutes(25), 2),
+                                TODAY.plusDays(1),
+                                new DayStats(
+                                        TODAY.plusDays(1),
+                                        Distance.ofKm(7),
+                                        Duration.ofMinutes(40),
+                                        1)));
+        when(crews.activeCrewOf(ME)).thenReturn(Optional.empty());
+
+        DashboardView noGoal = service.dashboard(ME, TODAY);
+
+        assertThat(noGoal.weekly()).as("목표가 없으면 목표 달성률은 없다").isNull();
+        assertThat(noGoal.weekRuns()).as("지난 일요일·기준일 다음 날은 빼고 월요일부터 센다").isEqualTo(3);
+        assertThat(noGoal.weekMeters()).isEqualTo(Distance.ofKm(8));
+
+        RunningGoal goal = RunningGoal.create(ME);
+        goal.setWeeklyGoal(WeeklyGoal.of(com.a207.runkk.common.Week.of(NOW), 4, Distance.ofKm(16)));
+        goals.save(goal);
+        DashboardView withGoal = service.dashboard(ME, TODAY);
+        assertThat(withGoal.weekRuns()).isEqualTo(withGoal.weekly().actualCount());
+        assertThat(withGoal.weekMeters()).isEqualTo(withGoal.weekly().actualDistance());
+
+        DashboardView onMonday = service.dashboard(ME, monday);
+        assertThat(onMonday.weekRuns()).as("월요일이 기준일이면 그날만").isEqualTo(1);
+        DashboardView onSunday = service.dashboard(ME, lastSunday);
+        assertThat(onSunday.weekRuns()).as("일요일은 앞 주의 마지막 날").isEqualTo(1);
+        assertThat(onSunday.weekMeters()).isEqualTo(Distance.ofKm(9));
+    }
+
     /** 기록 저장소처럼 요청 범위 안 러닝 날짜만 돌려준다. 요청한 범위를 모은다. */
     private List<DateRange> storedRunDays(Set<LocalDate> days) {
         List<DateRange> asked = new ArrayList<>();
@@ -375,6 +420,7 @@ class AnalysisServicesTest {
         RunSummary summary = ownersRun();
         RecordQueryService service = records();
         when(races.contributionOf(summary.recordId())).thenReturn(Distance.ofKm(5));
+        when(races.contributedCrewNameOf(summary.recordId())).thenReturn(Optional.of("새벽런"));
         when(rewards.accruedFor(AccrualReason.VALID_RUN, summary.recordId(), OTHER)).thenReturn(50);
         when(members.ageOf(eq(OTHER), anyInt())).thenReturn(OptionalInt.of(30));
         preference(OTHER, RecordVisibility.PRIVATE, false);
@@ -383,6 +429,7 @@ class AnalysisServicesTest {
         assertThat(own.owner()).isTrue();
         assertThat(own.route()).hasSize(1);
         assertThat(own.crewContribution()).isEqualTo(Distance.ofKm(5));
+        assertThat(own.contributedCrewName()).isEqualTo("새벽런");
         assertThat(own.rewardPoints()).isEqualTo(50);
         assertThat(own.calories()).isEqualTo(325);
         assertThat(own.heartRateZones()).containsKey("Z3");
@@ -416,6 +463,7 @@ class AnalysisServicesTest {
         assertThat(other.route()).isEmpty();
         assertThat(other.heartRateZones()).isEmpty();
         assertThat(other.crewContribution()).isNull();
+        assertThat(other.contributedCrewName()).isNull();
         assertThat(other.rewardPoints()).isNull();
         assertThat(other.recordVisibility()).isNull();
     }

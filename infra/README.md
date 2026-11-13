@@ -30,6 +30,7 @@ infra/
 ├─ smoke.sh                    배포 뒤 확인 (CI backend:smoke)
 ├─ restore-check.sh            매일 덤프 복구 시험 (CI backup:restore-check, 7절)
 ├─ offsite-backup.sh           매일 덤프 서버 밖 사본 (CI backup:offsite, 7절)
+├─ dev-seed.sh, dev-seed.sql   develop DB 더미 데이터 (CI dev:seed, 수동, develop 전용, 4절)
 ├─ lib.sh                      위 스크립트가 함께 쓰는 함수
 ├─ init-letsencrypt.sh         Let's Encrypt 인증서 1회 발급 + HTTPS 전환
 ├─ backup/pg-backup.sh         backup 컨테이너가 도는 매일 pg_dump (7절)
@@ -110,21 +111,26 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 - 에지 설정은 마지막으로 배포한 브랜치의 것이 반영됩니다. nginx·모니터링 설정을 바꾸면 develop에서 확인한 뒤 main에도 곧 반영합니다(main 배포가 옛 설정으로 되돌리지 않게).
 - `.env`를 통째로 컨테이너에 넣지 않습니다. `docker-compose.yml`의 `environment:`가 컨테이너마다 필요한 값만 고릅니다. 새 환경 변수는 `.env.example`과 함께 해당 서비스의 `environment:`에도 추가합니다.
 - prod 환경 확인: `deploy.sh`는 `RUNKK_ENV=prod`인데 `SPRING_PROFILES_ACTIVE`가 prod가 아니거나 `SWAGGER_ENABLED=true`면 멈춥니다. `smoke.sh`는 prod에서 `/v3/api-docs`가 열려 있으면 실패합니다.
+- 아바타 서버 확인: `.env`의 `COMPOSE_PROFILES`에 `avatar`가 있으면 `smoke.sh`가 `avatar` 컨테이너 헬스 상태가 healthy인지(starting이면 1분까지 기다림), ai 컨테이너에서 `http://avatar:3000/api/health`가 응답하는지 보고, 아니면 실패합니다. 프로필이 없으면 건너뜁니다. avatar 포트는 밖으로 열지 않습니다.
 
 ### 셀카 변환 스위치
 
-`SELFIE_ENABLED`(api 환경 변수, `application.yml runkk.features.selfie-enabled`)는 서버 스위치입니다. false면 관리툴의 운영 기준값 "셀카생성사용"이 켜져 있어도 셀카 변환을 막고(SELFIE_DISABLED) 앱에는 셀카 단추가 보이지 않습니다. compose 기본값은 꺼짐이라 prod `.env`에 넣지 않아도 꺼지고, 셀카를 시험하는 develop `.env`에만 `SELFIE_ENABLED=true`를 둡니다. 로컬 실행(local 프로필)과 시험은 켜진 채입니다.
+`SELFIE_ENABLED`(api 환경 변수, `application.yml runkk.features.selfie-enabled`)는 서버 스위치입니다. false면 관리툴의 운영 기준값 "셀카생성사용"이 켜져 있어도 셀카 변환을 막고(SELFIE_DISABLED) 앱에는 셀카 단추가 보이지 않습니다. compose 기본값은 꺼짐입니다. develop `.env`와, 2차 배포(11/13)부터는 prod `.env`에도 `SELFIE_ENABLED=true`를 둡니다(2026-11-09 결정). 로컬 실행(local 프로필)과 시험은 켜진 채입니다.
 
 ### 2차 배포 기능 공개 스위치
 
-크루와 아바타 꾸미기(체형·배경)는 환경 변수가 아니라 관리툴 운영 기준값으로 엽니다. `.env`와 compose에는 넣지 않습니다.
+크루, 아바타 꾸미기(체형·배경), 런바디 ai 분석은 관리툴 운영 기준값으로 엽니다. 처음 값만은 환경 변수 `RUNKK_BOOTSTRAP_SETTINGS`로 넣을 수 있습니다(아래).
 
 | 운영 기준값 | 기본값 | 꺼져 있을 때 |
 |-------------|--------|--------------|
 | `CREW_RELEASED` | false | Runimal 동행 축이 크루런을 세지 않고, 크루 알림 16종은 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
 | `AVATAR_RELEASED` | false | 체형 변화(`BODY_SHAPE_CHANGED`)·배경 해금(`BACKGROUND_UNLOCKED`) 알림을 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
+| `BODY_SHAPE_RELEASED` | false | 2차 배포에서 뺀 체형 변화입니다. 0시 외형 재계산이 모든 회원을 기본 몸(`STAGE4`)으로 두고 체형 변화 알림을 만들지 않습니다. 피부색 계산은 그대로입니다. 2차 배포에서는 켜지 않습니다 |
+| `RUNBODY_ENABLED` | false | 러닝 저장 뒤 런바디 분석 작업을 만들지 않고 ai에 제출·상태 조회하지 않습니다. `/api/v1/runbody/**`는 403 `FEATURE_CLOSED`입니다. 켜기 전에 저장한 러닝은 분석하지 않습니다 |
 
 DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)는 따로 넣지 않아도 닫혀 있습니다. 2차 배포에서 기능을 열 때 관리툴에서 true로 바꿉니다. 앱의 1차 배포 잠금 빌드(`LOCK_UNRELEASED`)도 같은 알림 종류를 숨기며, 두 분류는 계약 파일 `policy/GatedNotification.txt`로 대조합니다.
+
+develop은 GitLab CI 변수 `INFRA_ENV`에 `RUNKK_BOOTSTRAP_SETTINGS=CREW_RELEASED=true,AVATAR_RELEASED=true,RUNBODY_ENABLED=true`를 넣고 배포하면 시작 때 그 키의 행이 없을 때만 한 번 넣습니다(감사 기록 행위자 `bootstrap:RUNKK_BOOTSTRAP_SETTINGS`). 이미 행이 있으면(관리툴로 바꾼 값) 덮지 않으므로 이후 변경은 관리툴로 합니다. 모르는 키나 형식이 틀린 값은 WARN 로그만 남기고 건너뜁니다.
 
 ### 롤백
 
@@ -140,6 +146,8 @@ DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)�
   COMMIT;
   ```
 
+- 서버 시간대 수정(V48, DF-073)이 적용된 환경은 V48이 없는 서버 이미지(옛 시간대 설정: JVM UTC, `hibernate.jdbc.time_zone`)로 되돌리지 않습니다. 오류 없이 뜨지만(Flyway는 DB에만 있는 V48, V49를 문제 삼지 않습니다) 그 뒤 서버가 쓰는 시각이 다시 9시간 앞서 저장되어 V48로 고친 값과 섞입니다. 되돌려야 하면 V48 직전 덤프(`before-tz` 또는 그 배포의 `predeploy`)로 DB를 먼저 복구한 뒤 이미지를 되돌립니다. V48 적용 뒤에는 `-prev` 이미지 태그로 되돌리지 않고, 이전 파이프라인의 `backend:deploy`를 다시 실행하지 않으며, V48 이전에 develop에서 갈라진 `release/*` 브랜치에 push하지 않습니다(8443 자동 배포로 옛 이미지가 뜹니다).
+
 ## 4. 운영 명령
 
 CI 작업 폴더에는 `.env`가 남지 않으므로 서버에서는 컨테이너 이름으로 다룹니다(`runkk-<환경>-<서비스>-1`, 에지는 `runkk-<서비스>-1`).
@@ -150,6 +158,17 @@ docker logs -f --tail 100 runkk-prod-api-1           # prod api 로그 (develop�
 docker exec -it runkk-prod-postgres-1 psql -U runkk runkk   # prod DB 접속
 docker exec runkk-nginx-1 nginx -t && docker exec runkk-nginx-1 nginx -s reload   # nginx 설정 다시 읽기
 ```
+
+운영 주의(결함 DF-073, 서버 시간대): develop은 2026-11-09 V48 적용 뒤 서버가 쓴 시각과 SQL로 넣는 시각 모두 한국 시각 그대로 저장합니다(SQL로 넣을 때 9시간을 더하지 않습니다). 운영은 2차 배포(V36~V49, 서버 시간대 수정 V48 포함) 전까지 옛 규칙입니다: API 컨테이너 JVM이 UTC인데 Clock과 `hibernate.jdbc.time_zone`이 Asia/Seoul이라 서버가 쓴 시각은 DB에 9시간 앞서 저장되므로 DB에서 읽을 때 9시간을 빼고, SQL로 시각을 넣을 때 의도한 한국 시각에 9시간을 더합니다. 운영 event 기간은 +9시간 임시 보정해 두었고 2차 배포의 V48이 되돌립니다(docs/sw/sqa/이벤트-공지-성.md 3절, docs/sw/design-oo/05-28-설계-서버시간대-성.md 6절).
+
+### develop 더미 데이터 (dev:seed)
+
+develop 파이프라인의 수동 잡 **dev:seed**를 누르면 `dev-seed.sh`가 develop DB(`runkk-develop-postgres-1`)에 `dev-seed.sql`을 한 트랜잭션으로 넣습니다. 잡은 develop 브랜치 파이프라인에만 생기고, 스크립트도 `.env`의 `RUNKK_ENV`가 develop이 아니면 멈춥니다.
+
+- 넣는 것: 게스트형 더미 회원 18명(`더미러너01`~`18`, 로그인 수단 없음), 공개 크루 5개(`더미 …`, 크루원·다가오는/지난 크루런·채팅·주간 레이스), 더미 회원마다 최근 6주 유효 러닝 10~25회(경로 포함)와 그 기록으로 센 티어·레벨·Runimal.
+- 대상 계정: 잡 변수 `DEV_SEED_TARGETS`(쉼표 구분 닉네임, 비우면 `러너4171,러너1699`)의 닉네임마다 그 회원이 있으면 `더미 새벽한강 크루`에 넣고(활성 크루가 없을 때만), 출생연도가 비었으면 1998로 채우고, 최근 6주 러닝 22회(경로·심박·움직임 표본)와 런바디 작업(PENDING)을 넣습니다. 없는 닉네임은 경고만 남깁니다. 기록 ID는 회원 ID와 순번으로 만들어 다시 돌려도 중복되지 않습니다.
+- 다시 눌러도 이미 있는 더미 회원·크루·기록은 건너뜁니다.
+- 랭킹 스냅숏은 0시 집계(또는 관리 API `POST /api/v1/admin/rankings/recompute`) 뒤에, 대상 계정의 티어 누계는 0시 10분 티어 보정 뒤에 반영됩니다. 런바디 작업은 서버가 5초 안에 ai로 보냅니다.
 
 ## 5. 로컬에서 같은 구성 띄우기
 
@@ -243,8 +262,10 @@ grafana ─┬─ 망 runkk_db-prod (internal)    ─ postgres-prod:5432     (ru
 
 각 환경의 `backup` 컨테이너가 매일 `BACKUP_TIME`(기본 04:30, 3시 파기 배치 뒤)에 `pg_dump -Fc`를 뜨고, `pg_restore --list`로 읽히는지 확인한 뒤 `/var/backups/runkk/<환경>/runkk-<환경>-daily-YYYYMMDD-HHMMSS.dump`로 둡니다. 7일(`BACKUP_KEEP_DAYS`)이 지난 덤프는 지워 "오늘 + 지난 6일" 7개만 남습니다(처리방침 "하루 1회 이상 백업, 백업본 7일 보존"). 배포 직전 덤프(`-predeploy-`)도 같은 폴더·같은 보존 기간입니다. 폴더는 0700, 덤프는 0600이고 소유자는 `BACKUP_OWNER`(기본 1000:1000 = ubuntu)입니다.
 
+같은 시각에 아바타 결과 볼륨(`avatar-data`, 사용자별 머리 그림)도 `runkk-<환경>-avatar-daily-YYYYMMDD-HHMMSS.tar.gz`로 같은 폴더에 남습니다. 보존 기간·권한·소유자는 덤프와 같고, `tar -t`로 읽히는지 확인한 뒤에만 이름을 바꿉니다. backup 컨테이너는 볼륨을 읽기 전용(`/avatar-data`)으로만 붙이고, avatar 프로필이 꺼진 환경은 볼륨이 비어 있어 건너뜁니다. 배포 직전 덤프(`now predeploy`)는 DB만 뜨고, 수동 `now manual`·`now before-restore`는 아바타 묶음도 남깁니다.
+
 ```bash
-ls -l /var/backups/runkk/prod/                                        # 덤프 목록
+ls -l /var/backups/runkk/prod/                                        # 덤프·아바타 묶음 목록
 docker logs --tail 20 runkk-prod-backup-1                             # "ok ..." 또는 "FAILED ..." 기록
 docker exec runkk-prod-backup-1 sh /opt/runkk-backup/pg-backup.sh now manual   # 지금 하나 뜨기
 ```
@@ -256,6 +277,7 @@ docker exec runkk-prod-backup-1 sh /opt/runkk-backup/pg-backup.sh now manual   #
 - 한 번만 돌게 release 기간(`RELEASE_FREEZE=1`)에는 release 스케줄, 아니면 develop 스케줄에서 돕니다. 스케줄이 04:30 덤프보다 먼저 돌아 아티팩트는 전날 04:30 덤프입니다.
 - 아티팩트는 7일 뒤 만료되고 Developer 이상만 내려받습니다(처리방침 "백업본 7일 보존"). **Settings › CI/CD › Artifacts › Keep artifacts from most recent successful jobs**를 꺼 둬야 마지막 사본도 7일 뒤 지워집니다.
 - 덤프가 26시간보다 오래됐으면 잡이 실패합니다(매일 백업이 멈춤). 아직 덤프가 없는 환경(prod 첫 배포 전)은 경고만 남깁니다.
+- 가장 최근 아바타 묶음(`-avatar-daily-`)도 같은 규칙으로 올립니다(26시간보다 오래되면 실패, 없는 환경은 건너뜀). 아티팩트 크기 제한에 걸려 덤프 사본까지 잃지 않게 `OFFSITE_AVATAR_MAX_MB`(기본 50)보다 큰 묶음은 경고만 남기고 뺍니다. 그때 아바타는 서버 안 7일치만 남습니다.
 - 서버가 사라졌을 때: 마지막 성공한 backup:offsite 잡의 아티팩트를 내려받아 새 서버에서 아래 "실제 복구" 절차로 넣습니다.
 
 ### 복구 리허설 (베타 기간 1회, 운영 DB를 건드리지 않음)
@@ -293,6 +315,15 @@ docker start runkk-prod-api-1 && docker logs -f --tail 50 runkk-prod-api-1   # F
 
 덤프보다 뒤의 자료는 잃습니다. 기기에 남은 미전송 기록(FR-039)은 앱이 다시 보냅니다.
 
+아바타 볼륨은 avatar를 멈추고 볼륨을 비운 뒤 묶음을 풀어 넣습니다(파일 소유자 node 1000은 묶음에 남아 그대로 돌아옵니다). 볼륨 이름은 `runkk-<환경>_avatar-data`입니다.
+
+```bash
+A=<고른 묶음>.tar.gz   # 예: runkk-prod-avatar-daily-20261114-043000.tar.gz
+docker stop runkk-prod-avatar-1
+docker run --rm --network none -v runkk-prod_avatar-data:/data -v /var/backups/runkk/prod:/backups:ro --entrypoint sh postgres:17-alpine -c "find /data -mindepth 1 -delete && tar -xzf /backups/$A -C /data"
+docker start runkk-prod-avatar-1
+```
+
 ## 8. 로그 보관 (NFR-020)
 
 - **api 파일 로그**: 요청 오류·장애 기록을 `api-logs` 볼륨(`runkk-<환경>_api-logs`)의 `/var/log/runkk/api.log`에 남기고 날마다 `api.YYYY-MM-DD.N.log.gz`로 돌립니다. 30일이 지난 파일은 지웁니다(NFR-020 14일 이상, 처리방침 "접속·요청 오류·장애 기록 30일"). 파일 하나 50MB, 환경당 합계 2GB 상한. 배포로 컨테이너를 다시 만들어도 볼륨이라 남습니다.
@@ -314,7 +345,7 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 2. 서버에 고정 폴더를 만듭니다: `sudo install -d -m 2775 -g docker /srv/runkk`. sudo를 쓸 수 없으면 CI 변수 `RUNKK_HOME`에 러너가 쓸 수 있는 폴더(지금 서버는 `/home/gitlab-runner/runkk`)를 넣습니다
 3. GitLab **Settings > CI/CD > Variables**:
    - `INFRA_ENV_EDGE`(File) 새로 추가: `SERVER_NAME`, `NGINX_HTTP_PORT`, `NGINX_HTTPS_PORT`, `NGINX_DEVELOP_PORT`, `GRAFANA_ADMIN_USER`. 비밀번호는 masked 변수 `GRAFANA_ADMIN_PASSWORD`, 알림 웹훅은 `GRAFANA_ALERT_WEBHOOK_URL`로 따로 둔다.
-   - `INFRA_ENV`(develop)에 `RUNKK_ENV=develop`, `POSTGRES_VOLUME=runkk_postgres-data`, `REDIS_VOLUME=runkk_redis-data`, `SELFIE_ENABLED=true`(셀카 시험 시)를 더합니다. `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`는 이제 쓰지 않으니 지워도 됩니다.
+   - `INFRA_ENV`(develop)에 `RUNKK_ENV=develop`, `POSTGRES_VOLUME=runkk_postgres-data`, `REDIS_VOLUME=runkk_redis-data`, `SELFIE_ENABLED=true`(셀카 시험 시)를 더합니다. `RUNKK_AI_DB_PASSWORD`(ai 전용 DB 계정 비밀번호, 아래 prod 목록과 같은 규칙)도 필수입니다. `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`는 이제 쓰지 않으니 지워도 됩니다.
    - `INFRA_ENV_PROD`(prod)를 새 값으로 채웁니다(아래 "prod 키 목록"). 다른 비밀(DB·Redis 비밀번호, JWT 키, 내부 토큰)은 develop과 다른 값으로 만듭니다.
 4. 앱: develop APK를 새로 받기 전까지 기존 develop APK(443을 봄)는 이관 뒤 prod 서버에 붙습니다. 테스터에게 이관 시각과 새 develop APK(8443)를 알립니다.
 
@@ -352,9 +383,9 @@ docker exec runkk-prod-api-1 sh -c 'zcat /var/log/runkk/api.2026-11-03.*.log.gz 
 
 ### prod 키 목록 (`INFRA_ENV_PROD`)
 
-필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`, `FRIEND_INVITE_LINK_BASE=https://k15a207.p.ssafy.io/invite/battle`.
+필수: `RUNKK_ENV=prod`, `POSTGRES_VOLUME=runkk-prod_postgres-data`, `REDIS_VOLUME=runkk-prod_redis-data`, `SPRING_PROFILES_ACTIVE=prod`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `REDIS_PASSWORD`, `JWT_SECRET`, `ADMIN_JWT_SECRET`, `RUNKK_INTERNAL_TOKEN`, `RUNKK_AI_DB_PASSWORD`(영숫자, ai 전용 DB 계정 runkk_ai의 비밀번호로 Flyway V29가 첫 배포 때 계정을 만든다. ai `RUNKK_DB_URL`의 비밀번호와 같은 값. 빠지면 compose가 멈춘다), `FRIEND_INVITE_LINK_BASE=https://k15a207.p.ssafy.io/invite/battle`.
 연동(비우면 그 연동만 꺼짐): `KAKAO_APP_ID`(prod 패키지 com.a207.runkk 앱), `GOOGLE_CLIENT_IDS`, `FCM_PROJECT_ID`, `FCM_CREDENTIALS_FILE=/run/secrets/fcm-service-account.json`, `KMA_SERVICE_KEY`, `RUNKK_BOOTSTRAP_OPERATORS`, ai의 `RUNKK_LLM_*`·`RUNKK_ANTHROPIC_*`·`RUNKK_FACE_*`.
-넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SELFIE_ENABLED`(기본 꺼짐), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값).
+넣지 않음: `SWAGGER_ENABLED`(넣으면 false만), `SERVER_NAME`·`NGINX_*`·`GRAFANA_*`(에지 값). 2차 배포(11/13)부터 `SELFIE_ENABLED=true`는 넣습니다.
 선택: `DB_POOL_SIZE`, `SCHEDULER_POOL_SIZE`, `AUTH_CLIENT_REQUESTS_PER_MINUTE`, `RUNKK_QUEUE`, `RUNKK_LIVE`, `API_MEM_LIMIT`, `API_JAVA_OPTS`, `BACKUP_TIME`, `BACKUP_KEEP_DAYS`, `BACKUP_DIR`, `BACKUP_OWNER`, `LEGAL_*`.
 
 ## 10. 친구 대결 초대 링크 (v0.14, 설계 05-06 D-219, 05-08 D-293·6절)

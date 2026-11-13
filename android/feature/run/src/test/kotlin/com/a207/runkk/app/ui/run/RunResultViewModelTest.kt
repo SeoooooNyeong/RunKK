@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.record.Evaluation
 import com.a207.runkk.app.domain.run.HeartRateSample
 import kotlin.test.assertEquals
@@ -95,6 +96,39 @@ class RunResultViewModelTest {
         val noBirthYear = RunResultViewModel(pending, records).apply { load("rec-1") }.state.value
         assertEquals(151, noBirthYear.averageHeartRate)
         assertFalse(noBirthYear.hasBirthYear)
+    }
+
+    @Test
+    fun `S15P31A207-251 크루 목표에 반영된 거리는 신기록과 리워드 사이에 크루 이름과 함께 놓는다(B-6 v2)`() {
+        pending.runs.value = listOf(completedRun())
+        records.runResult = Outcome.Success(
+            recordDetail().copy(crewContribution = Distance(5_210), contributedCrewName = "새벽런")
+        )
+        val s = RunResultViewModel(pending, records).apply { load("rec-1") }.state.value
+
+        assertEquals(
+            listOf(
+                AchievementRow(AchievementIcon.STAR, UiText.Plain("최장 거리 신기록"), "직전 4.80km"),
+                AchievementRow(AchievementIcon.CREW, UiText.Res(R.string.run_result_crew, listOf("새벽런")), "+5.21km"),
+                AchievementRow(AchievementIcon.REWARD, UiText.Res(R.string.run_result_reward), "+50")
+            ),
+            s.achievements
+        )
+    }
+
+    @Test
+    fun `S15P31A207-251 반영 거리가 없으면 크루 줄이 없고 크루 이름을 모르면 이름 없이 적는다`() {
+        pending.runs.value = listOf(completedRun())
+        records.runResult = Outcome.Success(recordDetail().copy(crewContribution = null, contributedCrewName = "새벽런"))
+        val none = RunResultViewModel(pending, records).apply { load("rec-1") }.state.value
+        assertTrue(none.achievements.none { it.icon == AchievementIcon.CREW })
+
+        records.runResult = Outcome.Success(recordDetail().copy(crewContribution = Distance(1_000)))
+        val unnamed = RunResultViewModel(pending, records).apply { load("rec-1") }.state.value
+        assertEquals(
+            AchievementRow(AchievementIcon.CREW, UiText.Res(R.string.run_result_crew_unnamed), "+1.00km"),
+            unnamed.achievements.single { it.icon == AchievementIcon.CREW }
+        )
     }
 
     @Test
@@ -207,5 +241,30 @@ class RunResultViewModelTest {
             vm.load("rec-1")
             expectNoEvents()
         }
+    }
+
+    @Test
+    fun `결과 아바타는 홈과 같은 내 아바타이고 다른 기록을 다시 읽어도 한 번만 읽는다`() {
+        pending.runs.value = listOf(completedRun())
+        val look = MyAvatar("head:7:job-1", emptyList(), "bg-park")
+        var reads = 0
+        val vm = RunResultViewModel(pending, records) {
+            reads++
+            look
+        }
+        vm.load("rec-1")
+        assertEquals(look, vm.state.value.myAvatar)
+        vm.load("rec-2")
+        assertEquals(look, vm.state.value.myAvatar)
+        assertEquals(1, reads)
+    }
+
+    @Test
+    fun `내 아바타를 읽지 못하면 기본 아바타 그대로다`() {
+        pending.runs.value = listOf(completedRun())
+        val vm = RunResultViewModel(pending, records) { null }
+        vm.load("rec-1")
+        assertNull(vm.state.value.myAvatar)
+        assertEquals(Distance(5_020), vm.state.value.distance)
     }
 }

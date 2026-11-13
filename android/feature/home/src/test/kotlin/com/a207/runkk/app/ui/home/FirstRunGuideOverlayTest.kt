@@ -65,6 +65,26 @@ class FirstRunGuideOverlayTest {
     }
 
     @Test
+    fun `S15P31A207-249 운영 빌드 가이드는 크루를 넣어 8단계이고 크루는 넷째 단계(J-4)다`() {
+        val steps = GuideStep.visibleIn(ReleaseScope.of(isLockingUnreleased = true))
+        assertEquals(8, steps.size)
+        assertEquals(GuideStep.CREW, steps[3])
+        assertEquals(
+            listOf(GuideStep.FREE_RUN, GuideStep.BATTLE_RUN, GuideStep.WEEKLY_GOAL),
+            steps.take(3)
+        )
+    }
+
+    @Test
+    fun `S15P31A207-249 크루 단계(J-4)는 8쪽 중 넷째 쪽과 디자인 문구, 건너뛰기·다음을 보인다`() {
+        show(GuideStep.CREW, index = 3, count = 8)
+        compose.onNodeWithText("4/8").assertExists()
+        compose.onNodeWithText("크루를 찾아 가입하고,\n크루원과 함께 달려 보세요").assertExists()
+        compose.onNodeWithText("건너뛰기").assertExists()
+        compose.onNodeWithText("다음").assertExists()
+    }
+
+    @Test
     fun `TC-9712 단계 문구는 디자인 그대로다`() {
         val res = RuntimeEnvironment.getApplication().resources
         assertEquals(

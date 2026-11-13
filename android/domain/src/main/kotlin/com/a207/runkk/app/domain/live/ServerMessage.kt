@@ -85,24 +85,25 @@ data class CrewRunStart(val postId: Long, val startAt: Instant, val participantN
 data class CrewRunCancelled(val postId: Long, val reason: String) : ServerMessage
 
 /**
- * 크루런 중계: 참가자마다 표시명·누적 거리·순위·연결 상태(FR-149). [Entry.memberId]는 참가자 회원 ID이고,
- * [Entry.isMe]는 받는 사람 본인 줄이다(data.live가 접근 토큰의 회원 ID와 memberId를 비교해 채운다).
+ * 크루런 중계(합산 방식, S15P31A207-236): 진행 참가자마다 표시명·누적 거리·상태와 크루 합산 거리([totalDistance]). 순위가 없다.
+ * [Entry.memberId]는 참가자 회원 ID이고 [Entry.isMe]는 받는 사람 본인 줄이다(data.live가 서버 mine 또는 접근 토큰의 회원 ID로 채운다).
+ * 줄 순서는 대기실 입장 순이다.
  */
-data class CrewRunRelay(val postId: Long, val entries: List<Entry>) : ServerMessage {
+data class CrewRunRelay(val postId: Long, val totalDistance: Distance, val entries: List<Entry>) : ServerMessage {
     data class Entry(
         val name: String,
         val distance: Distance,
-        val rank: Int?,
-        val connection: Connection,
+        val state: State,
         val memberId: Long? = null,
         val isMe: Boolean = false
     )
 
-    enum class Connection {
-        CONNECTED,
+    /** 참가자 상태: 달리는 중, 일시정지, 연결 확인 중(3초 넘게 진행값 없음), 끝냄. */
+    enum class State {
+        RUNNING,
+        PAUSED,
         CHECKING,
-        QUIT,
-        ARRIVED
+        ENDED
     }
 }
 
@@ -120,7 +121,13 @@ data class CrewChatPosted(
     val authorName: String,
     val content: String,
     val sentAt: Instant,
-    val clientMessageId: String?
+    val clientMessageId: String?,
+    /** 메시지 종류 이름(TEXT·RUN_FINISHED, contract-W5). domain.live는 domain.chat을 모르므로 이름으로 둔다. */
+    val messageKind: String = "TEXT",
+    /** 작성자의 지금 크루 역할 이름(LEADER·MANAGER·MEMBER), 없으면 null. */
+    val authorRole: String? = null,
+    /** 러닝 완료 메시지의 거리(미터), 보통 글이면 null. */
+    val runDistanceMeters: Long? = null
 ) : ServerMessage
 
 /** 크루 채팅 메시지 삭제·숨김(FR-213, FR-215). 모르는 사유 상수의 메시지는 data.live가 버린다(D-85). */

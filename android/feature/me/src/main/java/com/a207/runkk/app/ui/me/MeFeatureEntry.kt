@@ -21,6 +21,7 @@ class MeFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.FREE_RUN_SETTINGS) { SettingsRoute(SettingsPage.FREE_RUN) }
         builder.route(Routes.NOTIFICATION_SETTINGS) { SettingsRoute(SettingsPage.NOTIFICATIONS) }
         builder.route(Routes.CONSENTS) { SettingsRoute(SettingsPage.CONSENTS) }
+        builder.route(Routes.COACH_CONSENTS) { SettingsRoute(SettingsPage.CONSENTS, fromCoach = true) }
         builder.route(Routes.WITHDRAW) { WithdrawRoute() }
         builder.route(MeRoutes.ACCOUNT_LINK) { SettingsRoute(SettingsPage.ACCOUNT_LINK) }
         builder.addEntryProvider(Routes.MemberProfile::class) { key -> OtherProfileRoute(key.memberId) }

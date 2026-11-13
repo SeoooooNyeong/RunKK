@@ -11,9 +11,11 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.record.RecordList
 import com.a207.runkk.app.domain.record.RecordRepository
+import com.a207.runkk.app.ui.share.CapturedCard
 import com.a207.runkk.app.ui.share.CardSharer
 import com.a207.runkk.app.ui.share.CardSide
 import com.a207.runkk.app.ui.share.RunCardRenderer
+import com.a207.runkk.app.ui.share.ShareImageFramer
 import com.a207.runkk.app.ui.share.ShareOutcome
 import com.a207.runkk.app.ui.share.ShareTarget
 import java.io.File
@@ -35,8 +37,14 @@ import org.robolectric.RobolectricTestRunner
 private class CountingTarget(private val outcome: ShareOutcome = ShareOutcome.Shared) : ShareTarget {
     var count = 0
 
+    /** 마지막으로 받은 이미지의 크기(가로, 세로). 시험은 파일 주소를 넘기므로 파일을 읽어 잰다. */
+    var lastSize: Pair<Int, Int>? = null
+
     override fun share(context: Context, image: Uri): ShareOutcome {
         count++
+        val options = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        android.graphics.BitmapFactory.decodeFile(image.path, options)
+        lastSize = options.outWidth to options.outHeight
         return outcome
     }
 }
@@ -60,7 +68,8 @@ class RecordViewModelsTest {
         CardSharer(ApplicationProvider.getApplicationContext(), FakeSettingsRepository(shared)) { _, file: File ->
             Uri.fromFile(file)
         },
-        CardShareTargets(save = target, system = target, story = target)
+        CardShareTargets(save = target, system = target, story = target),
+        ShareImageFramer(ApplicationProvider.getApplicationContext())
     )
 
     @Test
@@ -102,5 +111,29 @@ class RecordViewModelsTest {
         assertEquals(1, avatars.backgroundCalls)
         assertNotNull(vm.state.value.front)
         assertNull(vm.state.value.error)
+    }
+
+    @Test
+    fun `공유 단계가 찍은 카드는 아래에 워드마크를 붙여 공유한다(사용자 결정 2026-11-09)`() {
+        val target = CountingTarget(ShareOutcome.Saved)
+        val vm = cardViewModel(shared = true, target)
+        vm.load("r1")
+        eventually { !vm.state.value.isLoading }
+        val captured = android.graphics.Bitmap.createBitmap(334, 383, android.graphics.Bitmap.Config.ARGB_8888)
+        vm.onShare(CardShareKind.SAVE, CapturedCard(captured, isDark = false))
+        eventually { vm.state.value.message != null }
+        assertEquals(1, target.count)
+        val (width, height) = assertNotNull(target.lastSize)
+        assertTrue(width > captured.width, "여백 $width")
+        assertTrue(height - captured.height > width - captured.width, "워드마크 칸 $height")
+        assertFalse(vm.state.value.isSharing)
+    }
+
+    @Test
+    fun `잠긴 코스 지도 표시를 누르면 공유가 거부될 때와 같은 안내를 보인다(FR-069)`() {
+        val vm = cardViewModel(shared = false)
+        vm.onCourseLocked()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        assertTrue(vm.state.value.message!!.asString(context).startsWith("코스 지도 공유가 꺼져 있어"))
     }
 }

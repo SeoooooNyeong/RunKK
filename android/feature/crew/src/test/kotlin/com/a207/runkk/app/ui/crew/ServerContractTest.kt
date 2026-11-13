@@ -27,7 +27,7 @@ class ServerContractTest {
             .filter { "CREW_RUN" in it[2].split(',') }
             .map { it[1].toLong() }
             .toSet()
-        assertEquals(server, CREW_RUN_DISTANCES.map { it.meters }.toSet())
+        assertEquals(server, CrewRunDistanceChoice.entries.mapNotNull { it.distance?.meters }.toSet())
     }
 
     @Test
@@ -37,9 +37,9 @@ class ServerContractTest {
     }
 
     @Test
-    fun `크루 만들기 태그는 서버 PersonalityTag이고 크루 분위기를 포함한다`() {
+    fun `크루 만들기 태그는 서버 CrewTag(평일과 주말 시간대)다`() {
         val ids = CREW_TAG_CATEGORIES.flatMap { it.tags }.map { it.id }.toSet()
-        assertEquals(ContractEnums.names("PersonalityTag"), ids)
+        assertEquals(ContractEnums.names("CrewTag"), ids)
     }
 
     @Test

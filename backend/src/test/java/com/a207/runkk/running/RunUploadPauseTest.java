@@ -70,21 +70,25 @@ class RunUploadPauseTest {
     }
 
     @Test
-    @DisplayName("TC-6027 U3: 대결·크루런에 정지 구간이 있으면 IllegalArgumentException")
-    void tc6027_onlyFreeRunPauses() {
+    @DisplayName(
+            "TC-6027 U3: 대결에 정지 구간이 있으면 IllegalArgumentException, 크루런은 받는다(FR-300, MR !91 BR-1)")
+    void tc6027_battleRejectsPauses_crewRunAccepts() {
         List<PauseInterval> one = List.of(pause(t(7, 10, 0), t(7, 20, 0)));
         assertThatThrownBy(() -> upload(RunMode.BATTLE, one))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> upload(RunMode.CREW_RUN, one))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(upload(RunMode.CREW_RUN, one).pauses()).isEqualTo(one);
+        assertThat(RunRecord.receive(1L, upload(RunMode.CREW_RUN, one)).pausedTotal())
+                .isEqualTo(Duration.ofMinutes(10));
     }
 
     @Test
-    @DisplayName("TC-6028 U4: 99·100개 정상, 101개 거부")
+    @DisplayName("TC-6028 U4: 99·100개 정상, 101개 거부(크루런도 같다)")
     void tc6028_maxCount() {
         assertThat(free(oneSecondPauses(99)).pauses()).hasSize(99);
         assertThat(free(oneSecondPauses(RunUpload.MAX_PAUSES)).pauses()).hasSize(100);
         assertThatThrownBy(() -> free(oneSecondPauses(101)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> upload(RunMode.CREW_RUN, oneSecondPauses(101)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

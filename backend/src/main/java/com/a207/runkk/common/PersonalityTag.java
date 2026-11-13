@@ -1,6 +1,9 @@
 package com.a207.runkk.common;
 
-/** 성향 태그 고정 목록 19개(srs.md 3.5.1, W-13). 운영 기준값이 아니라 고정 목록이다. */
+/**
+ * 성향 태그 고정 목록 19개(srs.md 3.5.1, W-13). 운영 기준값이 아니라 고정 목록이다. 크루 태그는 S15P31A207-236에서
+ * CrewTag(요일·시간대)로 바뀌어 지금은 Runimal 축 이름(RunimalAxis)만 이 목록을 쓴다.
+ */
 public enum PersonalityTag {
     SOLO_RUN(TagCategory.COMPANION, "솔로런"),
     SOCIAL_RUN(TagCategory.COMPANION, "소셜런"),

@@ -44,10 +44,18 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkBottomActionBar
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonSize
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 
@@ -94,7 +102,7 @@ internal fun MatchHero(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RunkkShapes.ExtraLarge)
             .background(RunkkColors.Violet)
             .padding(vertical = 20.dp)
             .clearAndSetSemantics { contentDescription = description },
@@ -102,33 +110,25 @@ internal fun MatchHero(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(width = 70.dp, height = 130.dp))
-            Text("VS", style = RunkkTextStyles.text(24, FontWeight.Bold), color = Color.White)
-            QuestionCircle(size = 100.dp, color = Color.White)
+            AvatarStillSlot(MY_STILL, Modifier.size(width = 70.dp, height = 130.dp)) {
+                RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(width = 70.dp, height = 130.dp))
+            }
+            Text("VS", style = RunkkTextStyles.text(24, FontWeight.Bold), color = RunkkColors.OnSecondary)
+            QuestionCircle(size = 100.dp, color = RunkkColors.OnSecondary)
         }
         Text(
             stringResource(R.string.random_battle_hero),
-            style = RunkkTextStyles.text(16, FontWeight.Bold),
-            color = Color.White
+            style = RunkkTextStyles.CardTitle,
+            color = RunkkColors.OnSecondary
         )
     }
-}
-
-/** 구역 제목(「거리 선택」 16 Bold). */
-@Composable
-internal fun EntrySectionTitle(text: String, modifier: Modifier = Modifier) {
-    Text(
-        text,
-        style = RunkkTextStyles.text(16, FontWeight.Bold),
-        color = RunkkColors.TextPrimary,
-        modifier = modifier.semantics { heading() }
-    )
 }
 
 /**
  * 거리 칩 넷(1·3·5·10km, 피그마 61355:2909): 같은 폭, 알약. 고름 = 보라 바탕 흰 15 Bold, 안 고름 = 표면 + 1 BorderStrong 테두리(컨트롤
  * 경계, PL2-A7) 15 Medium.
  * 라디오 묶음으로 읽고 고른 칩은 「선택됨」이다. 터치 영역은 48 이상.
+ * 디자인 시스템 고르기 칩(RunkkChoiceChip)은 알약이 글자 폭에 맞아 같은 폭 넷을 만들 수 없어 여기 둔다.
  */
 @Composable
 internal fun DistanceChips(selected: Distance, onSelect: (Distance) -> Unit, modifier: Modifier = Modifier) {
@@ -148,7 +148,7 @@ internal fun DistanceChips(selected: Distance, onSelect: (Distance) -> Unit, mod
                 Text(
                     RunkkFormat.targetLabel(distance),
                     style = RunkkTextStyles.text(15, if (isSelected) FontWeight.Bold else FontWeight.Medium),
-                    color = if (isSelected) Color.White else RunkkColors.TextPrimary
+                    color = if (isSelected) RunkkColors.OnSecondary else RunkkColors.TextPrimary
                 )
             }
         }
@@ -157,7 +157,7 @@ internal fun DistanceChips(selected: Distance, onSelect: (Distance) -> Unit, mod
 
 /**
  * 하단 고정 바의 보라 주 버튼(피그마 61355:2909 하단: 표면, 위쪽 둥근 20, pt12 pb24 px20, 버튼 52 보라 채움 흰 14 Medium).
- * [isEnabled]가 거짓이면 흐리게 두고 누를 수 없다.
+ * [isEnabled]가 거짓이면 회색으로 두고 누를 수 없다.
  */
 @Composable
 internal fun VioletBottomBar(
@@ -166,30 +166,14 @@ internal fun VioletBottomBar(
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true
 ) {
-    val top = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(6.dp, top, ambientColor = BAR_SHADOW, spotColor = BAR_SHADOW)
-            .clip(top)
-            .background(RunkkColors.Surface)
-            .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 24.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .alpha(if (isEnabled) 1f else FADED)
-                .clip(CircleShape)
-                .background(RunkkColors.Violet)
-                .clickable(enabled = isEnabled, role = Role.Button, onClick = onClick)
-                .semantics { role = Role.Button },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(text, style = RunkkTextStyles.text(14, FontWeight.Medium), color = Color.White)
-        }
+    RunkkBottomActionBar(modifier) {
+        RunkkButton(
+            text,
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth(),
+            style = RunkkButtonStyle.Purple,
+            size = RunkkButtonSize.Bar,
+            isEnabled = isEnabled
+        )
     }
 }
-
-/** 카드·하단 바 그림자 색(피그마 rgba(23,26,18,0.08~0.16) 근사). */
-internal val BAR_SHADOW = Color(0x29171A12)

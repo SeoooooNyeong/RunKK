@@ -1,5 +1,21 @@
 # 런크크 코드 리뷰 결과서
-> 작성: 2026-11-03 | 버전: v0.19 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 793eb85e(18차 확인, 범위 --first-parent 4017839f..793eb85e: R17 W50), 4017839f(17차 확인, 범위 --first-parent f4dd2a68..4017839f: R15·R16), 사용자 결정 W43~W49, design-oo.md v0.27(05-20 D-461~D-473), design-review.md v0.20(24장 R79~R81), srs.md v0.22; 이전 판(v0.17) 2026-11-02 | 버전: v0.17 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 f4dd2a68(16차 확인, 범위 --first-parent 4d85393d..f4dd2a68: R11·R12·R13·UI5·R14 W40·M1 W41·W42·f4dd2a68), 사용자 결정 watch-v2/decisions.md W37~W42, watch-v2/figma/motion.md, design-oo.md v0.25(05-18 D-456~D-460)·v0.26, design-review.md v0.19, srs.md v0.21; 이전 판(v0.16) 2026-11-02 | 버전: v0.16 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 3ee5138e(15차 확인, 범위 6906c76a..3ee5138e: UI1~UI4, W34~W36), 사용자 결정 watch-v2/decisions.md W34~W36, design-review.md v0.19; 이전 판(v0.15) 2026-11-02 | 버전: v0.15 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 89457e26(14차 확인, 범위 807d744a..89457e26: R4~R7, MR !57), design-oo.md v0.25, design-review.md v0.19; 이전 판(v0.14) 2026-11-01 | 버전: v0.14 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 807d744a(13차 확인, 범위 a80c86b4..807d744a: R1·R2·W26·R3, MR !57), design-oo.md v0.23, srs.md v0.19; 이전 판(v0.13) 2026-11-01 | 버전: v0.13 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 a80c86b4(12차, 기준 develop 6400955a, MR !57), design-oo.md v0.22(05-16 D-365~D-394), srs.md v0.18(CR-92~CR-102), implementation.md v0.7(14장 I14-1~I14-35, PV-1); 이전 판(v0.12) 2026-10-31 | 버전: v0.12 | 입력: 코드 S15P31A207-fig feature/runkk-figma-v1 57e11eec(11차 해소 기록 2, 758de88f 다음, MR !53, 호출자 보고 서버 1,690건 실패 0), 사용자 결정 D150·D151, 코드 S15P31A207-fig feature/runkk-figma-v1 758de88f(11차 해소 기록, 242612e9 다음, MR !53, 호출자 보고 앱 단위 1,474건 실패 0), design-oo.md v0.19(05-12 D-331~D-340, 05-13 D-341~D-343, 05-14 D-344~D-357, 11차), srs.md v0.17(07-09 CR-82~CR-91, 11차), 코드 S15P31A207-fig feature/runkk-figma-v1 0ca948f8(범위 A, 기준 cfbd103c: de6f17ed·56c6d90b·f0691b78·c26b1be5·5f861d0e·3b59215b·0ca948f8)·242612e9(범위 B, 기준 0ca948f8)(11차), code-review 07-10차 조각 결함 표(11차 추적), 코드 feature/runkk-figma-v1 cfbd103c(10차, 기준 5885a608: v0.15 재대조 5885a608..e72897c7 + v0.16 후속 e72897c7..cfbd103c), design-oo.md v0.16(05-11 D-313~D-330, 02-04, 05-10 D-301~D-312, 10차)·srs.md v0.16(07-06~07-08 CR-52~CR-81, 10차)·implementation.md v0.3(12장 K16·V16·12.9, 10차)·design-review.md v0.12(19장, 10차), 2026-10-31 사용자 결정(리뷰 기준 5885a608, D-327 상대 성별 회원 ID 고정 채택), 코드 feature/runkk-figma-v1 5885a608(r8be·r8an 수정, 9차, 기준 c2e75161), design-oo.md v0.14(D-218~D-300, 05-06·05-07·05-08·05-09·02-03, 8차)·design-review.md 18장(v0.14 검증, 8차)·test.md v0.9(12.9.3 우선 케이스, 8차), 코드 feature/runkk-figma-v1 c2e75161(MR !53, 기준 origin/develop 7c42b0fe, 8차), design-oo.md v0.11(D-1~D-189, 5~7차)·v0.7~v0.10(1~4차), design-review.md v0.10(17장, 5~7차)·v0.7, implementation.md v0.1(5차), 코드 feature/runkk-v010 7117785f(7차, 기준 447a3f7c)·a27c914f(6차)·bfe55e1c(MR !14 4ee91aef, 5차, 기준 develop d7618cb)·feature/runkk-impl 9f2af7e~d562d26(MR !8, 1~4차)
+> 작성: 2026-11-09 | 버전: v0.29 | 입력: (같은 판 보완 2026-11-09(세 번째 병합): 병합 대기 feature-S15P31A207-273-coach-consent.md(박재영, sw-sdlc merge), 박재영 자가 리뷰 조각 code-review/코치재동의-박.md; 같은 판 보완 2026-11-09: 병합 대기 docs-S15P31A207-277-owned-specs.md, feature-S15P31A207-241-ai-coach-sse.md, feature-S15P31A207-243-writer-model-admin.md(박재영, 2026-11-09, sw-sdlc merge), 박재영 자가 리뷰 조각 code-review/코치중계-박.md, code-review/writer-모델관리-박.md) 병합 대기 feature-S15P31A207-275-event-ui-align.md(이성현, sw-sdlc merge), code-review/이벤트-화면-디자인-성.md(MR !104, 코드 12db88c2, 문서 7c64b3a8, 수정 88e31d9a), 임시 결함 번호 EV-성-18~EV-성-21 → PL8-A1~PL8-A4; 이전 판(v0.28) 입력: 병합 대기 docs-S15P31A207-275-event-docs.md(이성현, sw-sdlc merge), 코드 hotfix/S15P31A207-275-v0114-coach-celeb origin/main...d824b2a2(MR !90 이벤트 1차), 수정 d221fd54, 2f99b573, 응모자 명단 d06641bb, code-review/이벤트-1차-성.md, 코드 b26b3317(공지 알림), 수정 62b7f7e8, code-review/공지알림-1차-성.md, 임시 결함 번호 → PL6, PL7 계열; 이전 판(v0.27) 입력: 2차 배포 통합 MR !91 코드 리뷰 결과서 초안(runkk-work/2nd-release/code-review-draft.md), 코드 feature/S15P31A207-222-2nd-release 55cfd678..e9baef18(읽기만 함), srs v0.29·design-oo v0.37, 2026-11-08 사용자 결정(결함 9건 모두 병합 전 수정); 이전 판(v0.26) 입력: 병합 대기 fix-S15P31A207-272-coach-robustness.md(AC-1·AC-3·AC-9·AC-10 해소 근거, code-review/16 후속 절); 이전 판(v0.25) 입력: 100KB 넘던 조각 01-backend·02-android 분할(내용 변경 없음, CONVENTIONS 7절); 이전 판(v0.24) 입력: (v0.24, 병합 반영) 박재영 병합 대기 #244 ai-privacy(develop 60c3385f)·#276 avatar-async(1d1e5d44)·#271 watch-celebrity(7876cba9), code-review/ai-자료파기-박.md·얼굴비동기-박.md·워치셀럽404-박.md; 이전 판(v0.23) 입력: 코드 hotfix/S15P31A207-275-v0111-feedback 4a2722fd..80592a08(핫픽스 추가 변경 9커밋)과 수정 45f7d383, design-oo v0.33 05-23, design-review v0.23 27장, test v0.20 20장; 이전 판(v0.22) 입력: 코드 hotfix/S15P31A207-275-v0111-feedback 4129283c(MR !70, 배치고사 3차 확인, 범위 git diff c2685561 4129283c: 서버 e35dba34(병합 23e74149), 앱 b4798db8·0d648155·5a24de5c·ac411a32·5d3d8871·6d13a501·13668d24·0aab80c5·eb9161e1), code-review/18-배치고사-2차 결함 표, design-oo 05-22(v0.32 D-521~D-546, SQ-51, 2.4.28), test 10-28(v0.19 TC-5954~TC-5973), 총괄 결정 기록(AN·BE 수정 2차 행); 같은 판 2차 입력: 코드 hotfix/S15P31A207-275-v0111-feedback c2685561(MR !70, 배치고사 2차, 범위 git diff bad8c750 96cc3f5e: 서버 1차 결함 수정 병합 3dfb8552, git diff 3dfb8552 c2685561: AN-2 6a57bee1·a477be32, 앱 1차 수정 d30b944c), code-review/17-배치고사-1차 결함 표, design-oo 05-21 D-499~D-501·D-519·D-520·2.4.3·3.4·7·8절, srs 03-08 FR-276·FR-279~FR-286·J24-3·J24-12·J24-20·J24-22, test v0.18 TC-5864~TC-5910·18.15.8, 총괄 결정 기록(BE 수정 1차·AN-2·PL1-A 행); 같은 판 1차 입력: 코드 hotfix/S15P31A207-275-v0111-feedback bad8c750(MR !70, 배치고사 1차, 범위 git diff df211dc5..bad8c750: BE-0 9368e22e, AN-1 12d15f1d·a1185e20, BE d37d0cfe, infra bad8c750), design-oo 05-21(v0.31 D-475~D-520), 05-03 5.7.3, srs 03-08(FR-274~FR-290, J24-1~J24-23), design-review 25장(R82~R95), test v0.18(10-25·10-26), 총괄 결정 기록(self-decisions BE·AN-1 행); 이전 판(v0.21) 입력: 코드 develop 09e568dc(MR !59 feature/S15P31A207-247-ai-coach, 범위 git diff c29df9fa 09e568dc -- android/, S15P31A207-233 AI 코치 화면 독립 리뷰), design-oo 05-19(v0.26·v0.28 D-450~D-455·D-474, 2.6 앱 표, 3절), srs 03-03 FR-261~FR-264·03-01 FR-015, code-review/ai-coach-consent-박.md(자가 리뷰 대조); 이전 판(v0.20) 입력: pending/feature-S15P31A207-247-ai-coach.md(박재영 2026-11-03, sw-sdlc merge), code-review/ai-coach-consent-박.md(feature/S15P31A207-247-ai-coach e66eb8a0, LLM 동의·AI 코치 화면); 이전 판(v0.19) 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 793eb85e(18차 확인, 범위 --first-parent 4017839f..793eb85e: R17 W50), 4017839f(17차 확인, 범위 --first-parent f4dd2a68..4017839f: R15·R16), 사용자 결정 W43~W49, design-oo.md v0.27(05-20 D-461~D-473), design-review.md v0.20(24장 R79~R81), srs.md v0.22; 이전 판(v0.17) 2026-11-02 | 버전: v0.17 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 f4dd2a68(16차 확인, 범위 --first-parent 4d85393d..f4dd2a68: R11·R12·R13·UI5·R14 W40·M1 W41·W42·f4dd2a68), 사용자 결정 watch-v2/decisions.md W37~W42, watch-v2/figma/motion.md, design-oo.md v0.25(05-18 D-456~D-460)·v0.26, design-review.md v0.19, srs.md v0.21; 이전 판(v0.16) 2026-11-02 | 버전: v0.16 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 3ee5138e(15차 확인, 범위 6906c76a..3ee5138e: UI1~UI4, W34~W36), 사용자 결정 watch-v2/decisions.md W34~W36, design-review.md v0.19; 이전 판(v0.15) 2026-11-02 | 버전: v0.15 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 89457e26(14차 확인, 범위 807d744a..89457e26: R4~R7, MR !57), design-oo.md v0.25, design-review.md v0.19; 이전 판(v0.14) 2026-11-01 | 버전: v0.14 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 807d744a(13차 확인, 범위 a80c86b4..807d744a: R1·R2·W26·R3, MR !57), design-oo.md v0.23, srs.md v0.19; 이전 판(v0.13) 2026-11-01 | 버전: v0.13 | 입력: 코드 S15P31A207-watch feature/runkk-watch-v2 a80c86b4(12차, 기준 develop 6400955a, MR !57), design-oo.md v0.22(05-16 D-365~D-394), srs.md v0.18(CR-92~CR-102), implementation.md v0.7(14장 I14-1~I14-35, PV-1); 이전 판(v0.12) 2026-10-31 | 버전: v0.12 | 입력: 코드 S15P31A207-fig feature/runkk-figma-v1 57e11eec(11차 해소 기록 2, 758de88f 다음, MR !53, 호출자 보고 서버 1,690건 실패 0), 사용자 결정 D150·D151, 코드 S15P31A207-fig feature/runkk-figma-v1 758de88f(11차 해소 기록, 242612e9 다음, MR !53, 호출자 보고 앱 단위 1,474건 실패 0), design-oo.md v0.19(05-12 D-331~D-340, 05-13 D-341~D-343, 05-14 D-344~D-357, 11차), srs.md v0.17(07-09 CR-82~CR-91, 11차), 코드 S15P31A207-fig feature/runkk-figma-v1 0ca948f8(범위 A, 기준 cfbd103c: de6f17ed·56c6d90b·f0691b78·c26b1be5·5f861d0e·3b59215b·0ca948f8)·242612e9(범위 B, 기준 0ca948f8)(11차), code-review 07-10차 조각 결함 표(11차 추적), 코드 feature/runkk-figma-v1 cfbd103c(10차, 기준 5885a608: v0.15 재대조 5885a608..e72897c7 + v0.16 후속 e72897c7..cfbd103c), design-oo.md v0.16(05-11 D-313~D-330, 02-04, 05-10 D-301~D-312, 10차)·srs.md v0.16(07-06~07-08 CR-52~CR-81, 10차)·implementation.md v0.3(12장 K16·V16·12.9, 10차)·design-review.md v0.12(19장, 10차), 2026-10-31 사용자 결정(리뷰 기준 5885a608, D-327 상대 성별 회원 ID 고정 채택), 코드 feature/runkk-figma-v1 5885a608(r8be·r8an 수정, 9차, 기준 c2e75161), design-oo.md v0.14(D-218~D-300, 05-06·05-07·05-08·05-09·02-03, 8차)·design-review.md 18장(v0.14 검증, 8차)·test.md v0.9(12.9.3 우선 케이스, 8차), 코드 feature/runkk-figma-v1 c2e75161(MR !53, 기준 origin/develop 7c42b0fe, 8차), design-oo.md v0.11(D-1~D-189, 5~7차)·v0.7~v0.10(1~4차), design-review.md v0.10(17장, 5~7차)·v0.7, implementation.md v0.1(5차), 코드 feature/runkk-v010 7117785f(7차, 기준 447a3f7c)·a27c914f(6차)·bfe55e1c(MR !14 4ee91aef, 5차, 기준 develop d7618cb)·feature/runkk-impl 9f2af7e~d562d26(MR !8, 1~4차)
+
+**최신 판정(리뷰 2026-11-08 2차 배포 통합 확인, MR !91 e9baef18..1ae0b108): 종합 ■ 합격  □ 조건부  □ 불합격 (0 / 0 / 4).** 1차 결함 9건(BR-1 중 포함)과 실제 ai 서버 시험 결함 7건, 시간대 후속 모두 해소. 새 경 4건(CR2-A1, CR2-B1, CR2-B2, CR2-T1)은 사용자 결정으로 모두 고쳤다(1e93c919 B1, 17fd942e T1, b23837ca A1, c5ee333a B2). develop 합치기 9fbcdf43(-272·-278, 충돌 ProgressNotice.kt·ProgressNoticeText.kt 양쪽 살림). 설계서 갱신 요청 U2-1~U2-3([23장](code-review/23-2차배포-통합-확인.md) 8절). MR !91은 2026-11-09 develop에 squash 병합됐다(69e16ff5, 리뷰 승인 없이 사용자 결정). 리뷰 뒤 더한 2차 잠금 해제·카드·셀카(9c7f967f..cbca2c38)는 리뷰 범위 밖이다.
+
+(v0.29) 2026-11-09 이벤트 화면 피그마 정식 디자인 반영 리뷰(MR !104)는 합격이다(0 / 1 / 1, 제안 2. 주요 PL8-A1 문서 병합 충돌은 88e31d9a에서 수정, 경미 PL8-A2와 제안 PL8-A3, PL8-A4는 남김). 끝의 「리뷰 2026-11-09 (이벤트 화면 디자인 반영)」 절과 조각 [이벤트-화면-디자인-성](code-review/이벤트-화면-디자인-성.md)에 있다.
+
+(v0.28) 같은 날 핫픽스 0.11.4(MR !90)의 이벤트 1차 리뷰는 합격(조건부 배포, 0 / 2 / 10, PL6-B5 배포 절차 남음), 운영자 공지 알림 1차 리뷰는 합격(0 / 1 / 3)이다. 끝의 두 리뷰 절과 조각 [이벤트-1차-성](code-review/이벤트-1차-성.md), [공지알림-1차-성](code-review/공지알림-1차-성.md)에 있다.
+
+**최신 판정(리뷰 2026-11-08 2차 배포 통합 1차, MR !91 feature/S15P31A207-222-2nd-release 55cfd678..e9baef18): 종합 ■ 합격  □ 조건부  □ 불합격 (0 / 1 / 8), 단 BR-1 병합 전 수정 조건.** 중 1: BR-1(앱은 크루런 일시정지를 허용하는데 서버 POST /runs가 크루런 정지 구간을 400으로 거부해 멈춘 크루런 기록이 저장되지 않음). 경 8: BR-2~BR-5, BR-C2, AN-3~AN-5. 사용자 결정(2026-11-08): 결함 9건 모두 병합 전에 고친다 → 수정 완료(e9baef18..1ae0b108, 19커밋, e2e 결함 7건 포함), 확인 리뷰 진행 중. 설계서 갱신 요청 U-1~U-6([22장](code-review/22-2차배포-통합-1차.md) 8절).
+
+**최신 판정(리뷰 2026-11-05 핫픽스 추가 변경 1·2차, hotfix 4a2722fd..80592a08 + 수정 45f7d383): 종합 ■ 합격  □ 조건부  □ 불합격 (0 / 0 / 7).** 1차 중 2(PL5-B1 서버 0.5m 도달 허용이 신기록·구간까지 번짐, PL5-A1 랭킹 늦은 응답이 고른 기간을 덮음)와 경 PL5-A2(동순위 「n위까지」)·PL5-T1(시험 이름 번호)을 45f7d383에서 TDD로 고쳤고 android 게이트(2,496건)·backend build(1,935건) 통과. 남은 경 7(PL5-A2 남은 경우, PL5-A3~A8).
+
+**최신 판정(리뷰 2026-11-05 배치고사 4차 확인, hotfix 564db6af, 3차 결함 해소 확인): 종합 ■ 합격  □ 조건부  □ 불합격 (0 / 0 / 9).** PL3-A1(랜덤 대결 화면이 미확인 완료 화면을 열도록 `PlacementProgress.isCompletionUnseen`으로 공용화, 홈 카드·직접 진입 모두 덮음)과 PL3-A2(저장 실패 때 회원 ID로 묶은 프로세스 사본, 무한 replace 없음, 다른 회원에게 안 샘) 해소. 구조 허용 표 무변경. 새 경 1(PL4-A1 시험 공백), 이월 경 8. 상세는 [20-배치고사-4차](code-review/20-배치고사-4차.md). 이전 판정: 3차 조건부(0/1/9) [19-배치고사-3차](code-review/19-배치고사-3차.md).
+
+**최신 판정(리뷰 2026-11-05 배치고사 2차, hotfix c2685561, 1차 수정 확인 + AN-2): 종합 □ 합격  ■ 조건부  □ 불합격 (0 / 2 / 14).** 1차 중 5건 모두 닫힘(PL1-B2는 시험 출력 증거로). 새 중 2: PL2-A1(대결 진행 화면이 배치고사 상대를 「?」로 보이지 않음, FR-276), PL2-A2(판 셈이 30초 안에 안 정해지거나 진행 읽기 실패면 완료 화면에 닿을 길 없음, FR-281). 판정표 숫자는 합격 구간이나 이번 반복 합격 조건(총괄: 치명·중 0)에 따라 조건부. 상세는 [18-배치고사-2차](code-review/18-배치고사-2차.md).
+
+**최신 판정(리뷰 2026-11-04 배치고사 1차, hotfix bad8c750, BE-0·BE·AN-1·infra): 종합 □ 합격  ■ 조건부  □ 불합격 (0 / 5 / 16).** 중 5: PL1-B1(요약 없는 판의 결과 조회 500, TF-V18-01 경로), PL1-B2(잠금 대기 뒤 판 목록이 옛 값일 수 있음, 추정), PL1-B3(탈퇴 ∥ 매칭 때 진행 행 남음), PL1-A1(홈 잔디·오늘이 UTC 날짜), PL1-T1(TC-5923 동시 셈 시험이 순차). AN-2는 2차에서 본다. 상세는 [17-배치고사-1차](code-review/17-배치고사-1차.md).
 
 **최신 판정(리뷰 2026-11-03 18차 확인, 워치 v2 4017839f..793eb85e, R17 W50): 종합 ■ 합격  □ 조건부  □ 불합격 (0 / 0 / 21).** 셀프·셀럽 카드 두 번 눌러 시작이 W50·CR-132와 같다. 새 경 2건(WR18-1 Picker.selected 설명, WR18-2 누르기 이름 화면 시험 없음). 상세는 [15-18차-v022-확인](code-review/15-18차-v022-확인.md).
 
@@ -25,6 +41,18 @@
 
 | 버전 | 날짜 | 바뀐 것 |
 |------|------|---------|
+| v0.29 | 2026-11-09 | 같은 판 보완(세 번째 협업 병합). 박재영 자가 리뷰 조각 [코치재동의-박](code-review/코치재동의-박.md)(#273, 검토 지점 3개 반영) 연결. 결함 번호 없음 |
+| v0.29 | 2026-11-09 | 같은 판 보완(두 번째 협업 병합). 박재영 자가 리뷰 조각 2개 연결: [코치중계-박](code-review/코치중계-박.md)(#241, 검토 지점 5개 반영), [writer-모델관리-박](code-review/writer-모델관리-박.md)(#243, 검토 5개 반영). 사람 리뷰는 MR에서 했고 이 문서에 결함 번호를 새로 매기지 않았다 |
+| v0.29 | 2026-11-09 | 협업 병합(`/sw-sdlc merge`). 이성현 조각 [이벤트-화면-디자인-성](code-review/이벤트-화면-디자인-성.md) 연결(MR !104, 0 / 1 / 1, 제안 2, 합격), 결함 PL8-A1~PL8-A4, 설계 D-629~D-632 |
+| v0.28 | 2026-11-09 | 협업 병합(`/sw-sdlc merge`). 이성현 조각 2개 연결: [이벤트-1차-성](code-review/이벤트-1차-성.md)(MR !90 이벤트 1차, 0/2/10, 합격 조건부 배포), [공지알림-1차-성](code-review/공지알림-1차-성.md)(MR !90 b26b3317 운영자 공지 알림, 0/1/3, 합격). 임시 결함 번호를 정식으로 바꿨다: 이벤트 1~17 → PL6-B1~PL6-B6(1~6), PL6-A1~PL6-A3(7~9), PL6-B7~PL6-B14(10~17), 공지 18~23 → PL7-B1~PL7-B4(18~21), PL7-A1(22), PL7-B5(23). B는 서버와 인프라, A는 앱이다 |
+| v0.27 | 2026-11-08 | 2차 배포 통합 MR !91 1차 리뷰를 새 조각 [22-2차배포-통합-1차](code-review/22-2차배포-통합-1차.md)로 더했다(합격 0/1/8, BR-1 병합 전 수정 조건, 결함 BR-1~BR-5·BR-C2·AN-3~AN-5, 설계서 갱신 요청 U-1~U-6). 목차 100KB 상한 때문에 4차 리뷰 요약 절을 [00-리뷰-2026-10-21-4차-요약](code-review/00-리뷰-2026-10-21-4차-요약.md)으로 옮겼다(내용 그대로) 같은 판 보정(2026-11-08): 확인 리뷰를 새 조각 [23-2차배포-통합-확인](code-review/23-2차배포-통합-확인.md)으로 더했다(합격 0/0/4, 경 4건 수정, develop 합치기 9fbcdf43 기록), 22장 9절에 23장 링크. 같은 판 보정(2026-11-09): 23장 9절에 MR !91 병합(69e16ff5, 리뷰 승인 없이 사용자 결정)과 리뷰 범위 밖 커밋 기록 |
+| v0.25 | 2026-11-08 | 100KB 넘던 01-backend(231KB)·02-android(238KB)를 60KB 이하 조각으로 나눴다(원래 이름은 첫 조각, 내용 변경 없음). 새 조각: [01b-backend-2.1](code-review/01b-backend-2.1.md), [01c-backend-2](code-review/01c-backend-2.md), [01d-backend-리뷰-기준](code-review/01d-backend-리뷰-기준.md), [01e-backend-4](code-review/01e-backend-4.md), [02b-android-1](code-review/02b-android-1.md), [02c-android-2.3](code-review/02c-android-2.3.md), [02d-android-AN5-C-17-상세-빠진](code-review/02d-android-AN5-C-17-상세-빠진.md), [02e-android-5](code-review/02e-android-5.md). 리뷰 2026-10-21 (3차)·(4차) 앵커 링크는 옮겨 간 조각으로 고쳤다 |
+| v0.24 | 2026-11-07 | 박재영 자가 리뷰 조각 3개 추가(병합 반영): [ai-자료파기-박](code-review/ai-자료파기-박.md)(#244), [얼굴비동기-박](code-review/얼굴비동기-박.md)(#276), [워치셀럽404-박](code-review/워치셀럽404-박.md)(#271). 사람 리뷰는 MR에서 받는다 |
+| v0.22 | 2026-11-05 | 배치고사 4차 확인 리뷰(3차 결함 수정 4129283c..564db6af) 추가: 판정 합격(0/0/9), 조각 [20-배치고사-4차](code-review/20-배치고사-4차.md) 신설. 같은 판 안의 추가(총괄 지시) |
+| v0.22 | 2026-11-05 | 배치고사 3차 확인 리뷰(2차 수정 c2685561..4129283c) 추가: 판정 조건부(0/1/9), 조각 [19-배치고사-3차](code-review/19-배치고사-3차.md) 신설. 같은 판 안의 추가(총괄 지시) |
+| v0.22 | 2026-11-05 | 배치고사 2차 리뷰(1차 수정 bad8c750..96cc3f5e 확인 + AN-2 3dfb8552..c2685561) 추가: 판정 조건부(0/2/14), 조각 [18-배치고사-2차](code-review/18-배치고사-2차.md) 신설. 같은 판 안의 추가(총괄 지시) |
+| v0.22 | 2026-11-04 | 배치고사 1차 리뷰(hotfix df211dc5..bad8c750, BE-0·BE·AN-1·infra) 추가: 판정 조건부(0/5/16), 조각 [17-배치고사-1차](code-review/17-배치고사-1차.md) 신설. 목차 파일 100KB 상한 때문에 3차 리뷰 요약 절을 [00-리뷰-2026-10-21-3차-요약](code-review/00-리뷰-2026-10-21-3차-요약.md)으로 옮겼다(내용 그대로) |
+| v0.21 | 2026-11-03 | AI 코치 화면 독립 리뷰(-233, 09e568dc) 추가: 판정 조건부(0/0/10, 변경 통제 사후), 조각 [16-ai-코치-화면-리뷰](code-review/16-ai-코치-화면-리뷰.md) 신설 |
 | v0.19 | 2026-11-03 | 18차 확인 리뷰(4017839f..793eb85e, R17 W50) 추가: 판정 합격(0/0/21), 조각 [15-18차-v022-확인](code-review/15-18차-v022-확인.md) 신설 |
 | v0.18 | 2026-11-03 | 17차 확인 리뷰(f4dd2a68..4017839f) 추가: 판정 합격(0/0/19), 조각 [14-17차-v022-확인](code-review/14-17차-v022-확인.md) 신설 |
 | v0.12 | 2026-10-31 | 11차 해소 기록 2(57e11eec): 조각 [08-11차-v017-v019](code-review/08-11차-v017-v019.md)에 11.1절 추가(AN10-5·AN11-7·AN11-8·AN11-9·BE11-3 해소, 남은 경 27). 판정 합격 유지 |
@@ -71,389 +99,11 @@
 
 ## 리뷰 2026-10-21 (3차)
 
-### 대상
-
-2차 수정이 병합된 통합 브랜치를 본 3차 리뷰다. 2차의 결함 수정(백엔드 12cd646, ai·infra 4cf9f0e, 안드로이드 수정)을 병합한 통합 0009d29를 push한 뒤, 2차 지적의 해소를 확인하고 새 결함을 찾았다. 설계서는 안드로이드가 v0.10, 백엔드·ai·infra는 그 이후 최신판이다.
-
-| 실행 단위 | 범위 | 대상 커밋 | 읽은 규모 |
-|-----------|------|-----------|-----------|
-| 백엔드 | 2차 수정 이후 변경 + 2차 지적 위치 재확인 | feature/runkk-impl 0009d29 (2차 f20a3f2·수정 12cd646) | `12cd646..0009d29 -- backend` 10커밋 86파일 +2,860 −316 |
-| 안드로이드 | 2차 이후 변경 + 점검 요청 6항목 | feature/runkk-impl 0009d29 (2차 cff0c6e) | android 커밋 32개, 시험·build-logic·e2e를 뺀 Kotlin 334파일 34,064줄 |
-| ai·infra | 2차 이후 변경(ai, compose, nginx, deploy.sh, CI) | 0009d29 (2차 f20a3f2) | `f20a3f2..0009d29` 5커밋 14파일 +240 −41 |
-
-파일별 대상·방법은 조각 파일의 3차 절에 있다. 세 단위 모두 읽기 전용으로 리뷰했고 gradle·docker·시험은 실행하지 않았다(판정은 코드 읽기 기준).
-
-### 목차
-
-| 파일 | 실행 단위 | 판정 | 치명 / 중 / 경 | 2차 지적 추적 | 설계서 갱신 요청 |
-|------|-----------|------|----------------|---------------|------------------|
-| [01-backend](code-review/01-backend.md#리뷰-2026-10-21-3차) | 백엔드 | 조건부 | 0 / 5 / 21 | 중 9 전부 해결, 경 32는 해결 19·일부 4·미해결 9 | R-1~R-11 (11건) |
-| [02-android](code-review/02-android.md#리뷰-2026-10-21-3차) | 안드로이드 | 합격 | 0 / 1 / 11 | 중 4는 해결 2·경으로 이월 2, 경 19는 해결 15·일부 3·미해결 1 | 1~12 (12건) |
-| [03-ai](code-review/03-ai.md#리뷰-2026-10-21-3차) | ai·infra | 합격 | 0 / 1 / 1 | 경 13은 해결 12·일부 1 | 백엔드 R-10에 묶음 |
-
-### 1~5. 점검 결과 요약
-
-| 점검 | 백엔드 | 안드로이드 | ai·infra |
-|------|--------|------------|----------|
-| 1. 설계 일치 | 설계에 없던 화살표 4개(operator → audit, batch.reward → reward 등)는 모두 한 방향, 순환 0. 설계 동작을 어긴 곳 1건(B-M5 운영자 소셜 인증 실패 403, D-76은 401, 중). 갱신 요청 11건 | 설계에 없는 화살표 0, domain의 android·data import 0. 갱신 요청 12건 | 코드 모듈 사이 새 화살표 0. 배포 설정 공백은 백엔드 R-10에 묶음 |
-| 2. 코딩 스타일 | 중 3(B-M1~B-M3 매개변수 5·6·5개), 경(B-L2, B-L5, B-L7 등) | 경(N3-1 남은 한글 문구 19개, N3-2 워치 Composable 2개 50줄 초과, N3-6 Boolean 이름 35개, Composable 매개변수 5개 이상 3건) | 위반 0(인자 5개 이상 0, 50줄 초과 0, 중첩 4단계 0) |
-| 3. 구조적 프로그래밍 | 중 1(B-M4 PageCursor.slice 중첩 4단계). 복잡도 10 초과 0(2차 4개 모두 해소) | 경(N3-3 map 안 return, N3-4 끊긴 조건식). 복잡도 10 초과 8개(2차 22개, 참고) | 위반 0, 복잡도 10 초과 0 |
-| 4. 객체지향·정확성·보안 | 중 0, 경(B-L1 V15 backfill 잔여, B-L3 무결성 위반 전부 409 변환, B-L4 Tell Don't Ask, B-L6·L8) | 중 1(X-1 늦은 심박 항목 무조건 삭제, 전송 중 합쳐진 심박 유실). 경(N3-5 공유 실패 시험 없음) | 중 1(I-M1 deploy.sh가 .env에 NGINX_HTTP_PORT 줄이 없으면 조용히 종료) |
-| 5. 형상 관리 | 변경 통제 아니오 | 변경 통제 아니오 | 변경 통제 아니오 |
-
-백엔드 중 5건의 분류는 설계 일치 1(B-M5), 코딩 스타일 3(B-M1~B-M3), 구조적 프로그래밍 1(B-M4)이다.
-
-### 6. 형상 관리
-
-세 단위 모두 변경 통제가 아니오로 1·2차와 같다. 사용자 결정으로 Jira 없이 진행하는 중이라 결함으로 고치라고 요구하지 않는다. 3차부터는 이 항목을 판정 요인에서 뺀다(2차까지는 "형상 관리 1항목 아니오"를 조건부 요인으로 셌다).
-
-| 단위 | 변경 통제 | 근거 |
-|------|-----------|------|
-| 백엔드 | 아니오 | Jira 키 0/156 커밋, 브랜치 feature/runkk-impl. 타입 목록 밖 `merge:`·`ci:` 커밋(L32). 태그 없음 |
-| 안드로이드 | 아니오 | 2차 이후 커밋 32개 중 제목에 `[키]` 0개(N-14). 화면별 refactor 커밋 10개가 한 커밋에 문구 이전과 구조 분리 두 가지 일을 담음(N3-7) |
-| ai·infra | 아니오 | 커밋·브랜치에 Jira 키 없음. AGENTS.md 명령 표에 ai 행 미반영 |
-
-권고(1·2차와 같음): Jira를 쓰지 않는 동안 MR 본문에 이 결과서 경로와 설계서 갱신 요청 ID를 적는다. 통합 커밋 유형 `merge`는 AGENTS.md 유형 목록에 넣거나 `chore`로 쓴다.
-
-### 7. 집계와 판정
-
-| 등급 | 백엔드 | 안드로이드 | ai·infra | 합계 |
-|------|--------|------------|----------|------|
-| 치명 | 0 | 0 | 0 | **0** |
-| 중 | 5 | 1 | 1 | **7** |
-| 경 | 21 | 11 | 1 | **33** |
-| 단위 판정 | 조건부 | 합격 | 합격 | — |
-
-경의 구성: 백엔드 21 = 새 결함 8(B-L1~B-L8) + 2차 잔여 13(미해결 9, 일부 4), 안드로이드 11 = 새 결함 7(N3-1~N3-7) + Composable 매개변수 1건 + 이월 3(S-1, S-3, N-14), ai·infra 1 = 2차 N5 일부.
-
-판정: **조건부** (통합 대상 전체, 3차 리뷰 시점)
-근거: 치명 0, 단위 합계 중 7로 판정 기준표의 조건부 구간(중 4 이상 10 이하)에 해당한다. 치명 결함(goto 등가물, 내용·공통 결합, 설계에 없는 양방향 의존)은 세 단위 모두 0건이고 설계 일치 점검도 세 단위 모두 수행했다.
-
-단위별 판정:
-- 백엔드 **조건부**: 치명 0, 중 5(4 이상 10 이하). 새 중은 모두 작은 수정이다.
-- 안드로이드 **합격**: 치명 0, 중 1(X-1). 등급 조정으로 2차 M-2(56개 → 2개)·M-3(약 1,630줄 → 19개)을 경으로 내렸다. 잔여를 중으로 유지해 센다면 중 3건(X-1, M-2 잔여, M-3 잔여)이며 그래도 합격 구간이다. 이 경우 종합 중은 9로 조건부에 머문다.
-- ai·infra **합격**: 치명 0, 중 1(I-M1, `|| true` 한 줄).
-
-판정을 올리는 조건: 합격으로 올리려면 중을 3 이하로 줄인다. 백엔드 B-M5(설계와 코드 중 한쪽 결정)와 B-M1~B-M4(작은 수정), 안드로이드 X-1, ai·infra I-M1을 고치면 중 0이 된다.
-
-판정에 넣지 않은 것: 복잡도 10 초과 함수(백엔드 0, 안드로이드 8, ai 0)는 결함으로 세지 않고 sw-test로 넘겼다. ai LocalSdModel 미연결(C-011 선정 대기)은 1·2차와 같이 진척 항목이다. 판정은 시험 실행 결과를 확인하지 못한 코드 읽기 기준이다.
-
-### 2차 대비 추세
-
-| 항목 | 1차 | 2차 | 3차 | 3차 증감(2차 대비) | 비고 |
-|------|-----|-----|-----|--------------------|------|
-| 치명 | 0 | 0 | 0 | 0 | |
-| 중 합계 | 16 | 13 | 7 | −6 | 불합격 문턱(11) 아래로 내려옴 |
-| 중: 백엔드 | 6 | 9 | 5 | −4 | 2차 중 9건 전부 해결, 새 중 5(매개변수 3, 중첩 1, 설계 불일치 1) |
-| 중: 안드로이드 | 8 | 4 | 1 | −3 | M-1·M-4 해결, M-2·M-3은 경으로 이월, 새 중 X-1 |
-| 중: ai·infra | 2 | 0 | 1 | +1 | 2차 수정(N8)이 만든 새 결함 I-M1 |
-| 경 합계 | 54 | 64 | 33 | −31 | |
-| 경: 백엔드 | 14 | 32 | 21 | −11 | 새 8 + 2차 잔여 13 |
-| 경: 안드로이드 | 24 | 19 | 11 | −8 | 새 7 + Composable 1 + 이월 3 |
-| 경: ai·infra | 16 | 13 | 1 | −12 | 2차 경 13 중 12 해결, N5 일부 |
-| 변경 통제 아니오 | 3단위 | 3단위 | 3단위 | 0 | 3차부터 판정 요인에서 제외 |
-
-2차 지적 추적: 백엔드 중 9 해결 9, 경 32는 해결 19·일부 4·미해결 9. 안드로이드 중 4는 M-1·M-4 해결, M-2·M-3 일부(경 이월). 경 19는 해결 15·일부 3(S-1·S-3·S-4)·미해결(보류) 1(N-14). ai·infra 경 13은 해결 12·일부 1(N5).
-
-해석: 2차에서 지적한 동시성·보안·설계 불변식 결함(M1~M6)과 안드로이드 데이터 손실(M-1)은 모두 고쳐졌다. 새 중은 수정이 만든 작은 결함(매개변수 묶기 누락, deploy.sh 한 줄, 늦은 심박 삭제 조건)과 2차 이전부터 있던 설계 불일치 하나(B-M5)다. 판정은 한 단계(불합격 → 조건부) 올랐다.
-
-### 결함 조치 상태
-
-전역 ID는 단위 접두어(`BE3-` 백엔드, `AN3-` 안드로이드, `AI3-` ai·infra) + 조각 파일 3차 절의 ID다. 2차(`BE2-`, `AN2-`, `AI2-`)와 구분한다. 조치 상태는 3차 시점 기록에 4차 리뷰의 확인 결과를 더한 것이다.
-
-중 결함 7건:
-
-| 전역 ID | 위치 | 내용 | 조치 상태 |
-|---------|------|------|-----------|
-| BE3-B-M1 | reward/RewardService.java:91 | accrueWithRetry 매개변수 5개 | 수정 완료, 4차 해결 확인(통합 d562d26) |
-| BE3-B-M2 | reward/RewardReconcileService.java:80 | restore 매개변수 6개 | 수정 완료, 4차 해결 확인 |
-| BE3-B-M3 | crew/CrewRunService.java:191 | link 매개변수 5개 | 수정 완료, 4차 해결 확인 |
-| BE3-B-M4 | common/PageCursor.java:39-53 | slice 중첩 4단계 | 수정 완료, 4차 해결 확인 |
-| BE3-B-M5 | operator/OperatorAuthorizer.java:75 | 운영자 소셜 인증 실패가 403, 설계 D-76은 401 | 수정 완료(코드를 설계에 맞춰 401), 4차 해결 확인 |
-| AI3-I-M1 | infra/deploy.sh:17 | .env에 NGINX_HTTP_PORT 줄이 없으면 조용히 종료 | 수정 완료, 4차 해결 확인 |
-| AN3-X-1 | DT/data/store/RoomPendingRunRepository.kt:144, D/sync/UploadPendingRunsUseCase.kt:67 | 늦은 심박 항목을 무조건 삭제(전송 중 합쳐진 심박 유실) | 수정 완료, 4차 해결 확인 |
-
-경 결함 33건:
-
-| 단위 | 전역 ID | 건수 | 조치 상태(4차 확인) |
-|------|---------|------|---------------------|
-| 백엔드 | BE3-B-L1~B-L8 | 8 | 모두 해결 |
-| 백엔드 | 2차 잔여 L3·L4·L13·L14·L16·L23·L25·L26·L27·L28·L29·L31·L32 | 13 | 해결 2(L27·L28), 결정 대기 8(L3·L4·L14·L16·L23·L25·L26·L29), 일부 L13, 미해결 L31·L32 |
-| 안드로이드 | AN3-N3-1~N3-5, Composable 매개변수 | 6 | 모두 해결 |
-| 안드로이드 | N3-6, N3-7, S-1, S-3, N-14 | 5 | 결정 대기(N3-6은 일부 해소 뒤 wear-contract 2건 남음) |
-| ai·infra | AI3-N5 | 1 | 해결 |
-
-### 8. sw-test 전달: 우선 테스트 대상
-
-복잡도 10 초과 함수는 8개(백엔드 0, 안드로이드 8, ai 0)다. 아래는 이번 중 결함의 회귀 시험과 시험이 없던 경로를 단위별로 고른 우선 대상이다.
-
-| 단위 | 함수·경로 | 약산 복잡도 | 이유 |
-|------|-----------|-------------|------|
-| 백엔드 | reward.RewardReconcileService, RewardService.accrueWithRetry | — | 보정 멱등, 적립량 0 기록 건너뜀(B-L2), AccrualSource 도입 뒤 회귀(B-M1) |
-| 백엔드 | battle.RecordBattleService.create, V15 마이그레이션 | — | 활성 대결 중복 시 고유 제약 위반만 변환(B-L3), 중복 활성이 있던 데이터(B-L1). 실제 PostgreSQL |
-| 백엔드 | common.PageCursor.slice | 9 | 커서 항목이 지워진 경우, 크기 경계, 중첩 정리(B-M4) 뒤 회귀 |
-| 백엔드 | operator.OperatorAuthorizer, web.auth.AuthAttemptGuard | — | 소셜 인증 실패 401(B-M5), 속도 제한 3종 경계 |
-| 백엔드 | JwtTokenIssuer.parse / RefreshTokenRevocations | 10 | 폐기 목록 장애 시 503(fail-closed), 같은 토큰 재시도 |
-| 안드로이드 | RoomPendingRunRepository.removeLateHeartRates, mergeLateEntry | — | X-1: 전송 중 합쳐진 심박 보존(동시 합침) |
-| 안드로이드 | ServerMessageDecoder.decode, verdictMessage | 17, 14 | 메시지 종류별·결과 종류별 when 분기 경로 |
-| 안드로이드 | shareFailureOrNull, DeviceSaveTarget | — | N3-5: 6가지 예외 갈래와 반쯤 쓴 항목 지우기 실패 |
-| 안드로이드 | 실제 기기 release 빌드(prodRelease) | — | R8 규칙은 정적으로만 확인. 로그인·러닝 저장·푸시 수신 1회 |
-| ai·infra | infra/deploy.sh 포트 읽기, comment.router | — | I-M1: 줄이 없을 때 기본값 80, N5: /comments 본문 상한 413 |
-| ai·infra | face.router.create / \_read_body | 10 / 3 | 413 경계, chunked, 업로드 중 연결 끊김 |
-
-### 9. 설계서 갱신 요청 (코드가 옳거나 설계가 비어 있는 경우, `/sw-design-oo` 재호출 목록)
-
-코드 결함으로 세지 않은 요청이다. 2차 CR2-* 이후 3·4차에서 새로 나온 것을 `CR34-01`부터 이어 번호로 모은다. 3차 절에서 CR34-01~CR34-23을, 4차 절에서 CR34-24~CR34-28과 묶음 갱신을 적는다. 조각 파일 원래 ID는 백엔드 R-1~R-11, 안드로이드 갱신 요청 표 번호 1~12다. ai·infra 배포 설정은 백엔드 R-10에 묶었다. 2차 요청 중 이 3차에서 반영 여부를 다시 확인한 것은 CR2-U3(→ CR34-11), CR2-U6(→ CR34-08), CR2-I1~I3(미반영, → CR34-10)뿐이고, 나머지 CR2-*의 반영은 확인하지 않았다.
-
-| ID | 원래 ID | 설계서 고칠 곳 | 내용 |
-|----|---------|----------------|------|
-| CR34-01 | 백엔드 R-1 | 2.4.2 상태도, 6.1.6 Battle·BattleStatus·BattleRepository·BattleStartService | CANCELLED 상태, ABANDON_AFTER 10분(SRS에 값 없음), cancelUnstarted·isAbandoned, battle_participant.active_member_id 활성 대결 1개 불변식, findActive·findAbandoned·saveImmediately·findMemberWinsJudgedBetween, BattleWin, BattleStartService.cancelAbandoned |
-| CR34-02 | 백엔드 R-2 | 5.1.1, 6.1.13 batch | batch.reward 패키지(54번째), RewardReconcileJob·CrewRunLinkReconcileJob·AbandonedBattleJob·RevocationPurgeJob, 0시 10분 보정 cron |
-| CR34-03 | 백엔드 R-3 | 6.1.8 reward, 6.1.3 running, 6.1.7 crew | RewardReconcileService, CrewRunLinkReconcileService, RunQueryService.savedBetween·SavedRun, RunRecord.savedAt(V13), 수신자는 로그만 남기고 보정이 채운다는 M4 결정 |
-| CR34-04 | 백엔드 R-4 | 12-의존도 | operator → audit(운영자 로그인 감사), batch.reward → reward, reward → member·running·battle의 메소드 호출(기존 D13~D15는 사건 수신만), crew → running(SavedRun) |
-| CR34-05 | 백엔드 R-5 | 6.1.2 TokenIssuer, 5.5 | RefreshTokenRevocations(PostgreSQL, V14), fail-closed, purgeExpiredRevocations. 5.5 "Redis 장애는 매칭·실시간만"과 같은 원칙 |
-| CR34-06 | 백엔드 R-6 | 6.1.12 OperatorAuthorizer, 6.1.11 AuditAction, D-76 | authenticate(provider, providerToken, client) 세 번째 인수, OPERATOR_LOGIN_SUCCESS·FAILURE(V16). 소셜 인증 실패 401은 코드를 D-76에 맞춰 고쳤으므로(B-M5 해결) 설계 개정은 필요 없다 |
-| CR34-07 | 백엔드 R-7 | 13.1 코딩 규약 | @Value 대신 기능별 @ConfigurationProperties record 22개, 비밀 포함 record는 toString 가림 |
-| CR34-08 | 백엔드 R-8 (CR2-U6) | 6.1.3 ValidityRule, srs 유효 기록 4조건 | 다섯째 조건 isBackedBy(선언 거리 ≤ 경로 × 2, 선언 시간 ≤ 종료 − 시작 + 1초). 요구·설계 공백, 결정 필요 |
-| CR34-09 | 백엔드 R-9 | 6.1.13 web.auth, 5.7 | AuthAttemptGuard(접속지 요청 수·실패·자격 실패 제한), ActiveMembers(탈퇴 회원 접근 토큰 거부) |
-| CR34-10 | 백엔드 R-10 (CR2-I1~I3) | 5.4 배포 | 2차 CR2-I1~I3 아직 미반영(05-02:94 "환경 변수 파일 한 곳"). 추가: redis --requirepass(REDIS_PASSWORD), DB 필수 값 :?, postgres·redis 포트 고정, nginx resolver 재해석과 /actuator/ 차단, deploy.sh의 api·ai 헬스 대기, 롤백에 ai 이미지 |
-| CR34-11 | 백엔드 R-11 (CR2-U3) | 5.1.1 common, D-48 | AttemptLimiter·PageCursor를 common 허용 목록에 넣을지 결정(L3). 결정 필요 |
-| CR34-12 | 안드로이드 1 | 5.1.2 domain.run 포함 클래스, 06-06 RunTracker 표, D-77의 "RunTracker가 보관함을 부른다" 문구 | D/run/RunArchive(보관·늦은 심박 재시도 협력 객체, RunTracker 생성자 9에서 8). appendHeartRates는 RunArchive만 부른다 |
-| CR34-13 | 안드로이드 2 | 06-06 Guidance·WatchDisplay 행, 5.1.2 core.ui(UiText), 팀 컨벤션 3장 문구 규칙 | 도메인 문구를 키로(GuidanceMessage·WatchNotice, Guidance(kind, message, args, hasVoice, hasVibration)), 변환은 data.device GuidanceTexts·data.watch가 문자열 리소스로. 폰 화면 문구는 strings.xml과 core.ui UiText(Res·Plain)로. 2차 컨벤션 갱신 요청 8(한글 리터럴 허용안)은 폐기 |
-| CR34-14 | 안드로이드 3 | 06-06 data.store 행·13.2 저장, D-77 | Room 판 2: late_heart_rate 표(LateHeartRateEntity·LateHeartRateDao), AutoMigration 1에서 2, keepLatestSent 30건 |
-| CR34-15 | 안드로이드 4 | 06-06:97·107·203 | BattleRunCoordinator·CrewRunCoordinator.onProgress는 internal(운영 경로는 CoordinatedRound의 측정 구독 하나). RunTracker.onLateHeartRates는 private |
-| CR34-16 | 안드로이드 5 | 06-06 data.watch·wear.contract 행 | WearPaths.WATCH_CAPABILITY("runkk_watch")와 워치 res/values/wear.xml의 능력 선언, 폰은 능력 변화 리스너로 연결을 안다(5초 조회 폐지) |
-| CR34-17 | 안드로이드 6 | 13장 빌드 변형·보안, 14장 시험 전략 | 출시 빌드: R8(isMinifyEnabled·isShrinkResources)과 proguard-rules.pro 보존 규칙, testTagsAsResourceId는 debug만, E2E 토큰 창구는 localDebug 한정(app 패키지, ui.me 창구 자리 명시 import) |
-| CR34-18 | 안드로이드 7 | 14장 Konsist 규칙 | ArchitectureTest의 예외: localDebug E2eKakaoTokenSource가 ui.me 창구 자리 2개를 import |
-| CR34-19 | 안드로이드 8 | 팀 컨벤션 1장, 14장 | 한 파일 허용 규칙: sealed 계층(ServerMessage)과 private 함수를 공유하는 짝 UseCase(LoginUseCase·SignUpUseCase)는 한 파일, 그 밖은 타입마다 한 파일. S-3을 닫는다. 결정 필요 |
-| CR34-20 | 안드로이드 9 | D-80, 06-06:157, PendingRunRepository 표 | 늦은 심박 항목 삭제를 "읽은 내용과 같을 때만"으로: `removeLateHeartRates(recordId, sent)`. D-80의 연산 시그니처가 바뀐다 |
-| CR34-21 | 안드로이드 10 | 06-06 ui.battle MatchViewModel 행, 5.1.2 api.core | MatchViewModel의 WaitEnd(Found·Failed·Lost) sealed 분기와 연결 실패의 값 전달, FaceImageSource.loadLayers의 Outcome·select 구조 |
-| CR34-22 | 안드로이드 11 | 팀 컨벤션 3장 로그, 06-06 워치 행 | Timber 범위: 폰(A/RunkkApp)·워치(W/ui/RunkkWatchApp) debug만 DebugTree, 워치 applicationScope 예외 처리기, 공유·워치 통신 실패 기록 |
-| CR34-23 | 안드로이드 12 | 06-06 ui.share 행 | ui.share 시그니처: ShareOutcome.Failed·Fallback이 문자열 리소스 번호(messageRes), RunCardRenderer(ApplicationContext), CardSharer의 ioDispatcher·uriFor, shareFailureOrNull |
-
-결정이 필요한 항목은 CR34-08, CR34-11, CR34-19다. CR34-11은 반영 뒤 `/sw-design`으로 design-review.md의 common 안정성을 다시 확인한다.
-
-### 10. 작성 점검 (SKILL.md 체크리스트)
-
-| 항목 | 결과 |
-|------|------|
-| 리뷰 기준을 머리에 적었다 | 예. 조각 파일의 3차 절마다 |
-| 설계서가 있으므로 이름·인터페이스·의존 방향·응집도를 대조했다 | 예. 세 단위 모두 1절에서 대조 |
-| 모든 지적에 파일명·줄 번호·교정 예시가 있다 | 예. 조각 파일의 결함 표 |
-| 함수 호출을 기본 제어 구조로 세지 않았다 | 예 |
-| 순환 복잡도 10 초과 함수를 sw-test 전달 목록에 적었다 | 예. 8절 |
-| 설계가 낡은 경우를 코드 결함이 아닌 갱신 요청으로 분리했다 | 예. 9절 |
-| 확인하지 않은 조치를 쓰지 않았다 | 예. 조치 상태는 4차 리뷰가 코드로 확인한 값만 적었다 |
-| 둘째 줄 헤더를 갱신했다 | 예 |
-
-### 11. 다음 행동과 다음 단계
-
-- [x] 백엔드 중 5건·ai·infra 중 1건·안드로이드 중 1건 수정(4차에서 해결 확인)
-- [x] 수정 뒤 `/sw-code-review` 4차: 아래 절
-- [ ] 변경 통제: Jira 사용 여부 결정, 아니면 MR 본문에 결과서 경로와 ID(CR2-*, CR34-*) 기록
-
-다음 단계:
-1. `/sw-design-oo` — 9절의 갱신 요청을 design-oo.md에 반영한다. CR34-08·CR34-11·CR34-19는 결정 뒤에 반영한다.
-2. `/sw-test` — 8절 우선 테스트 대상을 입력으로 넘긴다.
+3차 리뷰(2차 수정 병합 통합 0009d29) 요약 절(대상, 목차, 1~5 점검 요약, 형상 관리, 집계와 판정 조건부 0/7/33, 그 뒤 절)은 [00-리뷰-2026-10-21-3차-요약](code-review/00-리뷰-2026-10-21-3차-요약.md)으로 옮겼다(2026-11-04, 목차 파일 100KB 상한). 본문은 그대로 [01-backend](code-review/01b-backend-2.1.md#리뷰-2026-10-21-3차)·[02-android](code-review/02b-android-1.md#리뷰-2026-10-21-3차)·[03-ai](code-review/03-ai.md#리뷰-2026-10-21-3차)에 있다.
 
 ## 리뷰 2026-10-21 (4차)
 
-### 대상
-
-3차 수정이 병합된 통합 브랜치를 본 4차 리뷰다. 3차의 결함 수정을 병합한 통합 d562d26을 push한 뒤, 3차 지적(중 7, 경 33)의 해소를 확인하고 새 결함을 찾았다.
-
-| 실행 단위 | 범위 | 대상 커밋 | 읽은 규모 |
-|-----------|------|-----------|-----------|
-| 백엔드 | 3차 이후 변경 + 3차·2차 잔여 지적 위치 재확인 | feature/runkk-impl d562d26 (3차 0009d29) | 백엔드·ai·infra 커밋 18개(아래 합계에 포함) |
-| 안드로이드 | 3차 이후 변경 | d562d26 (3차 0009d29) | 안드로이드 커밋 11개 |
-| ai·infra | 3차 이후 변경 | d562d26 (3차 0009d29) | 위 백엔드·ai·infra 18개에 포함 |
-
-전체 범위는 `git diff 0009d29..d562d26` 164파일 +1,966 −804, 커밋 32개(백엔드·ai·infra 18, 안드로이드 11, 계약 동기화 1, 병합 2)다. 리뷰는 읽기 전용이다. 통합 브랜치의 실행 검증은 아래 "검증" 표에 따로 적었다.
-
-### 검증 (통합 d562d26, 사용자 확인)
-
-2차 수정 병합 뒤 통합 0009d29를 push했고, 3차 수정 병합 뒤 통합 d562d26을 push했다. d562d26에서 확인한 결과는 다음과 같다.
-
-| 항목 | 결과 |
-|------|------|
-| backend 시험 | 882 tests 통과 |
-| ai 시험·정적 검사 | 214 tests 통과(ruff·mypy·import-linter 포함) |
-| android 전체 게이트 | 통과(ktlint, lint, 단위 시험, Roborazzi, assemble) |
-| release APK 3종 | 시험 전용 코드 0건 |
-| docker compose config | 통과 |
-| 에뮬레이터 스모크 E2E | 7/7 PASS |
-
-4차 리뷰 자체는 코드 읽기 기준이므로, 위 실행 결과가 3차 리뷰에서 "확인하지 못했다"고 적은 시험 통과를 보완한다. V17 마이그레이션 시험(BattleActiveSlotMigrationIntegrationTest)은 통합 d562d26 검증에서 PostgreSQL Testcontainers로 실행해 2건 통과했다. 실제 기기의 release 빌드 실행만 배포 전 할 일로 남는다.
-
-### 목차
-
-| 파일 | 실행 단위 | 판정 | 치명 / 중 / 경 | 3차 지적 추적 | 설계서 갱신 요청 |
-|------|-----------|------|----------------|---------------|------------------|
-| [01-backend](code-review/01-backend.md#리뷰-2026-10-21-4차) | 백엔드 | 합격 | 0 / 0 / 12 | 새 결함 13(중 5, 경 8) 전부 해결, 2차 잔여 경 13은 해결 2·결정 대기 8·일부 1·미해결 2 | U4-1~U4-7 |
-| [02-android](code-review/02-android.md#리뷰-2026-10-21-4차) | 안드로이드 | 합격 | 0 / 0 / 6 | X-1 해결, 경 11은 해결 6·결정 대기 5 | U4-8~U4-10 |
-| [03-ai](code-review/03-ai.md#리뷰-2026-10-21-4차) | ai·infra | 합격 | 0 / 0 / 0 | I-M1·N5 해결 | U4-5·U4-6(백엔드와 공통) |
-
-### 1~5. 점검 결과 요약
-
-| 점검 | 백엔드 | 안드로이드 | ai·infra |
-|------|--------|------------|----------|
-| 1. 설계 일치 | 새 화살표 0. 운영자 소셜 인증 실패 401이 D-76과 일치(B-M5 해결). 갱신 요청 U4-1~U4-7 | 새 화살표 0, domain의 android·data import 0, 모듈 의존 변경 0. 갱신 요청 U4-8~U4-10 | 새 화살표 0. 갱신 요청 U4-5·U4-6 |
-| 2. 코딩 스타일 | 3차 중 3(매개변수 5·6·5개) 해결. 새 결함 없음 | 3차 경 해결(남은 한글 문구, 워치 Composable 2개, Composable 매개변수 5개 이상 3건). 새 경 1(N4-1 화면 상태 Boolean 이름 81곳) | 위반 0 |
-| 3. 구조적 프로그래밍 | PageCursor.slice 중첩 해소(B-M4). 복잡도 10 초과 0 | map 안 return·끊긴 조건식 해결. 복잡도 10 초과 8개 중 GuidanceMessage.textRes(16 → 1) 해결, 나머지 7개는 그대로(참고, 집계 제외) | 위반 0 |
-| 4. 객체지향·정확성·보안 | V17, 23505 판정, 크루 검색 SQL, 운영자 401에서 결함 없음. 새 경 1(B4-1 서버 늦은 심박 측정 시각 중복) | X-1 해결(보낸 심박만 빼고 남으면 유지). 결함 없음 | I-M1·N5 해결. 새 결함 없음 |
-| 5. 형상 관리 | 변경 통제 아니오(32커밋 중 키 0) | 변경 통제 아니오(11커밋 중 키 0, 결정 대기) | 변경 통제 아니오 |
-
-### 6. 형상 관리
-
-세 단위 모두 변경 통제가 아니오로 이전 차수와 같다. 사용자 결정으로 판정 요인에서 뺐다.
-
-| 단위 | 변경 통제 | 근거 |
-|------|-----------|------|
-| 전체 | 아니오 | 범위 32커밋 중 Jira 키 0개. 구성은 fix 14·refactor 13·test 1·chore 1·병합 2. 병합 2개는 git 기본 문구 Merge branch(타입 목록 밖), 18c74a3은 시험 파일만 바꾸는데 fix 타입(L32). 나머지 커밋은 한 가지 일씩이다(안드로이드 N3-7은 3차 커밋 이력이라 결정 대기) |
-
-### 7. 집계와 판정
-
-| 등급 | 백엔드 | 안드로이드 | ai·infra | 합계 |
-|------|--------|------------|----------|------|
-| 치명 | 0 | 0 | 0 | **0** |
-| 중 | 0 | 0 | 0 | **0** |
-| 경 | 12 | 6 | 0 | **18** |
-| 단위 판정 | 합격 | 합격 | 합격 | — |
-
-경의 구성: 백엔드 12 = 새 1(B4-1) + 2차 잔여 11(결정 대기 8, L13 추천 경로, L31, L32), 안드로이드 6 = 새 1(N4-1) + 3차 잔여 5(모두 결정 대기). 경 18건 중 결정 대기가 13건이고, 그것을 뺀 순수 미해결·새 경은 5건(B4-1, L13, L31, L32, N4-1)이다.
-
-판정: **합격** (통합 대상 전체, 4차 리뷰 시점)
-근거: 치명 0, 중 0으로 판정 기준표의 합격 조건(치명 0, 중 3 이하)을 채운다. 3차 중 7건(백엔드 5, ai·infra 1, 안드로이드 1)과 경 가운데 새 결함 전부가 해결됐고, 새 코드(V17 마이그레이션, 크루 검색 SQL, 운영자 401, 늦은 심박 삭제 조건, 문구 리소스 이전)에서 중 이상 결함이 나오지 않았다. 설계 일치 점검은 세 단위 모두 수행했다. 변경 통제(Jira 키)는 사용자 결정으로 판정 요인에서 뺐다. 이는 2차 절의 "변경 통제가 아니오로 남으면 최고 판정은 조건부"를 3차부터 적용하지 않기로 한 것이다.
-
-단위별 판정:
-- 백엔드 **합격**: 치명 0, 중 0. 경 12 중 8은 설계 결정 대기다.
-- 안드로이드 **합격**: 치명 0, 중 0. 경 6 중 5는 결정 대기다.
-- ai·infra **합격**: 치명 0, 중 0, 경 0.
-
-판정의 한계: 리뷰는 코드 읽기 기준이고, 통합 d562d26의 시험 통과(위 "검증" 표)는 별도로 확인한 값이다. V17 마이그레이션은 통합 d562d26 검증에서 PostgreSQL Testcontainers로 실행해 2건 통과했고, 실제 기기의 release 빌드 실행은 아직 확인하지 못했다.
-
-### 1~3차 대비 추세
-
-| 항목 | 1차 | 2차 | 3차 | 4차 | 3차 대비 | 비고 |
-|------|-----|-----|-----|-----|----------|------|
-| 판정 | 불합격 | 불합격 | 조건부 | **합격** | 한 단계 상승 | |
-| 치명 | 0 | 0 | 0 | 0 | 0 | |
-| 중 합계 | 16 | 13 | 7 | 0 | −7 | 3차 중 7건 전부 해결, 새 중 0 |
-| 중: 백엔드 | 6 | 9 | 5 | 0 | −5 | |
-| 중: 안드로이드 | 8 | 4 | 1 | 0 | −1 | |
-| 중: ai·infra | 2 | 0 | 1 | 0 | −1 | |
-| 경 합계 | 54 | 64 | 33 | 18 | −15 | 결정 대기 13 포함 |
-| 경: 백엔드 | 14 | 32 | 21 | 12 | −9 | 결정 대기 8 포함 |
-| 경: 안드로이드 | 24 | 19 | 11 | 6 | −5 | 결정 대기 5 포함 |
-| 경: ai·infra | 16 | 13 | 1 | 0 | −1 | |
-| 변경 통제 아니오 | 3단위 | 3단위 | 3단위 | 3단위 | 0 | 3차부터 판정 요인 제외 |
-
-3차 지적 추적: 백엔드 새 결함 13건(중 5 + 경 8)은 전부 해결. 2차 잔여 경 13건은 해결 2(L27·L28), 결정 대기 8, 일부 1(L13), 미해결 2(L31·L32). ai·infra 2건(I-M1·N5)은 해결. 안드로이드는 중 X-1 해결, 경 11건은 해결 6, 결정 대기 5(N3-6 잔여 wear-contract 2건 포함).
-
-해석: 중 이상 결함은 1차부터 단조롭게 줄어 4차에서 0이 됐다. 남은 경 18건은 두 부류다. 설계·정책 결정을 기다리는 13건은 코드로 닫을 수 없고, 나머지 5건은 작은 수정이다. 4차 새 결함 2건(B4-1, N4-1)은 모두 경이며 통합 928c829(검증: backend 884, ai 214, android 824 + 게이트, release 3종 시험 전용 코드 0건, compose, E2E 7/7)에서 해결했다.
-
-### 결정 대기 13건 (사용자·팀 결정 필요)
-
-4차 리뷰는 13건 모두 보류가 타당하다고 판단했다. 결함 집계에는 경으로 남겼다. "결정할 것"은 보류 근거에서 정리한 것이다.
-
-| No | 단위 | ID | 내용 | 결정할 것 | 결정 주체(제안) | 관련 갱신 요청 |
-|----|------|----|------|-----------|-----------------|----------------|
-| 1 | 백엔드 | L3 | common에 AttemptLimiter·PageCursor가 있다 | common 허용 목록(D-48, R-11)에 예외로 넣을지, 쓰는 패키지로 옮길지. 패키지 경계를 설계가 정한다 | 팀(설계) | CR34-11 |
-| 2 | 백엔드 | L4 | AfterCommit 두 사본(battle·crew), *Transactions 5개 사본 | 통합 위치. L3과 같은 경계 결정(공통 위치)이 먼저다 | 팀(설계) | CR2-U5 |
-| 3 | 백엔드 | L14 | RewardWallet이 적립 합계를 전체 내역을 읽어 구한다 | 집계 칼럼을 둘지 조회로 바꿀지. RewardWallet 집합 경계와 마이그레이션이 걸린다 | 팀(설계) | — |
-| 4 | 백엔드 | L16 | TierUpdateListener 실패가 로그만 남고 보정이 없다 | 보정 배치(새 Job·cron) 신설 여부. 5.1.1 batch 설계 사항이다(M4 결정과 같은 유형) | 팀(설계) | CR34-02 |
-| 5 | 백엔드 | L23(일부) | /admin/** 이 permitAll 한 겹이다 | 이중 방어를 한 겹 더 둘지. 설계 D-50은 인터셉터가 담당하고, 이번에 등록된 모든 관리 경로를 403으로 시험해 위험은 낮아졌다 | 팀(설계) | — |
-| 6 | 백엔드 | L25(일부) | X-Real-IP를 사설망·루프백 어느 호스트에서든 믿는다 | 신뢰 프록시 설정화. 배치 토폴로지(5.4)에 따라 값이 정해진다 | 팀(인프라) | CR34-10 |
-| 7 | 백엔드 | L26(일부) | 서버 → ai 구간이 평문 http다 | compose 내부 망 가정(5.4)을 바꿀지 | 팀(인프라) | CR34-10 |
-| 8 | 백엔드 | L29 | 실시간 핸드셰이크에서만 토큰을 검증한다 | 핸드셰이크 이후 만료를 끊을지 갱신할지. 5.7.2 실시간 정책이다 | 팀(설계) | — |
-| 9 | 안드로이드 | S-1 | RunTracker 생성자 주입이 8개다(기준 4개 이하) | 책임 분리 여부. 06-06 RunTracker 책임과 D-77 구조를 건드린다 | 팀(설계) | CR34-12 |
-| 10 | 안드로이드 | S-3 | domain에 한 파일 여러 타입이 2개 파일 남았다(ServerMessage 12, LoginUseCase 2) | 한 파일 허용 규칙. 팀 컨벤션의 허용 규칙 정의가 먼저다 | 팀(컨벤션) | CR34-19 |
-| 11 | 안드로이드 | N-14 | 커밋 제목·브랜치에 Jira 키가 없다 | Jira 사용 여부(3차까지 판정 요인에서 제외) | 사용자 | — |
-| 12 | 안드로이드 | N3-7 | 3차의 화면별 refactor 커밋 10개가 두 가지 일을 담았다 | 이력을 다시 쓸지. 다시 쓰지 않으면 못 고치고, 이번 범위 커밋은 지켜졌다 | 사용자 | — |
-| 13 | 안드로이드 | N3-6 잔여 | wear-contract의 전송 필드 `running`, `heartRateCollectionAllowed` 두 개가 Boolean 이름 규칙을 어긴다 | 필드 이름은 폰·워치 전송 계약이고 옛 앱 호환이 설계돼 있다. 직렬화 이름 호환 표기를 정한 뒤에 바꿀 수 있다 | 팀(설계) | CR34-13 |
-
-### 결함 조치 상태
-
-전역 ID는 4차 새 결함에 `BE4-`(백엔드)·`AN4-`(안드로이드)를 붙인다. 3차 지적의 해결 여부는 위 3차 절의 "결함 조치 상태"에 4차 확인 결과를 적었다.
-
-| 전역 ID | 위치 | 내용 | 등급 | 조치 상태 |
-|---------|------|------|------|-----------|
-| BE4-B4-1 | running/HeartRateSeries.java:51 | 서버가 늦은 심박을 덧붙일 때 같은 측정 시각 표본을 걸러 내지 않아 응답 유실·전송 중 끊김 재전송에서 심박 열이 중복된다(데이터 손실은 아님) | 경 | 해결 6af16a9 |
-| AN4-N4-1 | feature·wear 상태 클래스 81곳(feature 70, wear 11) | 화면 상태 Boolean 이름이 is·has·can 규칙을 어긴다(`loading` → `isLoading`) | 경 | 해결 87fe682~90d5d9d |
-| BE4-L13 잔여 | crew/CrewQueryService.java:102 | 추천 경로가 공개 크루 전체와 주간 거리를 읽는다(검색은 SQL로 해결) | 경 | 미조치 |
-| BE4-L31, L32 | src/test @DisplayName, 커밋 규약 | 시험 메소드 @DisplayName 316/667(47%), 커밋 제목 형식(병합 문구, 18c74a3 타입) | 경 | 미조치 |
-
-B4-1과 N4-1의 조치 결과는 확인되는 대로 이 표에 한 줄 더한다.
-
-### 8. sw-test 전달: 우선 테스트 대상
-
-복잡도 10 초과 함수는 백엔드·ai 0, 안드로이드 8개(참고, 집계 제외)다. 이번 수정의 회귀 시험과 새로 생긴 경로를 우선한다.
-
-| 단위 | 함수·경로 | 이유 |
-|------|-----------|------|
-| 백엔드 | running.HeartRateSeries.append | B4-1: 같은 측정 시각 심박을 두 번 덧붙이는 시험(응답 유실 재전송, 항목 전송 중 끊김) |
-| 백엔드 | V17 마이그레이션(BattleActiveSlotMigrationIntegrationTest) | 칸이 빈 활성 대결 취소, 비활성 대결의 칸 비움, 재실행 0건. 통합 d562d26 검증에서 PostgreSQL Testcontainers로 실행해 2건 통과 |
-| 백엔드 | battle.RecordBattleService.create | SQLSTATE 23505만 ALREADY_IN_BATTLE, 23502 등은 재던짐 |
-| 백엔드 | infra.crew.JpaCrewRepository.search, CrewQueryService 추천 경로 | 키워드·태그 AND·LIKE 이스케이프·cursor·size+1 경계, 추천 경로 읽기 상한(L13) |
-| 백엔드 | web.admin.AdminAuthController | 소셜 인증 실패 401과 실패 횟수 기록, 화이트리스트 밖 403 |
-| 백엔드 | web.auth.AuthController(갱신·로그아웃) | 폐기 목록 장애 시 503 TEMPORARILY_UNAVAILABLE |
-| ai·infra | face.router `_rejection`·머리 파서, comment.router | 4096x4096 통과·4097x4096 422, 4 KiB 413 경계와 chunked |
-| ai·infra | infra/deploy.sh env_value | 줄이 없을 때 기본값 80 |
-| 안드로이드 | RoomPendingRunRepository.removeLateHeartRates(sent) | 합침과 전송의 인터리빙 |
-| 안드로이드 | 화면 상태 Boolean 이름 변경(N4-1) | 이름만 바뀌는 대량 변경이므로 Roborazzi 스크린샷과 상태 키 회귀 |
-
-### 9. 설계서 갱신 요청 (코드가 옳거나 설계가 비어 있는 경우, `/sw-design-oo` 재호출 목록)
-
-3차 CR34-01~CR34-23에 이어 4차에서 새로 나온 것을 CR34-24부터 적는다. 4차 U4-n 중 3차 요청과 겹치는 것은 아래 "묶음 갱신" 표대로 해당 CR34-nn에 합친다.
-
-새 요청:
-
-| ID | 원래 ID | 설계서 고칠 곳 | 내용 |
-|----|---------|----------------|------|
-| CR34-24 | 4차 U4-2 | 06-04 CrewRepository 행(:272), CrewQueryService.search | 설계는 search(CrewSearch). 코드는 search(CrewSearch, PageCursor, Week)이고 태그 AND·페이지를 저장소가 SQL로 거르며 size+1을 읽는다. 추천 경로는 PageCursor.all(). 코드가 옳다 |
-| CR34-25 | 4차 U4-4 | 6.1.13 ApiExceptionHandler(06-06:13), ReasonCode 목록, 5.7.1 | ReasonCode.TEMPORARILY_UNAVAILABLE(503, "잠시 후 다시 시도해 주세요"): 갱신·로그아웃의 폐기 목록 저장소 장애. PROVIDER_UNAVAILABLE은 소셜 제공자 무응답 전용. 앱 계약 목록 동기화 |
-| CR34-26 | 4차 U4-5 | 6.1.16 FaceRouter(06-06:285), CommentRouter, 5.4 배포 | FaceRouter의 422 UNSUPPORTED_IMAGE(머리 정보 깨짐)·422 TOO_LARGE(가로x세로가 max_image_pixels, 기본 4096x4096 초과)는 변환기가 아니라 입력 관문이 내며 디코드하지 않고 머리만 읽는다. Settings.max_image_pixels, RUNKK_MAX_IMAGE_PIXELS 환경 변수. CommentRouter는 본문 4KiB 상한, 넘으면 413 TOO_LARGE(JSON 아님·정의 밖은 422 INVALID_REQUEST) |
-| CR34-27 | 4차 U4-7 | 6.1.2 member LegalDocumentCatalog | 법정 문서 주소 4개가 비면 기동 실패(필수 설정) |
-| CR34-28 | 4차 U4-9 | 06-06 core.ui 디자인 시스템, ui.crew, data.api | RunkkStatTile(label, StatTileValue, caption, StatTileStyle...)·RunkkBigNumber(unit·color 제거), CrewMembers.Member.role: CrewRole(모르는 이름은 MEMBER), data.api.notification의 알림함 제목은 문자열 리소스(NotificationRepositoryImpl이 ApplicationContext로 해석), GuidanceMessage를 문구 표 조회로. 06-06은 이 시그니처를 적지 않아 보강 요청 |
-
-묶음 갱신(3차 요청에 내용을 더함):
-
-| 4차 ID | 합치는 곳 | 더할 내용 |
-|--------|-----------|-----------|
-| U4-1 | CR34-03 (R-3) | reward.AccrualSource(memberId, reason, sourceId, at) record와 accrueWithRetry(source, amountOf)·restore(active, source, amountOf), running.SavedRun.of(RunRecordSaved), crew.CrewRunService.link(post, SavedRun), RewardReconcileService의 적립량 0 근거 건너뜀(OperationPolicy 조회) |
-| U4-3 | CR34-01 (R-1) | BattleRepository.activeMemberIds(Collection), Battle.cancelIfAwaitingStartReport(now), Matchmaker tick의 일괄 조회, V17 마이그레이션(V15 backfill 잔여 정리), RecordBattleService의 SQLSTATE 23505만 ALREADY_IN_BATTLE |
-| U4-6 | CR34-10 (R-10) | develop 프로필 DB 비밀번호 기본값 제거(DB_PASSWORD 필수), deploy.sh의 환경 값 읽기(env_value, 줄이 없으면 기본값) |
-| U4-8 | CR34-20 (안드로이드 9) | removeLateHeartRates(sent: LateHeartRates): 보낸 심박만 빼고 남으면 유지, 없으면 항목 삭제(06-06 PendingRunRepository(:138)·D-80(05-02:194)) |
-| U4-10 | CR34-13 (안드로이드 2) | domain Boolean은 is·has·should(GuidanceSettings.shouldFollowCoachPlan). 기준표는 is·has·can뿐이라 should 허용 여부를 정하거나 isFollowingCoachPlan으로 바꾼다. 설정 필드 이름(locationConsented는 isLocationConsented, runVoice는 isRunVoiceOn 등)과 UploadReceipt.isAlreadySaved. 결정 필요 |
-
-`/sw-design-oo` 재호출 목록(미반영 전체): CR34-01~CR34-28(위 3차 표 + 이 절). 결정 뒤에 반영할 것은 CR34-08(유효 기록 다섯째 조건), CR34-11(common 허용), CR34-13의 should 허용 여부, CR34-19(한 파일 허용 규칙)다.
-
-### 10. 작성 점검 (SKILL.md 체크리스트)
-
-| 항목 | 결과 |
-|------|------|
-| 리뷰 기준을 머리에 적었다 | 예. 조각 파일의 4차 절마다 |
-| 설계서가 있으므로 이름·인터페이스·의존 방향·응집도를 대조했다 | 예. 세 단위 모두 1절에서 대조 |
-| 모든 지적에 파일명·줄 번호·교정 예시가 있다 | 예. 새 결함 B4-1·N4-1 |
-| 함수 호출을 기본 제어 구조로 세지 않았다 | 예 |
-| 순환 복잡도 10 초과 함수를 sw-test 전달 목록에 적었다 | 예. 안드로이드 8개는 참고로 표시 |
-| 설계가 낡은 경우를 코드 결함이 아닌 갱신 요청으로 분리했다 | 예. 9절 |
-| 확인하지 않은 조치를 쓰지 않았다 | 예. B4-1·N4-1 조치는 병합·검증(928c829) 뒤에 적었다 |
-| 둘째 줄 헤더를 갱신했다 | 예 |
-
-### 11. 다음 행동과 다음 단계
-
-- [x] B4-1·N4-1: B4-1은 6af16a9에서 해결(같은 측정 시각은 한 번만, 다른 값이면 먼저 받은 값 유지, 시험 3건). N4-1은 87fe682~90d5d9d(8커밋)에서 해결(이름 약 105개, wear-contract·서버 DTO·Room·DataStore·프레임워크 이름은 제외). 통합 928c829(검증: backend 884, ai 214, android 824 + 게이트, release 3종 시험 전용 코드 0건, compose, E2E 7/7)
-- [ ] L13 잔여: 추천 경로의 공개 크루 전체 읽기에 상한이나 후보 쿼리(크루 수가 늘기 전에)
-- [ ] 결정 대기 13건: 사용자·팀 결정 뒤 반영
-- [x] V17 통합 시험(PostgreSQL): 통합 d562d26 검증에서 PostgreSQL Testcontainers로 실행해 2건 통과
-- [ ] 병합 전 실제 기기 release 빌드 실행
-- [ ] 변경 통제: Jira 사용 여부 결정, 아니면 MR 본문에 결과서 경로와 ID(CR2-*, CR34-*) 기록
-
-다음 단계:
-1. `/sw-design-oo` — 9절의 갱신 요청(CR34-01~CR34-28)을 design-oo.md에 반영한다. 결정이 필요한 CR34-08·CR34-11·CR34-13·CR34-19는 결정 뒤에 반영한다.
-2. `/sw-test` — 8절 우선 테스트 대상을 입력으로 넘긴다. B4-1 재현 시험을 먼저 둔다.
-3. `/sw-sqa` — 4차 합격을 입력으로 배포 가능 여부를 판정한다.
+4차 리뷰(통합 d562d26) 요약 절(대상, 검증, 목차, 1~5 점검 요약, 형상 관리, 집계와 판정, 추세, 결정 대기, 결함 조치 상태, sw-test 전달, 설계서 갱신 요청, 작성 점검, 다음 행동)은 [00-리뷰-2026-10-21-4차-요약](code-review/00-리뷰-2026-10-21-4차-요약.md)으로 옮겼다(v0.26, 목차 100KB 상한, 내용 그대로).
 
 ## 리뷰 2026-10-23 (5차)
 
@@ -866,3 +516,162 @@ R17(W50 셀프 기록 카드·셀럽 목록 두 번 눌러 시작)을 확인한 
 - [ ] Gradle 검증 결과 확인(ArchitectureTest 155·37, 새 시험, ktlintCheck)
 - [ ] AN17-1: 바뀜 신호를 COUNT 흐름으로
 - [ ] `/sw-design-oo`: U17-1·U17-2
+
+## 리뷰 2026-11-03 (AI 코치 동의·화면, 박재영)
+
+#247 LLM 동의 안내와 #246 코치 대화 상태·화면 준비(feature/S15P31A207-247-ai-coach, develop에 병합 e66eb8a0)를 작성자가 검토한 기록이다. 워치 v2 리뷰 차수(12~18차)와 따로 센다. 사람 리뷰는 MR에서 받는다.
+
+| 파일 | 범위 | 새 결함 (치명/중/경) | 판정 | 설계서 갱신 요청 |
+|------|------|----------------------|------|------------------|
+| [ai-coach-consent-박](code-review/ai-coach-consent-박.md) | feature/me 동의, domain.coach, ui.record.coach, 시험, ArchitectureTest | 0 / 0 / 0 | 조건부(사람 리뷰 전, #246 실제 서버·제품 경로 미연결, TalkBack·실기기 미실측) | 하위 패키지 배치 → design-oo D-474(v0.28에 반영) |
+
+### 다음 행동 (AI 코치)
+
+- [ ] #241 연동 때: 요청·SSE·목록 JSON 표본을 앱 계약 시험으로 고정하고, CoachFailure 6개 매핑과 화면 종료 시 요청 취소 전파를 리뷰한다
+- [ ] #246 후속: Hilt 바인딩·런바디 진입·디자인 #265 대조 뒤 다시 리뷰한다
+
+## 리뷰 2026-11-03 (AI 코치 화면 독립 리뷰, -233)
+
+#247 LLM 동의 안내와 #246 코치 대화 상태·화면 준비(develop 09e568dc, MR !59)를 PM 요청으로 따로 검토한 사람 쪽 리뷰다. 범위 `git diff c29df9fa 09e568dc -- android/`. 자가 리뷰 [ai-coach-consent-박](code-review/ai-coach-consent-박.md)의 주장을 코드 줄로 대조했다. 읽기 전용이고 빌드·시험은 다시 돌리지 않았다(PM 보고 0b16eafe 2,312건 실패 0). 피그마 일치는 미확인, #241·어댑터·Hilt·런바디 진입은 미연결이다.
+
+| 파일 | 범위 | 새 결함 (치명/중/경) | 판정 | 설계서 갱신 요청 |
+|------|------|----------------------|------|------------------|
+| [16-ai-코치-화면-리뷰](code-review/16-ai-코치-화면-리뷰.md) | domain.coach, ui.record.coach, feature/me 동의, 시험, ArchitectureTest | 0 / 0 / 10 (AC-1~AC-10) | 조건부(코드 결함은 합격선, 사람 리뷰 승인 전 병합이라 변경 통제 사후. PM 기록 뒤 합격) | UAC-1~UAC-5 |
+
+새 결함 가운데 먼저 볼 것: AC-1(동의 제목 2개의 가운뎃점), AC-3(조건 없는 CancellationException 재던짐이 어댑터 연결 뒤 전송 중 상태를 남길 수 있음), AC-2(끊긴 답이 완료 답과 같아 보임).
+
+### 다음 행동 (AI 코치 독립 리뷰)
+
+- [ ] PM: 이 리뷰를 MR !59·Jira에 사람 리뷰 결과로 남긴다
+- [ ] AC-1, AC-3·AC-9를 어댑터(D-452) 연결 전에 고친다
+- [ ] `/sw-design-oo`: UAC-1~UAC-5
+- [ ] `/sw-test`: 조각 7절 우선 테스트 대상
+
+## 리뷰 2026-11-04 (배치고사 1차, S15P31A207-275)
+
+배치고사·티어 표시·홈 요약·러닝 결과 상용안·랭킹 시상대 핫픽스(MR !70 → main)의 1차 리뷰다. 범위 `git diff df211dc5..bad8c750`(BE-0 계약, BE 서버, AN-1 앱 기반·화면, infra 스케줄러 풀). AN-2(대결 분리·배치고사 화면·워치)는 구현 중이라 2차에서 1차 해소와 함께 본다. 관점별 리뷰어 넷(서버 동시성, 앱, 보안·개인정보, 시험 대조)의 지적을 코드 줄로 다시 확인해 등급을 매겼다. 읽기 전용이고 빌드·시험은 다시 돌리지 않았다(통합 빌드 결과 서버 시험 묶음 237개 건너뜀 0·실패 0).
+
+| 파일 | 범위 | 새 결함 (치명/중/경) | 판정 | 설계서 갱신 요청 |
+|------|------|----------------------|------|------------------|
+| [17-배치고사-1차](code-review/17-배치고사-1차.md) | BE-0·BE·AN-1·infra, 서버·앱 시험 | 0 / 5 / 16 (PL1-B1~B8, PL1-A1~A9, PL1-T1~T4) | 조건부 | U-1~U-11, 시험서 UT-1~UT-3 |
+
+설계 일치: 배치고사 규칙 1~13, D-475~D-520, R82~R95가 모두 코드에 있다. 이름 차이는 모두 총괄 결정에 근거가 있어 설계 불일치 결함 0, 설계서 갱신 요청으로 분리했다. 임시 티어 노출 경로 없음, prod 마이그레이션 설정 그대로, 잠금 순서 교착 없음.
+
+### 다음 행동 (배치고사 1차)
+
+- [ ] 병합 전: PL1-B1, PL1-B3, PL1-A1 고침, PL1-T1 두 스레드 통합 시험으로 PL1-B2 확인(재현되면 고침)
+- [ ] 2차 리뷰: AN-2 + 위 해소 확인
+- [ ] `/sw-design-oo`: U-1~U-11. `/sw-test`: UT-1~UT-3, 조각 7절 우선 테스트 대상
+- [ ] 배포 확인: prod flyway 최대 V35, 운영 `.env` SCHEDULER_POOL_SIZE 21
+
+## 리뷰 2026-11-05 (배치고사 2차, S15P31A207-275)
+
+1차 결함 해소 확인(서버 `git diff bad8c750 96cc3f5e`, 앱 d30b944c)과 AN-2 새 코드(`git diff 3dfb8552 c2685561`: 랜덤·친구 대결 분리, 배치고사 진행·판 결과·완료, 매칭 「?」, 워치 잠금, BattleMode 삭제, MatchFound.placementRound)의 2차 리뷰다. 관점별 리뷰어 셋(서버 동시성, 앱 흐름, 접근성)의 지적을 코드 줄과 서버 시험 출력으로 다시 확인했다. 읽기 전용이고 빌드·시험은 다시 돌리지 않았다(통합 게이트: 서버 시험 1,931개 실패 0, 앱 검증·Roborazzi 성공).
+
+| 파일 | 범위 | 새 결함 (치명/중/경) | 판정 | 설계서 갱신 요청 |
+|------|------|----------------------|------|------------------|
+| [18-배치고사-2차](code-review/18-배치고사-2차.md) | 1차 수정 확인, AN-2, 시험 | 0 / 2 / 14 (PL2-A1~A8, PL2-B1, PL2-T1, 1차 이월 경 6) | 조건부 | U2-1~U2-8, 시험서 UT2-1~UT2-4 |
+
+1차 해소: 중 5건 모두 닫힘(PL1-B1·B3·A1·T1 해소, PL1-B2는 시험 출력의 follow-on 잠금 version 충돌 증거로 닫음), 경 16건 중 11건 해소·6건 이월. AN-2는 D-499~D-501·D-520과 브리프 화면 범위(하단 내비 숨김, 뒤로 = 홈, 임시 티어 본인만, 기준 이미지 목록 안)를 따른다. 남은 중 2건은 필수 요구 FR-276(대결 진행 화면 「?」)과 FR-281(완료 화면에 닿는 길)이다.
+
+### 다음 행동 (배치고사 2차)
+
+- [ ] 병합 전: PL2-A1, PL2-A2 고침 + 시험 → 3차 확인
+- [ ] `/sw-design-oo`: U-1~U-9·U-11(U-10 철회), U2-1~U2-8. `/sw-test`: UT-1~UT-3, UT2-1~UT2-4
+
+## 리뷰 2026-11-05 (배치고사 3차 확인, S15P31A207-275)
+
+2차 결함 수정(`git diff c2685561 4129283c`: 서버 PL2-B1 e35dba34, 앱 FR-276 b4798db8, PL2-A2 0d648155·eb9161e1, PL2-A4~A8·PL1-T4)의 확인 리뷰다. 읽기 전용, 변경 줄과 진입 경로를 직접 읽었다.
+
+| 파일 | 범위 | 결함 (치명/중/경) | 판정 | 설계서 갱신 요청 |
+|------|------|-------------------|------|------------------|
+| [19-배치고사-3차](code-review/19-배치고사-3차.md) | 2차 수정 확인 | 0 / 1 / 9 (새 PL3-A1·PL3-A2, 2차 남음 PL2-A3·A6·T1, 1차 이월 5) | 조건부 | U3-1~U3-4, 시험서 UT3-1~UT3-3 |
+
+2차 해소: PL2-A1·A4·A5·A7·A8·B1, PL1-T4 해소. PL2-A2·A6·T1 일부 해소, PL2-A3은 D-534대로 후속. 남은 중 PL3-A1은 미확인 완료 화면 확인이 배치고사 진행 화면에만 있어, 3판째가 정리 중인 채 홈으로 나간 러너가 홈 랜덤 카드로 들어오면 완료 화면(FR-281)을 건너뛰는 것이다. 고칠 곳은 `RandomBattleViewModel.loadPlacement`(같은 판정)와 저장 실패 대비(PL3-A2)다.
+
+### 다음 행동 (배치고사 3차)
+
+- [ ] 병합 전: PL3-A1 + PL3-A2 고침과 시험 → 4차 확인(diff)
+- [ ] 후속 이슈: PL2-A3, PL2-A6 나머지, PL2-T1 나머지, PL1-A3·A4·A6·A7·A9
+- [ ] `/sw-design-oo`: U3-1~U3-4. `/sw-test`: UT3-1~UT3-3
+
+## 리뷰 2026-11-05 (배치고사 4차 확인, S15P31A207-275)
+
+3차 결함 수정(`git diff 4129283c 564db6af`, 커밋 06ca6de4: PL3-A1·PL3-A2)의 확인 리뷰다. 읽기 전용, 변경 줄과 진입 경로를 직접 읽었다.
+
+| 파일 | 범위 | 결함 (치명/중/경) | 판정 | 설계서 갱신 요청 |
+|------|------|-------------------|------|------------------|
+| [20-배치고사-4차](code-review/20-배치고사-4차.md) | 3차 수정 확인 | 0 / 0 / 9 (새 PL4-A1, 2차 남음 3, 1차 이월 5) | 합격 | 없음, 시험서 UT4-1 |
+
+PL3-A1·PL3-A2 해소. 랜덤 대결 화면이 판정 함수로 완료 화면을 열고(replace라 백스택 왕복 없음), 저장 실패는 같은 회원 한정 프로세스 사본으로 흡수해 완료 ↔ 랜덤 반복이 없다.
+
+### 다음 행동 (배치고사 4차)
+
+- [ ] 병합: 총괄 전체 게이트 통과 뒤
+- [ ] 후속 이슈: PL4-A1, PL2-A3, PL2-A6 나머지, PL2-T1 나머지, PL1-A3·A4·A6·A7·A9
+- [ ] `/sw-test`: UT4-1
+
+## 리뷰 2026-11-05 (핫픽스 추가 변경 1·2차, S15P31A207-275)
+
+| 조각 | 범위 | 치명 / 중 / 경 | 판정 | 설계서·시험서 갱신 요청 |
+|------|------|----------------|------|--------------------------|
+| [21-핫픽스-추가변경-1차](code-review/21-핫픽스-추가변경-1차.md) | 4a2722fd..80592a08 9커밋(1차), 수정 45f7d383(2차 확인) | 1차 0 / 2 / 8 → 2차 0 / 0 / 7 | 1차 수정 필요 → 2차 합격 | U5-1·U5-2(05-23 D-549·D-550·D-559), UT5-1(test 20장) |
+
+### 다음 행동 (핫픽스 추가 변경)
+
+- [x] 1차 중 2·경 2 수정(45f7d383), 게이트 통과
+- [ ] 후속 경: PL5-A2 남은 경우, PL5-A3~A8
+- [ ] `/sw-sqa` v0.10: 이 결과와 실기기 조건(TC-4879·TC-4880)
+
+
+## 리뷰 2026-11-04~06 (박재영 자가 리뷰: #244 AI 파기, #276 얼굴 비동기, #271 워치 셀럽 404)
+
+박재영 브랜치 세 개를 작성자가 검토한 기록이다. 모두 develop에 병합됐다(#244 60c3385f 2026-11-04, #276 1d1e5d44 2026-11-04, #271 7876cba9 2026-11-06). 워치·핫픽스 리뷰 차수와 따로 센다. 치명·중·경 건수 표는 조각에 없어 적지 않는다. 사람 리뷰는 MR에서 받는다.
+
+| 조각 | 범위 | 조각이 적은 결과 | 비고 |
+|------|------|------------------|------|
+| [ai-자료파기-박](code-review/ai-자료파기-박.md) | aiprivacy·infra.aiprivacy·batch.aiprivacy, V37, 감사 행위 | 확인·수정 6건 반영, 남은 조치 필요 지적 없음 | 서비스 생성자 인자 6개는 검토 항목 |
+| [얼굴비동기-박](code-review/얼굴비동기-박.md) | avatar, infra.avatar, infra.integration.ai, web.avatar, V36 (CR-154, FR-293~FR-298) | 발견 7건 수정 | 서비스 생성자 인자 8개는 검토 항목 |
+| [워치셀럽404-박](code-review/워치셀럽404-박.md) | WatchFlowViewModel.onCelebritySelected와 목록 보정 함수 (FR-259) | 수정 전 4실패 후 통과, 관련 102건 통과 | onCelebritySelected 복잡도 10 초과는 우선 시험 대상 |
+| [코치중계-박](code-review/코치중계-박.md) | web.coach, aicoach, infra.aicoach, batch.aicoach, AiServerCoachGateway, V46 (FR-015, FR-261~FR-264) | 검토 지점 5개(동시 질문과 탈퇴 경합, 철회와 탈퇴 때 스트림, 응답 종료, 비동기 인증, 입력과 외부 오류) 반영 | 남은 조치 필요 지적 없음(작성자 보고) |
+| [writer-모델관리-박](code-review/writer-모델관리-박.md) | web.admin.model, aimodel, AiServerModelGateway, V47 (FR-268~FR-271, CR-179) | 검토 5개(인증과 내부 호출, 등록 URL, 감사 실패, 동시 등록과 롤백, 마이그레이션) 반영 | AI 직접 호출과 다중 인스턴스는 AI 등록부 동시성 범위를 따른다 |
+| [코치재동의-박](code-review/코치재동의-박.md) | android api.coach, ui.record.coach, ui.me 동의 설정, api.core BoundSession (FR-015, FR-261~FR-264, #273) | 검토 지점 3개(계정 전환과 401 재시도, 동의 저장 실패와 복귀, SSE 취소) 반영 | 남은 조치 필요 지적 없음(작성자 보고). 실기기 확인은 배포 시험 |
+
+### 다음 행동 (박재영 병합분)
+
+- [ ] 사람 리뷰어: #271 실기기 화면·접근성 확인(조각 기록상 미확인)
+- [ ] #244: 운영 배치·실제 AI·Node 삭제 확인 후 재검토
+- [ ] #276: 앱 폴링·3레이어 합성 연동 때 재검토
+- [ ] #241: 앱 코치 연동, 배포 구성 활성 모델 연결 확인 뒤 재검토(srs 7.10.9 K1, K4). (세 번째 병합) 앱 코치 연동은 #273으로 들어왔다
+- [ ] #243: writer 실제 교체 배포 시험 뒤 재검토(srs 7.10.9 K5)
+
+## 리뷰 2026-11-08 (2차 배포 통합 1차, S15P31A207-222)
+
+| 조각 | 범위 | 치명 / 중 / 경 | 판정 | 설계서·시험서 갱신 요청 |
+|------|------|----------------|------|--------------------------|
+| [22-2차배포-통합-1차](code-review/22-2차배포-통합-1차.md) | 55cfd678..e9baef18 42커밋(합치기 6, MR !91) | 0 / 1 / 8 | 합격, 단 BR-1 병합 전 수정 조건. 사용자 결정: 9건 모두 병합 전 수정 → 수정 완료(1ae0b108), 확인 리뷰 진행 중 | U-1·U-3·U-4 design-oo 05-25 반영, U-2 05-25·F.2.2 반영과 FR-194 병합 대기 요청, U-5 계약 파일(문서 밖), U-6 AN-3 수정(878c5e21) 뒤 05-25에 반영 완료. sw-test 우선 대상 7절 |
+
+## 리뷰 2026-11-08 (2차 배포 통합 확인, S15P31A207-222)
+
+| 조각 | 범위 | 치명 / 중 / 경 | 판정 | 설계서·시험서 갱신 요청 |
+|------|------|----------------|------|--------------------------|
+| [23-2차배포-통합-확인](code-review/23-2차배포-통합-확인.md) | e9baef18..1ae0b108 수정 19커밋(1차 결함 9건, e2e 1~7, 시간대 후속) | 0 / 0 / 4 | 합격. 새 경 4건 CR2-A1·B1·B2·T1 모두 수정(1e93c919·17fd942e·b23837ca·c5ee333a), develop 합치기 9fbcdf43 | U2-1~U2-3 design-oo 05-25 반영. sw-test 우선 대상 7절 |
+
+## 리뷰 2026-11-08 (이벤트 1차, S15P31A207-275)
+
+| 조각 | 범위 | 치명 / 중 / 경 | 판정 | 설계서·시험서 갱신 요청 |
+|------|------|----------------|------|--------------------------|
+| [이벤트-1차-성](code-review/이벤트-1차-성.md) | hotfix/S15P31A207-275-v0114-coach-celeb origin/main...d824b2a2(MR !90): event, infra.event, web.event, web.admin.event, battle 경계, reward EVENT, V35_2, nginx /events/, 정적 페이지, 앱 이벤트 화면과 브리지 | 0 / 2 / 10 (제안 4, 확인 필요 1) | 합격(조건부 배포). 주요 PL6-B1 수정, PL6-B5 배포 절차(MR !90 병합 직후 develop 역병합, 그 전 develop, release 배포 보류). 경 7 수정(d221fd54, 2f99b573), 응모자 명단 d06641bb | 설계 05-26 D-611 갱신, 새 D-620(응모자 명단). 시험 test/이벤트-성 9절 우선 1~6 |
+
+## 리뷰 2026-11-08 (운영자 공지 알림 1차, S15P31A207-275)
+
+| 조각 | 범위 | 치명 / 중 / 경 | 판정 | 설계서·시험서 갱신 요청 |
+|------|------|----------------|------|--------------------------|
+| [공지알림-1차-성](code-review/공지알림-1차-성.md) | MR !90 b26b3317: notification 공지, web.admin.notification, V35_3, push, 앱 알림함 공지, 계약 | 0 / 1 / 3 (제안 2) | 합격. 주요 PL7-B1(링크 점 조각 우회, 보안) 수정 62b7f7e8, 경 PL7-B2 수정, PL7-B3, PL7-B4 운영 절차(다시 보내지 않기, 롤백 전 NOTICE 행 삭제) | 설계 05-27 D-624 갱신(링크 경로 규칙), 8절 R10~R14 판정. 시험 test/이벤트-성 13절 TC-2739~TC-2777 |
+
+## 리뷰 2026-11-09 (이벤트 화면 디자인 반영, S15P31A207-275)
+
+| 조각 | 범위 | 치명 / 중 / 경 | 판정 | 설계서·시험서 갱신 요청 |
+|------|------|----------------|------|--------------------------|
+| [이벤트-화면-디자인-성](code-review/이벤트-화면-디자인-성.md) | MR !104 feature/S15P31A207-275-event-ui-align: core.designsystem 새 부품(RunkkStatusChip, RunkkDdayBadge, RunkkUnderlineTabs, RunkkPageDots, RunkkNotificationDot, CelebrityPortrait), 알림함 이벤트 행과 공지 행, 홈 알림 점, 셀럽런 카드, 결과 화면 쪽 점 | 0 / 1 / 1 (제안 2) | 합격. 주요 PL8-A1(05-26 보충이 MR !100과 다섯 곳 충돌) 88e31d9a 수정. 경미 PL8-A2(hasBadge 점 테두리 색), 제안 PL8-A3(꺼진 넘김 점 다크 대비), PL8-A4(홈 알림 점 기준 이미지) 남김. 남은 조건: 박재영의 ui.battle 변경 확인 | 없음(설계 D-629~D-632 일치, v0.39 병합에서 05-26 표로 옮김) |
+

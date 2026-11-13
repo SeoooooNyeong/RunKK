@@ -3,7 +3,9 @@ package com.a207.runkk.app.ui.battle
 import android.Manifest
 import android.app.Activity
 import android.content.pm.PackageManager
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -17,9 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,6 +36,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
@@ -49,7 +55,9 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GpsReadiness
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
+import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.battle.FriendInviteView
 import com.a207.runkk.app.domain.live.MatchFound
 import java.time.Duration
@@ -100,6 +108,9 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
     }
     // 대기 중 뒤로가기는 취소, 성사 뒤에는 자동 출발이라 막는다(FR-087).
     BackHandler { viewModel.onCancel() }
+    // 랜덤 매칭 대기 중이나 성사 뒤 출발 전에 앱이 뒤로 가면 대기를 접고 홈으로 간다(S15P31A207-278). 화면 상태가 저장되기 전에
+    // 이동하도록 ON_STOP 안에서 바로 바꾼다(이벤트로 미루면 프로세스가 끝난 뒤 매칭 화면이 복원된다).
+    OnAppBackgrounded { if (viewModel.onBackgrounded()) navigator.restart(Routes.HOME) }
     MatchScreen(
         state = state,
         actions = MatchActions(
@@ -114,6 +125,23 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
             onConsentClose = viewModel::onConsentClosed
         )
     )
+}
+
+/**
+ * 이 화면의 Activity가 멈추면(홈 버튼, 화면 끄기, 다른 앱으로 이동) [onBackgrounded]를 부른다. 화면 회전 같은 구성 변경으로 Activity가
+ * 다시 만들어지며 멈추는 것은 뒤로 감이 아니므로 부르지 않는다. 내비게이션 항목이 아니라 Activity 생명주기를 본다.
+ */
+@Composable
+internal fun OnAppBackgrounded(onBackgrounded: () -> Unit) {
+    val activity = LocalActivity.current as? ComponentActivity ?: return
+    val current by rememberUpdatedState(onBackgrounded)
+    DisposableEffect(activity) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && !activity.isChangingConfigurations) current()
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
 }
 
 private val LOCATION_PERMISSIONS =
@@ -165,7 +193,9 @@ private fun ColumnScope.Waiting(state: MatchUiState, actions: MatchActions) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
     ) {
-        RunkkAvatar(null, AvatarExpression.SEARCH, Modifier.size(width = 150.dp, height = 240.dp))
+        AvatarStillSlot(MY_STILL, Modifier.size(width = 150.dp, height = 240.dp)) {
+            RunkkAvatar(null, AvatarExpression.SEARCH, Modifier.size(width = 150.dp, height = 240.dp))
+        }
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp),

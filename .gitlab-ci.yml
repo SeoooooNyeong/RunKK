@@ -67,8 +67,42 @@ variables:
 .deploy-changes: &deploy-changes
   - backend/**/*
   - ai/**/*
+  - avatar-ai/**/*
   - infra/**/*
   - .gitlab-ci.yml
+
+.avatar-changes: &avatar-changes
+  - avatar-ai/**/*
+  - .gitlab-ci.yml
+
+# ---------- 아바타 Node 서버 ----------
+
+avatar:test:
+  stage: test
+  image: node:22-bookworm-slim
+  tags: [docker]
+  interruptible: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: *avatar-changes
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *avatar-changes
+  script:
+    - cd avatar-ai
+    - npm ci --omit=dev
+    - npm run check
+    - npm test
+
+avatar:build:
+  stage: build
+  tags: [deploy]
+  needs: [avatar:test]
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /^release\//
+      changes: *avatar-changes
+  script:
+    - docker build -t runkk-avatar:$CI_COMMIT_SHORT_SHA avatar-ai
+    - docker run --rm --network none --mount "type=bind,source=$CI_PROJECT_DIR/avatar-ai/test,target=/app/test,readonly" --entrypoint node runkk-avatar:$CI_COMMIT_SHORT_SHA test/container-smoke.mjs
 
 # ---------- ai 서버 ----------
 
@@ -210,6 +244,8 @@ backend:deploy:
       optional: true
     - job: ai:build
       optional: true
+    - job: avatar:build
+      optional: true
   environment:
     name: $DEPLOY_ENV
   resource_group: runkk-server
@@ -295,6 +331,28 @@ backup:restore-check:
   script:
     - if [ "$DEPLOY_ENV" = "prod" ]; then tr -d '\r' < "$INFRA_ENV_PROD" > infra/.env; else tr -d '\r' < "$INFRA_ENV" > infra/.env; fi
     - infra/restore-check.sh
+  after_script:
+    - rm -f infra/.env
+
+# develop 더미 데이터: 더미 회원·크루·러닝 기록과 대상 계정 러닝을 develop DB에 넣는다(infra/dev-seed.sh, infra/README.md 4절).
+# 대상 계정은 잡을 실행할 때 변수 DEV_SEED_TARGETS(쉼표 구분 닉네임)로 준다. 비우면 스크립트 기본값 "러너4171,러너1699"를 쓴다.
+# develop 브랜치 파이프라인에만 생기는 수동 잡이다(main·release·태그·MR·스케줄에는 규칙상 없다). 스크립트도 RUNKK_ENV=develop이 아니면 멈춘다.
+# 다시 눌러도 이미 있는 더미 자료는 건너뛴다. 배포와 겹치지 않게 같은 resource_group을 쓴다.
+dev:seed:
+  stage: smoke
+  tags: [deploy]
+  needs: []
+  resource_group: runkk-server
+  variables:
+    DEV_SEED_TARGETS: ""
+  rules:
+    - if: $CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE != "schedule" && $CI_PIPELINE_SOURCE != "merge_request_event"
+      when: manual
+      allow_failure: true
+  script:
+    - tr -d '\r' < "$INFRA_ENV" > infra/.env
+    - grep -qx "RUNKK_ENV=develop" infra/.env || { echo "infra/.env RUNKK_ENV must be develop" >&2; exit 1; }
+    - infra/dev-seed.sh
   after_script:
     - rm -f infra/.env
 

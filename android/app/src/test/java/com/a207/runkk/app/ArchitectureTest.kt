@@ -48,17 +48,28 @@ class ArchitectureTest {
      * 워치: W1 watch.cache → domain.live(상대 기록 파일의 진행표를 TrackTable로 되살린다), W2 watch.link → domain.live(매칭 대기 실시간 채널),
      * W2 watch.session → domain.settings(회원 설정 사본). 그래서 폰 154개다. R79로 ui.me → domain.run(설정의 다시 보내기
      * ResendRejectedRunsUseCase를 domain.run으로 옮겼다)을 더하고, develop의 D-455 코치 하위 패키지(ui.record.coach)를 합쳐 폰 159개다.
-     * 이벤트(S15P31A207-275)가 api.notification → domain.settings(본 이벤트 사본)를 더해 폰 160개다.
+     * 런바디(S15P31A207-229, D-453): domain.runbody → core.model, api.runbody → api.core·domain.runbody·core.model을 더해 163개,
+     * 하위 패키지 ui.record.runbody → core.designsystem·core.navigation·core.model·domain.record·domain.runbody 다섯을 더해 168개다.
+     * 이벤트(S15P31A207-275)가 api.notification → domain.settings(본 이벤트 사본)를 더해 169개다.
+     * 크루런 결과의 내 아바타(S15P31A207-236)가 ui.crew → domain.account(본인 요약의 얼굴·배경, 홈과 같은 출처)를 더해 170개다.
+     * 코치 재동의(S15P31A207-273)는 api.coach의 의존 3개와 ui.record.coach의 경로 등록, 런바디의 코치 진입을 더해 175개다.
+     * 자유런 결과의 내 아바타(S15P31A207-248)가 ui.run → domain.account를 더해 176개다.
+     * 얼굴 만들기 화면 안 동의(S15P31A207-248)가 ui.avatar → domain.account를 더해 177개다.
+     * 아바타 화면의 Rive 렌더러(W8·W9, S15P31A207-299·300)가 ui.avatar → core.avatar를 더해 178개다.
+     * 셀카 결과 알림·얼굴 화면 표시 포트 구현(S15P31A207-300, design-oo 05-30 [임시:D-성-120])이 data.push → domain.avatar를 더해 179개다.
+     * 내 러너 숫자 타일(이번 주 횟수·거리, 연속 러닝 일수, 대시보드, 05-30 [임시:D-성-145])이 ui.avatar → domain.record를 더해 180개다.
+     * 셀카 결과 알림의 실행 인텐트 약속(SelfieNoticeIntent, 05-30 [임시:D-성-162])을 알림(data.push)과 읽는 쪽(app)이 함께 보려고
+     * data.push → core.model을 더해 181개다(RunNoticeExtras가 data.device와 app 사이에 있는 것과 같은 자리).
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 160개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 181개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(160, phone.sumOf { it.value.size })
+        assertEquals(181, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -237,6 +248,13 @@ class ArchitectureTest {
     }
 
     @Test
+    fun `05-30 D-성-120 data·push → domain·avatar는 허용, api·avatar 워커는 data·push를 모르고 domain·avatar는 data를 모른다`() {
+        assertTrue("domain.avatar" in ALLOWED.getValue("data.push"))
+        assertTrue(ALLOWED.getValue("api.avatar").none { it == "data.push" })
+        assertTrue(ALLOWED.getValue("domain.avatar").none { it.startsWith("data.") || it.startsWith("api.") })
+    }
+
+    @Test
     fun `GlobalScope를 쓰지 않는다`() {
         val violations = files.filter { it.text.contains("GlobalScope") }.map { it.path }
         assertEquals(emptyList(), violations)
@@ -369,7 +387,7 @@ class ArchitectureTest {
     private fun isOwnResources(from: String, imported: String): Boolean =
         (from.startsWith("data.") && imported in setOf("$APP.api.core.R", "$APP.data.phone.R")) ||
             (from.startsWith("watch.") && imported == "$WATCH.ui.R") ||
-            (from == "ui.record.coach" && imported == "$APP.ui.record.R")
+            (from in setOf("ui.record.coach", "ui.record.runbody") && imported == "$APP.ui.record.R")
 
     private fun isAppOrUi(module: String?): Boolean = module == "app" || module?.startsWith("ui.") == true
 
@@ -412,7 +430,8 @@ class ArchitectureTest {
                 "account",
                 "chat",
                 "report",
-                "coach"
+                "coach",
+                "runbody"
             )
         private val APIS =
             listOf(
@@ -427,7 +446,9 @@ class ArchitectureTest {
                 "notification",
                 "live",
                 "chat",
-                "report"
+                "report",
+                "runbody",
+                "coach"
             )
         private val DATAS = listOf("store", "settings", "sync", "watch", "live", "device", "push", "session", "guide")
         private val UIS =
@@ -437,6 +458,7 @@ class ArchitectureTest {
                 "run",
                 "record",
                 "record.coach",
+                "record.runbody",
                 "battle",
                 "crew",
                 "runimal",
@@ -449,7 +471,8 @@ class ArchitectureTest {
         /** 5.1.2 모듈(패키지) 이름 → 실제 패키지 접두어. 가장 긴 접두어가 이긴다. */
         val PACKAGES: Map<String, String> =
             buildMap {
-                listOf("core.model", "core.navigation", "core.designsystem").forEach { put(it, "$APP.$it") }
+                listOf("core.model", "core.navigation", "core.designsystem", "core.avatar")
+                    .forEach { put(it, "$APP.$it") }
                 DOMAINS.forEach { put("domain.$it", "$APP.domain.$it") }
                 APIS.forEach { put("api.$it", "$APP.api.$it") }
                 DATAS.forEach { put("data.$it", "$APP.data.$it") }
@@ -465,9 +488,9 @@ class ArchitectureTest {
         /** 모듈 Fan-Out 상한(12.4, design-review 구조 합격 조건). */
         const val MAX_FAN_OUT = 7
 
-        /** 한 파일 규칙(D-112)을 건 표현 계층 모듈: core 표현 두 패키지, app, 5.1.2 표의 ui.* 전부. */
+        /** 한 파일 규칙(D-112)을 건 표현 계층 모듈: core 표현 세 패키지(아바타 렌더러 포함), app, 5.1.2 표의 ui.* 전부. */
         private val ONE_FILE_PRESENTATION_MODULES: List<String> =
-            listOf("core.designsystem", "core.navigation", "app") + UIS.map { "ui.$it" }
+            listOf("core.designsystem", "core.navigation", "core.avatar", "app") + UIS.map { "ui.$it" }
 
         /** 한 파일 규칙·Boolean 이름 규칙의 픽스처(프로젝트 루트 기준). */
         const val FIXTURES = "app/src/test/resources/konsist"
@@ -485,10 +508,13 @@ class ArchitectureTest {
                 "core.navigation" to emptySet(),
                 "wear.contract" to emptySet(),
                 "core.designsystem" to setOf("core.model"),
+                // 공용 Rive 아바타 렌더러(:core:avatar, S15P31A207-300): 앱 패키지를 하나도 import하지 않는다.
+                "core.avatar" to emptySet(),
                 "domain.settings" to setOf("core.model"),
                 "domain.live" to setOf("core.model"),
                 "domain.record" to setOf("core.model"),
                 "domain.coach" to setOf("core.model"),
+                "domain.runbody" to setOf("core.model"),
                 "domain.runimal" to setOf("core.model"),
                 "domain.avatar" to setOf("core.model"),
                 "domain.report" to setOf("core.model"),
@@ -517,6 +543,9 @@ class ArchitectureTest {
                 "api.live" to setOf("api.core"),
                 "api.chat" to setOf("api.core", "domain.chat", "core.model"),
                 "api.report" to setOf("api.core", "domain.report", "core.model"),
+                // 런바디 결과 어댑터(D-453, S15P31A207-229): RunBodyRepository를 Retrofit으로 구현한다.
+                "api.runbody" to setOf("api.core", "domain.runbody", "core.model"),
+                "api.coach" to setOf("api.core", "domain.coach", "core.model"),
                 "data.store" to setOf("domain.run", "core.model"),
                 // data.guide 추가(v0.22 R66, D-387): 안내 문구 표 GuidanceTexts를 공용 :data로 옮겼다.
                 "data.device" to setOf("domain.run", "core.model", "data.guide"),
@@ -530,7 +559,9 @@ class ArchitectureTest {
                 "data.watch" to setOf("domain.run", "domain.settings", "wear.contract", "domain.account", "core.model"),
                 "data.live" to setOf("domain.live", "api.core", "api.live", "core.model"),
                 // domain.chat 추가: OpenChatRoomTracker가 OpenChatRoomRegistry를 구현한다(D-130).
-                "data.push" to setOf("domain.notification", "domain.chat"),
+                // domain.avatar 추가: 셀카 결과 알림·얼굴 화면 표시 포트 구현(SelfieNoticeTracker), 05-30 [임시:D-성-120].
+                // core.model 추가: 알림 실행 인텐트 약속 SelfieNoticeIntent를 app과 함께 본다(05-30 [임시:D-성-162]).
+                "data.push" to setOf("domain.notification", "domain.chat", "domain.avatar", "core.model"),
                 // core.model 추가: SessionRepository.save·clear가 Outcome을 돌려준다(13.2 "포트는 Outcome"). A2 결정.
                 "data.session" to setOf("domain.account", "domain.notification", "api.core", "core.model"),
                 // core.designsystem 추가: 러니멀 카드 이미지가 공용 유형 그림·이름 대응표(RunimalArt, RunimalAxisName)를 쓴다.
@@ -547,20 +578,35 @@ class ArchitectureTest {
                 // v0.14(D-276, D-277, 18장 146개 허용 표): 리워드 잔액은 대시보드 rewardBalance로 읽어 domain.avatar를 뺐고,
                 // 첫 사용 가이드(FirstRunGuide) 때문에 domain.settings를 더했다. domain.account는 상단 프로필·위치 동의·로그인 상태다.
                 "ui.home" to CORE_UI + setOf("domain.record", "domain.run", "domain.account", "domain.settings"),
-                "ui.run" to CORE_UI + setOf("domain.run", "domain.record"),
+                // domain.account(S15P31A207-248): 자유런 결과 히어로의 아바타를 홈과 같은 내 아바타(myAvatar)로 그린다. Fan-Out 6.
+                "ui.run" to CORE_UI + setOf("domain.run", "domain.record", "domain.account"),
                 // domain.avatar 추가: 러닝 카드 배경 키·단계(AvatarRepository.backgroundChoice, D-140, D-185).
                 "ui.record" to CORE_UI + setOf("domain.record", "domain.run", "domain.avatar", "ui.share"),
                 // 코치를 기존 행에 더하면 Fan-Out 8이다. 같은 Gradle 모듈의 하위 패키지로 나눈다.
-                "ui.record.coach" to setOf("core.designsystem", "core.model", "domain.coach"),
+                "ui.record.coach" to setOf("core.designsystem", "core.navigation", "core.model", "domain.coach"),
+                // 런바디(S15P31A207-229~232, D-453): 코치처럼 하위 패키지로 둔다. 런바디 경로 등록(core.navigation), 요약 탭의 리포트와
+                // 러닝 선택의 기록 목록(domain.record), 분석 결과(domain.runbody). ui.record는 런바디 형식을 import하지 않는다(Fan-Out 7 그대로).
+                "ui.record.runbody" to
+                    setOf(
+                        "core.designsystem",
+                        "core.navigation",
+                        "core.model",
+                        "domain.record",
+                        "domain.runbody",
+                        "ui.record.coach"
+                    ),
                 // v0.14: domain.account는 위치 동의 시트(LocationConsentUseCase, D-267)와 본인 요약(MySummary: 초대 메시지의
                 // 내 닉네임 D-270, 티어, 랜덤 대결 잠금의 유효 러닝 수 D-331), domain.record는 대결 결과 2쪽의 본인 기록 상세
                 // (RunDetailSource, D-283)다. v0.17(D-331, R51): 유효 러닝 수를 본인 요약에서 받아 domain.runimal을 뺐다.
                 "ui.battle" to CORE_UI + setOf("domain.battle", "domain.live", "domain.account", "domain.record"),
                 "ui.runimal" to CORE_UI + setOf("domain.runimal", "ui.share"),
                 // domain.report(신고 대화상자)·ui.share(축하 카드 공유) 추가(v0.11 F.6.4, D-140).
-                "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share"),
+                // domain.account(S15P31A207-236): 크루런 결과 가운데 내 아바타를 홈과 같은 본인 요약(얼굴 키·배경 키)으로 그린다. Fan-Out 7.
+                "ui.crew" to CORE_UI + setOf("domain.crew", "domain.report", "ui.share", "domain.account"),
                 "ui.chat" to CORE_UI + setOf("domain.chat", "domain.report"),
-                "ui.avatar" to CORE_UI + "domain.avatar",
+                // domain.account(S15P31A207-248): 얼굴 만들기 셀카 카드의 얼굴 변환 전송 동의(settings·giveConsent). Fan-Out 5.
+                // domain.record(S15P31A207-300): 내 러너 숫자 타일이 대시보드의 이번 주 횟수·거리와 연속 러닝 일수를 쓴다. Fan-Out 7.
+                "ui.avatar" to CORE_UI + setOf("domain.avatar", "domain.account", "core.avatar", "domain.record"),
                 // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).
                 // domain.run(R79): 설정의 "못 올린 기록 n건, 다시 보내기"(ResendRejectedRunsUseCase, W40). Fan-Out 6.
                 "ui.me" to CORE_UI + setOf("domain.account", "domain.settings", "domain.run"),
