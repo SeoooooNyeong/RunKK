@@ -209,7 +209,10 @@ class ArchitectureTest {
         m.put("web.run", Set.of("running"));
         // v0.14 W1·W2: 기록 목록 대결 결과(BattleHistoryService.outcomesOf), 기록
         // 삭제(RunDeletionService.delete)
-        m.put("web.record", Set.of("analysis", "battle", "running"));
+        // + avatar: 개인 랭킹 줄 회원 모습(RunnerLookQuery.looksOf, S15P31A207-300).
+        // web.crew처럼
+        // 표현 계층이 붙여 analysis → avatar 화살표를 만들지 않는다(D-46)
+        m.put("web.record", Set.of("analysis", "battle", "running", "avatar"));
         // v0.14 W5: 대결 결과의 평가 표시(RunQueryService.evaluationOf, D-291·D-300)
         m.put("web.battle", Set.of("battle", "reward", "running"));
         // + V9(D-132). + avatar: 크루런 대기실·결과의 크루원 얼굴 키(AvatarQuery.faceKeysOf, S15P31A207-236).

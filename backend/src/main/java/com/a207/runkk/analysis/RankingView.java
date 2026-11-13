@@ -6,6 +6,7 @@ import com.a207.runkk.common.Tier;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 랭킹 조회 결과(설계 6.1.4 RankingService, FR-070, FR-071). 스냅숏이 아직 없으면 aggregatedAt이 null이고 entries가 비어
@@ -55,6 +56,14 @@ public record RankingView(
     /** 그 줄 회원의 공개 티어, 크루 줄이거나 모르는(탈퇴) 회원이면 null(D-486). */
     public Tier publicTierOf(RankEntry entry) {
         return publicTiers.get(entry.subjectId());
+    }
+
+    /**
+     * 개인 랭킹 줄(entries·mine) 중 탈퇴하지 않은 회원 ID(publicTiers 키, D-486과 같은 탈퇴 제외). web.record가 줄 회원
+     * 모습(look)을 붙일 대상이다(S15P31A207-300). 크루 랭킹·스냅숏 없음이면 비어 있다.
+     */
+    public Set<Long> activeMemberIds() {
+        return publicTiers.keySet();
     }
 
     /** 그 줄 회원의 표시 성별 이름, 크루 줄이거나 모르면 null. */
