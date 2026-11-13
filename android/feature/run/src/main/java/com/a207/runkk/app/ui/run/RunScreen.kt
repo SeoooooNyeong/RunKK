@@ -3,7 +3,6 @@ package com.a207.runkk.app.ui.run
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,7 +11,6 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,18 +24,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.CutCornerShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,39 +38,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.KakaoRunMap
-import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.RouteCanvas
 import com.a207.runkk.app.core.designsystem.RouteMarker
 import com.a207.runkk.app.core.designsystem.RunPermissionEffect
-import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
@@ -85,10 +66,15 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
+import com.a207.runkk.app.core.designsystem.RunkkPauseScrim
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
+import com.a207.runkk.app.core.designsystem.RunkkRoundControl
+import com.a207.runkk.app.core.designsystem.RunkkRunDistance
+import com.a207.runkk.app.core.designsystem.RunkkRunStat
+import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
-import com.a207.runkk.app.core.designsystem.RunkkStatusPill
+import com.a207.runkk.app.core.designsystem.RunkkStopSquare
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
@@ -96,7 +82,6 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
-import com.a207.runkk.app.core.designsystem.runCycleOf
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
@@ -115,7 +100,6 @@ import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
 import java.time.Instant
-import kotlinx.coroutines.delay
 
 /** 자유런 시작 카운트다운(B1)·러닝 측정(B2)·일시정지(B4). 앱 화면 잠금은 없다(D-256). */
 @Composable
@@ -395,51 +379,34 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
 /** 큰 거리 "2.14"와 오른쪽 아래 작은 "km". */
 @Composable
 private fun RunningDistance(distance: Distance) {
-    val spoken = stringResource(R.string.run_distance_spoken, RunkkFormat.km(distance))
-    Row(
-        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Text(RunkkFormat.km(distance), style = RunkkTextStyles.DisplayHuge, color = RunkkColors.TextPrimary)
-        Text(
-            stringResource(R.string.run_unit_km),
-            style = RunkkTextStyles.text(18),
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
-        )
-    }
+    RunkkRunDistance(
+        distance = RunkkFormat.km(distance),
+        unit = stringResource(R.string.run_unit_km),
+        spoken = stringResource(R.string.run_distance_spoken, RunkkFormat.km(distance))
+    )
 }
 
 /** 지표 세 칸: 시간(운동 시간), 평균 페이스, 심박(bpm, 워치가 없으면 "--"). */
 @Composable
 private fun RunningStats(progress: RunProgress) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        StatColumn(
-            RunkkFormat.duration(progress.elapsed),
-            stringResource(R.string.run_stat_time),
-            RunkkFormat.durationSpoken(progress.elapsed)
+    RunkkRunStats(
+        listOf(
+            RunkkRunStat(
+                RunkkFormat.duration(progress.elapsed),
+                stringResource(R.string.run_stat_time),
+                RunkkFormat.durationSpoken(progress.elapsed)
+            ),
+            RunkkRunStat(
+                RunkkFormat.pace(progress.averagePace),
+                stringResource(R.string.run_stat_avg_pace),
+                RunkkFormat.paceSpoken(progress.averagePace)
+            ),
+            RunkkRunStat(
+                progress.heartRate?.bpm?.toString() ?: NO_HEART_RATE,
+                stringResource(R.string.run_stat_heart_rate)
+            )
         )
-        StatColumn(
-            RunkkFormat.pace(progress.averagePace),
-            stringResource(R.string.run_stat_avg_pace),
-            RunkkFormat.paceSpoken(progress.averagePace)
-        )
-        StatColumn(progress.heartRate?.bpm?.toString() ?: NO_HEART_RATE, stringResource(R.string.run_stat_heart_rate))
-    }
-}
-
-@Composable
-private fun StatColumn(value: String, label: String, spoken: String? = null) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.semantics(mergeDescendants = true) {
-            spoken?.let { contentDescription = "$label $it" }
-        }
-    ) {
-        Text(value, style = RunkkTextStyles.display(28), color = RunkkColors.TextPrimary)
-        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-    }
+    )
 }
 
 /**
@@ -494,7 +461,7 @@ private fun RunningControls(actions: RunActions) {
     ) {
         DiscardButton(actions.onDiscard)
         FinishButton(actions)
-        RoundButton(
+        RunkkRoundControl(
             icon = RunkkIcons.Pause,
             contentDescription = stringResource(R.string.run_pause_desc),
             onClick = actions.onPause,
@@ -508,15 +475,7 @@ private fun RunningControls(actions: RunActions) {
 /** 일시정지(B4): 반투명 막 위에 취소·종료·재개. 보조 기술에는 "일시정지" 화면으로 알린다. */
 @Composable
 private fun PausedOverlay(actions: RunActions) {
-    val paneTitle = stringResource(R.string.run_paused_label)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = PAUSE_SCRIM_ALPHA))
-            .semantics { this.paneTitle = paneTitle }
-            .padding(start = 16.dp, end = 16.dp, bottom = 32.dp),
-        contentAlignment = Alignment.BottomCenter
-    ) {
+    RunkkPauseScrim(paneTitle = stringResource(R.string.run_paused_label)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -524,12 +483,10 @@ private fun PausedOverlay(actions: RunActions) {
         ) {
             DiscardButton(actions.onDiscard)
             FinishButton(actions)
-            RoundButton(
+            RunkkRoundControl(
                 icon = RunkkIcons.Play,
                 contentDescription = stringResource(R.string.run_resume_desc),
-                onClick = actions.onResume,
-                background = RunkkColors.Surface,
-                tint = RunkkColors.TextPrimary
+                onClick = actions.onResume
             )
         }
     }
@@ -550,58 +507,26 @@ private fun FinishButton(actions: RunActions) {
         borderWidth = 0.dp,
         background = RunkkColors.Surface
     ) {
-        Box(Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.TextPrimary))
+        RunkkStopSquare()
     }
 }
 
 /** 취소(기록 없이 끝내기, FR-219). 확인을 거친다. */
 @Composable
 private fun DiscardButton(onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 20.dp)) {
-        RoundButton(
-            icon = RunkkIcons.Close,
-            contentDescription = stringResource(R.string.run_discard_desc),
-            onClick = onClick,
-            background = RunkkColors.Surface,
-            tint = RunkkColors.TextSecondary,
-            size = SMALL_BUTTON
-        )
-        Text(
-            stringResource(R.string.run_discard_caption),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.padding(top = 8.dp).clearAndSetSemantics {}
-        )
-    }
-}
-
-/** 둥근(또는 팔각) 아이콘 버튼. */
-@Composable
-private fun RoundButton(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit,
-    background: Color,
-    tint: Color,
-    shape: Shape = CircleShape,
-    size: Dp = BIG_BUTTON
-) {
-    Box(
-        modifier = Modifier
-            .size(size)
-            .clip(shape)
-            .background(background)
-            .clickable(role = Role.Button, onClickLabel = contentDescription, onClick = onClick)
-            .semantics { this.contentDescription = contentDescription },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(size / 3))
-    }
+    RunkkRoundControl(
+        icon = RunkkIcons.Close,
+        contentDescription = stringResource(R.string.run_discard_desc),
+        onClick = onClick,
+        modifier = Modifier.padding(top = 20.dp),
+        size = SMALL_BUTTON,
+        tint = RunkkColors.TextSecondary,
+        caption = stringResource(R.string.run_discard_caption)
+    )
 }
 
 private const val RING_MILLIS = 1_000
 private const val OCTAGON_CUT = 30
-private const val PAUSE_SCRIM_ALPHA = 0.45f
 private const val SUMMARY_SEPARATOR = ", "
 private const val NO_HEART_RATE = "--"
 private val BIG_BUTTON = 88.dp
