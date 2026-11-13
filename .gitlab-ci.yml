@@ -546,6 +546,16 @@ android:release:
   rules:
     - if: $CI_COMMIT_BRANCH == "main" && $ANDROID_KEYSTORE_BASE64
       changes: *android-changes
+  # Play 업로드용 AAB와 매핑만 남긴다. 범용 APK까지 담으면 GitLab 아티팩트 한도를 넘어 413으로 잡이 실패한다(v0.12.0 #385).
+  # 베타 APK는 release/* 의 android:play 아티팩트가 맡는다
+  artifacts:
+    name: runkk-release-$CI_PIPELINE_IID
+    paths:
+      - android/app/build/outputs/bundle/prodRelease/*.aab
+      - android/wear/build/outputs/bundle/prodRelease/*.aab
+      - android/app/build/outputs/mapping/prodRelease/mapping.txt
+      - android/wear/build/outputs/mapping/prodRelease/mapping.txt
+    expire_in: 3 months
 
 # 베타 테스터 배포: android:play가 만든 prod 범용 APK를 Firebase App Distribution 그룹 beta-testers에 올린다(S15P31A207-207).
 # Play 비공개 테스트가 열리기 전까지 쓴다. release/* 에서 android:play를 돌린 뒤 수동으로 누른다. 0시 스케줄에서는 만들지 않는다
