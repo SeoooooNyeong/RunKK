@@ -334,7 +334,7 @@ class AdminControllerTest extends WebTestSupport {
                                 .content(write(badKey)))
                 .andExpect(status().isBadRequest());
         java.util.Map<String, Object> lee = new java.util.HashMap<>(celebrity());
-        lee.put("figureKey", "lee");
+        lee.put("figureKey", "joo"); // 셀럽런 목록은 코치(joo·kim)만 보인다([임시:D-성-219])
         lee.put("splits", List.of()); // 5km까지인 구간은 10km 대결 표가 되지 않는다
         long celebrityId =
                 body(mvc.perform(
@@ -366,7 +366,7 @@ class AdminControllerTest extends WebTestSupport {
             }
         }
         assertThat(candidate).isNotNull();
-        assertThat(candidate.get("celebrityFigure").asText()).isEqualTo("lee");
+        assertThat(candidate.get("celebrityFigure").asText()).isEqualTo("joo");
 
         long battleId =
                 body(mvc.perform(
@@ -374,7 +374,7 @@ class AdminControllerTest extends WebTestSupport {
                                                 .contentType(MediaType.APPLICATION_JSON)
                                                 .content(write(Map.of("celebrityId", celebrityId))))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.celebrityFigure").value("lee"))
+                                .andExpect(jsonPath("$.celebrityFigure").value("joo"))
                                 .andReturn()
                                 .getResponse()
                                 .getContentAsString())
@@ -382,7 +382,7 @@ class AdminControllerTest extends WebTestSupport {
                         .asLong();
         mvc.perform(as(runner, get("/api/v1/battles/active")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.celebrityFigure").value("lee"));
+                .andExpect(jsonPath("$.celebrityFigure").value("joo"));
         mvc.perform(as(runner, post("/api/v1/battles/" + battleId + "/started")))
                 .andExpect(status().isNoContent());
         mvc.perform(as(runner, post("/api/v1/battles/" + battleId + "/forfeit")))
@@ -390,7 +390,7 @@ class AdminControllerTest extends WebTestSupport {
         mvc.perform(as(runner, get("/api/v1/battles/" + battleId + "/result")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.type").value("CELEBRITY"))
-                .andExpect(jsonPath("$.celebrityFigure").value("lee"));
+                .andExpect(jsonPath("$.celebrityFigure").value("joo"));
     }
 
     @Test
