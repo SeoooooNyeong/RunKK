@@ -68,17 +68,21 @@ public class AppearanceService {
         List<LocalDateTime> starts = runQueryService.recentStartTimes(memberId, RECENT_RUNS);
         LocalDateTime last = starts.stream().max(Comparator.naturalOrder()).orElse(null);
         Avatar avatar = avatarRepository.findForUpdate(memberId).orElseThrow();
+        // 체형 변화 미공개면 기본 몸으로 두고 알리지 않는다([임시:D-성-218])
+        boolean shapeReleased = operationPolicy.bodyShapeReleased();
         BodyShape shape =
-                appearanceCalculator.bodyShape(
-                        new AppearanceInput(last, avatar.bodyShape(), today),
-                        operationPolicy.bodyShapeRule());
+                shapeReleased
+                        ? appearanceCalculator.bodyShape(
+                                new AppearanceInput(last, avatar.bodyShape(), today),
+                                operationPolicy.bodyShapeRule())
+                        : BodyShape.STAGE4;
         SkinTone tone =
                 starts.isEmpty()
                         ? avatar.skinTone()
                         : appearanceCalculator.skinTone(starts, operationPolicy.skinToneRule());
         boolean changed = avatar.updateAppearance(shape, tone);
         avatarRepository.save(avatar);
-        if (changed) {
+        if (changed && shapeReleased) {
             notificationService.notify(
                     new NotificationRequest(
                             memberId,

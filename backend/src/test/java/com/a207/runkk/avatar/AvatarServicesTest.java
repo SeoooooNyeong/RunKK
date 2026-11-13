@@ -131,6 +131,7 @@ class AvatarServicesTest {
     @Test
     @DisplayName("0시 외형 재계산: 최근에 달린 회원은 기본 몸, 쉰 회원만 한 단계 통통해져 알림, 달린 적 없으면 기본 몸·피부색 그대로")
     void refreshAll() {
+        when(policy.bodyShapeReleased()).thenReturn(true);
         avatars.save(Avatar.create(ALICE));
         avatars.save(Avatar.create(2));
         avatars.save(Avatar.create(3));
@@ -154,6 +155,26 @@ class AvatarServicesTest {
                                 r ->
                                         r.type() == NotificationType.BODY_SHAPE_CHANGED
                                                 && r.recipientId() == 2L));
+    }
+
+    @Test
+    @DisplayName("체형 변화 미공개(BODY_SHAPE_RELEASED 꺼짐): 쉰 회원도 기본 몸, 이미 통통한 몸은 알림 없이 기본 몸으로, 피부색은 계산한다")
+    void refreshAll_bodyShapeClosed() {
+        when(policy.bodyShapeReleased()).thenReturn(false);
+        avatars.save(Avatar.create(ALICE));
+        Avatar fuller = Avatar.create(2);
+        fuller.updateAppearance(BodyShape.STAGE2, SkinTone.DAYTIME);
+        avatars.save(fuller);
+        when(runs.recentStartTimes(ALICE, 10))
+                .thenReturn(List.of(TODAY.minusDays(10).atTime(5, 30)));
+        when(runs.recentStartTimes(2L, 10)).thenReturn(List.of(TODAY.minusDays(10).atTime(12, 0)));
+
+        appearance.refreshAll(TODAY);
+
+        assertThat(avatars.findOrCreate(ALICE).bodyShape()).isEqualTo(BodyShape.STAGE4);
+        assertThat(avatars.findOrCreate(ALICE).skinTone()).isEqualTo(SkinTone.DAWN);
+        assertThat(avatars.findOrCreate(2).bodyShape()).isEqualTo(BodyShape.STAGE4);
+        verify(notifications, never()).notify(any());
     }
 
     @Test

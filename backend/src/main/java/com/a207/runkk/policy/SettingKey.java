@@ -214,6 +214,16 @@ public enum SettingKey {
         }
     },
     /**
+     * 체형 변화(FR-163) 공개 여부. 2차 배포에서 뺀다(2026-11-13 PM 결정, [임시:D-성-218]). 거짓이면 0시 외형 재계산이 모든 회원을 기본
+     * 몸(STAGE4)으로 두고 체형 변화 알림을 만들지 않는다. 피부색 계산은 그대로다. 행이 없으면 기본 false.
+     */
+    BODY_SHAPE_RELEASED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
+    /**
      * 런바디 ai 분석 사용(2차 배포 기능, FR-265, 05-19 D-440). 거짓이면 러닝 저장 뒤 분석 작업을 만들지 않고 ai에 제출·상태 조회하지 않으며,
      * 런바디 조회 API는 403 FEATURE_CLOSED다. 행이 없으면 기본 false.
      */

@@ -16,7 +16,8 @@ class SettingKeyTest {
     @Test
     void has21SettingItemsPlusOperatorWhitelist() {
         // v0.14 CREW_RELEASED(FR-223, D-247), AVATAR_RELEASED(D138), RUNBODY_ENABLED(05-19 D-440)
-        assertThat(SettingKey.values()).hasSize(27);
+        // BODY_SHAPE_RELEASED: 체형 변화는 2차 배포에서 뺀다([임시:D-성-218])
+        assertThat(SettingKey.values()).hasSize(28);
         assertThat(Arrays.stream(SettingKey.values()).map(Enum::name))
                 .contains(
                         "OPERATOR_WHITELIST",
@@ -25,6 +26,7 @@ class SettingKeyTest {
                         "ITEM_PRICES",
                         "CREW_RELEASED",
                         "AVATAR_RELEASED",
+                        "BODY_SHAPE_RELEASED",
                         "RUNBODY_ENABLED",
                         "COACH_ENABLED",
                         "COACH_DAILY_LIMIT");
