@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.RunkkAlpha
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -35,6 +36,8 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.runkkDashedBorder
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import java.time.Duration
 import java.time.LocalDate
 
@@ -43,7 +46,10 @@ import java.time.LocalDate
 /** 거리 카드 한 장(셀프런): 거리, 내 최고 기록과 날짜(없으면 "기록 없음"이고 고를 수 있다). */
 data class DistanceCard(val distance: Distance, val best: Duration?, val recordedOn: LocalDate?)
 
-/** 나 VS 상대 자리(상대는 아직 모르므로 흐린 상대 그림). */
+/**
+ * 나 VS 상대 자리(상대는 아직 모르므로 흐린 상대 그림). 나와 과거의 나는 머리·몸·의상이 다 보이는 내 전신 정지 그림이다
+ * (SlotKey.AVATAR_STILL, S15P31A207-300). 꾸미기가 닫혀 있거나 칸이 비면 지금 서기 그림이다.
+ */
 @Composable
 internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL) {
     val me = stringResource(R.string.battle_me)
@@ -53,14 +59,27 @@ internal fun ModeVersus(opponent: String, opponentFigure: Figure = Figure.RIVAL)
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        VersusSlot { RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(VERSUS_FIGURE)) }
+        VersusSlot {
+            AvatarStillSlot(MY_STILL, Modifier.size(VERSUS_FIGURE)) {
+                RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(VERSUS_FIGURE))
+            }
+        }
         Text(
             "VS",
             style = RunkkTextStyles.display(28),
             color = RunkkColors.TextSecondary,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
-        VersusSlot(isFaded = true) { OpponentFigure(opponentFigure, size = VERSUS_FIGURE) }
+        VersusSlot(isFaded = true) {
+            if (opponentFigure == Figure.PAST_SELF) {
+                // 과거의 나도 내 전신 정지 그림(흐림은 칸이 준다)
+                AvatarStillSlot(MY_STILL, Modifier.size(VERSUS_FIGURE)) {
+                    OpponentFigure(opponentFigure, size = VERSUS_FIGURE)
+                }
+            } else {
+                OpponentFigure(opponentFigure, size = VERSUS_FIGURE)
+            }
+        }
     }
 }
 
@@ -70,7 +89,7 @@ private fun VersusSlot(isFaded: Boolean = false, content: @Composable () -> Unit
         modifier = Modifier
             .size(width = 120.dp, height = 168.dp)
             .runkkDashedBorder()
-            .alpha(if (isFaded) FADED else 1f),
+            .alpha(if (isFaded) RunkkAlpha.Disabled else 1f),
         contentAlignment = Alignment.Center
     ) { content() }
 }
@@ -106,7 +125,7 @@ internal fun DistanceCardRow(
                 RunkkShapes.Large
             )
             .clickable(enabled = isEnabled, role = Role.RadioButton, onClick = onClick)
-            .alpha(if (isEnabled) 1f else FADED)
+            .alpha(if (isEnabled) 1f else RunkkAlpha.Disabled)
             .padding(horizontal = 16.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = description
@@ -137,5 +156,3 @@ internal fun DistanceCardRow(
         card.recordedOn?.let { Text(monthDay(it), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
     }
 }
-
-internal const val FADED = 0.4f

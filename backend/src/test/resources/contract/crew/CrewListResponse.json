@@ -1,0 +1,17 @@
+{
+  "crews": [
+    {
+      "crewId": 12,
+      "name": "새벽러너스",
+      "intro": "새벽에 함께 달려요",
+      "tags": ["WEEKDAY_DAWN"],
+      "logoUrl": null,
+      "leaderName": "달리는곰",
+      "headcount": 7,
+      "weeklyDistanceMeters": 12300,
+      "joinPolicy": "APPROVAL"
+    }
+  ],
+  "nextCursor": 12,
+  "totalCount": 3
+}

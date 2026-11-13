@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,8 +39,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -50,6 +53,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -59,8 +63,10 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Density
@@ -71,65 +77,142 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 
 /**
- * 상단 바(높이 64): 뒤로 버튼(있으면) + 제목(18, 900) + 오른쪽 [actions]. [isTitleCentered]면 제목을 바 가운데에 둔다(A-2, 피그마에서 가운데인 제목, D101).
+ * 상단 바(피그마 RunKK / Header / 기본, S15P31A207-292): 높이 57, 좌우 12, 원 없는 뒤로 화살표(←, 40 보이는 칸·48 누름 칸),
+ * 제목 19 Bold를 바 가운데에 둔다([isTitleCentered] 기본 참, 거짓이면 뒤로 버튼 옆 왼쪽). 오른쪽에 [actions](⋯, 작은 버튼)를 놓는다.
+ * 피그마 F-16·G-14 상단 바는 바탕이 없고(화면 배경이 비친다) 아래 선이 없다. 흰 바·아래 구분선이 필요한 화면은
+ * [containerColor]·[hasDivider]로 켠다.
+ *
+ * ```
+ * RunkkTopBar(title = "크루런 결과", onBack = onBack)
+ * RunkkTopBar(title = "꾸미기", onBack = onBack, containerColor = RunkkColors.Surface, hasDivider = true) { … }
+ * ```
  */
 @Composable
 fun RunkkTopBar(
     title: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
-    isTitleCentered: Boolean = false,
+    isTitleCentered: Boolean = true,
+    containerColor: Color = Color.Transparent,
+    hasDivider: Boolean = false,
     actions: @Composable RowScope.() -> Unit = {}
 ) {
-    Box(modifier = modifier.fillMaxWidth().heightIn(min = 64.dp), contentAlignment = Alignment.Center) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (onBack != null) RunkkBackButton(onClick = onBack)
-            if (!isTitleCentered) TopBarTitle(title)
-            Spacer(Modifier.weight(1f))
-            actions()
+    val dividerColor = RunkkColors.Border
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(containerColor)
+            .then(
+                if (hasDivider) {
+                    Modifier.drawBehind {
+                        val stroke = 1.dp.toPx()
+                        drawRect(
+                            dividerColor,
+                            topLeft = Offset(0f, size.height - stroke),
+                            size = Size(size.width, stroke)
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+            .heightIn(min = TOP_BAR_HEIGHT),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isTitleCentered) {
+            CenteredTopBarContent(title = title, onBack = onBack, actions = actions)
+        } else {
+            Row(
+                // 48 누름 칸이 8에서 시작해 40 보이는 칸이 피그마처럼 12에 온다.
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (onBack != null) RunkkBackButton(onClick = onBack)
+                TopBarTitle(title, Modifier.weight(1f).padding(start = if (onBack == null) 8.dp else 0.dp))
+                actions()
+            }
         }
-        if (isTitleCentered) TopBarTitle(title)
+    }
+}
+
+/**
+ * 가운데 제목 바의 배치: 왼쪽 뒤로 버튼과 오른쪽 [actions]를 먼저 재고, 더 넓은 쪽만큼 양옆을 비운 폭 안에서 제목을 바 가운데에 둔다.
+ * 오른쪽 버튼이 많아도 제목이 버튼 밑으로 들어가지 않는다(넘치면 말줄임).
+ */
+@Composable
+private fun CenteredTopBarContent(title: String, onBack: (() -> Unit)?, actions: @Composable RowScope.() -> Unit) {
+    Layout(
+        contents = listOf(
+            { if (onBack != null) RunkkBackButton(onClick = onBack) },
+            { TopBarTitle(title) },
+            { Row(verticalAlignment = Alignment.CenterVertically, content = actions) }
+        ),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+    ) { (leading, titleSlot, trailing), constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val start = leading.map { it.measure(loose) }
+        val end = trailing.map { it.measure(loose) }
+        val startWidth = start.maxOfOrNull { it.width } ?: 0
+        val endWidth = end.maxOfOrNull { it.width } ?: 0
+        val gap = 4.dp.roundToPx()
+        val inset = maxOf(startWidth, endWidth) + gap
+        val titleMax = (constraints.maxWidth - inset * 2).coerceAtLeast(0)
+        val text = titleSlot.map { it.measure(loose.copy(maxWidth = titleMax)) }
+        val height = maxOf(
+            start.maxOfOrNull { it.height } ?: 0,
+            end.maxOfOrNull { it.height } ?: 0,
+            text.maxOfOrNull { it.height } ?: 0,
+            constraints.minHeight
+        )
+        layout(constraints.maxWidth, height) {
+            start.forEach { it.placeRelative(0, (height - it.height) / 2) }
+            end.forEach { it.placeRelative(constraints.maxWidth - it.width, (height - it.height) / 2) }
+            text.forEach { it.placeRelative((constraints.maxWidth - it.width) / 2, (height - it.height) / 2) }
+        }
     }
 }
 
 @Composable
-private fun TopBarTitle(title: String) {
+private fun TopBarTitle(title: String, modifier: Modifier = Modifier) {
     Text(
         text = title,
         style = RunkkTextStyles.TopBarTitle,
         color = RunkkColors.TextPrimary,
-        modifier = Modifier.semantics { heading() }
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier.semantics { heading() }
     )
 }
 
-/** 뒤로 버튼(보이는 크기 40dp, 터치 48dp). 라이트는 보라 채움 원에 흰 화살표, 다크는 표면 원이다(R2-05, D85). */
+/** 뒤로 버튼(피그마 RunKK / Buttons / 뒤로가기): 원 없는 arrow_back(←) 24, 본문색, 보이는 칸 40·누름 칸 48. */
 @Composable
 fun RunkkBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     RunkkIconButton(
-        RunkkIcons.Back,
+        RunkkIcons.ArrowBack,
         contentDescription = stringResource(R.string.core_bars_back),
         onClick = onClick,
         modifier = modifier,
-        borderColor = RunkkColors.BackButtonBorder,
-        containerColor = RunkkColors.BackButton,
-        iconTint = RunkkColors.OnBackButton
+        iconSize = 24.dp,
+        borderColor = Color.Transparent,
+        containerColor = Color.Transparent,
+        iconTint = RunkkColors.TextPrimary
     )
 }
 
+/** 상단 바 높이(피그마 RunKK / Header 57). */
+private val TOP_BAR_HEIGHT = 57.dp
+
 /**
- * 단계 상단 바(가입 1/5 …): 뒤로 + 제목(16, 700) + "n / 전체"(Barlow) + 아래 4dp 진행 막대.
+ * 단계 상단 바(가입 1/5 …): 뒤로 + 제목(16, 700) + "n / 전체"(큰 숫자 글꼴) + 아래 4dp 진행 막대.
  */
 @Composable
 fun RunkkStepTopBar(title: String, step: Int, total: Int, modifier: Modifier = Modifier, onBack: (() -> Unit)? = null) {
     val stepDescription = stringResource(R.string.core_bars_step_progress, step, total)
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
-            modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().heightIn(min = TOP_BAR_HEIGHT).padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (onBack != null) RunkkBackButton(onClick = onBack)
@@ -404,7 +487,12 @@ private val TAB_LABEL_GAP: Dp = 2.dp
 /** 고른 탭 아이콘을 원 가운데(표면 위 -9)로 올리는 거리. */
 private val SELECTED_ICON_LIFT: Dp = 23.dp
 
-/** 메뉴 한 줄(마이·설정): 아이콘(선택) + 제목 + 값(선택) + 오른쪽 화살표. 높이 56 이상. */
+/**
+ * 메뉴 한 줄: 앞 아이콘(선택) + 제목(15 Medium) + 값(선택) + 오른쪽 꺾쇠(16). 줄 전체가 눌린다. [isAccent]면 라벤더 글자.
+ * 크루 이동 줄(피그마 F-18 "지난 크루런 ›": 높이 52, 좌우 0, 15 Regular, 꺾쇠 18, 아래 divider)은 [minHeight]·[horizontalPadding]·
+ * [titleStyle]·[chevronSize]·[hasDivider]로 맞춘다. [minHeight]를 주면 위아래 여백 대신 그 높이로 가운데 둔다. [hasChevron]이 거짓이면
+ * 꺾쇠를 뺀다.
+ */
 @Composable
 fun RunkkMenuRow(
     title: String,
@@ -412,41 +500,58 @@ fun RunkkMenuRow(
     modifier: Modifier = Modifier,
     value: String? = null,
     icon: ImageVector? = null,
-    isAccent: Boolean = false
+    isAccent: Boolean = false,
+    minHeight: Dp = Dp.Unspecified,
+    horizontalPadding: Dp = MENU_ROW_PADDING,
+    titleStyle: TextStyle = MENU_ROW_TITLE,
+    chevronSize: Dp = MENU_ROW_CHEVRON,
+    hasChevron: Boolean = true,
+    hasDivider: Boolean = false
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (icon !=
-            null
+    val isFixedHeight = minHeight != Dp.Unspecified
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClick = onClick)
+                .then(if (isFixedHeight) Modifier.heightIn(min = minHeight) else Modifier)
+                .padding(horizontal = horizontalPadding, vertical = if (isFixedHeight) 0.dp else MENU_ROW_PADDING),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = if (isAccent) RunkkColors.Lavender else RunkkColors.TextSecondary,
-                modifier = Modifier.size(20.dp)
+            if (icon !=
+                null
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = if (isAccent) RunkkColors.Lavender else RunkkColors.TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Text(
+                text = title,
+                style = titleStyle,
+                color = if (isAccent) RunkkColors.Lavender else RunkkColors.TextPrimary,
+                modifier = Modifier.weight(1f)
             )
+            if (value != null) Text(text = value, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
+            if (hasChevron) {
+                Icon(
+                    RunkkIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = RunkkColors.TextSecondary,
+                    modifier = Modifier.size(chevronSize)
+                )
+            }
         }
-        Text(
-            text = title,
-            style = RunkkTextStyles.text(15, FontWeight.Medium),
-            color = if (isAccent) RunkkColors.Lavender else RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f)
-        )
-        if (value != null) Text(text = value, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
-        Icon(
-            RunkkIcons.ChevronRight,
-            contentDescription = null,
-            tint = RunkkColors.TextSecondary,
-            modifier = Modifier.size(16.dp)
-        )
+        if (hasDivider) HorizontalDivider(color = RunkkColors.Border, thickness = 1.dp)
     }
 }
+
+private val MENU_ROW_PADDING: Dp = 16.dp
+private val MENU_ROW_CHEVRON: Dp = 16.dp
+private val MENU_ROW_TITLE: TextStyle = RunkkTextStyles.text(15, FontWeight.Medium)
 
 /**
  * 영문 오버라인(16, 넓은 자간: "LIVE BATTLE · 5km"). 보조 기술에는 [spoken](기본: 한글로 바꾼 라벨, "실시간 대결, 5킬로미터")으로

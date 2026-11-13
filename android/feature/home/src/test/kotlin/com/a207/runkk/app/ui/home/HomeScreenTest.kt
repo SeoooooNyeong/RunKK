@@ -3,20 +3,33 @@ package com.a207.runkk.app.ui.home
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasAnyDescendant
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.GuideAnchors
@@ -26,14 +39,16 @@ import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
-import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.designsystem.runkkAvatarDefaultHeadTag
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.PlacementStatus
+import kotlin.math.abs
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import org.junit.Rule
@@ -41,6 +56,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+
+/** 서버 닉네임 최대 글자 수(backend member.Nickname.MAX_LENGTH). */
+private const val NICKNAME_MAX_LENGTH = 20
 
 /** 홈 화면(A-4, D-276). 시험 설계 10-06 TC-9721, TC-9700(아바타 꾸미기 닫힘), TC-9701(기본 아바타), TC-9685(위치 동의 시트). */
 @RunWith(RobolectricTestRunner::class)
@@ -99,6 +117,167 @@ class HomeScreenTest {
     }
 
     @Test
+    fun `머리 알약의 Lv는 좁은 폭에서도 한 줄이고 닉네임이 말줄임된다(실기기 DV3-9)`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(reduceMotion = true) {
+                    Box(Modifier.width(280.dp)) {
+                        HomeScreen(
+                            loaded.copy(header = HomeHeader("아주아주긴닉네임을가진러너입니다", "골드", 3, 1_250_000)),
+                            HomeActions()
+                        )
+                    }
+                }
+            }
+        }
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("Lv.3", useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals(1, layouts.single().lineCount)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 384dp·글꼴 1배에서 4·5자 닉네임과 Lv·티어 칩을 다 보이고 Lv는 닉네임 바로 뒤다(실기기 DV3-9)`() {
+        assertHeaderFits(fontScale = 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 글꼴 1·15배에서도 닉네임·Lv·티어 칩을 다 보인다`() {
+        assertHeaderFits(fontScale = 1.15f)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 글꼴 1·3배에서도 닉네임·Lv·티어 칩을 다 보인다`() {
+        assertHeaderFits(fontScale = 1.3f)
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 짧은 닉네임이면 알약이 내용 폭만큼만 넓어지고 Lv는 닉네임 바로 뒤다`() {
+        showHeader(fontScale = 1f, nickname = "곰")
+        assertLevelRightAfter("곰")
+        val level = compose.onNodeWithText("Lv.3", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val pill = compose.onNode(hasClickAction() and hasAnyDescendant(hasText("곰"))).fetchSemanticsNode().boundsInRoot
+        val badge = compose.onNodeWithContentDescription("배치 중").fetchSemanticsNode().boundsInRoot
+        // 내용 폭 = 「닉네임 + 6dp + Lv」 줄과 칩 줄 중 큰 쪽. 알약은 거기에 끝 여백 12dp만 더한다.
+        val content = maxOf(level.right, badge.right)
+        val endPadding = 12f * compose.density.density
+        assertTrue(abs(pill.right - (content + endPadding)) <= 1f, "알약 끝 ${pill.right} px, 내용 끝 $content px")
+        // 잔액·알림은 닉네임 길이와 상관없이 오른쪽 끝에 있다.
+        val bellShort = compose.onNodeWithContentDescription(
+            "알림",
+            substring = true
+        ).fetchSemanticsNode().boundsInRoot.right
+        showHeader(fontScale = 1f, nickname = "가".repeat(NICKNAME_MAX_LENGTH))
+        val bellLong = compose.onNodeWithContentDescription(
+            "알림",
+            substring = true
+        ).fetchSemanticsNode().boundsInRoot.right
+        assertEquals(bellLong, bellShort, "알림 단추 오른쪽 끝")
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - 최대 길이 닉네임만 말줄임하고 Lv·티어 칩은 다 보인다`() {
+        val longest = "가".repeat(NICKNAME_MAX_LENGTH)
+        listOf(1f, 1.3f).forEach { scale ->
+            showHeader(fontScale = scale, nickname = longest)
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(longest, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertTrue(layouts.single().isLineEllipsized(0), "최대 길이 닉네임은 말줄임(글꼴 $scale)")
+            assertFullyShown("Lv.3")
+            assertFullyShown("배치 중")
+            assertLevelRightAfter(longest)
+        }
+    }
+
+    @Test
+    @Config(qualifiers = "w384dp-h832dp-port-420dpi")
+    fun `머리 알약 - Lv는 닉네임과 같은 위 줄 오른쪽이고 칩은 아래 줄이며 읽기 순서는 닉네임·레벨·티어다`() {
+        showHeader(fontScale = 1f, nickname = "한강러너")
+        val nickname = compose.onNodeWithText("한강러너", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val level = compose.onNodeWithText("Lv.3", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val chip = compose.onNodeWithText("배치 중", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        assertTrue(level.left >= nickname.right, "Lv는 닉네임 오른쪽")
+        assertTrue(level.bottom <= chip.top + 1f, "칩은 아래 줄")
+        val merged = compose.onNode(hasText("한강러너", substring = true) and hasText("Lv.3", substring = true))
+            .fetchSemanticsNode().config[SemanticsProperties.Text].joinToString(" ")
+        assertTrue(merged.indexOf("한강러너") < merged.indexOf("Lv.3"), merged)
+        // 티어 배지는 스스로 합친 노드라 이름 칸 다음(아래 줄) 멈춤으로 따로 읽힌다.
+        val badge = compose.onNodeWithContentDescription("배치 중").fetchSemanticsNode()
+        assertFalse(merged.contains("배치 중"), merged)
+        assertTrue(badge.boundsInRoot.top >= level.bottom - 1f, "배지는 이름 칸 다음 차례")
+    }
+
+    private val headerNickname = mutableStateOf("")
+    private val headerFontScale = mutableStateOf(1f)
+    private var headerShown = false
+
+    /** 실기기 조건(잔액 「14,414 P」·알림 단추)으로 머리를 그린다. 한 시험에서 닉네임·글꼴을 바꿔 다시 그릴 수 있다. */
+    private fun showHeader(fontScale: Float, nickname: String) {
+        headerNickname.value = nickname
+        headerFontScale.value = fontScale
+        if (!headerShown) {
+            headerShown = true
+            compose.setContent {
+                val density = LocalDensity.current
+                CompositionLocalProvider(
+                    LocalReleaseScope provides ReleaseScope.FIRST_RELEASE,
+                    LocalDensity provides Density(density.density, headerFontScale.value)
+                ) {
+                    RunkkTheme(reduceMotion = true) {
+                        Box(Modifier.fillMaxSize()) {
+                            HomeScreen(
+                                loaded.copy(
+                                    header = HomeHeader(headerNickname.value, null, 3, 14_414),
+                                    tierDisplay = TierDisplay.Placing
+                                ),
+                                HomeActions()
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    /** 「Lv.n」은 닉네임 바로 뒤 6dp다(알약 오른쪽 끝에 떨어지지 않는다). */
+    private fun assertLevelRightAfter(nickname: String) {
+        val name = compose.onNodeWithText(nickname, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val level = compose.onNodeWithText("Lv.3", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val gap = level.left - name.right
+        val sixDp = 6f * compose.density.density
+        assertTrue(gap in (sixDp - 1f)..(sixDp + 1f), "닉네임과 Lv 사이 $gap px, 6dp = $sixDp px")
+    }
+
+    /** 글자 칸이 고유 폭 이상이고 말줄임하지 않았는가. */
+    private fun assertFullyShown(text: String) {
+        val node = compose.onNodeWithText(text, useUnmergedTree = true)
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val layout = layouts.single()
+        val intrinsic = layout.multiParagraph.intrinsics.maxIntrinsicWidth
+        val drawn = node.fetchSemanticsNode().size.width
+        assertTrue(drawn >= kotlin.math.ceil(intrinsic).toInt() - 1, "$text 칸 $drawn px < 글자 고유 폭 $intrinsic px(잘림)")
+        assertFalse(layout.isLineEllipsized(0), "$text 말줄임")
+    }
+
+    private fun assertHeaderFits(fontScale: Float) {
+        listOf("한강러너", "달리는곰").forEach { nickname ->
+            showHeader(fontScale, nickname)
+            assertFullyShown(nickname)
+            assertFullyShown("Lv.3")
+            assertFullyShown("배치 중")
+            assertLevelRightAfter(nickname)
+        }
+    }
+
+    @Test
     fun `W48 미전송 기록 안내가 필요하면 상단에 재전송 안내 띠를 보인다`() {
         show(loaded.copy(isResendReminderVisible = true))
         compose.onNodeWithText("올리지 못한 기록이 있어요. 인터넷에 연결해 주세요").assertExists()
@@ -133,7 +312,7 @@ class HomeScreenTest {
     @Test
     fun `음성·진동이 꺼져 있으면 off로 보인다`() {
         show(loaded.copy(isRunVoiceOn = false, isRunVibrationOn = true))
-        compose.onNodeWithText("음성 off · 진동 on", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("음성 off, 진동 on", useUnmergedTree = true).assertExists()
     }
 
     @Test
@@ -144,25 +323,28 @@ class HomeScreenTest {
             .assertCountEquals(1)
         compose.onAllNodesWithTag(DEFAULT_AVATAR_TAG + AvatarExpression.STAND.name, useUnmergedTree = true)
             .assertCountEquals(1)
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(
+            runkkAvatarDefaultHeadTag(AvatarCharacter.MALE),
+            useUnmergedTree = true
+        ).assertDoesNotExist()
         compose.onNodeWithContentDescription("내 아바타").assertHasNoClickAction()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").assertHasNoClickAction()
     }
 
     @Test
-    fun `TC-9700 아바타 꾸미기가 열리면 얼굴 그림을 쓰고 아바타는 꾸미기, 잔액은 상점으로 간다`() {
+    fun `TC-9700 아바타 꾸미기가 열리면 얼굴 그림을 쓰고 아바타는 내 러너(W8 H-2), 잔액은 상점으로 간다`() {
         show(loaded, ReleaseScope.ALL_OPEN)
         compose.onNodeWithContentDescription("내 아바타").assertHasClickAction().performClick()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").performClick()
-        assertEquals(listOf(Routes.AVATAR, Routes.SHOP), routes)
+        assertEquals(listOf(Routes.AVATAR_RUNNER, Routes.SHOP), routes)
     }
 
     @Test
-    fun `S15P31A207-248 운영 빌드는 아바타를 누르면 꾸미기, 잔액을 누르면 상점으로 간다`() {
+    fun `S15P31A207-248 운영 빌드는 아바타를 누르면 내 러너, 잔액을 누르면 상점으로 간다`() {
         show(loaded, ReleaseScope.of(isLockingUnreleased = true))
         compose.onNodeWithContentDescription("내 아바타").performClick()
         compose.onNodeWithContentDescription("리워드 잔액 1,250 포인트").performClick()
-        assertEquals(listOf(Routes.AVATAR, Routes.SHOP), routes)
+        assertEquals(listOf(Routes.AVATAR_RUNNER, Routes.SHOP), routes)
     }
 
     @Test
@@ -318,7 +500,7 @@ class HomeScreenTest {
         var state by androidx.compose.runtime.mutableStateOf(BattleEntrySheetState(placing))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                BattleEntrySheetContent(state, onRandom = { randoms++ }, onFriend = { friends++ })
+                BattleEntrySheet(state, onRandom = { randoms++ }, onFriend = { friends++ }, onDismiss = {})
             }
         }
         compose.onNodeWithText("어떤 대결을 할까요?").assertExists()

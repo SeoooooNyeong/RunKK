@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import {registerLayerPixels} from './pixel-layer-registration.mjs';
 
 function validBox(box){
   if(!box)return null;
@@ -37,14 +38,21 @@ export async function alignAiParts(master,parts,{sourceBoxes=null,layerBoxes=nul
   const aligned={},metrics={};
   for(const part of ['face','eyes','hair']){
     const sourceBox=validBox(sourceBoxes?.[part]),reportedLayerBox=validBox(layerBoxes?.[part]);
-    const measuredLayerBox=await alphaBounds(parts[part]);
     let placed={png:parts[part],scale:1,offsetX:0,offsetY:0,used:false};
-    if(sourceBox&&measuredLayerBox)placed=await registerToBox(parts[part],measuredLayerBox,sourceBox);
+    // Compare the same semantic feature in both images. Total alpha bounds may
+    // include fine strands or residual pixels and are not that feature's box.
+    // Without a paired box, preserve the shared canvas required by extraction.
+    const sameBox=sourceBox&&reportedLayerBox&&['left','top','right','bottom'].every(key=>sourceBox[key]===reportedLayerBox[key]);
+    if(sourceBox&&reportedLayerBox&&!sameBox)placed=await registerToBox(parts[part],reportedLayerBox,sourceBox);
+    // Hair/eyes retain source texture, allowing pixel registration to correct
+    // extraction drift even when the vision model reports identical boxes.
+    const pixel=(part==='hair'||part==='eyes')?await registerLayerPixels(master,parts[part]):null;
+    if(pixel?.used)placed=pixel;
     const layer=await sharp(placed.png).ensureAlpha().raw().toBuffer({resolveWithObject:true});
     if(layer.info.width!==source.info.width||layer.info.height!==source.info.height)throw new Error('AI 파츠 캔버스가 원본과 달라요.');
     for(let i=0;i<layer.data.length;i+=4)layer.data[i+3]=Math.min(layer.data[i+3],source.data[i+3]);
     aligned[part]=await sharp(layer.data,{raw:{width:layer.info.width,height:layer.info.height,channels:4}}).png().toBuffer();
-    metrics[part]={scale:Number(placed.scale.toFixed(3)),offsetX:placed.offsetX,offsetY:placed.offsetY,method:placed.used?'vision-semantic-box-uniform-scale':'shared-canvas-fallback',sourceBox:sourceBox?{left:sourceBox.left,top:sourceBox.top,right:sourceBox.right,bottom:sourceBox.bottom}:null,reportedLayerBox:reportedLayerBox?{left:reportedLayerBox.left,top:reportedLayerBox.top,right:reportedLayerBox.right,bottom:reportedLayerBox.bottom}:null};
+    metrics[part]={scale:Number(placed.scale.toFixed(3)),...(placed.scaleX?{scaleX:placed.scaleX,scaleY:placed.scaleY}:{}),offsetX:placed.offsetX,offsetY:placed.offsetY,method:pixel?.used?'source-pixel-registration':placed.used?'vision-semantic-box-uniform-scale':'shared-canvas-fallback',...(pixel?.pixelRegistration?{pixelRegistration:pixel.pixelRegistration}:{}),sourceBox:sourceBox?{left:sourceBox.left,top:sourceBox.top,right:sourceBox.right,bottom:sourceBox.bottom}:null,reportedLayerBox:reportedLayerBox?{left:reportedLayerBox.left,top:reportedLayerBox.top,right:reportedLayerBox.right,bottom:reportedLayerBox.bottom}:null};
   }
   return{parts:aligned,metrics};
 }

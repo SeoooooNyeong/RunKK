@@ -52,7 +52,6 @@ class RunBodyViewModelTest {
         assertEquals(UiText.Res(R.string.record_report_comment_pending), vm.state.value.commentText)
         assertFalse(vm.state.value.isTrendLoading)
         assertEquals(sampleTrend(), vm.state.value.trend)
-        assertEquals(RunBodyPeriod.WEEK, vm.state.value.period)
         assertEquals(1, runBody.trendCalls)
         // 이번 주(11/2 월 ~ 11/8 일)를 앞뒤 하루 더 읽는다
         assertEquals(listOf(thisWeekCall), records.runsCalls)
@@ -321,14 +320,12 @@ class RunBodyViewModelTest {
     }
 
     @Test
-    fun `주간·월간 토글은 다시 읽지 않고 기간만 바꾸며 최근 10회 변화를 못 읽으면 다시 시도로 읽는다(G-14)`() {
+    fun `최근 10회 변화를 못 읽으면 오류를 두고 다시 시도로 읽는다(G-14)`() {
         runBody.trendReply = Outcome.Failure(AppError.Network)
         val vm = viewModel()
 
         assertEquals(null, vm.state.value.trend)
         assertTrue(vm.state.value.trendError != null)
-        vm.onPeriod(RunBodyPeriod.MONTH)
-        assertEquals(RunBodyPeriod.MONTH, vm.state.value.period)
         assertEquals(1, runBody.trendCalls)
 
         runBody.trendReply = Outcome.Success(sampleTrend())

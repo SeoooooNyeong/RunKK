@@ -1,0 +1,5 @@
+Use your image generation tool (edit the attached image). Save the result as base_run_leg_a.png and base_run_leg_b.png in the current folder, each exactly 512x1536 pixels, PNG with a fully TRANSPARENT background.
+
+The attached image is a game avatar TEXTURE (512x1536): one SIDE-VIEW leg of a chibi runner, dark shorts on the hip/thigh at the top and the bare leg below. It is mapped onto a mesh, so the leg must stay at EXACTLY the same pixel position, width and length.
+
+Task: replace the dark shorts with plain light grey (#C9CCD3) boxer briefs that cover only the top 45% of where the shorts were, and paint bare thigh skin below them, same width as the shorts silhouette, joining the existing leg smoothly. Same skin color, soft painterly shading and the same warm brown outline as the visible leg. Keep the lower leg EXACTLY as it is. Transparent everywhere else. No text.

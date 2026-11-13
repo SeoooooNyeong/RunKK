@@ -14,8 +14,12 @@ import androidx.compose.ui.test.performSemanticsAction
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.domain.chat.ChatAuthorRole
 import com.a207.runkk.app.domain.chat.ChatMessage
+import com.a207.runkk.app.domain.chat.ChatMessageKind
 import com.a207.runkk.app.domain.chat.ReactionKind
+import com.a207.runkk.app.domain.chat.Reactor
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -37,7 +41,8 @@ class ChatRoomScreenTest {
             onReaction = { m, kind -> calls += "reaction:${m.messageId}:$kind" },
             onReportAsk = { calls += "report:${it.messageId}" },
             onDeleteAsk = { calls += "delete:${it.messageId}" },
-            onLoadOlder = { calls += "older" }
+            onLoadOlder = { calls += "older" },
+            onOpenReactors = { m, kind -> calls += "reactors:${m.messageId}:$kind" }
         )
 
     private fun show(state: ChatUiState) {
@@ -57,7 +62,7 @@ class ChatRoomScreenTest {
     @Test
     fun `삭제·숨김 메시지는 자리표시로 남고 리액션·신고가 없다(D-160)`() {
         show(ChatUiState(messages = listOf(chatMessage(101).removed())))
-        compose.onNode(hasContentDescription("바람처럼, 오전 7:00, 삭제된 메시지")).assertExists()
+        compose.onNode(hasContentDescription("바람처럼, 오전 7:00, 삭제된 메시지입니다")).assertExists()
         compose.onNode(
             hasContentDescription("삭제된 메시지", substring = true) and
                 SemanticsMatcher.keyNotDefined(SemanticsActions.OnLongClick)
@@ -139,6 +144,60 @@ class ChatRoomScreenTest {
         assertEquals(2, compose.onAllNodes(hasText("월 ", substring = true)).fetchSemanticsNodes().size)
     }
 
+    @Test
+    fun `W5 크루장 글에만 크루장 배지가 붙고 러닝 완료 시스템 메시지는 가운데 두 줄로 메뉴 없이 읽힌다(F-09)`() {
+        show(
+            ChatUiState(
+                messages = listOf(
+                    chatMessage(101, "공지예요", authorRole = ChatAuthorRole.LEADER),
+                    chatMessage(102, "네", authorName = "새벽러너", authorRole = ChatAuthorRole.MEMBER),
+                    chatMessage(
+                        103,
+                        "느긋한고래님이 5.02km를 달렸어요",
+                        authorName = "느긋한고래",
+                        kind = ChatMessageKind.RUN_FINISHED,
+                        authorRole = ChatAuthorRole.LEADER,
+                        runDistance = Distance(5_029)
+                    )
+                )
+            )
+        )
+        assertEquals(1, compose.onAllNodes(hasText("크루장"), useUnmergedTree = true).fetchSemanticsNodes().size)
+        compose.onNode(
+            hasContentDescription("느긋한고래님이 러닝을 마쳤어요, 5.02km") and
+                SemanticsMatcher.keyNotDefined(SemanticsActions.OnLongClick)
+        ).assertExists()
+    }
+
+    @Test
+    fun `W5 반응 알약을 길게 누르면 그 종류로 반응한 사람 시트를 열고, 메뉴에 체크 반응이 있다(D-성-24)`() {
+        show(ChatUiState(messages = listOf(chatMessage(101, reactions = mapOf(ReactionKind.CHECK to 2)))))
+        compose.onNodeWithContentDescription("체크 2개").performSemanticsAction(SemanticsActions.OnLongClick)
+        openMenu("m101")
+        compose.onNodeWithContentDescription("체크 달기").performClick()
+        assertEquals(listOf("reactors:101:CHECK", "reaction:101:CHECK"), calls)
+    }
+
+    @Config(qualifiers = RUNKK_PHONE)
+    @Test
+    fun `반응한 사람 시트 스크린샷 라이트`() {
+        val message = chatMessage(101, reactions = mapOf(ReactionKind.CHECK to 2, ReactionKind.LIKE to 1))
+        compose.captureRunkkScreen("chat_reactors_light", isDarkTheme = false) {
+            ChatRoomScreen(
+                ChatUiState(
+                    messages = listOf(message),
+                    reactorsTarget = message,
+                    reactors = listOf(
+                        Reactor(3, "새벽곰", ReactionKind.CHECK, T0, isMe = false),
+                        Reactor(4, "느긋한고래", ReactionKind.CHECK, T0, isMe = false),
+                        Reactor(1, "나", ReactionKind.LIKE, T0, isMe = true)
+                    )
+                ),
+                ChatActions()
+            )
+        }
+    }
+
     /** 메시지 내용으로 말풍선을 찾아 길게 누르기 동작(메시지 메뉴)을 연다. */
     private fun openMenu(content: String) {
         compose.onNode(
@@ -167,7 +226,19 @@ class ChatRoomScreenTest {
         hasMore = true,
         draft = "내일 7시에 봬요",
         messages = listOf(
-            chatMessage(101, "오늘 저녁 한강 뛰실 분?", reactions = mapOf(ReactionKind.LIKE to 3)),
+            chatMessage(
+                101,
+                "오늘 저녁 한강 뛰실 분?",
+                reactions = mapOf(ReactionKind.LIKE to 3, ReactionKind.CHECK to 2),
+                authorRole = ChatAuthorRole.LEADER
+            ),
+            chatMessage(
+                105,
+                "새벽러너님이 5.02km를 달렸어요",
+                authorName = "새벽러너",
+                kind = ChatMessageKind.RUN_FINISHED,
+                runDistance = Distance(5_021)
+            ),
             chatMessage(102, "저요! 8시 괜찮아요", authorName = "새벽러너", reactions = mapOf(ReactionKind.HEART to 1)),
             chatMessage(103).removed(),
             chatMessage(

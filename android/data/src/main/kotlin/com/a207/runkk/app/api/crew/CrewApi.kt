@@ -1,11 +1,15 @@
 package com.a207.runkk.app.api.crew
 
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -41,6 +45,19 @@ internal interface CrewApi {
     @GET("crews/me")
     suspend fun myCrew(): MyCrewResponse
 
+    /** 초대 코드 미리보기(contract-W4 4절). 가입시키지 않는다. */
+    @POST("crews/invite-preview")
+    suspend fun invitePreview(@Body body: InvitePreviewRequest): InvitePreviewResponse
+
+    /** 크루 로고 올리기(multipart 파트 logo, JPEG 1MB 이하, contract-W4 6절). */
+    @Multipart
+    @POST("crew-logos")
+    suspend fun uploadLogo(@Part logo: MultipartBody.Part): CrewLogoResponse
+
+    /** 크루 로고 바이트(image/jpeg, contract-W4 7절). */
+    @GET("crew-logos/{id}")
+    suspend fun logo(@Path("id") logoId: Long): ResponseBody
+
     @GET("crews/{id}")
     suspend fun detail(@Path("id") crewId: Long): CrewDetailResponse
 
@@ -71,6 +88,22 @@ internal interface CrewApi {
     @GET("crews/{id}/join-requests")
     suspend fun pendingRequests(@Path("id") crewId: Long): PendingRequestsResponse
 
+    /** 지난 공동 목표(contract-W7 4장). */
+    @GET("crews/{id}/goals/history")
+    suspend fun goalHistory(
+        @Path("id") crewId: Long,
+        @Query("before") before: String?,
+        @Query("size") size: Int
+    ): GoalHistoryResponse
+
+    /** 지난 크루런 한 달(contract-W6). */
+    @GET("crews/{id}/crew-runs/past")
+    suspend fun pastCrewRuns(
+        @Path("id") crewId: Long,
+        @Query("month") month: String,
+        @Query("date") date: String?
+    ): PastCrewRunsResponse
+
     @GET("crews/{id}/ranking")
     suspend fun crewRanking(@Path("id") crewId: Long, @Query("period") period: String): CrewRankingResponse
 
@@ -93,6 +126,18 @@ internal interface CrewApi {
 
     @PUT("posts/{id}/attendance")
     suspend fun answerAttendance(@Path("id") postId: Long, @Body body: AttendanceRequest): AttendanceResponse
+
+    /** 참석 취소(W6): 크루런 참석 응답을 거둔다. */
+    @DELETE("posts/{id}/attendance")
+    suspend fun withdrawAttendance(@Path("id") postId: Long): AttendanceResponse
+
+    /** 크루런 일정 상세(W6, 피그마 F-13). */
+    @GET("crew-runs/{id}")
+    suspend fun crewRun(@Path("id") postId: Long): CrewRunDetailResponse
+
+    /** 모집글 수정(W6, 피그마 F-13d). */
+    @PATCH("crew-runs/{id}")
+    suspend fun editCrewRun(@Path("id") postId: Long, @Body body: CrewRunEditRequest): CrewRunDetailResponse
 
     @PUT("crews/{id}/managers/{memberId}")
     suspend fun appointManager(@Path("id") crewId: Long, @Path("memberId") memberId: Long): ManagerResponse

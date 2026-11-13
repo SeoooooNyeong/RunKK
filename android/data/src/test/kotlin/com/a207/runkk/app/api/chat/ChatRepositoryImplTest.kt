@@ -3,10 +3,14 @@ package com.a207.runkk.app.api.chat
 import com.a207.runkk.app.api.core.ApiTestServer
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.chat.ChatAuthorRole
 import com.a207.runkk.app.domain.chat.ChatMessage
+import com.a207.runkk.app.domain.chat.ChatMessageKind
 import com.a207.runkk.app.domain.chat.ChatReactions
 import com.a207.runkk.app.domain.chat.ReactionKind
+import com.a207.runkk.app.domain.chat.Reactor
 import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -170,5 +174,56 @@ class ChatRepositoryImplTest {
                 it.lowercase() in setOf("latitude", "longitude", "location", "course")
             }
         )
+    }
+
+    @Test
+    fun `W5 메시지 종류·작성자 직책·러닝 거리를 읽고 옛 응답은 TEXT·null로 읽는다`() = runTest {
+        api.reply(
+            """{"messages":[{"messageId":201,"authorId":4,"authorName":"느긋한고래","content":"느긋한고래님이 5.02km를 달렸어요",
+               |"sentAt":"2026-10-22T19:40:00+09:00","reactions":{"CHECK":2},"myReactions":["CHECK"],"mine":false,"canDelete":false,
+               |"clientMessageId":null,"messageKind":"RUN_FINISHED","authorRole":"MEMBER","runDistanceMeters":5021},
+               |{"messageId":202,"authorId":1,"authorName":"새벽곰","content":"공지","sentAt":"2026-10-22T19:41:00+09:00",
+               |"messageKind":"TEXT","authorRole":"LEADER","runDistanceMeters":null},
+               |{"messageId":203,"authorId":2,"authorName":"옛응답","content":"안녕","sentAt":"2026-10-22T19:42:00+09:00"}],
+               |"hasMore":false}
+            """.trimMargin()
+        )
+
+        val messages = repository.history(5, before = null, after = null, size = 50).value().messages
+
+        val run = messages[0]
+        assertEquals(ChatMessageKind.RUN_FINISHED, run.kind)
+        assertEquals(Distance(5_021), run.runDistance)
+        assertEquals(ChatAuthorRole.MEMBER, run.authorRole)
+        assertEquals(mapOf(ReactionKind.CHECK to 2), run.reactions)
+        assertEquals(setOf(ReactionKind.CHECK), run.myReactions)
+        assertEquals(true, run.isSystem)
+        assertEquals(ChatAuthorRole.LEADER, messages[1].authorRole)
+        assertEquals(true, messages[1].isLeaderBadge)
+        assertEquals(ChatMessageKind.TEXT, messages[2].kind)
+        assertNull(messages[2].authorRole)
+        assertNull(messages[2].runDistance)
+    }
+
+    @Test
+    fun `반응한 사람 목록을 먼저 단 순서로 읽고 모르는 종류는 건너뛴다`() = runTest {
+        api.reply(
+            """{"messageId":801,"reactors":[
+               |{"memberId":4,"displayName":"느긋한고래","kind":"CHECK","reactedAt":"2026-10-22T19:37:00+09:00","me":true},
+               |{"memberId":3,"displayName":"새벽곰","kind":"LIKE","reactedAt":"2026-10-22T19:38:00+09:00","me":false},
+               |{"memberId":5,"displayName":"미래","kind":"FIRE","reactedAt":"2026-10-22T19:39:00+09:00","me":false}]}
+            """.trimMargin()
+        )
+
+        val reactors = repository.reactors(801).value()
+
+        assertEquals(
+            listOf(
+                Reactor(4, "느긋한고래", ReactionKind.CHECK, Instant.parse("2026-10-22T10:37:00Z"), isMe = true),
+                Reactor(3, "새벽곰", ReactionKind.LIKE, Instant.parse("2026-10-22T10:38:00Z"), isMe = false)
+            ),
+            reactors
+        )
+        assertEquals("/api/v1/chat-messages/801/reactions", api.take().url.encodedPath)
     }
 }

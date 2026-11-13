@@ -15,11 +15,15 @@ import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewForm
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewMembers
+import com.a207.runkk.app.domain.crew.CrewPreview
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
+import com.a207.runkk.app.domain.crew.CrewRunDetail
+import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
@@ -34,6 +38,7 @@ import com.a207.runkk.app.domain.crew.Poll
 import com.a207.runkk.app.domain.crew.PollMethod
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
+import com.a207.runkk.app.domain.crew.RecentCrewRun
 import com.a207.runkk.app.domain.live.ClientMessage
 import com.a207.runkk.app.domain.live.LiveChannel
 import com.a207.runkk.app.domain.live.LiveChannelProvider
@@ -124,6 +129,19 @@ class MutableClock(var now: Instant = start, private val zone: ZoneId = seoul) :
     override fun instant(): Instant = now
 }
 
+/** 초대 코드 미리보기 표본(contract-W4 표본과 같은 값). */
+val invitePreview = CrewPreview(
+    crewId = 12,
+    name = "새벽러너스",
+    intro = "새벽에 함께 달려요",
+    tags = setOf("WEEKDAY_DAWN", "WEEKEND_MORNING"),
+    logoUrl = null,
+    visibility = CrewVisibility.PRIVATE,
+    joinPolicy = JoinPolicy.APPROVAL,
+    headcount = 7,
+    createdAt = Instant.parse("2026-10-01T00:00:00Z")
+)
+
 val crewA = CrewList.Item(
     11,
     "새벽질주",
@@ -157,9 +175,40 @@ val crewC = CrewList.Item(
 
 val members = CrewMembers(
     listOf(
-        CrewMembers.Member(1, "바람처럼", CrewRole.LEADER, "매일 새벽 5시", "골드", "MORNING_SPARROW"),
-        CrewMembers.Member(2, "달빛", CrewRole.MEMBER, null, "실버", "LONE_WOLF"),
-        CrewMembers.Member(3, "비공개러너", CrewRole.MEMBER, "반가워요", null, null)
+        CrewMembers.Member(
+            1,
+            "바람처럼",
+            CrewRole.LEADER,
+            "매일 새벽 5시",
+            "GOLD",
+            "MORNING_SPARROW",
+            accumulated = Distance(512_390),
+            joinedAt = Instant.parse("2026-09-01T00:00:00Z"),
+            level = 26,
+            ageBand = "20대",
+            gender = Gender.FEMALE
+        ),
+        CrewMembers.Member(
+            2,
+            "달빛",
+            CrewRole.MEMBER,
+            null,
+            "SILVER",
+            "LONE_WOLF",
+            accumulated = Distance(120_500),
+            joinedAt = Instant.parse("2026-10-02T00:00:00Z"),
+            level = 12
+        ),
+        CrewMembers.Member(3, "비공개러너", CrewRole.MEMBER, "반가워요", null, null, level = 4)
+    )
+)
+
+/** W7: 내 줄이 있는 크루원(나 = 크루장, 나이 공개·성별 비공개). */
+val membersWithMe = CrewMembers(
+    listOf(
+        members.members[0].copy(isMe = true, isAgePublic = true, isGenderPublic = false),
+        members.members[1],
+        members.members[2]
     )
 )
 
@@ -191,6 +240,39 @@ val crewRunVoting = PostList.CrewRunInfo(
     myAnswer = null,
     finisherCount = 0,
     raceContribution = null
+)
+
+/** 일정 상세(W6): 토 07:00 KST 제한 없음, 매주 반복, 작성자 "바람처럼"과 "달빛"이 참석, 나는 아직 응답 없음. */
+val crewRunDetail = CrewRunDetail(
+    postId = 42,
+    crewId = 11,
+    title = "토요일 한강 같이 뛰어요",
+    body = "반포 한강공원 8번 출구, 6분대 페이스",
+    authorName = "바람처럼",
+    isMine = false,
+    writtenAt = Instant.parse("2026-10-21T01:00:00Z"),
+    scheduledAt = Instant.parse("2026-10-23T22:00:00Z"),
+    distance = null,
+    status = CrewRunStatus.VOTING,
+    goingCount = 2,
+    myAnswer = null,
+    canEdit = false,
+    canDelete = false,
+    repeat = CrewRunRepeat.WEEKLY,
+    repeatDay = java.time.DayOfWeek.SATURDAY,
+    attendees = listOf(
+        CrewRunDetail.Attendee(1, "바람처럼", isAuthor = true, isMe = false),
+        CrewRunDetail.Attendee(2, "달빛", isAuthor = false, isMe = false)
+    )
+)
+
+/** 마친 크루런 상세(F-11d): 작성자는 5.12km를 달렸고 달빛은 참석만 했다(DV-성-2). */
+val pastCrewRunDetail = crewRunDetail.copy(
+    status = CrewRunStatus.FINISHED,
+    attendees = listOf(
+        CrewRunDetail.Attendee(1, "바람처럼", isAuthor = true, isMe = false, distance = Distance(5_120)),
+        CrewRunDetail.Attendee(2, "달빛", isAuthor = false, isMe = false)
+    )
 )
 
 val crewRunPosts = PostList(
@@ -382,7 +464,24 @@ fun crewDetail(crewId: Long = 11, role: CrewRole? = CrewRole.MEMBER) = CrewDetai
     weeklyDistance = Distance(42_300),
     myRole = role,
     inviteCode = if (role != null) "K7P2QX" else null,
-    inviteCodeExpiresAt = null
+    inviteCodeExpiresAt = null,
+    createdAt = Instant.parse("2026-10-01T00:00:00Z"),
+    totalDistance = Distance(1_284_670),
+    crewRunCount = 12
+)
+
+/** 크루 밖에서 연 크루 13의 정보(피그마 F-02): 개설일·지난 주 거리·누적 크루런 5회·최근 크루런 2건. */
+val crewCInfo = crewDetail(13, null).copy(
+    name = "길게 천천히",
+    headcount = 4,
+    lastWeekDistance = Distance(64_270),
+    createdAt = Instant.parse("2026-10-01T00:00:00Z"),
+    totalDistance = Distance(1_284_670),
+    crewRunCount = 5,
+    recentCrewRuns = listOf(
+        RecentCrewRun(88, Instant.parse("2026-10-21T10:30:00Z"), 4, Distance(20_150)),
+        RecentCrewRun(80, Instant.parse("2026-10-17T22:00:00Z"), 3, Distance(15_000))
+    )
 )
 
 val crewRunResult = CrewRunResult(
@@ -454,8 +553,20 @@ class FakeCrewRepository : CrewRepository {
     /** 정보 수정(changeInfo)이 받아들인 크루명. 크루 조회가 이 이름을 돌려준다. */
     private var renamed: String? = null
 
-    override suspend fun detail(crewId: Long) =
-        answer("detail:$crewId", crewDetail(crewId, role).let { d -> renamed?.let { d.copy(name = it) } ?: d })
+    /** 크루 조회가 돌려줄 크루명을 바꾼다(긴 옛 이름 시험, W7). */
+    fun renameTo(name: String) {
+        renamed = name
+    }
+
+    /** 크루 조회의 개설 시각을 바꾼다(null이면 기본값). */
+    var createdAt: java.time.Instant? = null
+
+    override suspend fun detail(crewId: Long) = answer(
+        "detail:$crewId",
+        crewDetail(crewId, role)
+            .let { d -> renamed?.let { d.copy(name = it) } ?: d }
+            .let { d -> createdAt?.let { d.copy(createdAt = it) } ?: d }
+    )
 
     private fun <T> answer(op: String, value: T): Outcome<T> {
         calls += op
@@ -464,10 +575,13 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun create(form: CrewForm) = answer("create:${form.name}", 77L)
 
-    override suspend fun changeInfo(crewId: Long, form: CrewForm) =
-        answer("changeInfo:${form.name}", Unit).also { if (it is Outcome.Success) renamed = form.name }
+    /** 마지막으로 받은 정보 수정 입력(로고 주소 확인). */
+    var lastChangeInfo: CrewForm? = null
 
-    override suspend fun reissueInviteCode(crewId: Long) = answer("reissue", "K7P2QX")
+    override suspend fun changeInfo(crewId: Long, form: CrewForm) = answer("changeInfo:${form.name}", Unit).also {
+        lastChangeInfo = form
+        if (it is Outcome.Success) renamed = form.name
+    }
 
     override suspend fun transferLeadership(crewId: Long, memberId: Long) = answer("transfer:$memberId", Unit)
 
@@ -488,6 +602,14 @@ class FakeCrewRepository : CrewRepository {
         }
         return answer("apply:$crewId", result).also { if (it is Outcome.Success) reflect(it.value) }
     }
+
+    /** 초대 코드 미리보기(contract-W4 4절): "AB12CD"류 코드는 크루 12(비공개)를 보이고, fail["preview"]로 거부를 흉내 낸다. */
+    override suspend fun previewByInviteCode(code: String) = answer("preview:$code", invitePreview)
+
+    /** 크루 로고 업로드는 로고 7 주소를 준다. */
+    override suspend fun uploadLogo(jpeg: ByteArray) = answer("uploadLogo:${jpeg.size}", "/api/v1/crew-logos/7")
+
+    override suspend fun logo(url: String) = answer("logo:$url", byteArrayOf())
 
     /** 초대 코드는 크루 12에 바로 가입된다. */
     override suspend fun applyWithInviteCode(code: String) =
@@ -520,10 +642,44 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun editCrewProfile(crewId: Long, intro: String) = answer("intro:$intro", Unit)
 
-    override suspend fun members(crewId: Long) = answer("members", members)
+    /** 크루원 목록 응답(W7 시험은 [membersWithMe]로 바꾼다). */
+    var memberList = members
 
-    override suspend fun pendingRequests(crewId: Long) =
-        answer("pending", PendingRequests(listOf(PendingRequests.Request(91, 9, "새내기", start.minusSeconds(86_400)))))
+    override suspend fun members(crewId: Long) = answer("members", memberList)
+
+    override suspend fun pendingRequests(crewId: Long) = answer(
+        "pending",
+        PendingRequests(
+            listOf(
+                PendingRequests.Request(
+                    91,
+                    9,
+                    "새내기",
+                    start.minusSeconds(86_400),
+                    tier = "GOLD",
+                    level = 23,
+                    ageBand = "20대",
+                    gender = Gender.MALE
+                )
+            )
+        )
+    )
+
+    /** 지난 공동 목표 쪽(before → 쪽). 없는 before는 빈 쪽이다. */
+    val pastGoalPages = mutableMapOf<java.time.LocalDate?, com.a207.runkk.app.domain.crew.PastGoals>()
+
+    override suspend fun pastGoals(crewId: Long, before: java.time.LocalDate?) = answer(
+        "pastGoals:$before",
+        pastGoalPages[before] ?: com.a207.runkk.app.domain.crew.PastGoals(emptyList(), null)
+    )
+
+    /** 지난 크루런 달 → 응답. 없는 달은 빈 달이다. */
+    val pastRunMonths = mutableMapOf<java.time.YearMonth, com.a207.runkk.app.domain.crew.PastCrewRuns>()
+
+    override suspend fun pastCrewRuns(crewId: Long, month: java.time.YearMonth, date: java.time.LocalDate?) = answer(
+        "pastRuns:$month",
+        pastRunMonths[month] ?: com.a207.runkk.app.domain.crew.PastCrewRuns(month, emptySet(), emptyList(), null)
+    )
 
     /** 기간별 순위 응답(없으면 [ranking])과 응답을 붙잡아 둘 문(시험이 complete로 연다). */
     val rankingByPeriod = mutableMapOf<CrewRanking.Period, CrewRanking>()
@@ -568,7 +724,7 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long> {
         lastCrewRun = form
-        return answer("writeCrewRun:${form.distance.meters}", 33L)
+        return answer("writeCrewRun:${form.distance?.meters}", 33L)
     }
 
     override suspend fun deletePost(postId: Long) = answer("deletePost:$postId", Unit)
@@ -579,9 +735,30 @@ class FakeCrewRepository : CrewRepository {
     override suspend fun answerAttendance(postId: Long, answer: AttendanceAnswer) =
         answer("vote:$postId:$answer", Unit).also { if (it is Outcome.Success) attendance[postId] = answer }
 
-    override suspend fun appointManager(crewId: Long, memberId: Long) = answer("appoint:$memberId", Unit)
+    /** 참석 취소(W6): 응답을 거둔다. */
+    override suspend fun withdrawAttendance(postId: Long) =
+        answer("withdraw:$postId", Unit).also { if (it is Outcome.Success) attendance.remove(postId) }
 
-    override suspend fun dismissManager(crewId: Long, memberId: Long) = answer("dismiss:$memberId", Unit)
+    /** 상세가 돌려주는 일정(W6). 참석·취소를 반영한다. */
+    var detailState = crewRunDetail
+
+    var lastEdit: CrewRunEdit? = null
+
+    override suspend fun crewRun(postId: Long) = answer(
+        "crewRun:$postId",
+        detailState.copy(postId = postId, myAnswer = attendance[postId] ?: detailState.myAnswer)
+    )
+
+    override suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail> {
+        lastEdit = edit
+        val changed = detailState.copy(
+            title = edit.title,
+            body = edit.body.orEmpty(),
+            distance = edit.distance,
+            repeat = edit.repeat
+        )
+        return answer("editCrewRun:$postId", changed).also { if (it is Outcome.Success) detailState = changed }
+    }
 
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance) =
         answer("goal:${goal.meters}", raceWithGoal.copy(goal = goal))

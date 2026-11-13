@@ -2,9 +2,7 @@ package com.a207.runkk.app.api.crew
 
 import com.a207.runkk.app.api.core.ApiTestServer
 import com.a207.runkk.app.api.core.value
-import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.BoardPost
 import com.a207.runkk.app.domain.crew.CelebrationCard
@@ -22,7 +20,7 @@ import kotlinx.coroutines.test.runTest
 import retrofit2.create
 
 /**
- * api.crew v0.11(F.2.2, F.2.4, D-98~D-100, D-105, D-114): 새 게시 종류 해독, 시각 두 형식, 운영진·공동 목표.
+ * api.crew v0.11(F.2.2, F.2.4, D-98~D-100, D-105, D-114): 새 게시 종류 해독, 시각 두 형식, 공동 목표. 운영진 지정·해제는 앱에서 지웠다(W7 결정 C5, 서버 API는 남아 있다).
  * 서버 S3a 구현 전이라 05-03·S0 DTO 기준이다. 대면 모임·공지·투표·게시판·앨범 쓰기 연산은 앱에서 지웠다(S15P31A207-236).
  */
 class CrewBoardAndScheduleTest {
@@ -82,20 +80,6 @@ class CrewBoardAndScheduleTest {
 
             assertEquals(Instant.parse("2026-10-24T22:00:00Z"), post.writtenAt, writtenAt)
         }
-    }
-
-    @Test
-    fun `운영진 지정·해제는 크루장 경로로 보낸다(D-98)`() = runTest {
-        api.reply("""{"memberId":9,"role":"MANAGER"}""")
-        api.reply("""{"code":"MANAGER_LIMIT","message":"운영진은 2명까지"}""", code = 409)
-        api.reply("""{"memberId":9,"role":"MEMBER"}""")
-
-        assertEquals(Outcome.Success(Unit), repository.appointManager(5, 9))
-        assertEquals(Outcome.Failure(AppError.Rejected("MANAGER_LIMIT")), repository.appointManager(5, 10))
-        assertEquals(Outcome.Success(Unit), repository.dismissManager(5, 9))
-        assertEquals("PUT /api/v1/crews/5/managers/9", path())
-        path()
-        assertEquals("DELETE /api/v1/crews/5/managers/9", path())
     }
 
     @Test

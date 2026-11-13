@@ -77,7 +77,11 @@ public final class InMemoryChatRepositories {
         public void anonymizeAuthor(long memberId) {
             rows.values().stream()
                     .filter(m -> Objects.equals(m.authorId(), memberId))
-                    .forEach(CrewChatMessage::anonymizeAuthor);
+                    .forEach(
+                            m -> {
+                                m.retractSystem();
+                                m.anonymizeAuthor();
+                            });
         }
 
         private static void setId(CrewChatMessage message, long id) {
@@ -133,6 +137,16 @@ public final class InMemoryChatRepositories {
                                                     id -> EnumSet.noneOf(ReactionKind.class))
                                             .add(k.kind()));
             return mine;
+        }
+
+        @Override
+        public List<ChatReaction> reactionsOf(long messageId, ReactionKind kind) {
+            return rows.values().stream()
+                    .filter(r -> r.messageId() == messageId && (kind == null || r.kind() == kind))
+                    .sorted(
+                            Comparator.comparing(ChatReaction::reactedAt)
+                                    .thenComparing(ChatReaction::memberId))
+                    .toList();
         }
 
         @Override

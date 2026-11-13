@@ -8,11 +8,11 @@ import java.util.Set;
 
 /** 기준 거리(설계 6.1.1). 쓰임새는 이름 있는 형식(Use)의 집합으로 적어 생성자 인자가 위치로만 읽히지 않게 한다(1단계 리뷰 M1). */
 public enum StandardDistance {
-    KM1(1_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE),
+    KM1(1_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.RECORD_BASE),
     KM3(3_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE),
     KM5(5_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE, Use.CELEBRITY),
     KM10(10_000, Use.RANDOM_BATTLE, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE, Use.CELEBRITY),
-    HALF(21_097, Use.SELF_BATTLE, Use.RECORD_BASE, Use.CELEBRITY),
+    HALF(21_097, Use.SELF_BATTLE, Use.CREW_RUN, Use.RECORD_BASE, Use.CELEBRITY),
     FULL(42_195, Use.RECORD_BASE, Use.CELEBRITY);
 
     /** 기준 거리를 쓰는 곳. */
@@ -46,7 +46,7 @@ public enum StandardDistance {
         return uses.contains(Use.SELF_BATTLE);
     }
 
-    /** 1·3·5·10km. */
+    /** 3·5·10km·하프(피그마 맞춤 W6 C4: 1km 빼고 하프 추가. 제한 없음은 거리 없음 null). 기존 1km 크루런은 읽기만 된다. */
     public boolean isCrewRun() {
         return uses.contains(Use.CREW_RUN);
     }

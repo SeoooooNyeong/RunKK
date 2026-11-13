@@ -4,6 +4,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -11,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewRole
@@ -71,8 +74,8 @@ class CrewFigmaTest {
                 )
             }
         }
-        compose.onNodeWithText("크루런 · 5km").assertExists()
-        compose.onNodeWithText("00:00", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("크루런 5km", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("0:00", useUnmergedTree = true).assertExists()
         compose.onNodeWithText(reason, useUnmergedTree = true).assertExists()
         compose.onNodeWithText("출발까지", useUnmergedTree = true).assertDoesNotExist()
         compose.onNodeWithText("준비 완료 1 / 3").assertExists()
@@ -122,14 +125,34 @@ class CrewFigmaTest {
     }
 
     @Test
-    fun `크루 상세 통계는 지난 주 달린 거리다(F-02)`() {
+    fun `크루 상세 통계는 지난 주 달린 거리와 누적 크루런 횟수, 최근 크루런이다(F-02)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                CrewDetailContent(crewA, isJoining = false, onJoin = {}, lastWeekDistance = Distance(64_270))
+                CrewDetailContent(
+                    crewA,
+                    isJoining = false,
+                    onJoin = {},
+                    info = crewCInfo.copy(crewId = crewA.crewId, lastWeekDistance = Distance(64_270))
+                )
             }
         }
         compose.onNodeWithText("지난 주 달린 거리").assertExists()
         compose.onNodeWithText("64.27km").assertExists()
+        compose.onNodeWithText("누적 크루런 횟수").assertExists()
+        compose.onNodeWithText("5회").assertExists()
+        compose.onNodeWithText("최근 크루런").assertExists()
+        compose.onNodeWithContentDescription("4명 참여, 총 20.15km").assertExists()
+    }
+
+    @Test
+    fun `24시간 가입 제한이면 가입 단추 대신 남은 시간을 회색으로 보인다(F-02c)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewDetailContent(crewA, isJoining = false, onJoin = {
+                }, joinRemaining = java.time.Duration.ofSeconds(3_725))
+            }
+        }
+        compose.onNodeWithText("01:02:05 후에 가입할 수 있어요").assertIsNotEnabled()
     }
 
     @Test
@@ -151,12 +174,13 @@ class CrewFigmaTest {
                 )
             }
         }
-        compose.onNodeWithText("요일과 시간대를 선택해 조건에 맞는 크루를 찾아보세요").performClick()
+        compose.onNodeWithText("나와 비슷한 시간대에 뛰는 크루를 찾아보세요").performClick()
         compose.onAllNodesWithText("저녁")[0].performClick()
         compose.onNodeWithText("적용하기").performClick()
         compose.onNodeWithText("조건에 맞는 크루").assertExists()
         assertEquals(setOf("WEEKDAY_EVENING"), state.tags)
-        compose.onAllNodesWithText("평일 저녁").assertCountEquals(1)
+        // 조건 칸에 고른 조건 태그가 보인다(크루 카드에도 같은 태그 이름이 작게 있다).
+        compose.onNode(hasText("조건 설정하기") and hasText("평일 저녁")).assertExists()
     }
 
     @Test
@@ -190,7 +214,7 @@ class CrewFigmaTest {
     }
 
     @Test
-    fun `크루 정보 쪽은 태그, 이번 주와 지난 주 거리, 탈퇴하기를 보이고 뒤로 가면 홈이다(F-18)`() {
+    fun `크루 정보 쪽은 태그, 누적 거리·누적 크루런, 탈퇴하기를 보이고 뒤로 가면 홈이다(F-18, W7)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
@@ -205,8 +229,9 @@ class CrewFigmaTest {
         }
         compose.onNodeWithText("새벽질주").assertExists()
         compose.onNodeWithText("평일 저녁").assertExists()
-        compose.onNodeWithText("이번 주 달린 거리").assertExists()
-        compose.onNodeWithText("64.27km").assertExists()
+        compose.onNodeWithText("누적 거리").assertExists()
+        compose.onNodeWithText("1,284.67km").assertExists()
+        compose.onNodeWithText("이번 주 달린 거리").assertDoesNotExist()
         compose.onNodeWithText("탈퇴하기").performClick()
         compose.onNodeWithContentDescription("뒤로", substring = true).performClick()
         assertEquals(listOf("leave", "page:HOME"), calls)
@@ -215,7 +240,9 @@ class CrewFigmaTest {
     @Test
     fun `크루원 쪽을 처음 열면 크루원을 읽는다(F-22)`() {
         val repo = FakeCrewRepository()
-        val vm = CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer())
+        val vm = CrewHomeViewModel(repo, ServerClock(MutableClock()), FakeCelebrationSharer(), { _, _ ->
+            Outcome.Success(Unit)
+        })
             .also { it.bind(Routes.CrewHome(11)) }
         assertTrue("members" !in repo.calls)
         vm.onPage(CrewHomePage.MEMBERS)
@@ -243,7 +270,7 @@ class CrewFigmaTest {
             }
         }
         compose.onNodeWithText("초대 코드").performClick()
-        compose.onNodeWithText("K 7 P 2 Q X").assertExists()
+        compose.onNodeWithText("K7P2QX").assertExists()
         compose.onNodeWithText("복사").performClick()
         compose.waitForIdle()
         assertEquals(listOf("copied"), calls)

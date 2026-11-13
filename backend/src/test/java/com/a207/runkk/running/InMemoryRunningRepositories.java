@@ -71,6 +71,16 @@ public final class InMemoryRunningRepositories {
         }
 
         @Override
+        public List<RunSummary> findSummaries(Collection<String> recordIds) {
+            return recordIds.stream()
+                    .distinct()
+                    .map(this::findById)
+                    .flatMap(Optional::stream)
+                    .map(RunRecord::summary)
+                    .toList();
+        }
+
+        @Override
         public List<RunSummary> summariesBetween(long memberId, DateRange range) {
             return findByMemberBetween(memberId, range).stream().map(RunRecord::summary).toList();
         }

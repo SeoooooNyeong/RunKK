@@ -162,7 +162,7 @@ class ReceiverReconcileIntegrationTest {
                 posts.writeCrewRun(
                                 leader,
                                 crewId,
-                                new CrewRunDraft("보정 크루런", scheduledAt, StandardDistance.KM1, null))
+                                new CrewRunDraft("보정 크루런", scheduledAt, StandardDistance.KM3, null))
                         .postId();
         long mate = member();
         membership.apply(mate, JoinTarget.byCrew(crewId));

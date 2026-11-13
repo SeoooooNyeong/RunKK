@@ -42,7 +42,14 @@ internal data class ProgressNoticeText(
             val progress = end?.let { notice.distance.meters.coerceAtMost(it).toInt() }
             return when (notice) {
                 is ProgressNotice.Free -> ProgressNoticeText(
-                    title = context.getString(R.string.progress_notice_free_title, elapsedLabel(notice.elapsed)),
+                    title = context.getString(
+                        if (notice.isPaused) {
+                            R.string.progress_notice_free_paused_title
+                        } else {
+                            R.string.progress_notice_free_title
+                        },
+                        elapsedLabel(notice.elapsed)
+                    ),
                     distance = distance,
                     detail = goalLine(context, notice.goal),
                     chip = distance,
@@ -52,7 +59,14 @@ internal data class ProgressNoticeText(
                 )
 
                 is ProgressNotice.CrewRun -> ProgressNoticeText(
-                    title = context.getString(R.string.progress_notice_crew_run_title, elapsedLabel(notice.elapsed)),
+                    title = context.getString(
+                        if (notice.isPaused) {
+                            R.string.progress_notice_crew_run_paused_title
+                        } else {
+                            R.string.progress_notice_crew_run_title
+                        },
+                        elapsedLabel(notice.elapsed)
+                    ),
                     distance = distance,
                     detail = null,
                     chip = distance,

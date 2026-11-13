@@ -81,7 +81,8 @@ public record PostSummary(
     /**
      * 모집글 줄의 크루런 정보(FR-133).
      *
-     * @param distance 크루런 거리
+     * @param title 제목(W6)
+     * @param distance 크루런 거리, 제한 없음이면 null
      * @param scheduledAt 모집희망일시
      * @param voteDeadline 참석 응답 마감
      * @param status 크루런 상태
@@ -91,6 +92,7 @@ public record PostSummary(
      * @param linkedRecordIds 연결된 기록(크루 반영 거리 계산용)
      */
     public record CrewRunInfo(
+            String title,
             StandardDistance distance,
             LocalDateTime scheduledAt,
             LocalDateTime voteDeadline,

@@ -71,6 +71,17 @@ def _km(meters: int) -> float:
     return round(meters / 1000, 2)
 
 
+def _this_week(results: list[SessionResultOut], now: datetime) -> dict[str, Any]:
+    """오늘(한국 시각)이 속한 월요일 시작 달력 주의 러닝 횟수·거리. 모델이 최근 러닝 목록을 세지 않게 값으로 준다."""
+    monday = kst_date(now) - timedelta(days=kst_date(now).weekday())
+    in_week = [r for r in results if monday <= kst_date(r.summary.startedAt) <= kst_date(now)]
+    return {
+        "weekStart": monday.isoformat(),
+        "runs": len(in_week),
+        "distanceKm": _km(sum(r.summary.distanceMeters for r in in_week)),
+    }
+
+
 def session_digest(r: SessionResultOut) -> dict[str, Any]:
     s = r.summary
     return {
@@ -124,8 +135,11 @@ def monthly_digest(m: MonthlyOut) -> dict[str, Any]:
             "longestRunMeters": _best(m.bests.longestRunMeters, "value"),
             "bestRecovery1m": _best(m.bests.bestRecoveryHeartRate1m, "value"),
         },
-        # 월요일 시작 달력 주(러닝이 있는 주만). '이번 주'는 load.last7DaysKm로 답한다
-        "weeks": [{"weekStart": w.weekStart.isoformat(), "distanceKm": _km(w.distanceMeters)} for w in m.weeks],
+        # 월요일 시작 달력 주(러닝이 있는 주만). '이번 주 몇 번'은 getBaseline의 thisWeek로 답한다
+        "weeks": [
+            {"weekStart": w.weekStart.isoformat(), "runs": w.sessionCount, "distanceKm": _km(w.distanceMeters)}
+            for w in m.weeks
+        ],
         "timeOfDay": {"night": m.timeOfDay.night, "day": m.timeOfDay.day},
         "load": _load(load),
         "baseline": _baseline(
@@ -213,6 +227,7 @@ class CoachTools:
         base, load = baseline(recent), recent_load(window, first, now)
         return {
             "asOf": kst_date(now).isoformat(),
+            "thisWeek": _this_week(window, now),
             "baseline": _baseline(
                 base.available, base.needs, base.paceSecondsPerKm, base.avgHeartRate, base.recoveryHeartRate1m
             ),

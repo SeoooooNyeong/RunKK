@@ -8,4 +8,7 @@ interface CoachRepository {
     fun ask(conversationId: String?, text: String): Flow<CoachEvent>
 
     suspend fun conversations(): Outcome<List<CoachConversation>>
+
+    /** 이전 대화를 열 때 지난 문답을 오래된 순으로 읽는다(S15P31A207-300). 지났거나 남의 대화면 CONVERSATION_EXPIRED로 거절된다. */
+    suspend fun messages(conversationId: String): Outcome<List<CoachMessage>>
 }

@@ -102,6 +102,18 @@ interface AccountRepository {
      */
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
 
+    /**
+     * 기다리지 않고 바로 그릴 수 있는 얼굴 그림(앞서 받아 둔 것). 셀카 얼굴이 아니면 빈 목록, 받아 둔 그림이 없으면 null이다(그때는
+     * [faceLayers]로 받는다). 화면이 첫 그림부터 그 얼굴을 그리고 기본 머리를 거치지 않게 한다. 구현이 없으면 null.
+     */
+    fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = null
+
+    /**
+     * 마지막으로 읽은 내 아바타(기기에 남긴 내 프로필의 얼굴·배경 키와 받아 둔 그림). 화면 상태의 첫 값으로 써서 앱을 새로 켜도 첫
+     * 그림부터 내 얼굴을 그린다. 모르거나(처음 로그인, 다른 계정) 그림을 받아 두지 않았으면 null. 구현이 없으면 null.
+     */
+    fun lastMyAvatar(): MyAvatar? = null
+
     companion object {
         /** profile(memberId)에 넘기면 로그인한 본인. 구현이 본인 회원 ID로 바꿔 부른다. */
         const val SELF: Long = 0L

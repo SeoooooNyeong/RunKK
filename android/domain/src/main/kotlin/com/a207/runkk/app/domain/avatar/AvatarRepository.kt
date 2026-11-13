@@ -1,7 +1,10 @@
 package com.a207.runkk.app.domain.avatar
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * 아바타·상점 포트(5.7.1 /avatar/…, /shop/…). 구현 api.avatar.
@@ -31,6 +34,24 @@ interface AvatarRepository {
      */
     suspend fun pendingSelfieJobId(): String?
 
+    /**
+     * 기기에 남긴 마지막 셀카 실패(DV-성-10). 작업이 실패로 끝나면 남기고, 새로 접수하거나 결과를 받거나 기본 캐릭터를 고르면 지운다.
+     * 구현이 없으면 null이다.
+     */
+    suspend fun lastSelfieFailure(): SelfieFailure? = null
+
+    /**
+     * 셀카 작업 진행(design-oo 05-30 6.1, [임시:D-성-117]). 기기에 남긴 작업·실패와 워커가 고친 최근 상태를 합쳐 낸다. 얼굴 만들기·
+     * 꾸미기·내 러너·홈 진행 표시가 같은 흐름을 듣는다. 구현이 없으면 [SelfieProgress.None] 하나다.
+     */
+    fun selfieProgress(): Flow<SelfieProgress> = flowOf(SelfieProgress.None)
+
+    /**
+     * 끝난 작업의 결과(성공·실패)를 보았다(얼굴 만들기 화면의 「확인」, 「다른 사진 고르기」·「기본 얼굴 쓰기」). 남긴 실패를 지우고 진행을
+     * [SelfieProgress.None]으로 둔다. 만드는 중인 작업은 그대로다. 구현이 없으면 아무것도 하지 않는다.
+     */
+    fun dismissSelfieResult() = Unit
+
     suspend fun chooseDefault(characterId: String): Outcome<Avatar>
 
     /** 착용·해제 변경. 거부된 항목은 Avatar.rejected에 사유로 모인다. */
@@ -54,4 +75,17 @@ interface AvatarRepository {
      * 받지 못하면 실패이고 화면은 지금의 자리 그림을 그린다. 구현이 없으면 빈 목록이다.
      */
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
+
+    /** 내 러너(GET /avatar/runner, W8 H-2). 구현이 없으면 실패다. */
+    suspend fun runner(): Outcome<AvatarRunner> = Outcome.Failure(AppError.Server(HTTP_NOT_IMPLEMENTED))
+
+    /**
+     * 셀카 머리 결과(GET /avatar/heads/{회원ID}/{작업ID}, W9 Rive 렌더러 입력, contract-W8.md 6.2). 본문을 한 번 받아 원문 JSON과
+     * 대체 그림(정면 세 층)을 함께 준다. [faceKey]가 셀카 머리("head:…")가 아니면 null이다. 받지 못하면 실패이고, 받았지만 층 형식이
+     * 틀렸으면 대체 그림이 빈 성공이다. 구현이 없으면 null이다.
+     */
+    suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> = Outcome.Success(null)
 }
+
+/** 구현이 없는 기본 메소드의 실패 상태(HTTP 501과 같은 뜻). */
+private const val HTTP_NOT_IMPLEMENTED = 501

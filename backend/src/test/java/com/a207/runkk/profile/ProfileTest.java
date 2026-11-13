@@ -59,14 +59,14 @@ class ProfileTest {
                 5,
                 com.a207.runkk.common.DisplayName.of("달림이"),
                 "default:RABBIT",
-                "KAESONG",
+                "CHUNCHEON",
                 Tier.GOLD,
                 "CHEETAH",
                 new ProfileView.Crew(7, "새벽크루", null),
                 Distance.ofKm(21),
                 SETTINGS,
                 new MemberProfile(7, "안녕", "20대", Gender.FEMALE, ageBand, gender),
-                Distance.ofKm(120),
+                Distance.ofKm(150),
                 14,
                 List.of(RECENT));
     }
@@ -98,7 +98,7 @@ class ProfileTest {
         assertThat(self.runimalType()).isEqualTo("CHEETAH");
         assertThat(self.about().level()).isEqualTo(7);
         assertThat(self.about().ageBandVisibility()).isEqualTo(ProfileVisibility.PUBLIC);
-        assertThat(self.totalDistance()).isEqualTo(Distance.ofKm(120));
+        assertThat(self.totalDistance()).isEqualTo(Distance.ofKm(150));
         assertThat(self.runCount()).isEqualTo(14);
         assertThat(self.recentRuns()).as("본인 프로필에는 최근 러닝을 싣지 않는다(D-243)").isEmpty();
 
@@ -112,10 +112,10 @@ class ProfileTest {
         assertThat(open.about().ageBand()).isEqualTo("20대");
         assertThat(open.about().gender()).isEqualTo(Gender.FEMALE);
         assertThat(open.about().ageBandVisibility()).as("공개 값은 다른 러너에게 싣지 않는다").isNull();
-        assertThat(open.totalDistance()).isEqualTo(Distance.ofKm(120));
+        assertThat(open.totalDistance()).isEqualTo(Distance.ofKm(150));
         assertThat(open.runCount()).isEqualTo(14);
         assertThat(open.recentRuns()).containsExactly(RECENT);
-        assertThat(open.avatarBackgroundKey()).isEqualTo("KAESONG");
+        assertThat(open.avatarBackgroundKey()).isEqualTo("CHUNCHEON");
 
         ProfileView gone = ProfileDisclosure.WITHDRAWN.filter(DATA);
         assertThat(gone.displayName().value()).isEqualTo("탈퇴한 사용자");

@@ -2,6 +2,7 @@ package com.a207.runkk.web.coach;
 
 import com.a207.runkk.aicoach.AiCoachService;
 import com.a207.runkk.aicoach.CoachChatGateway;
+import com.a207.runkk.aicoach.CoachMessage;
 import com.a207.runkk.aicoach.CoachQuestion;
 import com.a207.runkk.aicoach.CoachRejected;
 import com.a207.runkk.aicoach.CoachStore;
@@ -32,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -64,6 +66,15 @@ public class AiCoachController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(coach.conversationsOf(memberId));
+    }
+
+    /** 이전 대화의 지난 문답(S15P31A207-300). 앱이 대화를 열 때 말풍선으로 다시 그린다. */
+    @GetMapping("/conversations/{conversationId}/messages")
+    ResponseEntity<List<CoachMessage>> messages(
+            @RequestAttribute("memberId") long memberId, @PathVariable String conversationId) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(coach.messagesOf(memberId, conversationId));
     }
 
     @Operation(

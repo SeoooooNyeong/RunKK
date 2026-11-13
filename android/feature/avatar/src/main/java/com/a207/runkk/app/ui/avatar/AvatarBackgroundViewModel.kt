@@ -16,10 +16,13 @@ import kotlinx.coroutines.launch
 
 /**
  * 랜드마크 배경 고르기(FR-201, FR-202): AvatarRepository.backgrounds()로 해금·잠김 목록을 보이고 chooseBackground(key)로 고른다.
- * 잠긴 배경은 보내지 않고 해금 거리를 안내한다. 서버가 잠김(BACKGROUND_LOCKED)으로 거부해도 같은 안내를 보인다.
+ * 잠긴 배경은 보내지 않고 남은 거리를 안내한다. 서버가 잠김(BACKGROUND_LOCKED)으로 거부해도 같은 안내를 보인다.
  */
 @HiltViewModel
-class AvatarBackgroundViewModel @Inject constructor(private val avatars: AvatarRepository) : ViewModel() {
+class AvatarBackgroundViewModel @Inject constructor(
+    private val avatars: AvatarRepository,
+    private val myAvatar: MyAvatarStore
+) : ViewModel() {
     private val _state = MutableStateFlow(AvatarBackgroundUiState())
     val state: StateFlow<AvatarBackgroundUiState> = _state.asStateFlow()
 
@@ -61,12 +64,16 @@ class AvatarBackgroundViewModel @Inject constructor(private val avatars: AvatarR
         _state.update { it.copy(choosingKey = key ?: AvatarBackgroundUiState.DEFAULT_KEY) }
         viewModelScope.launch {
             when (val result = avatars.chooseBackground(key)) {
-                is Outcome.Success -> _state.update {
-                    it.copy(
-                        choosingKey = null,
-                        backgrounds = it.backgrounds?.copy(selectedKey = key),
-                        message = UiText.Res(R.string.avatar_background_chosen)
-                    )
+                is Outcome.Success -> {
+                    _state.update {
+                        it.copy(
+                            choosingKey = null,
+                            backgrounds = it.backgrounds?.copy(selectedKey = key),
+                            message = UiText.Res(R.string.avatar_background_chosen)
+                        )
+                    }
+                    // 홈·러닝 칸의 배경도 바꾼다(design-oo 05-30 3절 6단계).
+                    myAvatar.refresh()
                 }
 
                 is Outcome.Failure -> _state.update {
@@ -77,9 +84,5 @@ class AvatarBackgroundViewModel @Inject constructor(private val avatars: AvatarR
     }
 
     private fun lockedText(item: AvatarBackgrounds.Item): UiText =
-        UiText.Res(R.string.avatar_background_locked_hint, listOf(item.name, item.distance.meters / METERS_PER_KM))
-
-    private companion object {
-        const val METERS_PER_KM = 1_000L
-    }
+        UiText.Res(R.string.avatar_background_locked_hint, listOf(item.name, remainingKm(item.remaining)))
 }

@@ -69,7 +69,7 @@ internal fun InboxNoticeRow(item: Inbox.Item, time: String, onClick: () -> Unit,
                 color = RunkkColors.TextPrimary
             )
             if (item.body.isNotBlank()) {
-                Text(item.body, style = RunkkTextStyles.text(13), color = RunkkColors.TextPrimary)
+                Text(item.body, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary)
             }
             Text(time, style = RunkkTextStyles.text(12), color = RunkkColors.TextSecondary)
         }

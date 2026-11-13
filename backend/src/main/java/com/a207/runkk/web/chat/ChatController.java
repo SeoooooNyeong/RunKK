@@ -2,8 +2,10 @@ package com.a207.runkk.web.chat;
 
 import com.a207.runkk.crew.chat.ChatCursor;
 import com.a207.runkk.crew.chat.ChatDraft;
+import com.a207.runkk.crew.chat.ChatMessageKind;
 import com.a207.runkk.crew.chat.ChatPage;
 import com.a207.runkk.crew.chat.ChatPostResult;
+import com.a207.runkk.crew.chat.ChatReactor;
 import com.a207.runkk.crew.chat.CrewChatService;
 import com.a207.runkk.crew.chat.ReactionKind;
 import com.a207.runkk.crew.chat.ReactionView;
@@ -13,6 +15,7 @@ import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,9 +31,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * 크루 채팅 REST(설계 5.7.1, 부록 F F.2.2 크루 채팅, D-101): 지난 메시지 읽기, 보내기, 삭제, 리액션. 받기는 실시간 채널(CrewChatPosted
- * 등)이 한다. 요청 DTO → crew.chat 입력, 결과 → 응답 DTO 변환만 하고 업무 규칙이 없다. 보내기는 ChatRateGuard(회원당 초당 5건)를 먼저
- * 거친다(D-132).
+ * 크루 채팅 REST(설계 5.7.1, 부록 F F.2.2 크루 채팅, D-101): 지난 메시지 읽기, 보내기, 삭제, 리액션, 반응한 사람 목록(피그마 맞춤 W5,
+ * contract-W5.md). 받기는 실시간 채널(CrewChatPosted 등)이 한다. 요청 DTO → crew.chat 입력, 결과 → 응답 DTO 변환만 하고 업무
+ * 규칙이 없다. 보내기는 ChatRateGuard(회원당 초당 5건)를 먼저 거친다(D-132).
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -108,6 +111,29 @@ public class ChatController {
         return ResponseEntity.ok(reaction(chatService.unreact(memberId, messageId, kind)));
     }
 
+    /** 반응한 사람 목록(피그마 F-09d, W5 C7). kind를 비우면 모든 종류, 모르는 kind는 400. 반응 한 건이 한 줄, 먼저 단 순서. */
+    @GetMapping("/chat-messages/{id}/reactions")
+    ResponseEntity<ReactorListResponse> reactors(
+            @RequestAttribute(MEMBER_ID) long memberId,
+            @PathVariable("id") long messageId,
+            @RequestParam(value = "kind", required = false) ReactionKind kind) {
+        List<ChatReactor> rows =
+                chatService.reactors(memberId, messageId, Optional.ofNullable(kind));
+        return ResponseEntity.ok(
+                new ReactorListResponse(
+                        messageId,
+                        rows.stream()
+                                .map(
+                                        r ->
+                                                new Reactor(
+                                                        r.memberId(),
+                                                        r.displayName(),
+                                                        r.kind(),
+                                                        r.reactedAt(),
+                                                        r.me()))
+                                .toList()));
+    }
+
     private static ChatMessageItem item(ChatPage.Line line) {
         return new ChatMessageItem(
                 line.messageId(),
@@ -119,7 +145,10 @@ public class ChatController {
                 line.myReactions(),
                 line.mine(),
                 line.canDelete(),
-                line.clientMessageId());
+                line.clientMessageId(),
+                line.kind(),
+                line.authorRoleName(),
+                line.runDistanceMeters());
     }
 
     private static ReactionResponse reaction(ReactionView view) {
@@ -158,6 +187,10 @@ public class ChatController {
      * @param mine 본인 메시지
      * @param canDelete 지울 수 있음(본인 또는 운영진 이상)
      * @param clientMessageId 앱 메시지 ID(본인 메시지만)
+     * @param messageKind 메시지 종류(TEXT, 러닝 완료 시스템 메시지 RUN_FINISHED, W5)
+     * @param authorRole 작성자의 지금 크루 역할(crew.CrewRole 상수 LEADER·MANAGER·MEMBER), 탈퇴했거나 크루를 떠났으면
+     *     null(크루장 배지, W5)
+     * @param runDistanceMeters 러닝 완료 메시지의 거리(미터), 보통 메시지면 null(W5)
      */
     record ChatMessageItem(
             long messageId,
@@ -169,7 +202,10 @@ public class ChatController {
             Set<ReactionKind> myReactions,
             boolean mine,
             boolean canDelete,
-            String clientMessageId) {}
+            String clientMessageId,
+            ChatMessageKind messageKind,
+            String authorRole,
+            Long runDistanceMeters) {}
 
     /**
      * 리액션 결과.
@@ -180,4 +216,28 @@ public class ChatController {
      */
     record ReactionResponse(
             long messageId, Map<ReactionKind, Integer> reactions, Set<ReactionKind> myReactions) {}
+
+    /**
+     * 반응한 사람 목록(W5).
+     *
+     * @param messageId 메시지 ID
+     * @param reactors 반응 한 건이 한 줄, 반응 일시 오름차순
+     */
+    record ReactorListResponse(long messageId, List<Reactor> reactors) {}
+
+    /**
+     * 반응한 사람 한 줄(W5).
+     *
+     * @param memberId 반응한 회원 ID
+     * @param displayName 표시명
+     * @param kind 반응 종류
+     * @param reactedAt 반응한 일시
+     * @param me 요청자 본인
+     */
+    record Reactor(
+            long memberId,
+            String displayName,
+            ReactionKind kind,
+            OffsetDateTime reactedAt,
+            boolean me) {}
 }

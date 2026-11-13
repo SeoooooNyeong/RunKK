@@ -23,7 +23,10 @@ internal data class DashboardResponse(
     val monthRuns: Int? = null,
     val monthMeters: Long? = null,
     /** 최근 러닝 1건(기록 목록 맨 위 행과 같은 형식, 05-03 5.7.3.3 P8). 기록이 없거나 옛 서버면 null. */
-    val latestRun: RunSummaryDto? = null
+    val latestRun: RunSummaryDto? = null,
+    /** 이번 주(월요일 ~ baseDate) 유효 러닝 횟수·거리. 주간 목표가 없어도 준다(실기기 DV3-4). 옛 서버는 주지 않는다. */
+    val weekRuns: Int? = null,
+    val weekMeters: Long? = null
 ) {
     /** 이번 주 목표·실적. 서버가 빠뜨린 항목은 0으로 읽어 대시보드 전체가 실패하지 않게 한다. */
     @Serializable

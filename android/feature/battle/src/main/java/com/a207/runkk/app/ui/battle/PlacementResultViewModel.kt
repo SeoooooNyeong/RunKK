@@ -48,7 +48,8 @@ class PlacementResultViewModel @Inject constructor(
     private val account: AccountRepository,
     private val uploads: BattleRecordUploads
 ) : ViewModel() {
-    private val _state = MutableStateFlow(PlacementResultUiState())
+    // 기기에 남긴 마지막 내 아바타(AccountRepository.lastMyAvatar)를 첫 값으로 그려 기본 아바타가 보였다가 바뀌지 않게 한다.
+    private val _state = MutableStateFlow(PlacementResultUiState(myAvatar = account.lastMyAvatar()))
     val state: StateFlow<PlacementResultUiState> = _state.asStateFlow()
 
     private val _events = Channel<PlacementResultEvent>(Channel.BUFFERED)
@@ -90,7 +91,7 @@ class PlacementResultViewModel @Inject constructor(
 
     /** 내 아바타(홈과 같은 얼굴, AccountRepository.myAvatar)를 한 번 읽는다. 못 읽으면 기본 아바타 그대로다. */
     private fun readMyAvatar() {
-        if (_state.value.myAvatar != null || avatarJob != null) return
+        if (avatarJob != null) return
         avatarJob = viewModelScope.launch {
             account.myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
         }

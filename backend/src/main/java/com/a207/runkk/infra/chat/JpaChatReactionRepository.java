@@ -4,6 +4,7 @@ import com.a207.runkk.crew.chat.ChatReaction;
 import com.a207.runkk.crew.chat.ChatReactionRepository;
 import com.a207.runkk.crew.chat.ReactionKind;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.TypedQuery;
 import java.util.Collection;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -96,6 +97,22 @@ public class JpaChatReactionRepository implements ChatReactionRepository {
                     .add((ReactionKind) row[1]);
         }
         return mine;
+    }
+
+    @Override
+    public List<ChatReaction> reactionsOf(long messageId, ReactionKind kind) {
+        String jpql =
+                "select r from ChatReaction r where r.messageId = :message"
+                        + (kind == null ? "" : " and r.kind = :kind")
+                        + " order by r.reactedAt asc, r.memberId asc";
+        TypedQuery<ChatReaction> query =
+                entityManager
+                        .createQuery(jpql, ChatReaction.class)
+                        .setParameter("message", messageId);
+        if (kind != null) {
+            query.setParameter("kind", kind);
+        }
+        return query.getResultList();
     }
 
     @Override

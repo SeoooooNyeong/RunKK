@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -29,6 +31,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
@@ -71,7 +74,8 @@ private fun ContentDrawScope.drawDashedBorder(color: Color, corner: Dp, width: D
 }
 
 /**
- * 카드(표면 + 테두리, 모서리 20 기본·24 큰 카드). [onClick]이 있으면 눌리는 카드가 되고 [onClickLabel]을 보조 기술에 알린다.
+ * 카드(표면, 모서리 20 기본·24 큰 카드). 피그마 카드는 테두리가 없어 기본은 테두리 없이 그린다(S15P31A207-292). 테두리가 필요하면
+ * [borderColor]를 넘긴다(예: `RunkkColors.Border`). [onClick]이 있으면 눌리는 카드가 되고 [onClickLabel]을 보조 기술에 알린다.
  * [isDashed]면 점선 테두리(자리표시).
  */
 @Composable
@@ -82,7 +86,7 @@ fun RunkkCard(
     onClick: (() -> Unit)? = null,
     onClickLabel: String? = null,
     isDashed: Boolean = false,
-    borderColor: Color = RunkkColors.Border,
+    borderColor: Color = Color.Transparent,
     background: Color = RunkkColors.Surface,
     verticalArrangement: Arrangement.Vertical = Arrangement.spacedBy(8.dp),
     content: @Composable ColumnScope.() -> Unit
@@ -100,7 +104,11 @@ fun RunkkCard(
             .clip(shape)
             .background(background)
             .then(
-                if (isDashed) Modifier.runkkDashedBorder(corner = corner) else Modifier.border(1.dp, borderColor, shape)
+                when {
+                    isDashed -> Modifier.runkkDashedBorder(corner = corner)
+                    borderColor.alpha > 0f -> Modifier.border(1.dp, borderColor, shape)
+                    else -> Modifier
+                }
             )
             .then(
                 if (onClick != null) {
@@ -121,7 +129,10 @@ fun RunkkCard(
     )
 }
 
-/** 통계 타일: 라벨(12) + 큰 숫자(Barlow) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다. */
+/**
+ * 통계 타일: 라벨(12) + 큰 숫자(Barlow Condensed 기울임) + 아래 [caption]. 값과 모양은 [StatTileValue]·[StatTileStyle]로 받는다.
+ * [leadingIcon]이 있으면 맨 위 줄에 18 보조색 아이콘을 둔다(아바타 숫자 칸). [label]이 비면 라벨 줄을 그리지 않는다.
+ */
 @Composable
 fun RunkkStatTile(
     label: String,
@@ -130,23 +141,47 @@ fun RunkkStatTile(
     caption: String? = null,
     style: StatTileStyle = StatTileStyle(),
     onClick: (() -> Unit)? = null,
+    leadingIcon: ImageVector? = null,
     footer: (@Composable () -> Unit)? = null
 ) {
     val centered = style.isCentered
+    val spacing = if (style.spacing != Dp.Unspecified) {
+        style.spacing
+    } else if (centered) {
+        4.dp
+    } else {
+        8.dp
+    }
     RunkkCard(
         modifier = modifier.then(statTileSemantics(label, value.spoken, onClick)),
-        shape = if (centered) RunkkShapes.Medium else RunkkShapes.Large,
-        contentPadding = if (centered) PaddingValues(horizontal = 8.dp, vertical = 16.dp) else PaddingValues(16.dp),
+        shape = style.shape ?: if (centered) RunkkShapes.Medium else RunkkShapes.Large,
+        contentPadding = style.contentPadding
+            ?: if (centered) PaddingValues(horizontal = 8.dp, vertical = 16.dp) else PaddingValues(16.dp),
         onClick = onClick,
-        verticalArrangement = Arrangement.spacedBy(if (centered) 4.dp else 8.dp)
+        borderColor = style.borderColor.takeOrElse { Color.Transparent },
+        background = style.background.takeOrElse { RunkkColors.Surface },
+        verticalArrangement = Arrangement.spacedBy(spacing)
     ) {
         val align = if (centered) Alignment.CenterHorizontally else Alignment.Start
-        Text(
-            text = label,
-            style = if (centered) RunkkTextStyles.Micro else RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.align(align)
-        )
+        val labelText: @Composable () -> Unit = {
+            if (label.isNotEmpty()) {
+                Text(
+                    text = label,
+                    style = style.labelStyle ?: if (centered) RunkkTextStyles.Micro else RunkkTextStyles.Caption,
+                    color = style.labelColor.takeOrElse { RunkkColors.TextSecondary },
+                    modifier = Modifier.align(align)
+                )
+            }
+        }
+        if (leadingIcon != null) {
+            Icon(
+                leadingIcon,
+                contentDescription = null,
+                tint = RunkkColors.TextSecondary,
+                modifier = Modifier.align(align).size(STAT_TILE_ICON)
+            )
+        }
+        if (style.labelPosition == StatTileLabelPosition.Top) labelText()
         RunkkNumberText(
             value = value.text,
             unit = value.unit,
@@ -154,6 +189,7 @@ fun RunkkStatTile(
             color = style.valueColor.takeOrElse { RunkkColors.TextPrimary },
             modifier = Modifier.align(align)
         )
+        if (style.labelPosition == StatTileLabelPosition.Bottom) labelText()
         if (caption != null) {
             Text(
                 text = caption,
@@ -165,6 +201,8 @@ fun RunkkStatTile(
         footer?.invoke()
     }
 }
+
+private val STAT_TILE_ICON: Dp = 18.dp
 
 /** 읽기 문구가 있으면 "라벨 읽기문구"로 읽는다. 누를 수 있는 칸은 버튼 동작을 남기고, 없으면 자식 문구를 합친다. */
 private fun statTileSemantics(label: String, spoken: String?, onClick: (() -> Unit)?): Modifier = if (spoken != null) {

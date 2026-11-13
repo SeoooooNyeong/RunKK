@@ -104,10 +104,26 @@ class AiServerFaceJobGatewayContractTest {
     }
 
     private static Object invoke(AiServerFaceJobGateway gateway, String endpoint, String jobId) {
-        if (endpoint.startsWith("POST")) return gateway.submit(42, SELFIE);
+        if (endpoint.startsWith("POST")) return gateway.submit(42, SELFIE, 1);
         if (endpoint.endsWith("/result")) return gateway.result(42, jobId);
         if (endpoint.endsWith("/latest")) return gateway.latest(42);
         return gateway.status(42, jobId);
+    }
+
+    @Test
+    void explicitRetryAttemptIsSentAsQuery() {
+        // DV-성-9: 명시적 재시도는 ai가 새 멱등 키를 쓰도록 attempt를 붙인다(1이면 붙이지 않는다)
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs?attempt=2"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().bytes(SELFIE))
+                .andRespond(
+                        withStatus(HttpStatusCode.valueOf(202))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .body("{\"jobId\":\"job-2\",\"status\":\"QUEUED\"}"));
+        assertThat(f.gateway.submit(42, SELFIE, 2).jobId()).isEqualTo("job-2");
+        f.server.verify();
     }
 
     @Test
@@ -191,5 +207,82 @@ class AiServerFaceJobGatewayContractTest {
         assertThatThrownBy(() -> f.gateway.status(42, "../other"))
                 .isInstanceOf(IllegalArgumentException.class);
         f.server.verify();
+    }
+
+    /** W9 렌더러 입력(S15P31A207-299, contract-W8.md 6.2): 옆모습 레이어·원본 5장과 rightLayerLayout을 앱까지 넘긴다. */
+    private static com.fasterxml.jackson.databind.node.ObjectNode eightLayerBody()
+            throws IOException {
+        JsonNode sample =
+                JSON.readTree(
+                        Files.readString(Path.of("../ai/tests/contract/faces-result-200-ok.json")));
+        var body = (com.fasterxml.jackson.databind.node.ObjectNode) sample.path("body").deepCopy();
+        String png = body.path("faceImage").asText();
+        for (String field :
+                List.of(
+                        "frontImage",
+                        "rightImage",
+                        "rightFaceImage",
+                        "rightEyesImage",
+                        "rightHairImage")) {
+            body.put(field, png);
+        }
+        var layout = body.putObject("rightLayerLayout");
+        layout.put("version", "runkk-right-head-layers-v1");
+        layout.put("direction", "right");
+        layout.putArray("canvas").add(1024).add(1024);
+        var mobile = (com.fasterxml.jackson.databind.node.ObjectNode) body.path("mobile");
+        mobile.putObject("neckMask").put("top", 0.8);
+        return body;
+    }
+
+    @Test
+    void eightLayersAndNeckMaskReachTheApp() throws IOException {
+        var body = eightLayerBody();
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs/job-8/result"))
+                .andRespond(withSuccess(body.toString(), MediaType.APPLICATION_JSON));
+
+        com.a207.runkk.avatar.GeneratedHead head = f.gateway.result(42, "job-8");
+
+        assertThat(head.rightFaceImage()).isEqualTo(body.path("faceImage").asText());
+        assertThat(head.frontImage()).isNotNull();
+        assertThat(head.rightImage()).isNotNull();
+        assertThat(head.rightEyesImage()).isNotNull();
+        assertThat(head.rightHairImage()).isNotNull();
+        assertThat(head.rightLayerLayout()).containsEntry("direction", "right");
+        assertThat(head.mobile()).containsKey("neckMask");
+        JsonNode tree = JSON.valueToTree(head);
+        assertThat(tree).isEqualTo(body);
+    }
+
+    @Test
+    void missingSideLayersAreOmittedNotNull() throws IOException {
+        JsonNode sample =
+                JSON.readTree(
+                        Files.readString(Path.of("../ai/tests/contract/faces-result-200-ok.json")));
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs/job-3/result"))
+                .andRespond(
+                        withSuccess(sample.path("body").toString(), MediaType.APPLICATION_JSON));
+
+        JsonNode out = JSON.valueToTree(f.gateway.result(42, "job-3"));
+
+        assertThat(out.has("rightFaceImage")).isFalse();
+        assertThat(out.has("rightLayerLayout")).isFalse();
+    }
+
+    @Test
+    void invalidSideLayerIsRejected() throws IOException {
+        var body = eightLayerBody();
+        body.put("rightHairImage", "data:image/png;base64,AAAA");
+        Fixture f = fixture();
+        f.server
+                .expect(requestTo("http://ai:8000/users/42/faces/jobs/job-9/result"))
+                .andRespond(withSuccess(body.toString(), MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> f.gateway.result(42, "job-9"))
+                .isInstanceOf(FaceJobRejectedException.class);
     }
 }

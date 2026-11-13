@@ -113,7 +113,7 @@ private fun DistanceRow(card: RunCard) {
             Text(RunkkFormat.km(card.distance), style = RunkkTextStyles.display(44), color = RunkkColors.TextPrimary)
             Text(
                 stringResource(R.string.record_card_km),
-                style = RunkkTextStyles.text(16, FontWeight.Bold),
+                style = RunkkTextStyles.CardTitle,
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.padding(start = 6.dp, bottom = 6.dp)
             )

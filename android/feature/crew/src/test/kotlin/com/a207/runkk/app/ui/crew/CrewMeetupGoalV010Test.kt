@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.crew
 
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -29,29 +30,37 @@ class CrewMeetupGoalScreensTest {
         crewId = 11,
         weekStart = LocalDate.of(2026, 10, 19),
         draft = "80",
-        lastWeek = raceWithGoal.copy(goal = com.a207.runkk.app.core.model.Distance(80_000), achievedAt = null)
+        pastWeeks = listOf(
+            raceWithGoal.copy(
+                goal = com.a207.runkk.app.core.model.Distance(80_000),
+                goalProgressPercent = 73,
+                achievedAt = null
+            ),
+            raceWithGoal.copy(
+                closesAt = raceWithGoal.closesAt.minus(java.time.Duration.ofDays(7)),
+                goal = com.a207.runkk.app.core.model.Distance(50_000),
+                goalProgressPercent = 117,
+                achievedAt = java.time.Instant.parse("2026-10-10T10:00:00Z")
+            )
+        )
     )
 
     @Test
-    fun `공동 목표 - 빠른 선택과 지난 주 결과, 저장(FR-138)`() {
+    fun `주간 목표 - 주차 제목, 지난 목표 카드(달성 실패·달성, 100 넘는 진행률 그대로), 저장(피그마 F-07, FR-138)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                CrewGoalSetScreen(
-                    goalState,
-                    GoalSetActions(onQuick = { calls += "quick:$it" }, onSave = {
-                        calls +=
-                            "save"
-                    })
-                )
+                CrewGoalSetScreen(goalState, GoalSetActions(onSave = { calls += "save" }))
             }
         }
-        compose.onNodeWithText("이번 주 10.19 (월) ~ 10.25 (일)").assertExists()
-        compose.onNodeWithText("달성 못 함").assertExists()
-        compose.onNodeWithText("58.6 / 80.0 km").assertExists()
-        compose.onNodeWithText("참여 3명").assertExists()
-        compose.onNodeWithText("100km").performClick()
+        compose.onNodeWithText("10월 4주차").assertExists()
+        compose.onNodeWithText("10.19 (월) ~ 10.25 (일)").assertExists()
+        compose.onNodeWithText("지난 목표").assertExists()
+        compose.onNode(hasContentDescription("달성 실패", substring = true)).assertExists()
+        compose.onNode(hasContentDescription("10월 3주차, 58.6킬로미터 달림, 달성")).assertExists()
+        compose.onNodeWithText("117%", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("빠른 선택").assertDoesNotExist()
         compose.onNodeWithText("저장").performClick()
-        assertEquals(listOf("quick:100", "save"), calls)
+        assertEquals(listOf("save"), calls)
     }
 
     @Config(qualifiers = RUNKK_PHONE)
@@ -74,16 +83,26 @@ class CrewMeetupGoalViewModelsTest {
     private val repo = FakeCrewRepository()
 
     @Test
-    fun `공동 목표 - 지난 주를 읽고 1km 미만은 막고 정하면 닫는다(FR-138)`() {
+    fun `주간 목표 - 지난 3주를 race 세 번으로 읽고 1km 미만은 막고 정하면 닫는다(FR-138, D-성-32)`() {
         val vm = CrewGoalSetViewModel(repo, MutableClock()).also { it.bind(11) }
         assertEquals(LocalDate.of(2026, 10, 19), vm.state.value.weekStart)
-        assertTrue(vm.state.value.lastWeek != null)
+        assertEquals(3, vm.state.value.pastWeeks.size)
+        assertEquals(4, repo.calls.count { it == "race" }, "이번 주 1번 + 지난 3주")
         vm.onDraft("0.5")
         vm.onSave()
         assertTrue(repo.calls.none { it.startsWith("goal:") })
-        vm.onQuick(80)
+        vm.onDraft("80")
         vm.onSave()
         assertTrue("goal:80000" in repo.calls)
         assertTrue(vm.state.value.isSaved)
+    }
+
+    @Test
+    fun `주간 목표 - 크루를 만들기 전 주는 지난 목표에 넣지 않는다(DV-성 9(c))`() {
+        // 이번 주 월요일 2026-10-19, 크루 개설 10-08(목): 10-12 주와 10-05 주(개설일이 든 주)만, 09-28 주는 뺀다.
+        repo.createdAt = java.time.Instant.parse("2026-10-08T03:00:00Z")
+        val vm = CrewGoalSetViewModel(repo, MutableClock()).also { it.bind(11) }
+        assertEquals(2, vm.state.value.pastWeeks.size)
+        assertEquals(3, repo.calls.count { it == "race" }, "이번 주 1번 + 개설 뒤 지난 2주")
     }
 }

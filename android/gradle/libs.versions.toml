@@ -7,6 +7,7 @@ hilt = "2.60.1"
 hiltNavigationCompose = "1.4.0"
 coreKtx = "1.19.1"
 activityCompose = "1.13.0"
+exifinterface = "1.4.2"
 composeBom = "2026.09.00"
 lifecycle = "2.11.0"
 navigation3 = "1.2.0"
@@ -50,10 +51,13 @@ hiltLifecycleViewModelCompose = "1.4.0"
 turbine = "1.2.1"
 # 화면 스크린샷 시험(JVM, Robolectric 위)
 roborazzi = "1.76.0"
+# 아바타 Rive 렌더러(:core:avatar, S15P31A207-300). PoC와 같은 버전이어야 승인 자산 동작이 같다.
+rive = "11.16.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
@@ -122,6 +126,7 @@ turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine
 roborazzi = { group = "io.github.takahirom.roborazzi", name = "roborazzi", version.ref = "roborazzi" }
 roborazzi-compose = { group = "io.github.takahirom.roborazzi", name = "roborazzi-compose", version.ref = "roborazzi" }
 roborazzi-junit-rule = { group = "io.github.takahirom.roborazzi", name = "roborazzi-junit-rule", version.ref = "roborazzi" }
+rive-android = { group = "app.rive", name = "rive-android", version.ref = "rive" }
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
 # 구조 시험 (14장, 5.1.2 의존 표)
 konsist = { group = "com.lemonappdev", name = "konsist", version.ref = "konsist" }

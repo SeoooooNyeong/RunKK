@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
@@ -30,7 +29,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -356,10 +354,16 @@ private fun RunkkCheckRowLabel(label: String, tag: String?, isTagHighlighted: Bo
 }
 
 /**
- * 확인 대화상자. [isDestructive]면 확인 글자를 라벤더로(탈퇴·로그아웃·동의 철회).
- * [onDismiss]는 두 번째 버튼, [onDismissRequest]는 뒤로가기·바깥 누름이다. 두 번째 버튼이 "취소"가 아니라 다른 행동이면
- * (예: "동의 관리"로 이동) [onDismissRequest]를 따로 넘겨 대화상자만 닫는다.
+ * 확인 대화상자(피그마 확인 대화상자: 폭 334·모서리 28 카드, 제목 18 Bold, 본문 14, 흰 외곽선 "취소" + 보라 채움 확인, 버튼 높이 48).
+ * 피그마는 되돌리기 어려운 행동(탈퇴·삭제)과 일반 확인을 같은 보라 버튼으로 그리므로 [isDestructive]는 모양을 바꾸지 않는다(호환용).
+ * [onDismiss]는 왼쪽 버튼, [onDismissRequest]는 뒤로가기·바깥 누름이다. 왼쪽 버튼이 "취소"가 아니라 다른 행동이면
+ * (예: "동의 관리"로 이동) [onDismissRequest]를 따로 넘겨 대화상자만 닫는다. [message]가 비면 본문을 그리지 않는다.
+ *
+ * ```
+ * RunkkConfirmDialog(title = "로그아웃할까요?", message = "", confirmLabel = "로그아웃", onConfirm = logout, onDismiss = close)
+ * ```
  */
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun RunkkConfirmDialog(
     title: String,
@@ -371,28 +375,15 @@ fun RunkkConfirmDialog(
     isDestructive: Boolean = false,
     onDismissRequest: () -> Unit = onDismiss
 ) {
-    AlertDialog(
-        onDismissRequest = onDismissRequest,
-        containerColor = RunkkColors.Surface,
-        titleContentColor = RunkkColors.TextPrimary,
-        textContentColor = RunkkColors.TextSecondary,
-        title = { Text(title, style = RunkkTextStyles.CardTitle) },
-        text = { Text(message, style = RunkkTextStyles.Body) },
-        confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text(
-                    confirmLabel,
-                    style = RunkkTextStyles.BodyStrong,
-                    color = if (isDestructive) RunkkColors.Lavender else RunkkColors.Lime
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(dismissLabel, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextSecondary)
-            }
-        }
-    )
+    RunkkDialog(title = title, onDismissRequest = onDismissRequest) {
+        if (message.isNotEmpty()) RunkkDialogMessage(message)
+        RunkkDialogButtons(
+            confirmLabel = confirmLabel,
+            onConfirm = onConfirm,
+            dismissLabel = dismissLabel,
+            onDismiss = onDismiss
+        )
+    }
 }
 
 /** 안내 문구 띄우기(스낵바, 표면색). */

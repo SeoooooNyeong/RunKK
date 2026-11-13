@@ -6,7 +6,7 @@
 |---|---|
 | `GET /health` | 상태 확인(토큰 검사 없음) |
 | `POST /comments` | 체력 요약 집계값 → AI 코멘트. 200 `{"text"}` / 503·504·422 `{"reason"}` |
-| `POST /users/{userId}/faces/jobs` | 셀카(`application/octet-stream`) → 아바타 머리 생성 작업 접수. 202 `{"jobId","status","headId","error"}` / 413·415·422·503·504 `{"reason"}` |
+| `POST /users/{userId}/faces/jobs[?attempt=n]` | 셀카(`application/octet-stream`) → 아바타 머리 생성 작업 접수. `attempt`(1~20, 기본 1)는 같은 사진의 명시적 재시도 번호로 Node 멱등 키를 바꾼다(1이면 예전 키, DV-성-9). 202 `{"jobId","status","headId","error"}` / 413·415·422·503·504 `{"reason"}` |
 | `GET /users/{userId}/faces/jobs/{jobId}` | 작업 상태 `QUEUED`·`RUNNING`·`SUCCEEDED`·`FAILED`(실패도 200 + `error.code`). 404 `JOB_NOT_FOUND` |
 | `GET /users/{userId}/faces/jobs/{jobId}/result` | 완성된 머리: `faceImage`·`eyesImage`·`hairImage`(1024×1024 PNG Data URL)와 `traits`·`alignment`·`mobile`. 404 / 409 `JOB_NOT_READY` |
 | `GET /users/{userId}/faces/latest` | 사용자의 가장 최근 머리. 404 `HEAD_NOT_FOUND` |

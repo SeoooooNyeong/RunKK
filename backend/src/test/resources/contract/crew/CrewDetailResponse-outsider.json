@@ -1,0 +1,25 @@
+{
+  "crewId": 12,
+  "name": "새벽러너스",
+  "intro": "새벽에 함께 달려요",
+  "tags": ["WEEKDAY_DAWN"],
+  "visibility": "PUBLIC",
+  "joinPolicy": "APPROVAL",
+  "logoUrl": "/api/v1/crew-logos/7",
+  "leaderId": 3,
+  "leaderName": "달리는곰",
+  "headcount": 7,
+  "weeklyDistanceMeters": 12300,
+  "lastWeekDistanceMeters": 64270,
+  "myRole": null,
+  "inviteCode": null,
+  "inviteCodeExpiresAt": null,
+  "createdAt": "2026-10-01T09:00:00+09:00",
+  "totalDistanceMeters": 1284670,
+  "crewRunCount": 5,
+  "recentCrewRuns": [
+    {"postId": 88, "scheduledAt": "2026-10-21T19:30:00+09:00", "participantCount": 4, "totalDistanceMeters": 20150},
+    {"postId": 80, "scheduledAt": "2026-10-18T07:00:00+09:00", "participantCount": 3, "totalDistanceMeters": 15000}
+  ],
+  "rejoinAvailableAt": "2026-11-10T08:15:00+09:00"
+}

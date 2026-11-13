@@ -34,8 +34,14 @@ public interface CrewRepository {
      */
     List<CrewListRow> search(CrewSearch cond, PageCursor page, Week week);
 
+    /** search와 같은 조건(공개 크루·키워드·태그 AND)의 크루 수. 커서·크기는 보지 않는다(피그마 F-01d, S15P31A207-295). */
+    long count(CrewSearch cond);
+
     /** 그 주 크루 거리 합계(주간 거리 행이 없으면 0). */
     Distance weeklyDistance(long crewId, Week week);
+
+    /** 그 크루의 모든 주 크루 거리 합(누적 거리, 주간 거리 행이 없으면 0, S15P31A207-295). */
+    Distance totalDistance(long crewId);
 
     /** 그 ID들의 크루를 한 번에 읽는다(없는 ID는 빠진다, N+1 방지). */
     List<Crew> findAllById(Collection<Long> ids);

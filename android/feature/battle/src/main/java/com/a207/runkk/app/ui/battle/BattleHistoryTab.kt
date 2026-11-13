@@ -29,6 +29,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -40,14 +42,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkBadge
+import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkStatTile
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.StatTileLabelPosition
+import com.a207.runkk.app.core.designsystem.StatTileStyle
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -123,33 +132,32 @@ fun BattleHistoryTabContent(
 /** 끝에서 이만큼 안쪽 줄이 보이면 다음 쪽을 읽는다. */
 private const val HISTORY_LOAD_AHEAD = 3
 
-/** 머리 통계 세 칸: "[n] 대결", "[n] 승", "[n] 패"(이력 응답의 total·wins·losses). */
+/** 머리 통계 세 칸: "[n] 대결", "[n] 승", "[n] 패"(이력 응답의 total·wins·losses). 값 18 Bold 위, 라벨 12 아래. */
 @Composable
 private fun HistoryStats(history: BattleHistory?) {
+    val style = StatTileStyle(
+        valueStyle = RunkkTextStyles.text(18, FontWeight.Bold),
+        valueColor = RunkkColors.TextPrimary,
+        isCentered = true,
+        shape = RectangleShape,
+        contentPadding = PaddingValues(0.dp),
+        labelPosition = StatTileLabelPosition.Bottom,
+        labelStyle = RunkkTextStyles.Caption,
+        background = Color.Transparent,
+        spacing = 4.dp
+    )
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
         listOf(
             R.string.battle_history_stat_battles to history?.total,
             R.string.battle_history_stat_wins to history?.wins,
             R.string.battle_history_stat_losses to history?.losses
         ).forEach { (label, value) ->
-            Column(
-                modifier = Modifier.weight(1f).semantics(mergeDescendants = true) {},
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    value?.toString() ?: "-",
-                    style = RunkkTextStyles.text(18, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    stringResource(label),
-                    style = RunkkTextStyles.Caption,
-                    color = RunkkColors.TextSecondary,
-                    textAlign = TextAlign.Center
-                )
-            }
+            RunkkStatTile(
+                label = stringResource(label),
+                value = StatTileValue(value?.toString() ?: "-"),
+                modifier = Modifier.weight(1f),
+                style = style
+            )
         }
     }
 }
@@ -176,7 +184,7 @@ private fun LazyListScope.historyRows(state: BattleHistoryUiState, onEntry: (Lon
     val history = state.history
     when {
         history == null && state.isLoading -> item(key = "loading") {
-            Box(Modifier.fillMaxWidth().height(200.dp)) { RunkkLoading() }
+            RunkkLoading(height = 200.dp)
         }
 
         history == null || state.error != null -> item(key = "error") {
@@ -198,13 +206,13 @@ private fun LazyListScope.historyRows(state: BattleHistoryUiState, onEntry: (Lon
                 HistoryRow(entry, onClick = { onEntry(entry.battleId) })
             }
             if (state.isLoadingMore) {
-                item(key = "more") { Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() } }
+                item(key = "more") { RunkkLoading(height = 64.dp) }
             }
         }
     }
 }
 
-/** 행: "10월 20일 · 배틀런 · 5km", 상대(닉네임·"10월 2일의 나"·셀럽 이름), 승·패 배지. 판정 전이면 배지 없음. */
+/** 행: "10월 20일, 배틀런, 5km", 상대(닉네임·"10월 2일의 나"·셀럽 이름), 승·패 배지. 판정 전이면 배지 없음. */
 @Composable
 private fun HistoryRow(entry: BattleHistory.Entry, onClick: () -> Unit) {
     val pattern = stringResource(R.string.battle_history_date_pattern)
@@ -249,26 +257,14 @@ private fun HistoryRow(entry: BattleHistory.Entry, onClick: () -> Unit) {
     }
 }
 
-/** 승·패·무 배지: 승은 채운 알약, 나머지는 테두리 알약. */
+/** 승·패·무 배지(알약): 승은 본문색 채움(반전), 나머지는 표면. */
 @Composable
 private fun VerdictBadge(verdict: Verdict) {
-    val isWin = verdict == Verdict.WIN
-    val shape = RoundedCornerShape(50)
-    Box(
-        modifier = Modifier
-            .heightIn(min = 28.dp)
-            .clip(shape)
-            .background(if (isWin) RunkkColors.TextPrimary else RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            stringResource(verdict.labelRes),
-            style = RunkkTextStyles.text(12, FontWeight.Bold),
-            color = if (isWin) RunkkColors.Background else RunkkColors.TextPrimary
-        )
-    }
+    RunkkBadge(
+        stringResource(verdict.labelRes),
+        tone = if (verdict == Verdict.WIN) RunkkBadgeTone.Inverted else RunkkBadgeTone.Neutral,
+        shape = RunkkShapes.Pill
+    )
 }
 
 @Preview(name = "G-10 대결 탭", widthDp = 390, heightDp = 700)

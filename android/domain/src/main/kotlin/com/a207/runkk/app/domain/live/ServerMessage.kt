@@ -121,7 +121,13 @@ data class CrewChatPosted(
     val authorName: String,
     val content: String,
     val sentAt: Instant,
-    val clientMessageId: String?
+    val clientMessageId: String?,
+    /** 메시지 종류 이름(TEXT·RUN_FINISHED, contract-W5). domain.live는 domain.chat을 모르므로 이름으로 둔다. */
+    val messageKind: String = "TEXT",
+    /** 작성자의 지금 크루 역할 이름(LEADER·MANAGER·MEMBER), 없으면 null. */
+    val authorRole: String? = null,
+    /** 러닝 완료 메시지의 거리(미터), 보통 글이면 null. */
+    val runDistanceMeters: Long? = null
 ) : ServerMessage
 
 /** 크루 채팅 메시지 삭제·숨김(FR-213, FR-215). 모르는 사유 상수의 메시지는 data.live가 버린다(D-85). */

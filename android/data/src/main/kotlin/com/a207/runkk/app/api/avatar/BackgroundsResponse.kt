@@ -17,7 +17,9 @@ import retrofit2.http.Query
 @Serializable
 internal data class BackgroundsResponse(
     val selectedKey: String? = null,
-    val backgrounds: List<Background> = emptyList()
+    val backgrounds: List<Background> = emptyList(),
+    /** 내 누적 유효 거리(m, W8). */
+    val totalMeters: Long = 0
 ) {
     @Serializable
     data class Background(
@@ -26,6 +28,8 @@ internal data class BackgroundsResponse(
         val stage: String,
         val distanceMeters: Long,
         val unlocked: Boolean = false,
-        val unlockedAt: String? = null
+        val unlockedAt: String? = null,
+        /** 해금까지 남은 거리(m, W8). 해금했으면 0. */
+        val remainingMeters: Long = 0
     )
 }

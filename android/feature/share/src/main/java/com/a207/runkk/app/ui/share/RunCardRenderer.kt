@@ -97,7 +97,7 @@ class RunCardRenderer @Inject constructor(@ApplicationContext private val contex
         }
         drawRoute(canvas, card.route, area, context.getString(R.string.share_card_no_course))
         canvas.drawText(
-            "${km(card.distance)} KM · ${duration(card.elapsed)}",
+            "${km(card.distance)} KM   ${duration(card.elapsed)}",
             PAD,
             HEIGHT - PAD - 60f,
             paint(CardColors.TEXT, 48f, NUMBER)
