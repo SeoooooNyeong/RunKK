@@ -45,7 +45,9 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkNoticeCard
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
+import com.a207.runkk.app.core.designsystem.RunkkSpinner
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -133,7 +135,7 @@ fun PlacementResultScreen(
                 when {
                     result != null -> ResultBody(state, result, actions.onRetry)
 
-                    state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
+                    state.isLoading -> RunkkLoading(height = 240.dp)
 
                     else -> RunkkErrorState(
                         state.error?.asString() ?: stringResource(R.string.placement_load_failed),
@@ -221,13 +223,13 @@ private fun Checking() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(RunkkColors.Surface, RoundedCornerShape(14.dp))
+            .background(RunkkColors.Surface, NOTICE_SHAPE)
             .padding(horizontal = 16.dp, vertical = 12.dp)
             .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CircularProgressIndicator(Modifier.size(18.dp), color = RunkkColors.Violet, strokeWidth = 2.dp)
+        RunkkSpinner(size = 18.dp)
         Text(
             stringResource(R.string.placement_result_checking),
             style = RunkkTextStyles.text(13, FontWeight.Medium),
@@ -242,25 +244,18 @@ private fun Checking() {
  */
 @Composable
 private fun Notice(text: UiText, @StringRes retryLabel: Int? = null, onRetry: () -> Unit = {}) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(RunkkColors.Surface, RoundedCornerShape(14.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text.asString(),
-            style = RunkkTextStyles.text(13, FontWeight.Medium),
-            color = RunkkColors.TextSecondary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }
-        )
-        retryLabel?.let {
-            RunkkPillButton(stringResource(it), onClick = onRetry, modifier = Modifier.padding(top = 4.dp))
-        }
-    }
+    RunkkNoticeCard(
+        text.asString(),
+        actionLabel = retryLabel?.let { stringResource(it) },
+        onAction = onRetry,
+        isCentered = true,
+        isLive = true,
+        shape = NOTICE_SHAPE
+    )
 }
+
+/** 안내·정리 중 줄 모양(모서리 14). */
+private val NOTICE_SHAPE = RoundedCornerShape(14.dp)
 
 private fun averagePace(detail: RecordDetail): Pace? {
     val summary = detail.summary

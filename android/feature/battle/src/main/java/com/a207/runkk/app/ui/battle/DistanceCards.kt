@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.RunkkAlpha
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -88,7 +89,7 @@ private fun VersusSlot(isFaded: Boolean = false, content: @Composable () -> Unit
         modifier = Modifier
             .size(width = 120.dp, height = 168.dp)
             .runkkDashedBorder()
-            .alpha(if (isFaded) FADED else 1f),
+            .alpha(if (isFaded) RunkkAlpha.Disabled else 1f),
         contentAlignment = Alignment.Center
     ) { content() }
 }
@@ -124,7 +125,7 @@ internal fun DistanceCardRow(
                 RunkkShapes.Large
             )
             .clickable(enabled = isEnabled, role = Role.RadioButton, onClick = onClick)
-            .alpha(if (isEnabled) 1f else FADED)
+            .alpha(if (isEnabled) 1f else RunkkAlpha.Disabled)
             .padding(horizontal = 16.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = description
@@ -155,5 +156,3 @@ internal fun DistanceCardRow(
         card.recordedOn?.let { Text(monthDay(it), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
     }
 }
-
-internal const val FADED = 0.4f

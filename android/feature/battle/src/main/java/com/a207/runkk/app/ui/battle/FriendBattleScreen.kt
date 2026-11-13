@@ -53,10 +53,16 @@ import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkElevation
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
+import com.a207.runkk.app.core.designsystem.RunkkRadioMark
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -123,8 +129,7 @@ fun FriendBattleScreen(state: FriendBattleUiState, actions: FriendBattleActions,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 FriendHero()
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    EntrySectionTitle(stringResource(R.string.friend_battle_who), Modifier.weight(1f))
+                RunkkSectionHeader(stringResource(R.string.friend_battle_who), size = RunkkSectionHeaderSize.Card) {
                     Text(
                         stringResource(R.string.friend_battle_recent),
                         style = RunkkTextStyles.text(12, FontWeight.Normal),
@@ -157,7 +162,7 @@ private fun FriendHero() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RunkkShapes.ExtraLarge)
             .background(RunkkColors.LimeFill)
             .padding(horizontal = 18.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -206,7 +211,7 @@ private fun FriendList(friends: List<RecentFriend>, selectedId: Long?, onSelect:
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RunkkShapes.Medium)
             .background(RunkkColors.Surface)
             .selectableGroup()
     ) {
@@ -237,7 +242,7 @@ private fun FriendRow(friend: RecentFriend, isSelected: Boolean, onClick: () -> 
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.RunimalTile))
+        RunkkAvatarCircle(40.dp, background = RunkkColors.RunimalTile)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 friend.name,
@@ -248,21 +253,7 @@ private fun FriendRow(friend: RecentFriend, isSelected: Boolean, onClick: () -> 
             )
             Text(ranOn, style = RunkkTextStyles.text(11, FontWeight.Normal), color = RunkkColors.TextSecondary)
         }
-        RadioMark(isSelected)
-    }
-}
-
-/** 라디오 표시 22(고름 = 굵은 테두리 + 가운데 점). 상태는 행이 읽는다. */
-@Composable
-private fun RadioMark(isSelected: Boolean) {
-    Box(
-        Modifier
-            .size(22.dp)
-            .border(2.dp, if (isSelected) RunkkColors.TextPrimary else RunkkColors.TextSecondary, CircleShape)
-            .clearAndSetSemantics {},
-        contentAlignment = Alignment.Center
-    ) {
-        if (isSelected) Box(Modifier.size(10.dp).clip(CircleShape).background(RunkkColors.TextPrimary))
+        RunkkRadioMark(isSelected)
     }
 }
 
@@ -276,14 +267,19 @@ private fun ranOnLabel(date: LocalDate): String =
  */
 @Composable
 private fun DistanceSelect(selected: Distance, isOpen: Boolean, onToggle: () -> Unit, onSelect: (Distance) -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RunkkShapes.Small
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         DistanceBox(selected, isOpen, onToggle)
         if (isOpen) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(8.dp, shape, ambientColor = BAR_SHADOW, spotColor = BAR_SHADOW)
+                    .shadow(
+                        RunkkElevation.High,
+                        shape,
+                        ambientColor = RunkkColors.Shadow,
+                        spotColor = RunkkColors.Shadow
+                    )
                     .clip(shape)
                     .background(RunkkColors.Surface)
                     .padding(vertical = 6.dp)
@@ -300,7 +296,7 @@ private fun DistanceSelect(selected: Distance, isOpen: Boolean, onToggle: () -> 
 /** 거리 상자 머리(「거리」, 값, 꺾쇠). 펼침 목록 상자로 읽고 펼침·접힘 상태를 알린다. */
 @Composable
 private fun DistanceBox(selected: Distance, isOpen: Boolean, onToggle: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RunkkShapes.Small
     val label = stringResource(R.string.friend_battle_distance)
     val value = RunkkFormat.targetLabel(selected)
     val state =
@@ -333,7 +329,7 @@ private fun DistanceBox(selected: Distance, isOpen: Boolean, onToggle: () -> Uni
             color = RunkkColors.TextSecondary,
             modifier = Modifier.weight(1f)
         )
-        Text(value, style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
+        Text(value, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
         Icon(
             if (isOpen) RunkkIcons.ChevronUp else RunkkIcons.ChevronDown,
             contentDescription = null,

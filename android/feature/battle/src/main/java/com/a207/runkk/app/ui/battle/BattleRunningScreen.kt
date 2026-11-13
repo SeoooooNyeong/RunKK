@@ -70,10 +70,15 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
+import com.a207.runkk.app.core.designsystem.RunkkRoundControl
+import com.a207.runkk.app.core.designsystem.RunkkRunDistance
+import com.a207.runkk.app.core.designsystem.RunkkRunStat
+import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
+import com.a207.runkk.app.core.designsystem.RunkkStopSquare
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
@@ -219,34 +224,19 @@ private fun Header(state: BattleRunningUiState) {
     }
 }
 
-/** 취소 버튼(자유런 취소와 같은 모양): 작은 원 X와 "취소". */
+/** 취소 버튼(자유런 취소와 같은 모양): 작은 원 X(56, 아이콘 24)와 "취소". */
 @Composable
 private fun CancelButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val description = stringResource(R.string.battle_cancel_desc)
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(RunkkColors.Surface)
-                .clickable(role = Role.Button, onClickLabel = description, onClick = onClick)
-                .semantics { contentDescription = description },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                RunkkIcons.Close,
-                contentDescription = null,
-                tint = RunkkColors.TextSecondary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Text(
-            stringResource(R.string.battle_cancel_caption),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.padding(top = 8.dp).clearAndSetSemantics {}
-        )
-    }
+    RunkkRoundControl(
+        icon = RunkkIcons.Close,
+        contentDescription = stringResource(R.string.battle_cancel_desc),
+        onClick = onClick,
+        modifier = modifier,
+        size = 56.dp,
+        iconSize = 24.dp,
+        tint = RunkkColors.TextSecondary,
+        caption = stringResource(R.string.battle_cancel_caption)
+    )
 }
 
 /** 상대 표시 이름: 과거의 나는 "10월 2일의 나"(날짜를 모르면 "과거의 나"), 나머지는 서버 표시명. */
@@ -358,60 +348,42 @@ private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunn
             background = RunkkColors.Surface,
             modifier = Modifier.align(Alignment.Center)
         ) {
-            Box(Modifier.size(28.dp).clip(RoundedCornerShape(8.dp)).background(RunkkColors.TextPrimary))
+            RunkkStopSquare(size = 28.dp)
         }
     }
 }
 
 @Composable
 private fun BigDistance(distance: Distance) {
-    val spoken = stringResource(R.string.battle_running_distance_spoken, RunkkFormat.km(distance))
-    Row(
-        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Text(RunkkFormat.km(distance), style = RunkkTextStyles.DisplayHuge, color = RunkkColors.TextPrimary)
-        Text(
-            stringResource(R.string.battle_running_unit_km),
-            style = RunkkTextStyles.text(18),
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.padding(start = 4.dp, bottom = 12.dp)
-        )
-    }
+    RunkkRunDistance(
+        distance = RunkkFormat.km(distance),
+        unit = stringResource(R.string.battle_running_unit_km),
+        spoken = stringResource(R.string.battle_running_distance_spoken, RunkkFormat.km(distance))
+    )
 }
 
 /** 경과·현재 페이스·평균 페이스(D-3). */
 @Composable
 private fun Stats(state: BattleRunningUiState) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-        Stat(
-            RunkkFormat.duration(state.elapsed),
-            stringResource(R.string.battle_running_elapsed),
-            RunkkFormat.durationSpoken(state.elapsed)
+    RunkkRunStats(
+        listOf(
+            RunkkRunStat(
+                RunkkFormat.duration(state.elapsed),
+                stringResource(R.string.battle_running_elapsed),
+                RunkkFormat.durationSpoken(state.elapsed)
+            ),
+            RunkkRunStat(
+                RunkkFormat.pace(state.currentPace),
+                stringResource(R.string.battle_running_current_pace),
+                RunkkFormat.paceSpoken(state.currentPace)
+            ),
+            RunkkRunStat(
+                RunkkFormat.pace(state.averagePace),
+                stringResource(R.string.battle_running_average_pace),
+                RunkkFormat.paceSpoken(state.averagePace)
+            )
         )
-        Stat(
-            RunkkFormat.pace(state.currentPace),
-            stringResource(R.string.battle_running_current_pace),
-            RunkkFormat.paceSpoken(state.currentPace)
-        )
-        Stat(
-            RunkkFormat.pace(state.averagePace),
-            stringResource(R.string.battle_running_average_pace),
-            RunkkFormat.paceSpoken(state.averagePace)
-        )
-    }
-}
-
-@Composable
-private fun Stat(value: String, label: String, spoken: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clearAndSetSemantics { contentDescription = "$label $spoken" }
-    ) {
-        Text(value, style = RunkkTextStyles.display(28), color = RunkkColors.TextPrimary)
-        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-    }
+    )
 }
 
 /**

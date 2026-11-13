@@ -62,6 +62,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
@@ -155,13 +156,7 @@ fun BattleResultScreen(
             )
         }
         Column(modifier = Modifier.fillMaxSize()) {
-            Text(
-                stringResource(resultTitleRes(state.kind)),
-                style = RunkkTextStyles.TopBarTitle,
-                color = RunkkColors.TextPrimary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp).semantics { heading() }
-            )
+            RunkkTopBar(stringResource(resultTitleRes(state.kind)))
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     result == null && state.isLoading -> RunkkLoading()
@@ -418,7 +413,7 @@ private fun PendingBody(isAwaiting: Boolean, onRetry: () -> Unit) {
         RunkkCard(modifier = Modifier.fillMaxWidth(), borderColor = RunkkColors.Lavender) {
             if (isAwaiting) {
                 val waiting = stringResource(R.string.battle_result_waiting)
-                Box(Modifier.fillMaxWidth().height(96.dp)) { RunkkLoading(label = waiting) }
+                RunkkLoading(label = waiting, height = 96.dp)
                 Text(
                     waiting,
                     style = RunkkTextStyles.CardTitle,
