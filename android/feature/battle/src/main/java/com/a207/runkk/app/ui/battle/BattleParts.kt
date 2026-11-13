@@ -135,7 +135,7 @@ internal fun OpponentFigure(
     myAvatar: MyAvatar? = null
 ) {
     when (figure) {
-        Figure.AVATAR -> StillOr(MY_STILL, size, colorFilter) {
+        Figure.AVATAR -> StillOr(MY_STILL, size) {
             RunkkAvatar(
                 myAvatar?.faceKey,
                 expression,
@@ -147,8 +147,7 @@ internal fun OpponentFigure(
 
         Figure.RIVAL -> StillOr(
             AvatarStillSubject(isMine = false, isFemale = character == AvatarCharacter.FEMALE),
-            size,
-            colorFilter
+            size
         ) {
             RivalAvatar(Modifier.size(size), colorFilter, character)
         }
@@ -167,25 +166,32 @@ internal fun OpponentFigure(
 }
 
 /**
- * 대결 화면의 전신 정지 그림 칸(2026-11-12 PM 요구: 배틀런 친구대결·랜덤대결도 얼굴 대신 아바타 몸체). 색 거르개를 쓰는 곳(흐림·흑백)은
- * 정지 그림에 거르개를 줄 수 없어 지금 그림 그대로 둔다.
+ * 대결 화면의 전신 정지 그림 칸(2026-11-12 PM 요구: 배틀런 친구대결·랜덤대결도 얼굴 대신 아바타 몸체). 밤 거르개를 쓰는 결과 화면도
+ * 정지 그림으로 그린다(2026-11-13 PM 요구: 대결 결과도 전부 몸체, S15P31A207-300). 정지 그림에는 거르개를 주지 않고(홈 Rive 칸과 같음)
+ * [fallback](지금 그림)만 거르개를 쓴다.
  */
 @Composable
-internal fun StillOr(
-    subject: AvatarStillSubject,
-    size: Dp,
-    colorFilter: ColorFilter?,
-    fallback: @Composable () -> Unit
-) {
-    if (colorFilter != null) {
-        fallback()
-    } else {
-        AvatarStillSlot(subject, Modifier.size(size), fallback)
-    }
+internal fun StillOr(subject: AvatarStillSubject, size: Dp, fallback: @Composable () -> Unit) {
+    AvatarStillSlot(subject, Modifier.size(size), fallback)
 }
 
 /** 내 전신 정지 그림(의상·체형·러닝량·셀카 머리 그대로). */
 internal val MY_STILL = AvatarStillSubject(isMine = true)
+
+/** 결과 화면의 과거의 나(셀프런): 반투명한 내 전신 정지 그림(S15P31A207-300). 칸이 비면 반투명 기본 서기 그림이다. */
+@Composable
+internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?) {
+    Box(Modifier.alpha(PAST_SELF_ALPHA)) {
+        AvatarStillSlot(MY_STILL, Modifier.size(size)) {
+            RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(size), colorFilter = colorFilter)
+        }
+    }
+}
+
+/** 결과 상세·판 결과 히어로의 내 아바타 칸(디자인 시스템 avatarSlot): 내 전신 정지 그림, 칸이 비면 지금 그림(S15P31A207-300). */
+internal val MY_STILL_SLOT: @Composable (Modifier, @Composable () -> Unit) -> Unit = { modifier, fallback ->
+    AvatarStillSlot(MY_STILL, modifier, fallback)
+}
 
 /** 나 VS 상대 한 줄. */
 @Composable

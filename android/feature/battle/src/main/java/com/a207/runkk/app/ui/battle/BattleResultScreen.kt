@@ -235,8 +235,9 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
 }
 
 /**
- * 내 아바타와 상대 그림(D-254): 배틀런 상대는 상대 성별([rival])의 상대 그림, 과거의 나는 반투명 기본 아바타, 셀럽은 결과 응답의
- * 셀럽 그림 키([celebrity])로 고른 전용 캐릭터(없으면 공통 흐린 그림).
+ * 내 아바타와 상대 그림(D-254): 나는 내 전신 정지 그림, 배틀런 상대는 상대 성별([rival])의 기본 전신 정지 그림, 과거의 나는 반투명한
+ * 내 전신 정지 그림, 셀럽은 결과 응답의 셀럽 그림 키([celebrity])로 고른 전용 캐릭터(없으면 공통 흐린 그림)다. 얼굴 원은 쓰지 않는다
+ * (2026-11-13 PM 요구, S15P31A207-300). 정지 그림 칸이 비면(꾸미기 닫힘·미리보기) 지금 그림(기쁨·슬픔 기본 아바타)이다.
  */
 @Composable
 private fun Figures(
@@ -263,13 +264,17 @@ private fun Figures(
             )
         }
         Box(Modifier.align(Alignment.CenterEnd).offset(y = 12.dp)) {
-            OpponentFigure(
-                opponent,
-                size = 110.dp,
-                colorFilter = sceneAvatarFilter(),
-                character = rival,
-                celebrityFigure = celebrity
-            )
+            if (opponent == Figure.PAST_SELF) {
+                PastSelfStill(size = 110.dp, colorFilter = sceneAvatarFilter())
+            } else {
+                OpponentFigure(
+                    opponent,
+                    size = 110.dp,
+                    colorFilter = sceneAvatarFilter(),
+                    character = rival,
+                    celebrityFigure = celebrity
+                )
+            }
         }
     }
 }
@@ -335,12 +340,13 @@ private fun DetailPage(state: BattleResultUiState, result: BattleResult, onBack:
     ) {
         val detail = state.detail
         if (detail != null) {
-            // 결과 상세의 아바타도 내 아바타(홈과 같은 얼굴)다.
+            // 결과 상세의 아바타도 내 전신 정지 그림이다(S15P31A207-300). 칸이 비면 내 아바타(홈과 같은 얼굴)다.
             RunResultDetail(
                 detail.toDetailState(state.verdict, result).copy(
                     faceKey = state.myAvatar?.faceKey,
                     faceLayers = state.myAvatar?.faceLayers.orEmpty()
-                )
+                ),
+                avatarSlot = MY_STILL_SLOT
             )
         } else {
             Text(
