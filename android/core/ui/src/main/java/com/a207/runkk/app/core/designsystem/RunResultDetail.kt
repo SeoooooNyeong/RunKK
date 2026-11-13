@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -89,11 +90,17 @@ data class RunResultDetailState(
  * 구간 페이스(1km 막대)와 심박 구간(워치), 하이라이트 줄(★ 신기록, ♥ 크루 반영(CREW), + 리워드 합계).
  * 화면 제목·버튼은 부르는 쪽(ui.crew 크루런 결과 F-16b, ui.battle 결과 2쪽)이 그린다. 값은 피그마 F-16b(S15P31A207-293,
  * [임시:D-성-15]): 블록 사이 14, 큰 거리 64 Bold + km 22, 테두리 1 divider 카드(통계 모서리 24, 구간 26).
+ * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(칸 [Modifier], 못 그릴 때의 지금 그림). 대결 결과는 내 전신 정지 그림을 넘긴다
+ * (S15P31A207-300). 없으면 지금 그림이다.
  */
 @Composable
-fun RunResultDetail(state: RunResultDetailState, modifier: Modifier = Modifier) {
+fun RunResultDetail(
+    state: RunResultDetailState,
+    modifier: Modifier = Modifier,
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
+) {
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        DistanceHeader(state)
+        DistanceHeader(state, avatarSlot)
         StatCards(state)
         if (state.splitPaces.isNotEmpty() || state.heartRateZones.isNotEmpty()) PaceAndHeartCard(state)
         Highlights(state)
@@ -102,7 +109,10 @@ fun RunResultDetail(state: RunResultDetailState, modifier: Modifier = Modifier) 
 
 /** 큰 거리 「4.87 km」(64 Bold, km 22 Bold, 글자 아래선 맞춤)와 날짜 줄(12 본문색 또는 메타 줄), 오른쪽 위 아바타 110. */
 @Composable
-private fun DistanceHeader(state: RunResultDetailState) {
+private fun DistanceHeader(
+    state: RunResultDetailState,
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)?
+) {
     val spoken = stringResource(R.string.result_detail_distance_spoken, RunkkFormat.km(state.distance))
     Row(verticalAlignment = Alignment.Bottom) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -127,28 +137,48 @@ private fun DistanceHeader(state: RunResultDetailState) {
             }
         }
         if (state.expression == AvatarExpression.JUMP) {
-            CheeringAvatar(faceKey = state.faceKey, faceLayers = state.faceLayers)
+            CheeringAvatar(faceKey = state.faceKey, faceLayers = state.faceLayers, avatarSlot = avatarSlot)
         } else {
-            RunkkAvatar(
-                faceKey = state.faceKey,
-                expression = state.expression,
-                modifier = Modifier.size(110.dp),
-                faceLayers = state.faceLayers,
-                colorFilter = sceneAvatarFilter()
-            )
+            AvatarOrSlot(Modifier.size(110.dp), avatarSlot) { slotModifier ->
+                RunkkAvatar(
+                    faceKey = state.faceKey,
+                    expression = state.expression,
+                    modifier = slotModifier,
+                    faceLayers = state.faceLayers,
+                    colorFilter = sceneAvatarFilter()
+                )
+            }
         }
     }
 }
 
 /**
+ * [avatarSlot]이 있으면 [modifier] 칸 안을 그것으로 채우고(못 그리면 [current]), 없으면 [current]를 [modifier]로 그린다.
+ * 칸이 지금 그림을 칸 안에 다시 그려도 위치·크기가 두 번 걸리지 않게 칸 안쪽은 꽉 채운다.
+ */
+@Composable
+private fun AvatarOrSlot(
+    modifier: Modifier,
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)?,
+    current: @Composable (Modifier) -> Unit
+) {
+    if (avatarSlot == null) {
+        current(modifier)
+    } else {
+        Box(modifier) { avatarSlot(Modifier.fillMaxSize()) { current(Modifier.fillMaxSize()) } }
+    }
+}
+
+/**
  * 기뻐하는 결과 아바타: 서 있다가 뛰어오르기를 계속 되풀이한다(사용자 요청 2026-10-30). 뛰는 모양은 홈 아바타 탭과 같다
- * (오르기 tween, 내리기 spring). 움직임 줄이기면 뛰어오른 그림에 멈춰 있다.
+ * (오르기 tween, 내리기 spring). 움직임 줄이기면 뛰어오른 그림에 멈춰 있다. [avatarSlot](전신 정지 그림)이면 그 그림이 통째로 뛴다.
  */
 @Composable
 private fun CheeringAvatar(
     modifier: Modifier = Modifier.size(110.dp),
     faceKey: String? = null,
-    faceLayers: List<FaceLayer> = emptyList()
+    faceLayers: List<FaceLayer> = emptyList(),
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
 ) {
     val reduceMotion = LocalReduceMotion.current
     val hop = remember { Animatable(0f) }
@@ -163,13 +193,15 @@ private fun CheeringAvatar(
             isJumping = false
         }
     }
-    RunkkAvatar(
-        faceKey = faceKey,
-        expression = if (isJumping) AvatarExpression.JUMP else AvatarExpression.STAND,
-        modifier = modifier.graphicsLayer { translationY = -hop.value * CHEER_HOP_HEIGHT.toPx() },
-        faceLayers = faceLayers,
-        colorFilter = sceneAvatarFilter()
-    )
+    AvatarOrSlot(modifier.graphicsLayer { translationY = -hop.value * CHEER_HOP_HEIGHT.toPx() }, avatarSlot) {
+        RunkkAvatar(
+            faceKey = faceKey,
+            expression = if (isJumping) AvatarExpression.JUMP else AvatarExpression.STAND,
+            modifier = it,
+            faceLayers = faceLayers,
+            colorFilter = sceneAvatarFilter()
+        )
+    }
 }
 
 private const val CHEER_STAND_MILLIS = 900L
@@ -408,6 +440,7 @@ private val CARD_SECTION_TITLE = RunkkTextStyles.text(14, FontWeight.Bold, lineH
 /**
  * 결과 위쪽 거리 히어로(피그마 61326:1878): 종류 칩(없으면 생략) + 날짜 줄, 큰 거리 60 Bold + 「km」, 오른쪽 기뻐하는 아바타 84.
  * 큰 숫자는 Barlow Condensed 기울임이다(prod 글꼴, 2026-11-12). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
+ * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(배치고사 판 결과는 내 전신 정지 그림, S15P31A207-300).
  */
 @Composable
 fun ResultDistanceHero(
@@ -416,7 +449,8 @@ fun ResultDistanceHero(
     kindLabel: String?,
     modifier: Modifier = Modifier,
     faceKey: String? = null,
-    faceLayers: List<FaceLayer> = emptyList()
+    faceLayers: List<FaceLayer> = emptyList(),
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
 ) {
     val km = RunkkFormat.km(distance)
     val spoken = stringResource(
@@ -463,7 +497,7 @@ fun ResultDistanceHero(
                 )
             }
         }
-        CheeringAvatar(Modifier.size(HERO_AVATAR), faceKey = faceKey, faceLayers = faceLayers)
+        CheeringAvatar(Modifier.size(HERO_AVATAR), faceKey = faceKey, faceLayers = faceLayers, avatarSlot = avatarSlot)
     }
 }
 
