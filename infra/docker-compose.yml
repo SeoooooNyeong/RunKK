@@ -298,6 +298,8 @@ services:
 
   # 매일 백업(NFR-018·019·037, 처리방침 "하루 1회 이상 백업, 백업본 7일 보존"). BACKUP_TIME(기본 04:30, 3시 파기 배치 뒤)에 pg_dump -Fc를 떠서
   # 호스트 폴더 BACKUP_DIR/<환경>(기본 /var/backups/runkk/<환경>)에 두고 7일 지난 덤프를 지운다. 덤프는 BACKUP_OWNER(기본 ubuntu 1000:1000) 소유 0600.
+  # 같은 시각에 아바타 결과 볼륨(avatar-data)도 tar.gz로 같은 폴더에 같은 보존·권한으로 남긴다. 볼륨은 읽기 전용으로만 붙이고,
+  # avatar 프로필이 꺼진 환경은 빈 볼륨이라 건너뛴다. 배포 직전 덤프(now predeploy)는 DB만 뜬다(README 7절).
   # deploy.sh는 배포 직전에도 한 번 뜬다(Flyway 마이그레이션 전). 지금 바로 뜨려면: docker exec runkk-<환경>-backup-1 sh /opt/runkk-backup/pg-backup.sh now
   backup:
     image: postgres:17-alpine
@@ -317,6 +319,7 @@ services:
     volumes:
       - ./backup:/opt/runkk-backup:ro
       - ${BACKUP_DIR:-/var/backups/runkk}/${RUNKK_ENV}:/backups
+      - avatar-data:/avatar-data:ro
     mem_limit: 256m
     depends_on:
       postgres:
