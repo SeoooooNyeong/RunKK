@@ -11,7 +11,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,10 +34,8 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -102,10 +99,12 @@ import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLimePill
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
@@ -322,10 +321,7 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
-                    contentAlignment = Alignment.Center
-                ) {
+                RunkkAvatarCircle(48.dp, background = RunkkColors.SurfacePressed) {
                     // 성별을 읽기 전에는 기본 머리를 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02). 셀카 얼굴 층이 있으면
                     // (기기에 남긴 마지막 내 얼굴) 성별과 상관없으므로 첫 그림부터 그린다.
                     if (state.isAvatarReady || (isAvatarOpen && state.faceLayers.isNotEmpty())) {
@@ -490,20 +486,14 @@ private fun CircleIconButton(
     description: String,
     onClick: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .minimumInteractiveComponentSize()
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.Violet),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-        }
-    }
+    RunkkIconButton(
+        icon = icon,
+        contentDescription = description,
+        onClick = onClick,
+        borderColor = Color.Transparent,
+        containerColor = RunkkColors.Violet,
+        iconTint = RunkkColors.OnSecondary
+    )
 }
 
 /** 불러오는 중 자리(회색 막대). */
@@ -669,7 +659,7 @@ private fun RunCards(state: HomeUiState, actions: HomeActions) {
             caption = battleCaption,
             spokenCaption = battleCaption,
             container = RunkkColors.Violet,
-            content = Color.White,
+            content = RunkkColors.OnSecondary,
             onClick = actions.onBattleCard,
             modifier = Modifier.weight(1f).guideAnchor(GuideStep.BATTLE_RUN)
         )

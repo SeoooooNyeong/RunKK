@@ -500,7 +500,7 @@ class HomeScreenTest {
         var state by androidx.compose.runtime.mutableStateOf(BattleEntrySheetState(placing))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                BattleEntrySheetContent(state, onRandom = { randoms++ }, onFriend = { friends++ })
+                BattleEntrySheet(state, onRandom = { randoms++ }, onFriend = { friends++ }, onDismiss = {})
             }
         }
         compose.onNodeWithText("어떤 대결을 할까요?").assertExists()
