@@ -58,10 +58,10 @@ for (const [route, status, code] of [
 const bodyResponse = await fetch(base + '/bodies/hoodie');assert.equal(bodyResponse.status, 200);
 const {pack} = await bodyResponse.json();assert.equal(pack.mobile.neck.length, 2);assert.equal(pack.mobile.canvas.length, 2);
 const [face, eyes, hair] = await Promise.all(['face-base-default', 'eyes-default', 'hair-default'].map(name => readFile(new URL(`../public/assets/${name}.png`, import.meta.url))));
-await saveUserHead('/app', '42', {composite: selfie, right: selfie, face, eyes, hair}, {id: randomUUID(), alignment: {pivotX: .493, pivotY: .701}, mobile: {version: 'runkk-mobile-compose-v2'}});
+await saveUserHead('/app', '42', {composite: selfie, right: selfie, face, eyes, hair, rightFace: face, rightEyes: eyes, rightHair: hair}, {id: randomUUID(), alignment: {pivotX: .493, pivotY: .701}, mobile: {version: 'runkk-mobile-compose-v2'}});
 const latest = await fetch(base + '/heads/latest?userId=42');assert.equal(latest.status, 200);
 const result = await latest.json();
-for (const key of ['faceImage', 'eyesImage', 'hairImage']) {
+for (const key of ['faceImage', 'eyesImage', 'hairImage', 'rightFaceImage', 'rightEyesImage', 'rightHairImage']) {
   const info = await sharp(Buffer.from(result[key].split(',')[1], 'base64')).metadata();assert.deepEqual([info.width, info.height], [1024, 1024]);
 }
 assert.match(result.mobile.renderFaceImage, /^data:image\/png;base64,/);assert.equal(result.mobile.anchor.length, 2);

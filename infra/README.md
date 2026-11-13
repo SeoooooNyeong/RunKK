@@ -16,7 +16,7 @@ EC2 한 대(15GiB, 4코어)에 **prod**(베타, main 브랜치)와 **develop**(d
    └───────────────────────────────────────────────────┘    └─────────────────────────────────────────────────────────┘
 ```
 
-- api만 공유 망 `runkk_default`에 `api-<환경>` 별칭으로 붙습니다. postgres·redis·ai·backup은 자기 프로젝트 망에만 있어 다른 환경이 닿지 않습니다.
+- api만 공유 망 `runkk_default`에 `api-<환경>` 별칭으로 붙습니다. postgres·redis·ai·backup은 자기 프로젝트 망에만 있어 다른 환경이 닿지 않습니다. 예외로 postgres는 Grafana만 함께 붙는 DB 전용 망 `runkk_db-<환경>`에도 있습니다(6절 "이벤트 현황", 읽기 전용 계정).
 - 에지 프로젝트 이름은 분리 전과 같은 `runkk`입니다. 그래서 망 `runkk_default`(AppFlowy nginx가 붙어 있음), 인증서 볼륨 `runkk_letsencrypt`, 컨테이너 이름 `runkk-nginx-1`·`runkk-grafana-1`이 그대로 이어집니다.
 - develop 환경은 분리 전 볼륨(`runkk_postgres-data`·`runkk_redis-data`)을 이어 씁니다. prod는 빈 DB에서 시작합니다.
 
@@ -38,7 +38,7 @@ infra/
 ├─ nginx/https/                HTTPS 설정: 80 → 301, 443 → prod, 8443 → develop. wiki.conf.template은 팀 위키 프록시
 ├─ nginx/common/               두 모드 공통 location 조각(api 경로, /grafana/)
 ├─ nginx/static/               공개 홈(/), 법정 고지 문서(/legal/*), 친구 대결 초대 안내(/invite/battle/*), App Links 검증(/.well-known/assetlinks.json)
-└─ monitoring/                 Prometheus 수집 설정, Grafana 데이터소스·대시보드 (6절)
+└─ monitoring/                 Prometheus 수집 설정, Grafana 데이터소스·대시보드, 이벤트 현황 DB 읽기 전용 계정(grafana/runkk-db, 6절)
 ```
 
 ## 1. EC2 최초 세팅 (1회)
@@ -104,7 +104,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 1. `../backend`·`../ai`로 이미지를 만듭니다. 태그는 환경별(`runkk-api:develop`·`runkk-api:prod`)이라 서로 덮어쓰지 않고, 직전 이미지는 `runkk-api:<환경>-prev`로 남깁니다.
 2. 에지를 맞춥니다. 설정 파일을 `$RUNKK_HOME/edge/`에 복사하고(기본 `/srv/runkk`, 지금 서버는 `/home/gitlab-runner/runkk`), 새 nginx 설정을 일회용 컨테이너에서 `nginx -t`로 검사한 뒤 `up -d`로 바뀐 컨테이너만 다시 만들고, 돌고 있는 nginx는 템플릿을 다시 그려 `nginx -s reload`, Prometheus는 `/-/reload`로 다시 읽힙니다. 검사가 실패하면 돌고 있는 nginx를 건드리지 않고 멈춥니다. 분리 전 컨테이너(프로젝트 `runkk`의 api·ai·postgres·redis)가 있으면 여기서 정상 종료시켜 지웁니다(볼륨은 남김, 9절).
 3. 배포 직전 덤프를 하나 뜹니다(Flyway가 되돌릴 수 없는 마이그레이션을 돌리기 전, 7절). 이 환경 postgres 데이터 볼륨이 있으면 postgres·backup 컨테이너만 먼저 올려(분리 후 첫 배포나 `down` 뒤에도) `pg-backup.sh now predeploy`로 덤프하고, 올리지 못하거나 덤프가 실패하면 배포를 멈춥니다. 볼륨이 없을 때(처음 배포)만 건너뜁니다. 덤프는 CI 작업 폴더 밖 `/var/backups/runkk/<환경>/`에 폴더 700·파일 600으로 남습니다.
-4. 환경 스택 설정을 `$RUNKK_HOME/<환경>/`에 복사하고, 이 환경 postgres 볼륨을 다른 프로젝트 컨테이너가 쓰고 있으면 멈춥니다(같은 데이터 폴더에 postgres 두 개가 붙으면 DB가 깨짐). 그 뒤 `up -d --remove-orphans`(자기 프로젝트만)로 올리고 api·ai healthy와 nginx를 거친 `/actuator/health`를 기다립니다.
+4. 환경 스택 설정을 `$RUNKK_HOME/<환경>/`에 복사하고, 이 환경 postgres 볼륨을 다른 프로젝트 컨테이너가 쓰고 있으면 멈춥니다(같은 데이터 폴더에 postgres 두 개가 붙으면 DB가 깨짐). 그 뒤 `up -d --remove-orphans`(자기 프로젝트만)로 올리고 api·ai healthy와 nginx를 거친 `/actuator/health`를 기다립니다. api가 healthy가 되면(Flyway 뒤) Grafana 이벤트 현황용 읽기 전용 계정을 이 환경 DB에 맞춥니다(6절 "이벤트 현황", 실패해도 경고만).
 
 - 한 환경 배포는 다른 환경 컨테이너를 다시 만들지 않습니다. 두 배포가 겹치지 않게 CI는 `resource_group: runkk-server`, 스크립트는 `$RUNKK_HOME/.deploy.lock`(flock)을 씁니다.
 - 실행 중인 컨테이너는 CI 작업 폴더가 아니라 `$RUNKK_HOME/<스택>/`의 파일을 연결합니다. CI 작업 폴더는 다른 브랜치·MR 잡이 다시 받으므로(git checkout·clean) 거기를 연결하면 한 배포가 다른 환경의 설정 파일을 바꿔 버립니다. 저장소에서 파일을 지우면 `$RUNKK_HOME/`에서도 지웁니다(복사는 덮어쓰기만 함).
@@ -195,7 +195,7 @@ docker compose -p runkk-develop down -v && docker compose -p runkk down -v   # �
 ```
 
 - 접속: `https://<SERVER_NAME>/grafana/`. `edge.env`의 `GRAFANA_ADMIN_USER`(기본 `admin`)·`GRAFANA_ADMIN_PASSWORD`로 로그인합니다. 익명 접근과 회원가입은 꺼져 있습니다.
-- 대시보드: **런크크** 폴더의 `런크크 API`(위쪽 **환경** 선택: prod·develop)와 `런크크 서버 호스트`. `monitoring/grafana/dashboards/*.json`이 원본이라 화면에서 고친 내용은 저장되지 않습니다.
+- 대시보드: **런크크** 폴더의 `런크크 API`(위쪽 **환경** 선택: prod·develop), `런크크 서버 호스트`, `런크크 이벤트 현황`(아래 "이벤트 현황"). `monitoring/grafana/dashboards/*.json`이 원본이라 화면에서 고친 내용은 저장되지 않습니다.
 - api 지표: develop·prod 프로필은 actuator를 관리 포트 8081에 따로 둡니다. 서비스 포트 8080에는 actuator가 없고, nginx는 바깥에 `/actuator/health` 하나만 8081로 넘기며 나머지 `/actuator/*`는 404입니다.
 - 보존: Prometheus는 15일 또는 2GB 중 먼저 닿는 쪽까지 둡니다(`runkk_prometheus-data`). Grafana 설정·세션은 `runkk_grafana-data`에 있습니다.
 - 메모리 제한: prometheus 512m, grafana 512m, node-exporter 64m.
@@ -222,6 +222,27 @@ docker exec runkk-grafana-1 grafana cli admin reset-admin-password '<새 비밀�
 - 대응: 알림 스레드에 확인 시각과 복구 시각을 남깁니다. NFR-016(장애 확인 뒤 1시간 안 복구)의 기록이 됩니다.
 - 시험: Grafana **Alerting › Contact points › mattermost-runkk-alerts › Test**로 채널에 시험 메시지를 보냅니다.
 - 앱 비정상 종료는 Play Console **Android vitals**(비정상 종료·ANR)에서 봅니다. 앱에 크래시 수집 SDK를 넣지 않아 알림이 없으므로 베타 기간에는 담당이 매일 확인합니다. 집계가 하루쯤 늦고, Play 밖에서 설치한 APK의 비정상 종료는 잡지 못합니다.
+
+### 이벤트 현황 (DB 읽기 전용)
+
+`런크크 이벤트 현황` 대시보드는 Prometheus가 아니라 두 환경 DB를 직접 읽습니다(S15P31A207-275, 설계 `docs/sw/design-oo/05-29-설계-이벤트현황-성.md`). 이벤트별 응모자 수, 코치(셀럽)별 대결과 승리 수, 거리 이벤트(베타는 1km) 응모자 수, 이벤트 포인트 지급 건수와 합계, 일별 추이(새 응모자, 코치 대결, 지급), 응모자 닉네임 명단을 봅니다. 응모 판정은 서버 `EventEntrantService`와 같습니다(셀럽마다 첫 승리, 기준 거리 이상 유효 기록, 기간 양 끝 포함, 탈퇴 회원 제외).
+
+```
+grafana ─┬─ 망 runkk_db-prod (internal)    ─ postgres-prod:5432     (runkk-prod의 postgres)
+         └─ 망 runkk_db-develop (internal) ─ postgres-develop:5432  (runkk-develop의 postgres)
+           계정 runkk_grafana_ro: 읽기 전용 기본값, 연결 3개, 쿼리 15초, 아래 표와 열만 SELECT
+```
+
+- 망: DB 전용 망 두 개는 에지 스택이 만들고(internal, 밖으로 나가지 못함), 각 환경 postgres만 `postgres-<환경>` 별칭으로 붙습니다. api·redis·ai는 이 망에 없어 Grafana는 그 환경의 postgres 말고 닿지 않습니다.
+- 계정: `monitoring/grafana/runkk-db/readonly-role.sql`. `deploy.sh`가 환경 배포마다 api healthy 뒤(Flyway 뒤) 그 환경 DB에만 돌려 계정을 만들거나 비밀번호를 맞추고, 권한을 목록대로 다시 맞춥니다. 읽는 것: `event`, `event_point_grant` 전체, `battle`(판정 열), `run_record`(회원, 시작 시각, 거리, 유효만. 경로·심박 없음), `member`(ID, 닉네임, 상태만), `celebrity_record`(ID, 가림 이름), `flyway_schema_history`(버전, 성공). 대시보드가 다른 표나 열을 읽어야 하면 이 파일과 설계를 함께 고칩니다.
+- 비밀번호: GitLab CI 변수 `GRAFANA_DB_READONLY_PASSWORD`(masked·protected, 영숫자 16자 이상, 예 `openssl rand -hex 24`). 배포가 `edge.env` 끝에 붙이고, Grafana는 환경 변수로 읽어 데이터소스(`monitoring/grafana/runkk-db/datasources.yml`)에 씁니다. 두 환경이 같은 값을 씁니다. 값이 없거나 형식이 틀리면 데이터소스를 넣지 않고(이미 있으면 지움) 계정도 건드리지 않으며 배포는 계속됩니다. 계정 맞추기가 실패해도 경고만 남깁니다.
+- 배포 순서 주의: 에지와 환경 스택은 마지막에 배포한 브랜치의 설정을 따릅니다. release/* 브랜치는 이 변경(S15P31A207-275 Grafana 이벤트 현황)이 develop에 병합된 뒤에 자릅니다. 병합 전에 갈라진 release/* 에 push하면 develop 환경(8443) 자동 배포가 옛 설정으로 develop postgres를 다시 만들어 DB 전용 망에서 떼고, grafana도 DB 망에서 떨어집니다(다음 develop 배포가 또 다시 만듭니다). 그 파이프라인의 옛 복구 시험도 이 계정 권한에서 멈춥니다. main 배포(핫픽스)도 이 변경이 main에 들어가기 전에는 grafana를 DB 망에서 뗍니다(대시보드만 영향).
+- 처음 켜기와 비밀번호 바꾸기: CI 변수를 넣거나 바꾼 뒤 develop 배포(파이프라인 `backend:deploy` 재실행)와 prod 배포를 한 번씩 돌립니다. 에지(데이터소스)는 어느 배포든 맞추지만 계정은 그 배포의 환경 DB에만 맞추므로, 두 배포가 모두 끝나야 두 데이터소스가 붙습니다. 한쪽만 돌면 다른 쪽 데이터소스는 인증 오류로 보입니다.
+- 처음 배포 한 번은 postgres 컨테이너가 다시 만들어집니다(DB 전용 망이 붙으므로, 볼륨은 그대로). 배포 직전 덤프 단계에서 몇 초 끊깁니다. 이때 아직 옛 api가 돌고 있어 그 사이 요청은 실패하고 연결 풀이 다시 붙습니다. 정상 종료는 60초까지 기다립니다(compose `stop_grace_period`). 복구 시험(7절)은 이 계정도 미리 만들어 복원합니다.
+- 시각: 운영 DB는 2차 배포(V48) 전까지 서버가 쓴 시각이 9시간 앞서 저장됩니다(3절 운영 주의). 응모 판정과 개수는 저장 값끼리 비교하므로 V48 전후 모두 맞습니다. 화면에 보이는 시각과 일별 날짜만 대시보드 위쪽 **시각 보정**으로 맞춥니다. 기본 `자동`은 V48이 없는 DB만 9시간 빼서 보여 줍니다. 대시보드 시간대는 Asia/Seoul입니다.
+- 보안 영향: Grafana가 털리면 두 환경 DB를 위 표와 열만큼 읽을 수 있습니다(쓰기 불가, 닉네임까지, 경로·이메일 없음). Grafana 편집 권한이 있는 사람은 Explore로 같은 범위의 SQL을 돌릴 수 있습니다. 그래서 Grafana 계정은 지금처럼 관리자 하나만 두고, 계정을 늘릴 때는 Viewer로 줍니다. DB 전용 망에서 postgres 포트에 닿으므로 다른 DB 계정 비밀번호도 길게 둡니다.
+- 확인: Grafana **Connections › Data sources › runkk-db-prod / runkk-db-develop › Save & test**가 `Database Connection OK`. DB에서는 `docker exec runkk-prod-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "\du runkk_grafana_ro"'`.
+- 끄기: CI 변수를 지우고 배포하면 데이터소스가 빠집니다. 계정까지 지우려면 각 환경 DB에서 `DROP OWNED BY runkk_grafana_ro; DROP ROLE runkk_grafana_ro;`를 운영자가 직접 돌립니다.
 
 ### 메모리 배분 (15GiB, 4코어)
 
@@ -270,6 +291,7 @@ F=$(ls -t /var/backups/runkk/prod/runkk-prod-*.dump | head -n 1); echo "$F"
 docker run -d --name runkk-restore-rehearsal -e POSTGRES_PASSWORD=rehearsal postgres:17-alpine
 until docker exec runkk-restore-rehearsal pg_isready -U postgres >/dev/null 2>&1; do sleep 1; done
 docker exec runkk-restore-rehearsal createdb -U postgres runkk
+for r in runkk runkk_ai runkk_grafana_ro; do docker exec runkk-restore-rehearsal psql -U postgres -qc "CREATE ROLE $r NOLOGIN"; done   # 덤프의 GRANT 대상(앱 계정 이름이 runkk가 아니면 바꾼다)
 docker exec -i runkk-restore-rehearsal pg_restore -U postgres -d runkk --no-owner --exit-on-error < "$F"
 docker exec runkk-restore-rehearsal psql -U postgres -d runkk -c "ANALYZE" \
   -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 10" \

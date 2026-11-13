@@ -38,6 +38,7 @@ constructor(
     private val lock = Any()
     private var session: RunSession? = null
     private var locationFilter = LocationFilter()
+    private var stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
 
     /** 마지막으로 끝난 러닝(늦게 온 심박을 이 기록에 덧붙인다, FR-043). lock 안에서만 쓴다. */
     private var lastFinished: FinishedWindow? = null
@@ -147,6 +148,7 @@ constructor(
                     session = fresh
                     unclaimedEnd = null
                     locationFilter = LocationFilter()
+                    stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
                     coach.begin(spec.mode)
                     noticeGap = null
                     _progress.value = RunProgress.INITIAL
@@ -168,10 +170,19 @@ constructor(
         return Outcome.Success(Unit)
     }
 
-    fun onLocationSample(s: LocationSample) {
+    fun onPhoneLocationSample(s: LocationSample) = onLocationSample(s, stabilize = true)
+
+    fun onLocationSample(s: LocationSample, stabilize: Boolean = false) {
         synchronized(lock) {
             val active = session?.takeIf { it.isActive } ?: return
-            val point = locationFilter.accept(s) ?: return
+            val isFreeRun = active.spec.mode == RunMode.FREE && !active.spec.isOfflineBattle
+            val filter = if (stabilize && isFreeRun) {
+                if (active.isPaused) return
+                stabilizedLocationFilter
+            } else {
+                locationFilter
+            }
+            val point = filter.accept(s) ?: return
             if (active.onLocation(point)) _routeLine.value = _routeLine.value + point.point
         }
     }
@@ -326,6 +337,9 @@ constructor(
             synchronized(lock) {
                 val active = session?.takeIf { it.isActive } ?: return
                 if (!change(active, now)) return
+                if (active.spec.mode == RunMode.FREE) {
+                    stabilizedLocationFilter = LocationFilter(isStabilizationEnabled = true)
+                }
                 active to active.tick(now).also(::emitProgress)
             }
         coach.play(Guidance.screenOnly(Guidance.Kind.PAUSE, message))

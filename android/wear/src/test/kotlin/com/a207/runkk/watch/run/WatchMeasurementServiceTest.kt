@@ -8,6 +8,8 @@ import androidx.health.services.client.data.DataPointContainer
 import androidx.health.services.client.data.DataType
 import androidx.health.services.client.data.ExerciseTrackedStatus
 import androidx.health.services.client.data.HeartRateAccuracy
+import androidx.health.services.client.data.LocationAccuracy
+import androidx.health.services.client.data.LocationData
 import androidx.health.services.client.data.SampleDataPoint
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
@@ -168,6 +170,37 @@ class WatchMeasurementServiceTest {
         runCurrent()
         assertEquals(Outcome.Failure(AppError.Rejected(WatchMeasurementService.EXERCISE_ENDED)), result.await())
     }
+
+    @Test
+    fun `워치 자유런은 GPS 점프를 버리고 묶여 온 정상 좌표로 거리를 계속 기록한다`() = runTest {
+        val clock = SchedulerClock(testScheduler)
+        val settings = FakeSettingsRepository()
+        val gateway = LocalWatchGateway(alertPlayer(), settings, clock)
+        val tracker = runTracker(gateway, settings = settings)
+        val client = FakeExerciseClient()
+        val source = WatchExerciseSource(client, clock, isHeartRateAllowed = { false }, elapsedRealtimeMillis = { 0 })
+        tracker.startRun(RunStartSpec(RunMode.FREE, CardKind.FREE_RUN, RunStartSpec.StartDevice.WATCH))
+        backgroundScope.launch { WatchMeasurementService.relay(tracker, source, gateway, clock) }
+        runCurrent()
+
+        client.deliver(DataPointContainer(listOf(location(1, 127.0), location(2, 127.001))))
+        runCurrent()
+        assertEquals(1, tracker.routeLine.value.points.size)
+
+        client.deliver(DataPointContainer(listOf(location(4, 127.00005), location(3, 127.000025))))
+        runCurrent()
+        advanceTimeBy(4_001)
+        assertEquals(3, tracker.routeLine.value.points.size)
+        assertTrue(tracker.progress.value.distance.meters in 1..6)
+    }
+
+    private fun location(second: Long, longitude: Double) = SampleDataPoint(
+        DataType.LOCATION,
+        LocationData(37.5, longitude),
+        Duration.ofSeconds(second),
+        Bundle(),
+        LocationAccuracy(5.0)
+    )
 
     private fun heart() = SampleDataPoint(
         DataType.HEART_RATE_BPM,
