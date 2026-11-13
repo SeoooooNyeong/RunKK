@@ -159,8 +159,13 @@ class MyAvatarStore internal constructor(
                 .catch { _state.value = MyAvatarState.Failed }
                 .collect(::onGender)
         }
-        // 셀카 화면을 다시 열지 않아도 남은 작업이 이어지게 따라가기를 잇는다(KEEP이라 돌고 있으면 그대로다).
-        scope.launch { quietly { resumeSelfie() } }
+        // 셀카 화면을 다시 열지 않아도 남은 작업이 이어지게 따라가기를 잇는다(KEEP이라 돌고 있으면 그대로다). 이어서 바로 한 번
+        // 직접 확인한다: 서버 current로 들여온 작업(재설치·다른 기기 접수)은 앞 화면 확인이 들여오기 전에 끝나 워커만 남았고, 워커가
+        // 돌지 못하는 망에서는 「얼굴 만드는 중」이 남았다([임시:D-성-223]). 확인은 워커와 겹쳐도 한 번만 처리한다.
+        scope.launch {
+            quietly { resumeSelfie() }
+            quietly { checkPending() }
+        }
         // 셀카 결과는 화면이 없어도 워커가 적용한다. 성공을 받으면 바뀐 머리로 다시 준비한다([임시:DR-성-13]).
         selfieJob = scope.launch {
             // 첫 값은 지금 상태라 버린다(앞에서 이미 적용한 성공이면 준비가 이미 반영한다).

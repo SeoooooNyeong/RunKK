@@ -105,6 +105,27 @@ class MyAvatarStoreTest {
     }
 
     @Test
+    fun `warm은 따라가기를 이은 뒤 바로 한 번 직접 확인한다(서버에서 들여온 끝난 작업도 워커를 기다리지 않는다)`() = runTest {
+        // 재설치·다른 기기 접수처럼 기기 ID 없이 서버 current로 들여온 작업은 앞 화면 확인이 들여오기 전에 끝나 워커만
+        // 남았다([임시:D-성-223]). 들여온 직후 같은 흐름에서 확인해야 「얼굴 만드는 중」이 남지 않는다.
+        val order = mutableListOf<String>()
+        val store = MyAvatarStore(
+            avatars = repo,
+            myGender = gender,
+            heads = headsOf(repo),
+            preload = {},
+            prepare = { _, _ -> },
+            scope = backgroundScope,
+            loggedIn = loggedIn,
+            resumeSelfie = { order += "resume" },
+            checkPending = { order += "check" }
+        )
+        store.warm()
+        runCurrent()
+        assertEquals(listOf("resume", "check"), order)
+    }
+
+    @Test
     fun `입력 읽기가 예외를 던져도 앱이 죽지 않고 Failed다(리뷰 R2-8)`() = runTest {
         val store = MyAvatarStore(
             avatars = object : AvatarRepository by repo {
