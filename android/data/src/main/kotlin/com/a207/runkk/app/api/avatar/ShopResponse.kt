@@ -19,6 +19,12 @@ internal data class ShopResponse(val items: List<Item> = emptyList(), val balanc
         val name: String,
         val price: Int,
         val owned: Boolean = false,
-        val onSale: Boolean = true
+        val onSale: Boolean = true,
+        /** 그림 키(W8). */
+        val assetKey: String? = null,
+        /** 해금 조건을 못 채워 살 수 없음(W8). */
+        val locked: Boolean = false,
+        /** 해금 조건 문구(W8). */
+        val unlockCondition: String? = null
     )
 }

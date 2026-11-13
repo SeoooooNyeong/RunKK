@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,6 +26,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.RunkkBottomActionBar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkShapes
@@ -45,17 +47,18 @@ fun ShareTargetBar(
     onMore: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(BAR_SHAPE)
-            .background(RunkkColors.Surface)
-            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 28.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
+    // 하단 고정 바(디자인 시스템)를 그림자 없이 위 모서리 24·안쪽 20/16/28로 쓴다.
+    RunkkBottomActionBar(
+        modifier = modifier,
+        isElevated = false,
+        shape = BAR_SHAPE,
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 28.dp)
     ) {
-        ShareTargetButton(RunkkIcons.Plus, saveLabel, isSharing, onSave)
-        ShareTargetButton(RunkkIcons.Camera, storyLabel, isSharing, onStory)
-        ShareTargetButton(RunkkIcons.Share, moreLabel, isSharing, onMore)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            ShareTargetButton(RunkkIcons.Plus, saveLabel, isSharing, onSave)
+            ShareTargetButton(RunkkIcons.Camera, storyLabel, isSharing, onStory)
+            ShareTargetButton(RunkkIcons.Share, moreLabel, isSharing, onMore)
+        }
     }
 }
 

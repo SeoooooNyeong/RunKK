@@ -2,7 +2,10 @@ package com.a207.runkk.app.ui.record.runbody
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -86,6 +89,18 @@ class RunBodyScreensTest {
         compose.onNodeWithText("요약").performClick()
         assertEquals(listOf(RunBodyTab.MONTH, RunBodyTab.SUMMARY), tabs)
         compose.onNodeWithText("AI 코치").assertDoesNotExist()
+    }
+
+    @Test
+    fun `AI 코치는 오른쪽 아래 떠 있는 버튼으로 코치 대화를 연다(G-13)`() {
+        var coached = 0
+        compose.setContent {
+            RunkkTheme {
+                RunBodyScreen(runState(RunBodySessionState.Loading), RunBodyActions(onCoach = { coached++ }))
+            }
+        }
+        compose.onNodeWithText("AI 코치").assertHasClickAction().performClick()
+        assertEquals(1, coached)
     }
 
     @Test
@@ -205,8 +220,10 @@ class RunBodyScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("5.2km, 선택됨").assertExists()
-        compose.onNodeWithText("10.0km, 58:00").performClick()
+        // 피그마 "5.2km · 선택됨"은 가운뎃점 대신 메타 줄로 그리고 한 번에 읽는다([임시:D-성-10])
+        compose.onNodeWithContentDescription("5.2km, 선택됨").assertIsSelected()
+        compose.onNodeWithContentDescription("10.0km, 58:00").assertIsNotSelected()
+        compose.onNodeWithContentDescription("10.0km, 58:00").performClick()
         assertEquals(listOf("r2"), picked)
     }
 
@@ -248,11 +265,13 @@ class RunBodyScreensTest {
                 )
             }
         }
+        compose.onNodeWithContentDescription("11월 2일 오전 7:10, 5.2km").assertExists()
+        compose.onNodeWithText("00:30:10", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("구간, 페이스, 평균 심박").performScrollTo().assertExists()
-        compose.onNodeWithText("5'42\"/km, 148 bpm", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("5′42″/km, 148 bpm", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("마지막 0.2 km", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("좋았던 점 전반과 후반 페이스 차이가 작아요.").performScrollTo().assertExists()
-        compose.onNodeWithText("확인 근거 전반 5'44\"/km → 후반 5'52\"/km").performScrollTo().assertExists()
+        compose.onNodeWithText("확인 근거 전반 5′44″/km → 후반 5′52″/km").performScrollTo().assertExists()
         compose.onNodeWithText("5.2 km / 5.0 km", useUnmergedTree = true).performScrollTo().assertExists()
     }
 
@@ -293,18 +312,13 @@ class RunBodyScreensTest {
         )
     }
 
-    private fun summaryState(
-        trend: RunBodyTrend?,
-        period: RunBodyPeriod = RunBodyPeriod.WEEK,
-        comment: String? = null
-    ) = RunBodyUiState(
+    private fun summaryState(trend: RunBodyTrend?, comment: String? = null) = RunBodyUiState(
         today = today,
         zone = zone,
         isReportLoading = false,
         report = Report("1~2회 평균 점수 33.0 · 1회 거리 +0 m", comment, null),
         isTrendLoading = false,
         trend = trend,
-        period = period,
         isWeekLoading = false,
         weekRuns = weekRuns
     )
@@ -343,7 +357,7 @@ class RunBodyScreensTest {
     }
 
     @Test
-    fun `10회 전이면 아무것도 바꾸지 않는 주간·월간 토글과 최근 10회 평균을 그리지 않는다(G-33)`() {
+    fun `10회 전이면 남은 횟수만 보이고 최근 10회 평균은 그리지 않는다(G-33)`() {
         compose.setContent {
             RunkkTheme { RunBodyScreen(summaryState(RunBodyTrend(2, 0, 8, null, null, null, null)), RunBodyActions()) }
         }
@@ -354,11 +368,8 @@ class RunBodyScreensTest {
     }
 
     @Test
-    fun `요약은 최근 10회 변화의 회차와 페이스·같은 심박·빈도·러닝 유형을 보이고 토글을 알린다(G-14)`() {
-        val periods = mutableListOf<RunBodyPeriod>()
-        compose.setContent {
-            RunkkTheme { RunBodyScreen(summaryState(sampleTrend()), RunBodyActions(onPeriod = { periods += it })) }
-        }
+    fun `요약은 최근 10회 변화의 회차와 페이스·같은 심박·주간 빈도·러닝 유형을 보이고 주간·월간 토글은 없다(G-14)`() {
+        compose.setContent { RunkkTheme { RunBodyScreen(summaryState(sampleTrend()), RunBodyActions()) } }
         compose.onNodeWithText("2회차").assertExists()
         compose.onNodeWithText("11~20번째 러닝").assertExists()
         compose.onNodeWithText("14초 단축").assertExists()
@@ -367,24 +378,10 @@ class RunBodyScreensTest {
         compose.onNodeWithText("2.1 → 2.8회").assertExists()
         compose.onNodeWithText("0.7회 늘었어요").assertExists()
         compose.onNodeWithText("출근도장 거북이").performScrollTo().assertExists()
-        // 맨 위 탭과 토글에 "월간"이 둘 있다. 두 번째가 주간/월간 토글이다
-        compose.onAllNodesWithText("월간")[1].performClick()
-        assertEquals(listOf(RunBodyPeriod.MONTH), periods)
-    }
-
-    @Test
-    fun `월간이면 빈도를 30일 기준으로, 10회 전이면 남은 횟수를 보인다(G-14)`() {
-        val trend = mutableStateOf(sampleTrend())
-        compose.setContent {
-            RunkkTheme { RunBodyScreen(summaryState(trend.value, RunBodyPeriod.MONTH), RunBodyActions()) }
-        }
-        compose.onNodeWithText("월간 러닝 빈도").assertExists()
-        compose.onNodeWithText("9.0 → 12.0회").assertExists()
-        compose.onNodeWithText("3.0회 늘었어요").assertExists()
-
-        trend.value = RunBodyTrend(4, 0, 6, null, null, null, null)
-        compose.onNodeWithText("러닝을 6번 더 하면 최근 10회 변화를 보여 드려요").assertExists()
-        compose.onNodeWithText("평균 페이스").assertDoesNotExist()
+        // 피그마 G-14에는 토글이 없다([임시:D-성-17]). "월간"은 맨 위 탭 하나뿐이다
+        compose.onNodeWithText("주간").assertDoesNotExist()
+        assertEquals(1, compose.onAllNodesWithText("월간").fetchSemanticsNodes().size)
+        compose.onNodeWithText("월간 러닝 빈도").assertDoesNotExist()
     }
 
     @Test

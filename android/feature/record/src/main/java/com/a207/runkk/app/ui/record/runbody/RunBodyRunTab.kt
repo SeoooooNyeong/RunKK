@@ -1,19 +1,24 @@
 package com.a207.runkk.app.ui.record.runbody
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -60,33 +65,55 @@ internal fun RunTab(state: RunBodyUiState, actions: RunBodyActions) {
     }
 }
 
-/** 고른 기록 칸: 시각 + 거리, 누르면 러닝 선택(G-30). */
+/**
+ * 고른 기록 칸(피그마 모서리 12, 높이 64, 안쪽 16x8): 시각(12 Medium) + "5.2km  기록 선택 ▾"(16 Regular). 피그마의 가운뎃점은 띄어
+ * 쓰기로 바꾼다([임시:D-성-10]). 누르면 러닝 선택(G-30).
+ */
 @Composable
 private fun SelectedRunCard(run: RunSummary, zone: ZoneId, onOpenPick: () -> Unit) {
     val pickLabel = stringResource(R.string.record_runbody_pick_open)
+    val body = RunkkTextStyles.text(16)
     RunkkCard(
-        Modifier.fillMaxWidth(),
-        shape = RunkkShapes.Medium,
+        Modifier.fillMaxWidth().heightIn(min = SELECTED_RUN_HEIGHT),
+        shape = RunkkShapes.Small,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
         onClick = onOpenPick,
         onClickLabel = pickLabel,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically)
     ) {
-        Text(runTime(run.startedAt, zone), style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+        Text(
+            runTime(run.startedAt, zone),
+            style = RunkkTextStyles.text(12, FontWeight.Medium, letterSpacingEm = 0.04f),
+            color = RunkkColors.TextSecondary
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 stringResource(R.string.record_km_value, RunkkFormat.kmShort(run.distance)),
-                style = RunkkTextStyles.text(16, FontWeight.Bold),
+                style = body,
                 color = RunkkColors.TextPrimary
             )
             Spacer(Modifier.width(8.dp))
-            Text(pickLabel, style = RunkkTextStyles.text(16), color = RunkkColors.TextPrimary)
-            Icon(
-                RunkkIcons.ChevronDown,
-                contentDescription = null,
-                tint = RunkkColors.TextPrimary,
-                modifier = Modifier.size(16.dp)
-            )
+            Text(pickLabel, style = body, color = RunkkColors.TextPrimary)
+            Spacer(Modifier.width(4.dp))
+            DropTriangle()
         }
+    }
+}
+
+/** 피그마 "▾": 아래로 향한 작은 채운 삼각형(8x5). 장식이다. */
+@Composable
+private fun DropTriangle() {
+    val color = RunkkColors.TextPrimary
+    Canvas(Modifier.size(width = 8.dp, height = 5.dp).clearAndSetSemantics {}) {
+        drawPath(
+            Path().apply {
+                moveTo(0f, 0f)
+                lineTo(size.width, 0f)
+                lineTo(size.width / 2, size.height)
+                close()
+            },
+            color
+        )
     }
 }
 
@@ -94,7 +121,7 @@ private fun SelectedRunCard(run: RunSummary, zone: ZoneId, onOpenPick: () -> Uni
 private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: ZoneId, actions: RunBodyActions) {
     when (session) {
         RunBodySessionState.Loading -> RunBodyCard(null) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 32.dp)) { RunkkLoading() }
+            RunkkLoading(height = SESSION_LOADING_HEIGHT)
         }
 
         RunBodySessionState.Pending -> RunBodyCard(
@@ -169,15 +196,23 @@ private fun RecheckButton(onClick: () -> Unit) {
     )
 }
 
-/** G-13 분석 중: 같은 칸에 빈 오각형과 "분석 중이에요", 상세보기는 꺼 둔다. */
+/**
+ * G-13 분석 중: 같은 칸에 빈 오각형과 "분석 중이에요", 값은 흐리게, 상세보기는 꺼 둔다(회색). "다시 확인"은 피그마에 없지만 MR !91 e2e 4
+ * 결정으로 둔다.
+ */
 @Composable
 private fun AnalyzingSection(onRecheck: () -> Unit) {
     val analyzing = stringResource(R.string.record_runbody_analyzing_short)
-    RunBodyCard(stringResource(R.string.record_runbody_profile_title), titleSize = PROFILE_TITLE_SIZE) {
+    ProfileCard(stringResource(R.string.record_runbody_profile_title)) {
         RunBodyRadar(emptyMap(), centerText = stringResource(R.string.record_runbody_analyzing))
         ProfileCaption(stringResource(R.string.record_runbody_analyzing_message))
         RunBodyIconRow(RunkkIcons.Bolt, stringResource(R.string.record_runbody_best), analyzing, isMuted = true)
-        RunBodyIconRow(RunkkIcons.Calendar, stringResource(R.string.record_runbody_check), analyzing, isMuted = true)
+        RunBodyIconRow(
+            RunkkIcons.CalendarToday,
+            stringResource(R.string.record_runbody_check),
+            analyzing,
+            isMuted = true
+        )
         RecheckButton(onRecheck)
     }
     RunkkPrimaryButton(
@@ -200,7 +235,7 @@ private fun DoneSection(result: RunBodyResult, onOpenDetail: () -> Unit) {
 
         scored.size == 1 -> {
             val axis = scored.single()
-            RunBodyCard(stringResource(R.string.record_runbody_profile_partial_title), titleSize = PROFILE_TITLE_SIZE) {
+            ProfileCard(stringResource(R.string.record_runbody_profile_partial_title)) {
                 RunBodyRadar(scoresOf(result))
                 ProfileCaption(
                     stringResource(R.string.record_runbody_profile_partial, stringResource(axis.labelRes()), 1)
@@ -210,14 +245,14 @@ private fun DoneSection(result: RunBodyResult, onOpenDetail: () -> Unit) {
         }
 
         else -> {
-            RunBodyCard(stringResource(R.string.record_runbody_profile_title), titleSize = PROFILE_TITLE_SIZE) {
+            ProfileCard(stringResource(R.string.record_runbody_profile_title)) {
                 RunBodyRadar(scoresOf(result))
                 ProfileCaption(profileCaption(result))
                 val best = scored.maxBy { result.axes.getValue(it).score ?: 0 }
                 val check = scored.minBy { result.axes.getValue(it).score ?: 0 }
                 RunBodyIconRow(RunkkIcons.Bolt, stringResource(R.string.record_runbody_best), axisScore(result, best))
                 RunBodyIconRow(
-                    RunkkIcons.Calendar,
+                    RunkkIcons.CalendarToday,
                     stringResource(R.string.record_runbody_check),
                     axisScore(result, check)
                 )
@@ -230,11 +265,23 @@ private fun DoneSection(result: RunBodyResult, onOpenDetail: () -> Unit) {
 /** G-31: 모든 축 점수가 없다. 분석 작업이 없는 기록(404)은 상세가 없어 버튼을 두지 않는다. */
 @Composable
 private fun EmptyProfile(onOpenDetail: (() -> Unit)?) {
-    RunBodyCard(stringResource(R.string.record_runbody_profile_empty_title), titleSize = PROFILE_TITLE_SIZE) {
+    ProfileCard(stringResource(R.string.record_runbody_profile_empty_title)) {
         RunBodyRadar(emptyMap())
         ProfileCaption(stringResource(R.string.record_runbody_profile_empty_message))
     }
     onOpenDetail?.let { DetailButton(it) }
+}
+
+/** 프로필 카드(G-13·G-21·G-31): 제목 20 Bold, 안쪽 위·좌우 20·아래 16, 요소 간격 8(피드백 줄 42 사이). */
+@Composable
+internal fun ProfileCard(title: String, content: @Composable ColumnScope.() -> Unit) {
+    RunBodyCard(
+        title,
+        titleSize = PROFILE_TITLE_SIZE,
+        spacing = 8.dp,
+        contentPadding = PaddingValues(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 16.dp),
+        content = content
+    )
 }
 
 @Composable
@@ -284,3 +331,7 @@ internal fun runTime(startedAt: Instant, zone: ZoneId): String {
 }
 
 internal const val PROFILE_TITLE_SIZE = 20
+private val SELECTED_RUN_HEIGHT = 64.dp
+
+/** 세션 카드 안 불러오는 칸 높이(위아래 32 + 원 40). */
+private val SESSION_LOADING_HEIGHT = 104.dp

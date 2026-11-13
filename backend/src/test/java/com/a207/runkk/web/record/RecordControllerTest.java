@@ -108,6 +108,9 @@ class RecordControllerTest extends WebTestSupport {
                 .isEqualTo(recordId);
         assertThat(dashboard.get("weekly").isNull()).isTrue();
         assertThat(dashboard.get("weeklyAchievement").isNull()).isTrue();
+        // 주간 목표가 없어도 이번 주 유효 횟수·거리는 준다(실기기 DV3-4)
+        assertThat(dashboard.get("weekRuns").asInt()).isEqualTo(1);
+        assertThat(dashboard.get("weekMeters").asLong()).isEqualTo(5_000);
 
         JsonNode list =
                 getJson(

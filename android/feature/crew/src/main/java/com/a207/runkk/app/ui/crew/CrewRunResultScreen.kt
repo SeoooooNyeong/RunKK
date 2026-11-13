@@ -5,9 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -15,10 +17,8 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,7 +26,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -41,17 +40,23 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
-import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPageDots
-import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
-import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
+import com.a207.runkk.app.core.designsystem.RunkkPersonRow
+import com.a207.runkk.app.core.designsystem.RunkkRowDivider
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
@@ -99,7 +104,7 @@ fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltVie
 
 /**
  * 크루런 결과(F-16)와 결과 상세(F-16b)를 옆으로 넘긴다(대결 결과 1·2쪽과 같은 방식). 배경 그림은 결과 쪽에만 있고 상세 쪽으로 넘기는 만큼
- * 흐려진다. 아래에 공유·확인.
+ * 흐려진다. 머리 줄 뒤로 버튼은 결과 쪽에만 있다(F-16b 상세 쪽은 제목만, [임시:D-성-15]). 아래에 공유(흰 알약)·확인(라임 알약).
  */
 @Composable
 fun CrewRunResultScreen(
@@ -121,7 +126,11 @@ fun CrewRunResultScreen(
             )
         }
         Column(modifier = Modifier.fillMaxSize()) {
-            RunkkTopBar(title = stringResource(R.string.crew_run_result_title), onBack = onHome)
+            val isSummary = result == null || pagerState.currentPage == 0
+            RunkkTopBar(
+                title = stringResource(R.string.crew_run_result_title),
+                onBack = if (isSummary) onHome else null
+            )
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 when {
                     result == null && state.isLoading -> RunkkLoading()
@@ -135,15 +144,16 @@ fun CrewRunResultScreen(
                 }
             }
             Row(
-                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                RunkkSecondaryButton(
+                RunkkButton(
                     stringResource(R.string.crew_run_result_card),
                     onClick = onCard,
+                    style = RunkkButtonStyle.White,
                     modifier = Modifier.weight(1f)
                 )
-                RunkkPrimaryButton(
+                RunkkButton(
                     stringResource(R.string.crew_run_result_home),
                     onClick = onHome,
                     modifier = Modifier.weight(1f)
@@ -176,12 +186,12 @@ private fun ResultPager(state: CrewRunResultUiState, result: CrewRunResult, page
     }
 }
 
-/** 쪽 넘김 글자 단추(작게, 가운데). */
+/** 쪽 넘김 글자 단추(11, 가운데). */
 @Composable
 private fun PageLink(text: String, onClick: () -> Unit) {
     Text(
         text,
-        style = RunkkTextStyles.Caption,
+        style = RunkkTextStyles.Micro,
         color = RunkkColors.TextPrimary,
         textAlign = TextAlign.Center,
         modifier = Modifier
@@ -192,32 +202,44 @@ private fun PageLink(text: String, onClick: () -> Unit) {
     )
 }
 
-/** 결과 쪽(F-16): 모집글 제목, 아바타 줄(가운데 내 아바타), 크루 합산 거리, 참가자 목록(이름·거리). */
+/**
+ * 결과 쪽(F-16): 모집글 제목(13), 아바타 줄(가운데 내 아바타), 크루 합산 거리(44 Bold) 묶음(사이 16), 그 아래 24에 참가자 목록(이름·거리).
+ * 첫 크루런·크루 주간 반영 거리는 보이지 않는다([임시:D-성-14]).
+ */
 @Composable
 private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map<String, List<FaceLayer>>) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 20.dp, end = 20.dp, top = 5.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
-        if (result.title.isNotBlank()) {
+        Column(
+            modifier = Modifier.padding(top = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (result.title.isNotBlank()) {
+                Text(
+                    result.title,
+                    style = RunkkTextStyles.text(13, lineHeight = 16),
+                    color = RunkkColors.TextPrimary,
+                    textAlign = TextAlign.Center
+                )
+            }
+            AvatarRow(result, myAvatar, mateFaces)
+            val total = RunkkFormat.km(result.totalDistance)
+            val spoken = stringResource(R.string.crew_run_result_total_spoken, total)
             Text(
-                result.title,
-                style = RunkkTextStyles.Body,
+                stringResource(R.string.crew_contribution_km, total),
+                style = RunkkTextStyles.display(44, lineHeightRatio = 1f),
                 color = RunkkColors.TextPrimary,
-                textAlign = TextAlign.Center
+                modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
             )
         }
-        AvatarRow(result, myAvatar, mateFaces)
-        val total = RunkkFormat.km(result.totalDistance)
-        val spoken = stringResource(R.string.crew_run_result_total_spoken, total)
-        Text(
-            stringResource(R.string.crew_contribution_km, total),
-            style = RunkkTextStyles.display(44),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
-        )
-        ParticipantCard(result.participants)
+        ParticipantCard(result.participants, myAvatar, mateFaces)
     }
 }
 
@@ -247,14 +269,14 @@ private fun AvatarRow(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map
 }
 
 /**
- * 크루원 아바타 한 칸: 기본 캐릭터 얼굴이면 그 그림, 셀카 얼굴이면 받은 부위 그림이다. 얼굴 키가 없거나(얼굴을 고르지 않음·옛 서버)
- * 셀카 부위 그림을 아직 받지 못했으면 지금처럼 기본 캐릭터다(빈 칸을 그리지 않는다).
+ * 크루원 아바타 한 칸: 셀카 얼굴이고 부위 그림을 받았으면 그 머리, 그 밖(얼굴 키 없음·옛 서버, 기본 캐릭터 값, 셀카 그림을 아직 받지
+ * 못함)은 그 크루원 표시 성별의 기본 머리다([임시:D-성-180], 빈 칸을 그리지 않는다).
  */
 @Composable
 private fun MateAvatar(mate: CrewRunResult.Participant, mateFaces: Map<String, List<FaceLayer>>) {
     val layers = mate.faceKey?.let(mateFaces::get).orEmpty()
     RunkkAvatar(
-        faceKey = mate.faceKey?.takeIf { RunkkAvatarArt.characterOf(it) != null || layers.isNotEmpty() },
+        faceKey = mate.faceKey,
         expression = AvatarExpression.JOY,
         modifier = Modifier.size(width = 50.dp, height = 62.dp),
         faceLayers = layers,
@@ -262,47 +284,67 @@ private fun MateAvatar(mate: CrewRunResult.Participant, mateFaces: Map<String, L
     )
 }
 
-/** 참가자 목록 카드: 줄마다 원·이름(나)·거리. 대기실 입장 순이다(순위가 없다). */
+/**
+ * 참가자 목록 카드(F-16): 표면, 테두리 1 divider, 모서리 26. 줄마다 얼굴 원 36·이름(15 Bold, 나)·거리(17 Bold), 줄 사이 점선. 대기실 입장
+ * 순이다(순위가 없다).
+ */
 @Composable
-private fun ParticipantCard(participants: List<CrewRunResult.Participant>) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(RunkkColors.Surface)
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+private fun ParticipantCard(
+    participants: List<CrewRunResult.Participant>,
+    myAvatar: MyAvatar?,
+    mateFaces: Map<String, List<FaceLayer>>
+) {
+    RunkkCard(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        contentPadding = PaddingValues(horizontal = 19.dp, vertical = 5.dp),
+        borderColor = RunkkColors.Border,
+        verticalArrangement = Arrangement.Top
     ) {
         participants.forEachIndexed { index, p ->
-            if (index > 0) HorizontalDivider(color = RunkkColors.Border)
             val name = if (p.isMe) stringResource(R.string.crew_member_me) else p.displayName
             val km = RunkkFormat.km(p.distance)
             val description = listOf(
                 if (p.isMe) stringResource(R.string.crew_run_me_named, p.displayName) else p.displayName,
                 stringResource(R.string.crew_run_km_spoken, km)
             ).joinToString(", ")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp)
-                    .clearAndSetSemantics { contentDescription = description },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CrewLogo(p.displayName, size = 36, isAccent = p.isMe, modifier = Modifier.clip(CircleShape))
-                Text(
-                    name,
-                    style = RunkkTextStyles.text(15, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    stringResource(R.string.crew_contribution_km, km),
-                    style = RunkkTextStyles.text(16, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary
-                )
-            }
+            RunkkPersonRow(
+                name = name,
+                modifier = Modifier.clearAndSetSemantics { contentDescription = description },
+                avatar = { ParticipantFace(p, myAvatar, mateFaces) },
+                trailing = {
+                    Text(
+                        stringResource(R.string.crew_contribution_km, km),
+                        style = RunkkTextStyles.text(17, FontWeight.Bold, lineHeight = 20),
+                        color = RunkkColors.TextPrimary
+                    )
+                },
+                divider = if (index < participants.lastIndex) RunkkRowDivider.Dashed else RunkkRowDivider.None,
+                minHeight = PARTICIPANT_ROW,
+                nameStyle = RunkkTextStyles.text(15, FontWeight.Bold, lineHeight = 18)
+            )
         }
     }
+}
+
+/** 참가자 줄 높이(얼굴 36 + 위아래 14). */
+private val PARTICIPANT_ROW = 64.dp
+
+/** 참가자 줄 얼굴 원 36(surfaceHigh 바탕): 나는 내 아바타 얼굴, 크루원은 얼굴 키·셀카 부위 그림·표시 성별의 얼굴. */
+@Composable
+private fun ParticipantFace(
+    p: CrewRunResult.Participant,
+    myAvatar: MyAvatar?,
+    mateFaces: Map<String, List<FaceLayer>>
+) {
+    val faceKey = if (p.isMe) myAvatar?.faceKey else p.faceKey
+    val layers = if (p.isMe) myAvatar?.faceLayers.orEmpty() else p.faceKey?.let(mateFaces::get).orEmpty()
+    RunkkAvatarCircle(
+        faceKey = faceKey,
+        size = 36.dp,
+        faceLayers = layers,
+        character = if (p.isMe) LocalAvatarCharacter.current else AvatarCharacter.of(p.shownGender)
+    )
 }
 
 /** 상세 쪽(F-16b): 러닝 결과 상세(D-282)와 같은 항목(내 기록, 아바타는 내 아바타). 기록이 아직 올라가지 않았으면 기다림 문구. */
@@ -313,13 +355,15 @@ private fun DetailPage(detail: RecordResultDetail?, myAvatar: MyAvatar?) {
             .fillMaxSize()
             .background(RunkkColors.Background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 11.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (detail != null) {
+            val dateItems = dateItems(detail.startedAt)
             RunResultDetail(
                 detail.state.copy(
-                    dateLine = dateLine(detail.startedAt),
+                    dateLine = dateItems.joinToString(", ") { it.text },
+                    dateItems = dateItems,
                     faceKey = myAvatar?.faceKey,
                     faceLayers = myAvatar?.faceLayers.orEmpty()
                 )
@@ -335,15 +379,26 @@ private fun DetailPage(detail: RecordResultDetail?, myAvatar: MyAvatar?) {
     }
 }
 
-/** 결과 상세 날짜 줄 "11.07 금 · 오후 9:00 · 크루런"(대결 결과 2쪽과 같은 형식). */
+/** 결과 상세 날짜 줄(메타 줄): [달력]11.07 금 [시계]오후 9:00 [달리기]크루런. 가운뎃점은 쓰지 않는다([임시:D-성-10]). */
 @Composable
-private fun dateLine(startedAt: Instant): String {
-    val pattern = stringResource(R.string.crew_run_result_date_pattern)
-    val date = DateTimeFormatter.ofPattern(pattern, Locale.KOREAN).format(startedAt.atZone(ZoneId.systemDefault()))
-    return "$date · ${stringResource(R.string.crew_run_result_kind)}"
+private fun dateItems(startedAt: Instant): List<MetaItem> {
+    val at = startedAt.atZone(ZoneId.systemDefault())
+    val date = DateTimeFormatter.ofPattern(
+        stringResource(R.string.crew_run_result_date_pattern),
+        Locale.KOREAN
+    ).format(at)
+    val time = DateTimeFormatter.ofPattern(
+        stringResource(R.string.crew_run_result_time_pattern),
+        Locale.KOREAN
+    ).format(at)
+    return listOf(
+        MetaItem(RunkkIcons.CalendarToday, date),
+        MetaItem(RunkkIcons.Schedule, time),
+        MetaItem(RunkkIcons.DirectionsRun, stringResource(R.string.crew_run_result_kind))
+    )
 }
 
-/** 쪽 점 두 개(디자인 시스템 RunkkPageDots, 결과 화면은 간격 6과 강한 테두리색). */
+/** 쪽 점 두 개(디자인 시스템 RunkkPageDots, 간격 6, 꺼진 점 surfaceHigh). */
 @Composable
 private fun PageDots(current: Int) {
     RunkkPageDots(
@@ -352,7 +407,7 @@ private fun PageDots(current: Int) {
         description = stringResource(R.string.crew_run_result_page_desc, current + 1, RESULT_PAGES),
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp),
         gap = 6.dp,
-        inactiveColor = RunkkColors.BorderStrong
+        inactiveColor = RunkkColors.SurfaceHigh
     )
 }
 

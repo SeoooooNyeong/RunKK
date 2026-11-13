@@ -7,7 +7,8 @@ import com.a207.runkk.app.core.model.Gender
  * 사진은 보내지 않는다.
  */
 data class ProfileEdit(
-    val nickname: String,
+    /** 바꿀 닉네임. null이면 그대로 둔다(서버 PATCH null 항목 유지, 크루 내 정보 시트의 공개 토글만 저장할 때). */
+    val nickname: String?,
     val intro: String?,
     val isAgePublic: Boolean,
     val isGenderPublic: Boolean,

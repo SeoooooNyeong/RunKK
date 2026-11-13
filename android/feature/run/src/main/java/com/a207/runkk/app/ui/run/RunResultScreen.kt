@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -35,18 +33,13 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AchievementCard
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
-import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.HeartZoneSection
 import com.a207.runkk.app.core.designsystem.ResultBottomBar
 import com.a207.runkk.app.core.designsystem.ResultDistanceHero
 import com.a207.runkk.app.core.designsystem.RunMetricCard
-import com.a207.runkk.app.core.designsystem.RunResultDetail
-import com.a207.runkk.app.core.designsystem.RunResultDetailState
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
-import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.SplitPaceSection
@@ -128,7 +121,7 @@ fun RunResultScreen(
                 when {
                     distance != null && elapsed != null -> ResultBody(state, distance, elapsed)
 
-                    state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
+                    state.isLoading -> RunkkLoading(height = 240.dp)
 
                     else -> RunkkErrorState(
                         state.error?.asString() ?: stringResource(R.string.run_result_not_found),
@@ -182,11 +175,9 @@ internal fun kindLabelRes(kind: CardKind): Int = when (kind) {
     CardKind.CREW_RUN -> R.string.run_kind_crew
 }
 
-/** [pattern](예: "M.dd E · a h:mm")으로 시작 시각을 쓴다. */
+/** [pattern](예: "M월 d일 (E) a h:mm")으로 시작 시각을 쓴다. */
 internal fun dateLabel(at: Instant, pattern: String): String =
     DateTimeFormatter.ofPattern(pattern, Locale.KOREAN).format(at.atZone(ZoneId.systemDefault()))
-
-private const val DATE_SEPARATOR = " · "
 
 /** 결과 하단 고정 바의 시험 표지. */
 internal const val RESULT_BOTTOM_BAR_TAG = "run-result-bottom-bar"

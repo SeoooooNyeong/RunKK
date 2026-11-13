@@ -233,7 +233,7 @@ class CrewControllerTest extends WebTestSupport {
                                 Map.of("kind", "CHEER", "body", "화이팅")))
                         .get("id")
                         .asLong();
-        LocalDateTime scheduledAt = LocalDateTime.now().plusMinutes(20).withNano(0);
+        LocalDateTime scheduledAt = slotIn20Minutes();
         long run =
                 json(call(
                                 leader,
@@ -242,9 +242,9 @@ class CrewControllerTest extends WebTestSupport {
                                         "kind",
                                         "CREW_RUN",
                                         "body",
-                                        "1km 같이 달려요",
+                                        "3km 같이 달려요",
                                         "distanceMeters",
-                                        1000,
+                                        3000,
                                         "meetAt",
                                         scheduledAt
                                                 .atZone(java.time.ZoneId.of("Asia/Seoul"))
@@ -285,13 +285,13 @@ class CrewControllerTest extends WebTestSupport {
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null)
                 .andExpect(jsonPath("$.participants[?(@.ready == true)]").isNotEmpty())
-                .andExpect(jsonPath("$.distanceMeters").value(1000))
+                .andExpect(jsonPath("$.distanceMeters").value(3000))
                 .andExpect(
                         jsonPath("$.participants[?(@.me == true)].memberId")
                                 .value(org.hamcrest.Matchers.contains((int) leader.memberId())));
         JsonNode listed = json(call(a, get("/api/v1/crews/" + crewId + "/posts"), null));
         JsonNode crewRunPost = listed.get("posts").get(0).get("crewRun");
-        assertThat(crewRunPost.get("distanceMeters").asLong()).isEqualTo(1000);
+        assertThat(crewRunPost.get("distanceMeters").asLong()).isEqualTo(3000);
         assertThat(crewRunPost.get("myAnswer").asText()).isEqualTo("GOING");
         assertThat(crewRunPost.get("status").asText()).isEqualTo("LOBBY_OPEN");
 
@@ -317,12 +317,12 @@ class CrewControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         uploadCrewRun(a.memberId(), run, start, 1_000);
         uploadCrewRun(leader.memberId(), run, start, 1_100);
-        crewRunService.tick(start.plusMinutes(15));
+        crewRunService.tick(start.plusMinutes(45)); // 3km × km당 15분
 
         JsonNode result = json(call(a, get("/api/v1/crew-runs/" + run + "/result"), null));
         assertThat(result.get("status").asText()).isEqualTo("FINISHED");
-        assertThat(result.get("title").asText()).isEqualTo("1km 같이 달려요");
-        assertThat(result.get("distanceMeters").asLong()).isEqualTo(1_000);
+        assertThat(result.get("title").asText()).isEqualTo("3km 같이 달려요");
+        assertThat(result.get("distanceMeters").asLong()).isEqualTo(3_000);
         assertThat(result.get("startedAt").asText()).isNotBlank();
         assertThat(result.get("totalDistanceMeters").asLong()).as("연결된 기록 거리 합").isEqualTo(2_100);
         assertThat(result.get("raceContributionMeters").asLong()).isEqualTo(2_100);
@@ -382,6 +382,15 @@ class CrewControllerTest extends WebTestSupport {
         return run;
     }
 
+    /** 20분 안쪽의 5분 단위 시각(크루런 작성 일시 규칙 W6: 5분 단위, 대기실은 30분 전에 열린다). */
+    private static LocalDateTime slotIn20Minutes() {
+        LocalDateTime t =
+                LocalDateTime.now()
+                        .plusMinutes(20)
+                        .truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        return t.withMinute(t.getMinute() / 5 * 5);
+    }
+
     private static String at(LocalDateTime t) {
         return t.atZone(java.time.ZoneId.of("Asia/Seoul")).toOffsetDateTime().toString();
     }
@@ -425,7 +434,7 @@ class CrewControllerTest extends WebTestSupport {
         Session a = signUp();
         long crewId = createCrew(leader, "FREE");
         call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId));
-        LocalDateTime scheduledAt = LocalDateTime.now().plusMinutes(20).withNano(0);
+        LocalDateTime scheduledAt = slotIn20Minutes();
         long run = departedCrewRun(leader, a, crewId, scheduledAt);
         LocalDateTime start = scheduledAt.plusSeconds(3);
 

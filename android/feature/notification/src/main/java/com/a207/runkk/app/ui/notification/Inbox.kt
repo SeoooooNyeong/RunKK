@@ -168,7 +168,7 @@ private fun InboxContent(
                 // 보드(F7)는 묶음 제목 없이 최신순 한 목록이다.
                 val items = groups.flatMap { it.items }
                 itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
-                    if (item.type == NOTICE_TYPE) {
+                    if (item.type == NOTICE_TYPE || item.screen in STAY_SCREENS) {
                         InboxNoticeRow(item, inboxTimeOf(item, state), onClick = { onItem(item) })
                     } else {
                         InboxRow(item, state, onClick = { onItem(item) })

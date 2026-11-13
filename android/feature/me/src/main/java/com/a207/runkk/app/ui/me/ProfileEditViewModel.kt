@@ -33,7 +33,11 @@ class ProfileEditViewModel @Inject constructor(
     private val account: AccountRepository,
     private val settings: SettingsRepository
 ) : ViewModel() {
-    private val _state = MutableStateFlow(ProfileEditUiState())
+    // 기기에 남긴 마지막 내 얼굴을 첫 값으로 그린다(프로필을 읽는 동안 중립 자리·기본 머리를 거치지 않게).
+    private val _state = MutableStateFlow(
+        account.lastMyAvatar()?.let { ProfileEditUiState(faceKey = it.faceKey, faceLayers = it.faceLayers) }
+            ?: ProfileEditUiState()
+    )
     val state: StateFlow<ProfileEditUiState> = _state.asStateFlow()
 
     private val _events = Channel<ProfileEditEvent>(Channel.BUFFERED)
@@ -52,9 +56,16 @@ class ProfileEditViewModel @Inject constructor(
             when (val result = account.profile(AccountRepository.SELF)) {
                 is Outcome.Success -> _state.update {
                     val me = result.value
+                    // 받아 둔 그림이 있으면 바로 그리고, 같은 얼굴이면 지금 그림을 둔다.
+                    val cached = account.cachedFaceLayers(me.faceKey)
+                    val isSameFace = it.faceKey == me.faceKey
+                    val layers = cached ?: it.faceLayers.takeIf { isSameFace }.orEmpty()
                     it.copy(
                         isLoading = false,
                         faceKey = me.faceKey,
+                        faceLayers = layers,
+                        // 얼굴 층을 받을 때까지 기본 머리를 보이지 않는다([임시:D-성-190]).
+                        isFaceLoading = me.faceKey != null && cached == null && layers.isEmpty(),
                         nickname = me.displayName,
                         intro = me.intro.orEmpty(),
                         ageBand = me.ageBand,
@@ -71,8 +82,9 @@ class ProfileEditViewModel @Inject constructor(
             }
             // 아바타 꾸미기가 열렸을 때 쓰는 얼굴 층. 못 읽으면 기본 얼굴이다.
             val faceKey = _state.value.faceKey ?: return@launch
-            val face = account.faceLayers(faceKey).getOrNull().orEmpty()
-            _state.update { it.copy(faceLayers = face) }
+            if (account.cachedFaceLayers(faceKey) != null) return@launch
+            val face = account.faceLayers(faceKey).getOrNull()
+            _state.update { it.copy(faceLayers = face ?: it.faceLayers, isFaceLoading = false) }
         }
     }
 

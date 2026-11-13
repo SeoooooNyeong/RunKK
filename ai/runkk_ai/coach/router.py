@@ -2,6 +2,9 @@
 
 api가 앱의 질문을 받아 사용자를 인증한 뒤 userId를 넣어 부른다. 응답은 SSE(서버 보낸 이벤트)로 흘려보낸다.
 이벤트 순서: meta → (tool …) → delta … → done, 또는 중간 실패면 error. 형식은 service.py 맨 위.
+
+GET /coach/users/{userId}/conversations/{conversationId}/messages (S15P31A207-300). 200 MessagesOut / 404·422.
+앱이 이전 대화를 열 때 지난 문답을 다시 그리도록 api가 부른다. 다른 사용자의 대화는 404 CONVERSATION_NOT_FOUND다.
 """
 
 from __future__ import annotations
@@ -10,18 +13,21 @@ import json
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Path, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
-from runkk_ai.coach.schemas import ChatIn
+from runkk_ai.coach.schemas import ID_PATTERN, ChatIn, MessageOut, MessagesOut
 from runkk_ai.coach.service import ChatRejected, CoachService
 
 CHAT_BODY_MAX_BYTES = 8 * 1024  # 질문 1,000자 + userId·conversationId. 넉넉히 잡되 큰 본문은 읽지 않는다
 _SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}  # nginx가 모아 보내지 않게
 
 CoachRouter = APIRouter(prefix="/coach", tags=["coach"])
+
+UserId = Annotated[str, Path(pattern=ID_PATTERN)]
+ConversationId = Annotated[str, Path(pattern=ID_PATTERN)]
 
 
 def get_coach_service(request: Request) -> CoachService:
@@ -70,3 +76,23 @@ async def chat(
             yield event.sse()
 
     return StreamingResponse(body_stream(), media_type="text/event-stream", headers=_SSE_HEADERS)
+
+
+@CoachRouter.get(
+    "/users/{user_id}/conversations/{conversation_id}/messages",
+    response_model=MessagesOut,
+    responses={status.HTTP_404_NOT_FOUND: {"description": "CONVERSATION_NOT_FOUND"}},
+)
+async def messages(
+    user_id: UserId,
+    conversation_id: ConversationId,
+    service: Annotated[CoachService, Depends(get_coach_service)],
+) -> MessagesOut | JSONResponse:
+    try:
+        history = await service.history(user_id, conversation_id)
+    except ChatRejected as rejected:
+        return _failure(rejected.status, rejected.reason)
+    return MessagesOut(
+        conversationId=conversation_id,
+        messages=[MessageOut(role=m.role, content=m.content, at=m.at) for m in history],
+    )

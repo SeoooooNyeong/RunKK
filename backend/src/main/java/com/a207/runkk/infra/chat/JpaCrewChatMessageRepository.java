@@ -1,6 +1,7 @@
 package com.a207.runkk.infra.chat;
 
 import com.a207.runkk.crew.chat.ChatCursor;
+import com.a207.runkk.crew.chat.ChatMessageKind;
 import com.a207.runkk.crew.chat.CrewChatMessage;
 import com.a207.runkk.crew.chat.CrewChatMessageRepository;
 import jakarta.persistence.EntityManager;
@@ -94,6 +95,13 @@ public class JpaCrewChatMessageRepository implements CrewChatMessageRepository {
 
     @Override
     public void anonymizeAuthor(long memberId) {
+        entityManager
+                .createQuery(
+                        "update CrewChatMessage m set m.deleted = true where m.authorId = :member"
+                                + " and m.kind <> :text")
+                .setParameter("member", memberId)
+                .setParameter("text", ChatMessageKind.TEXT)
+                .executeUpdate();
         entityManager
                 .createQuery(
                         "update CrewChatMessage m set m.authorId = null where m.authorId = :member")

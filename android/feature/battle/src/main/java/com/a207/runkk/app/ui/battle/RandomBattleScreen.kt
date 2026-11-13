@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,8 +31,12 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.LocationConsentSheet
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -102,7 +107,10 @@ fun RandomBattleScreen(state: RandomBattleUiState, actions: RandomBattleActions,
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 MatchHero()
-                EntrySectionTitle(stringResource(R.string.random_battle_distance_title))
+                RunkkSectionHeader(
+                    stringResource(R.string.random_battle_distance_title),
+                    size = RunkkSectionHeaderSize.Card
+                )
                 DistanceChips(state.distance, actions.onDistance)
                 BestRecordCard(distance, state.best)
             }
@@ -118,26 +126,24 @@ fun RandomBattleScreen(state: RandomBattleUiState, actions: RandomBattleActions,
 /** 「내 n km 최고 기록」과 시간(피그마 표면 r16 px16 py14, 8절 4). 기록이 없으면 「아직 기록이 없어요」(제안). */
 @Composable
 private fun BestRecordCard(distance: String, best: Duration?) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(RunkkColors.Surface)
-            .padding(horizontal = 16.dp, vertical = 14.dp)
-            .semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.CenterVertically
+    RunkkCard(
+        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        shape = RunkkShapes.Medium,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
     ) {
-        Text(
-            stringResource(R.string.random_battle_best, distance),
-            style = RunkkTextStyles.text(13, FontWeight.Normal),
-            color = RunkkColors.TextSecondary,
-            modifier = Modifier.weight(1f)
-        )
-        Text(
-            best?.let(RunkkFormat::duration) ?: stringResource(R.string.random_battle_no_best),
-            style = RunkkTextStyles.text(14, FontWeight.Medium),
-            color = RunkkColors.TextPrimary
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(R.string.random_battle_best, distance),
+                style = RunkkTextStyles.Label,
+                color = RunkkColors.TextSecondary,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                best?.let(RunkkFormat::duration) ?: stringResource(R.string.random_battle_no_best),
+                style = RunkkTextStyles.text(14, FontWeight.Medium),
+                color = RunkkColors.TextPrimary
+            )
+        }
     }
 }
 

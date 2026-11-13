@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
@@ -57,15 +58,27 @@ import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.LocalRunkkTierColors
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
+import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkChipTone
+import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkPersonRow
+import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkRowDivider
+import com.a207.runkk.app.core.designsystem.RunkkSegmentRow
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.TierBadge
 import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.Ranking
 import java.time.Duration
@@ -103,71 +116,24 @@ private fun tierSpoken(display: TierDisplay): String = when (display) {
 private fun rankingAccent(): Color = if (LocalRunkkColors.current.isDark) RunkkColors.Lavender else RunkkColors.Violet
 
 /**
- * 상단 바 오른쪽 「개인 | 크루」 분절(랭킹 v3, 피그마 M3 Segmented button). 고른 칸은 라임 바탕에 체크이고, 크루가 닫혀 있으면
+ * 상단 바 오른쪽 「개인 | 크루」 분절(랭킹 v3, 피그마 M3 Segmented button, 디자인 시스템 RunkkSegmentRow). 고른 칸은 라임 바탕에 체크이고, 크루가 닫혀 있으면
  * 크루 칸은 자물쇠와 함께 잠겨 누를 수 없다(「크루, 잠김」으로 읽는다).
  */
 @Composable
 internal fun RankingScopeToggle(scope: RankingScope, isCrewOpen: Boolean, onScope: (RankingScope) -> Unit) {
-    val shape = RoundedCornerShape(50)
-    Row(
-        modifier = Modifier
-            .height(SEGMENT_HEIGHT)
-            .clip(shape)
-            .border(1.dp, RunkkColors.BorderStrong, shape)
-            .selectableGroup(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RankingScope.entries.forEachIndexed { index, value ->
-            if (index > 0) Box(Modifier.width(1.dp).fillMaxHeight().background(RunkkColors.BorderStrong))
-            ScopeSegment(
-                label = stringResource(value.labelRes),
-                isSelected = value == scope,
-                isLocked = value == RankingScope.CREW && !isCrewOpen,
-                onClick = { onScope(value) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun ScopeSegment(label: String, isSelected: Boolean, isLocked: Boolean, onClick: () -> Unit) {
-    val lockedLabel = stringResource(R.string.record_ranking_scope_locked, label)
-    val action = if (isLocked) {
-        Modifier.clearAndSetSemantics {
-            contentDescription = lockedLabel
-            disabled()
-        }
-    } else {
-        Modifier.selectable(selected = isSelected, role = Role.Tab, onClick = onClick)
-    }
-    val content = when {
-        isSelected -> RunkkColors.OnLimeFill
-        isLocked -> RunkkColors.TextSecondary
-        else -> RunkkColors.TextPrimary
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxHeight()
-            .width(SEGMENT_WIDTH)
-            .background(if (isSelected) RunkkColors.LimeFill else Color.Transparent)
-            .then(action),
-        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        when {
-            isSelected -> Icon(RunkkIcons.Check, null, tint = content, modifier = Modifier.size(14.dp))
-            isLocked -> Icon(RunkkIcons.Lock, null, tint = content, modifier = Modifier.size(14.dp))
-        }
-        Text(
-            label,
-            style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Medium),
-            color = content
-        )
-    }
+    val scopes = RankingScope.entries
+    RunkkSegmentRow(
+        options = scopes.map { stringResource(it.labelRes) },
+        selectedIndex = scopes.indexOf(scope),
+        onSelect = { onScope(scopes[it]) },
+        modifier = Modifier.width(SEGMENT_WIDTH * scopes.size),
+        lockedIndices = if (isCrewOpen) emptySet() else setOf(scopes.indexOf(RankingScope.CREW)),
+        optionHeight = SEGMENT_HEIGHT
+    )
 }
 
 /**
- * 기간 칩 「주간」「월간」(높이 32 알약, px16)과 오른쪽 집계 기간·마감까지 남은 시간(랭킹 v3). 고른 칩은 라임, 안 고른 칩은
+ * 기간 칩 「주간」「월간」(라임 고르기 칩, 높이 32 알약)과 오른쪽 집계 기간·마감까지 남은 시간(랭킹 v3). 고른 칩은 라임, 안 고른 칩은
  * 옅은 회색 바탕에 보조 글자색이다. 기간은 [window]가 있을 때만 보인다.
  */
 @Composable
@@ -181,23 +147,13 @@ internal fun RankingPeriodRow(
         // 기간 칩만 라디오 묶음으로 읽는다(「2개 중 1번째」, PL1-A5)
         Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             periods.forEach { (value, label) ->
-                val isSelected = value == selected
-                Box(
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .heightIn(min = 32.dp)
-                        .clip(RoundedCornerShape(50))
-                        .background(if (isSelected) RunkkColors.LimeFill else RunkkColors.SurfacePressed)
-                        .selectable(selected = isSelected, role = Role.RadioButton, onClick = { onPeriod(value) })
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        label,
-                        style = RunkkTextStyles.text(13, if (isSelected) FontWeight.Bold else FontWeight.Medium),
-                        color = if (isSelected) RunkkColors.OnLimeFill else RunkkColors.TextSecondary
-                    )
-                }
+                RunkkChoiceChip(
+                    label = label,
+                    isSelected = value == selected,
+                    onSelectedChange = { onPeriod(value) },
+                    tone = RunkkChipTone.Lime,
+                    selectionRole = Role.RadioButton
+                )
             }
         }
         Spacer(Modifier.weight(1f))
@@ -249,13 +205,12 @@ private fun deadlineText(remaining: Duration): String {
 @Composable
 internal fun RankingTop3Card(podium: RankingPodium, mine: Ranking.Entry?, period: AggregationPeriod) {
     val tiers = LocalRunkkTierColors.current
-    val shape = RoundedCornerShape(28.dp)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
+    RunkkCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RunkkShapes.Dialog,
+        contentPadding = PaddingValues(0.dp),
+        borderColor = RunkkColors.Border,
+        verticalArrangement = Arrangement.Top
     ) {
         Box(Modifier.fillMaxWidth().height(SCENE_HEIGHT)) {
             AvatarBackdrop(backgroundKey = null, modifier = Modifier.matchParentSize(), alignment = SCENE_ALIGNMENT)
@@ -327,7 +282,10 @@ private fun Top3Label(period: AggregationPeriod, modifier: Modifier = Modifier) 
     }
 }
 
-/** 받침(위가 밝은 그라데이션)과 그 위에 서 있는 아바타·발밑 그림자. 읽기는 아래 정보 띠가 맡는다. */
+/**
+ * 받침(위가 밝은 그라데이션)과 그 위에 서 있는 아바타·발밑 그림자. 아바타는 머리·몸·의상이 다 보이는 전신 정지 그림이다
+ * (SlotKey.AVATAR_STILL, S15P31A207-300). 읽기는 아래 정보 띠가 맡는다.
+ */
 @Composable
 private fun PodiumStand(entry: Ranking.Entry?, mine: Ranking.Entry?, stand: Stand, modifier: Modifier = Modifier) {
     Column(modifier.clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -344,12 +302,16 @@ private fun PodiumStand(entry: Ranking.Entry?, mine: Ranking.Entry?, stand: Stan
                     )
                 }
             ) {
-                RunkkAvatar(
-                    faceKey = null,
-                    expression = AvatarExpression.STAND,
-                    modifier = Modifier.height(stand.avatar).aspectRatio(AVATAR_ASPECT),
-                    character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender)
-                )
+                // 꾸미기가 열려 있으면 전신 정지 그림(나는 내 모습, 다른 러너는 표시 성별의 기본 모습), 아니면 지금 서기 그림
+                val figure = Modifier.height(stand.avatar).aspectRatio(AVATAR_ASPECT)
+                AvatarStillSlot(AvatarStillSubject(isMine, entry.shownGender?.let { it == Gender.FEMALE }), figure) {
+                    RunkkAvatar(
+                        faceKey = null,
+                        expression = AvatarExpression.STAND,
+                        modifier = figure,
+                        character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender)
+                    )
+                }
             }
         }
         Box(
@@ -429,14 +391,12 @@ private fun DrawScope.sparkle(center: Offset, radius: Float) {
 @Composable
 internal fun RankingListCard(rest: List<Ranking.Entry>, mine: Ranking.Entry?) {
     if (rest.isEmpty()) return
-    val shape = RoundedCornerShape(24.dp)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(vertical = 2.dp)
+    RunkkCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RunkkShapes.ExtraLarge,
+        contentPadding = PaddingValues(vertical = 2.dp),
+        borderColor = RunkkColors.Border,
+        verticalArrangement = Arrangement.Top
     ) {
         rest.forEachIndexed { index, entry ->
             RankingListRow(entry, isMine = entry == mine, showDivider = index < rest.lastIndex)
@@ -448,35 +408,33 @@ internal fun RankingListCard(rest: List<Ranking.Entry>, mine: Ranking.Entry?) {
 @Composable
 private fun RankingListRow(entry: Ranking.Entry, isMine: Boolean, showDivider: Boolean) {
     val spoken = rankingSpoken(entry, isMine)
-    val line = RunkkColors.Border
-    Row(
+    RunkkPersonRow(
+        name = entry.name,
         modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(min = 62.dp)
-            .drawBehind {
-                if (showDivider) {
-                    val inset = 16.dp.toPx()
-                    val y = size.height - 0.5.dp.toPx()
-                    drawLine(line, Offset(inset, y), Offset(size.width - inset, y), strokeWidth = 1.dp.toPx())
-                }
-            }
-            .clearAndSetSemantics { contentDescription = spoken }
-            .padding(horizontal = 16.dp, vertical = 11.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            "${entry.rank}",
-            style = RunkkTextStyles.text(18, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.Center,
-            maxLines = 1,
-            modifier = Modifier.width(30.dp)
-        )
-        RowAvatar(if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender), 40.dp)
-        NameWithBadge(entry, Modifier.weight(1f))
-        KmText(entry.distance, 18, RunkkColors.TextPrimary, RunkkColors.TextSecondary)
-    }
+            .padding(horizontal = 16.dp)
+            .clearAndSetSemantics { contentDescription = spoken },
+        avatar = {
+            Text(
+                "${entry.rank}",
+                style = RunkkTextStyles.text(18, FontWeight.Bold),
+                color = RunkkColors.TextPrimary,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                modifier = Modifier.width(30.dp)
+            )
+            RunkkAvatarCircle(
+                faceKey = null,
+                size = 40.dp,
+                character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender),
+                background = RunkkColors.RunimalTile
+            )
+        },
+        badge = rankingTier(entry)?.let { tier -> { TierBadge(tier, TierBadgeSize.XSMALL) } },
+        trailing = { KmText(entry.distance, 18, RunkkColors.TextPrimary, RunkkColors.TextSecondary) },
+        divider = if (showDivider) RunkkRowDivider.Solid else RunkkRowDivider.None,
+        minHeight = 62.dp,
+        nameStyle = RunkkTextStyles.text(15, FontWeight.Bold)
+    )
 }
 
 /**
@@ -504,7 +462,12 @@ internal fun RankingMineCard(mine: Ranking.Entry, gapToNext: Distance?, rankAbov
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("${mine.rank}", style = RunkkTextStyles.text(22, FontWeight.Black), color = Color.White, maxLines = 1)
+        Text(
+            "${mine.rank}",
+            style = RunkkTextStyles.text(22, FontWeight.Black),
+            color = RunkkColors.OnSecondary,
+            maxLines = 1
+        )
         RunkkAvatar(
             faceKey = null,
             expression = AvatarExpression.FACE,
@@ -512,12 +475,12 @@ internal fun RankingMineCard(mine: Ranking.Entry, gapToNext: Distance?, rankAbov
                 .size(42.dp)
                 .clip(CircleShape)
                 .background(RunkkColors.RunimalTile)
-                .border(2.dp, Color.White, CircleShape),
+                .border(2.dp, RunkkColors.OnSecondary, CircleShape),
             character = LocalAvatarCharacter.current
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(me, style = RunkkTextStyles.text(15, FontWeight.Bold), color = Color.White)
+                Text(me, style = RunkkTextStyles.text(15, FontWeight.Bold), color = RunkkColors.OnSecondary)
                 rankingTier(mine)?.let { TierBadge(it, TierBadgeSize.XSMALL) }
             }
             if (gap != null && gapText != null) {
@@ -527,20 +490,18 @@ internal fun RankingMineCard(mine: Ranking.Entry, gapToNext: Distance?, rankAbov
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(Color.White.copy(alpha = TRACK_ALPHA))
-                    ) {
-                        Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(RunkkColors.LimeFill))
-                    }
-                    Text(gapText, style = RunkkTextStyles.text(11, FontWeight.Medium), color = Color.White)
+                    RunkkProgressBar(
+                        progress = fraction,
+                        modifier = Modifier.weight(1f),
+                        height = 6.dp,
+                        color = RunkkColors.LimeFill,
+                        trackColor = RunkkColors.OnSecondary.copy(alpha = TRACK_ALPHA)
+                    )
+                    Text(gapText, style = RunkkTextStyles.text(11, FontWeight.Medium), color = RunkkColors.OnSecondary)
                 }
             }
         }
-        KmText(mine.distance, 20, Color.White, Color.White.copy(alpha = UNIT_ALPHA))
+        KmText(mine.distance, 20, RunkkColors.OnSecondary, RunkkColors.OnSecondary.copy(alpha = UNIT_ALPHA))
     }
 }
 
@@ -560,31 +521,6 @@ private fun KmText(distance: Distance, size: Int, color: Color, unitColor: Color
             color = unitColor,
             modifier = Modifier.alignByBaseline()
         )
-    }
-}
-
-@Composable
-private fun RowAvatar(character: AvatarCharacter, size: Dp) {
-    RunkkAvatar(
-        faceKey = null,
-        expression = AvatarExpression.FACE,
-        modifier = Modifier.size(size).clip(CircleShape).background(RunkkColors.RunimalTile),
-        character = character
-    )
-}
-
-@Composable
-private fun NameWithBadge(entry: Ranking.Entry, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            entry.name,
-            style = RunkkTextStyles.text(15, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false)
-        )
-        rankingTier(entry)?.let { TierBadge(it, TierBadgeSize.XSMALL) }
     }
 }
 

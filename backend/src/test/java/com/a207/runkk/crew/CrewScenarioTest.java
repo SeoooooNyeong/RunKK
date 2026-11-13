@@ -192,7 +192,7 @@ class CrewScenarioTest {
                 posts.writeCrewRun(
                                 leader,
                                 crewId,
-                                new CrewRunDraft("둘이", at, StandardDistance.KM1, null))
+                                new CrewRunDraft("둘이", at, StandardDistance.KM3, null))
                         .postId();
         LobbyView lobby = null;
         for (long m : List.of(leader, a)) {
@@ -234,7 +234,7 @@ class CrewScenarioTest {
                         participationReader.linkedRecordIds(
                                 a, new DateRange(LocalDate.now(), at.toLocalDate())))
                 .containsExactly("quit-record-000000000000000000000001");
-        crewRuns.tick(at.plusMinutes(16));
+        crewRuns.tick(at.plusMinutes(46)); // 3km × km당 15분(1km는 W6에서 빠졌다)
         CrewRunResultView result = crewRuns.result(a, run);
         assertThat(result.status()).isEqualTo(CrewRunStatus.FINISHED);
         assertThat(result.participants())

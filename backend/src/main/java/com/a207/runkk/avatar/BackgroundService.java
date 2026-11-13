@@ -140,7 +140,8 @@ public class BackgroundService {
                 () ->
                         viewOf(
                                 avatarRepository.findOrCreate(memberId),
-                                operationPolicy.landmarkTable()));
+                                operationPolicy.landmarkTable(),
+                                runQueryService.validDistanceOf(memberId)));
     }
 
     /**
@@ -164,7 +165,10 @@ public class BackgroundService {
                                             avatarRepository.findForUpdate(memberId).orElseThrow();
                                     change.accept(avatar);
                                     avatarRepository.save(avatar);
-                                    return viewOf(avatar, operationPolicy.landmarkTable());
+                                    return viewOf(
+                                            avatar,
+                                            operationPolicy.landmarkTable(),
+                                            runQueryService.validDistanceOf(memberId));
                                 }));
     }
 
@@ -266,7 +270,8 @@ public class BackgroundService {
                 new NavigationTarget(Screen.AVATAR_BACKGROUND, null));
     }
 
-    private static BackgroundsView viewOf(Avatar avatar, LandmarkTable table) {
+    /** total은 내 누적 유효 거리다. 잠긴 배경의 남은 거리를 계산하고 응답에 싣는다(W8). */
+    private static BackgroundsView viewOf(Avatar avatar, LandmarkTable table, Distance total) {
         Map<String, UnlockedBackground> unlocked = new HashMap<>();
         avatar.unlockedBackgrounds().forEach(u -> unlocked.put(u.landmarkKey(), u));
         List<BackgroundsView.Item> items = new ArrayList<>();
@@ -281,7 +286,8 @@ public class BackgroundService {
                             l.stage().name(),
                             l.distance(),
                             u != null,
-                            u == null ? null : u.unlockedAt()));
+                            u == null ? null : u.unlockedAt(),
+                            u == null ? l.distance().minus(total) : Distance.ZERO));
         }
         unlocked.values().stream()
                 .filter(u -> !listed.contains(u.landmarkKey()))
@@ -297,7 +303,8 @@ public class BackgroundService {
                                                 u.stage().name(),
                                                 u.distance(),
                                                 true,
-                                                u.unlockedAt())));
-        return new BackgroundsView(avatar.selectedBackgroundKey().orElse(null), items);
+                                                u.unlockedAt(),
+                                                Distance.ZERO)));
+        return new BackgroundsView(avatar.selectedBackgroundKey().orElse(null), items, total);
     }
 }

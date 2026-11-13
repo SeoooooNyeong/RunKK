@@ -4,15 +4,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.GuideAnchors
 import com.a207.runkk.app.core.designsystem.GuideStep
 import com.a207.runkk.app.core.designsystem.LocalGuideAnchors
@@ -23,6 +20,7 @@ import com.a207.runkk.app.core.designsystem.RunkkBottomBar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.RunkkTab
+import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
@@ -34,6 +32,8 @@ import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.record.RunSummary
+import com.github.takahirom.roborazzi.ExperimentalRoborazziApi
+import com.github.takahirom.roborazzi.captureScreenRoboImage
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -154,35 +154,33 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(expanded, HomeActions(), it) }
     }
 
-    /** TC-5847 배틀런 진입 시트, 배치 중(61355:3402). 시트 안쪽을 홈 위 덮개와 함께 그린다. */
+    /** TC-5847 배틀런 진입 시트, 배치 중(61355:3402). 홈 위에 연 시트 창까지 화면째 찍는다. */
     @Test
-    fun battleEntryPlacing() = compose.captureRunkkScreen("A4_battle_entry_placing", isDarkTheme = false) {
-        EntrySheetOnHome(PlacementProgress(PlacementStatus.IN_PROGRESS, 0, 1, null, "UNRANKED", emptyList()))
-    }
+    fun battleEntryPlacing() = captureEntrySheet(
+        "A4_battle_entry_placing",
+        PlacementProgress(PlacementStatus.IN_PROGRESS, 0, 1, null, "UNRANKED", emptyList())
+    )
 
     /** TC-5848 배틀런 진입 시트, 확정 티어(제안 문구). */
     @Test
-    fun battleEntryRanked() = compose.captureRunkkScreen("A4_battle_entry_ranked", isDarkTheme = false) {
-        EntrySheetOnHome(PlacementProgress(PlacementStatus.COMPLETED, 3, null, null, "GOLD", emptyList()))
-    }
+    fun battleEntryRanked() = captureEntrySheet(
+        "A4_battle_entry_ranked",
+        PlacementProgress(PlacementStatus.COMPLETED, 3, null, null, "GOLD", emptyList())
+    )
 
-    @Composable
-    private fun EntrySheetOnHome(placement: PlacementProgress) {
-        Box(Modifier.fillMaxSize()) {
-            HomeShell { HomeScreen(loaded, HomeActions(), it) }
-            Box(Modifier.fillMaxSize().background(SHEET_SCRIM))
-            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
-                BattleEntrySheetContent(
-                    BattleEntrySheetState(placement),
-                    onRandom = {},
-                    onFriend = {},
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
-                        .background(RunkkColors.Surface)
-                )
+    /** 진입 시트는 따로 뜬 창(디자인 시스템 시트)이라 루트 하나가 아니라 화면 전체를 찍는다. */
+    @OptIn(ExperimentalRoborazziApi::class)
+    private fun captureEntrySheet(name: String, placement: PlacementProgress) {
+        compose.setContent {
+            RunkkTheme(darkTheme = false, reduceMotion = true) {
+                HomeShell { HomeScreen(loaded, HomeActions(), it) }
+                CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                    BattleEntrySheet(BattleEntrySheetState(placement), onRandom = {}, onFriend = {}, onDismiss = {})
+                }
             }
         }
+        compose.waitForIdle()
+        captureScreenRoboImage("src/test/snapshots/$name.png")
     }
 
     // 라이트 벌(FR-203, NFR-041 화면 10개 × 테마 2).

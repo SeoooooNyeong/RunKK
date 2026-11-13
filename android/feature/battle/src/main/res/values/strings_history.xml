@@ -5,7 +5,7 @@
     <string name="battle_history_type_friend">친구 대결</string>
     <string name="battle_history_type_self">셀프런</string>
     <string name="battle_history_type_celeb">셀럽런</string>
-    <string name="battle_history_row_caption">%1$s · %2$s · %3$s</string>
+    <string name="battle_history_row_caption">%1$s, %2$s, %3$s</string>
     <string name="battle_history_date_pattern">M월 d일</string>
     <string name="battle_history_tab_empty_message">배틀런이나 셀프런을 시작해 보세요</string>
 </resources>

@@ -134,6 +134,21 @@ class RecordRepositoryV014Test {
     }
 
     @Test
+    fun `대시보드는 주간 목표가 없어도 이번 주 유효 횟수·거리를 읽고 옛 서버면 null이다(실기기 DV3-4)`() = runTest {
+        api.reply("""{"todayMeters":0,"totalMeters":0,"weekly":null,"weekRuns":2,"weekMeters":8300}""")
+        api.reply("""{"todayMeters":0,"totalMeters":0}""")
+
+        val dashboard = repository.dashboard(LocalDate.of(2026, 11, 11)).value()
+        val old = repository.dashboard(LocalDate.of(2026, 11, 11)).value()
+
+        assertEquals(null, dashboard.weekly)
+        assertEquals(2, dashboard.weekRuns)
+        assertEquals(Distance(8_300), dashboard.weekDistance)
+        assertEquals(null, old.weekRuns)
+        assertEquals(null, old.weekDistance)
+    }
+
+    @Test
     fun `TC-9852 기록 상세는 삭제 가능·평가·날씨·정지 구간을 읽는다`() = runTest {
         api.reply(
             """{"summary":{"recordId":"r-1","startedAt":"2026-10-20T07:00:00+09:00","distanceMeters":5010,"elapsedSeconds":1620,

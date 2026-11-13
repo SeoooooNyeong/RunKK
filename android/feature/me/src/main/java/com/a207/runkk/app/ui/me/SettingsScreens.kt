@@ -16,11 +16,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +44,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
+import com.a207.runkk.app.core.designsystem.RunkkDialog
+import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
@@ -197,37 +197,22 @@ fun SettingsScreen(
 /** 고지문서 본문 대화상자(설정·가입 화면이 함께 쓴다). */
 @Composable
 internal fun LegalDialog(legal: LegalView, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = RunkkColors.Surface,
-        title = { Text(legal.title.asString(), style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary) },
-        text = {
-            Text(
-                legal.body,
-                style = RunkkTextStyles.Body,
-                color = RunkkColors.TextSecondary,
-                modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.me_legal_close), color = RunkkColors.Lime) }
-        }
-    )
+    RunkkDialog(title = legal.title.asString(), onDismissRequest = onDismiss) {
+        Text(
+            legal.body,
+            style = RunkkTextStyles.Body,
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())
+        )
+        RunkkDialogButtons(confirmLabel = stringResource(R.string.me_legal_close), onConfirm = onDismiss)
+    }
 }
 
 /** 러닝 설정(A6): 자유런(목표 거리, 음성·진동 안내, 코치 계획 따르기)과 배틀런(기본 대결 거리, 안내, 근접 알림, 중간 알림 간격). */
 @Composable
 private fun FreeRunSettings(state: SettingsUiState, actions: SettingsActions) {
     Section(R.string.me_settings_section_free_run) {
-        ChoiceSetting(
-            R.string.me_settings_target_title,
-            null,
-            FreeRunTargets.values,
-            state.value(SettingKeys.RUN_TARGET)
-        ) {
-            actions.setValue(SettingKeys.RUN_TARGET, it)
-        }
-        SettingsDivider()
+        // 자유런 목표 거리 고르기는 뺐다(2026-11-12 PM: 거리 선택이 의미가 없다). 서버 값은 그대로 두고 화면에서만 고르지 않는다.
         RunkkSwitchRow(stringResource(R.string.me_settings_voice_title), state.flag(SettingKeys.RUN_VOICE), {
             actions.setValue(SettingKeys.RUN_VOICE, it.toString())
         }, description = stringResource(R.string.me_settings_run_voice_description))
@@ -243,17 +228,7 @@ private fun FreeRunSettings(state: SettingsUiState, actions: SettingsActions) {
         )
     }
     Section(R.string.me_settings_section_battle) {
-        // 기본 대결 거리(FR-109): 홈 배틀런 탭이 처음 고르는 거리. 값이 없으면 서버 기본값 5km.
-        val battleDistance = state.value(BATTLE_DEFAULT_DISTANCE).takeIf { v -> BATTLE_DISTANCES.any { it.first == v } }
-        ChoiceSetting(
-            R.string.me_settings_battle_distance_title,
-            null,
-            BATTLE_DISTANCES,
-            battleDistance ?: DEFAULT_BATTLE_DISTANCE
-        ) {
-            actions.setValue(BATTLE_DEFAULT_DISTANCE, it)
-        }
-        SettingsDivider()
+        // 기본 대결 거리 고르기는 뺐다(2026-11-12 PM). 대결 거리는 대결 화면에서 고른다.
         RunkkSwitchRow(stringResource(R.string.me_settings_voice_title), state.flag(SettingKeys.BATTLE_VOICE), {
             actions.setValue(SettingKeys.BATTLE_VOICE, it.toString())
         }, description = stringResource(R.string.me_settings_battle_voice_description))
@@ -279,18 +254,6 @@ private fun FreeRunSettings(state: SettingsUiState, actions: SettingsActions) {
         }
     }
 }
-
-/** 대결 설정의 기본 대결 거리 키(MemberSettings.BATTLE_DEFAULT_DISTANCE와 같은 서버 하위 항목). */
-private const val BATTLE_DEFAULT_DISTANCE = "BATTLE_SETTINGS.defaultDistance"
-private const val DEFAULT_BATTLE_DISTANCE = "KM5"
-
-/** 랜덤 대결 거리(서버 StandardDistance RANDOM_BATTLE, FR-080). */
-private val BATTLE_DISTANCES: List<Pair<String, Int>> = listOf(
-    "KM1" to R.string.me_choice_battle_km1,
-    "KM3" to R.string.me_choice_target_km3,
-    "KM5" to R.string.me_choice_target_km5,
-    "KM10" to R.string.me_choice_target_km10
-)
 
 @Preview(name = "자유런 설정", widthDp = 390, heightDp = 1000)
 @Composable

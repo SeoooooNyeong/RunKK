@@ -108,11 +108,11 @@ public class Avatar {
 
     private Avatar(long memberId) {
         this.memberId = memberId;
-        this.bodyShape = BodyShape.STAGE1;
+        this.bodyShape = BodyShape.STAGE4;
         this.skinTone = SkinTone.DAYTIME;
     }
 
-    /** 얼굴 없음, 1단계 체형, 낮 톤, 착용 없음. */
+    /** 얼굴 없음, 기본 몸(4단계, [임시:D-성-179]), 낮 톤, 착용 없음. */
     public static Avatar create(long memberId) {
         return new Avatar(memberId);
     }
@@ -146,6 +146,11 @@ public class Avatar {
 
     void beginFaceJob(String requestId) {
         pendingFaceRequest = requestId;
+    }
+
+    /** 이 셀카 요청의 결과를 아직 얼굴에 반영할 수 있는가(그 뒤 기본 캐릭터를 고르거나 새 셀카를 보내지 않았다). */
+    boolean awaitsFaceJob(String requestId) {
+        return requestId.equals(pendingFaceRequest);
     }
 
     /** 진행 중이던 셀카 요청을 반영하지 않고 끝낸다(한도를 넘어 결과를 버릴 때). */

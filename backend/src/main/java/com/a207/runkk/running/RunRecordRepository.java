@@ -70,6 +70,9 @@ public interface RunRecordRepository {
 
     Optional<RunSummary> findSummary(String recordId);
 
+    /** 여러 기록의 요약을 한 번에 읽는다. 없는 ID는 빠진다(순서 보장 없음). */
+    List<RunSummary> findSummaries(Collection<String> recordIds);
+
     /** 기간 안 기록 전부(무효 포함), 최신순. */
     List<RunSummary> summariesBetween(long memberId, DateRange range);
 

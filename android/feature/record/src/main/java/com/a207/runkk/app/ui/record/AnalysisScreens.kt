@@ -115,7 +115,7 @@ private fun AnalysisScaffold(
         ) {
             header()
             when {
-                isLoading -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp)) { RunkkLoading() }
+                isLoading -> RunkkLoading(height = LOADING_HEIGHT)
                 error != null -> RunkkErrorState(error.asString(), onRetry = onRetry)
                 else -> content()
             }
@@ -575,3 +575,6 @@ private val PLAN_CHOICES = listOf(3, 5, 7, 10)
 private val PACE_CHOICES = (180..600 step 10).toList()
 private val GOAL_CHOICES = listOf(10, 20, 30, 40)
 private val PERIOD_DATE = DateTimeFormatter.ofPattern("M/d", Locale.KOREAN)
+
+/** 불러오는 칸 높이(위아래 48 + 원 40). */
+private val LOADING_HEIGHT = 136.dp

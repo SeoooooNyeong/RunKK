@@ -2,33 +2,26 @@ package com.a207.runkk.app.ui.crew
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -36,17 +29,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -54,41 +44,37 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
-import com.a207.runkk.app.core.designsystem.RunkkBadge
-import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
+import com.a207.runkk.app.core.designsystem.RunkkBottomSheet
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonSize
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkCard
+import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
-import com.a207.runkk.app.core.designsystem.RunkkFormat
-import com.a207.runkk.app.core.designsystem.RunkkIconButton
-import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkLimePillButton
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkPillButton
-import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
-import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
-import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewList
+import com.a207.runkk.app.domain.crew.CrewPreview
 import com.a207.runkk.app.domain.crew.MyCrew
 
 /**
  * 크루 탭: 들어올 때마다 내 크루(GET /crews/me)를 확인해 크루가 있으면 내 크루 홈을 이 자리에 보이고(뒤로 단추 없음),
- * 없으면 크루 찾기·상세·초대 코드·만들기·대기 중인 내 가입 신청을 보인다.
+ * 없으면 크루 찾기·상세·초대 코드·대기 중인 내 가입 신청을 보인다. 검색과 만들기는 다른 화면(Routes.CREW_SEARCH·CREW_CREATE)이다.
  */
 @Composable
 fun CrewFindRoute(initialTab: CrewTab? = null, viewModel: CrewFindViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
-    // 크루 만들기 등에서 돌아오면 소속을 다시 확인한다(처음 들어올 때는 ViewModel init이 확인한다).
+    // 크루 만들기·검색 등에서 돌아오면 소속을 다시 확인한다(처음 들어올 때는 ViewModel init이 확인한다).
     LifecycleResumeEffect(viewModel) {
         viewModel.refreshMine()
         onPauseOrDispose { }
@@ -100,57 +86,67 @@ fun CrewFindRoute(initialTab: CrewTab? = null, viewModel: CrewFindViewModel = hi
             CrewHomeRoute(
                 Routes.CrewHome(mine.crewId),
                 isAtTabRoot = initialTab == null,
-                initialTab = initialTab ?: CrewTab.RACE
+                initialTab = initialTab ?: CrewTab.RACE,
+                onLeft = viewModel::onLeftCrew
             )
             return
         }
 
         state.isCheckingMine -> {
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { RunkkLoading() }
+            Box(Modifier.fillMaxSize().background(RunkkColors.Background)) { RunkkLoading() }
             return
         }
 
         state.mineError != null -> {
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+            Box(Modifier.fillMaxSize().background(RunkkColors.Background).padding(16.dp)) {
                 RunkkErrorState(state.mineError?.asString() ?: "", onRetry = { viewModel.loadMine() })
             }
             return
         }
     }
-    CrewFindScreen(
-        state = state,
-        actions = crewFindActions(viewModel) { navigator.navigate(Routes.CREW_CREATE) }
-    )
+    val loadLogo = remember(viewModel) { viewModel::logo }
+    CompositionLocalProvider(LocalCrewLogoLoader provides loadLogo) {
+        CrewFindScreen(
+            state = state,
+            actions = crewFindActions(
+                viewModel,
+                onCreate = { if (viewModel.onCreateRequested()) navigator.navigate(Routes.CREW_CREATE) },
+                onSearchOpen = { navigator.navigate(Routes.CREW_SEARCH) }
+            )
+        )
+    }
 }
 
 /** ViewModel의 동작을 화면 입력 묶음으로 잇는다. */
-private fun crewFindActions(viewModel: CrewFindViewModel, onCreate: () -> Unit) = CrewFindActions(
-    onKeyword = viewModel::onKeyword,
-    onSearch = viewModel::load,
-    onConditionOpen = viewModel::onConditionOpen,
-    onConditionToggle = viewModel::onConditionToggle,
-    onConditionApply = viewModel::onConditionApply,
-    onConditionDismiss = viewModel::onConditionDismiss,
-    onOpen = viewModel::onOpen,
-    onCloseDetail = viewModel::onCloseDetail,
-    onJoin = viewModel::onJoin,
-    onCreate = onCreate,
-    onInviteOpen = viewModel::onInviteOpen,
-    onInviteClose = viewModel::onInviteClose,
-    onInviteCode = viewModel::onInviteCode,
-    onInviteSubmit = viewModel::onInviteSubmit,
-    onRetry = viewModel::load,
-    onMessageShown = viewModel::onMessageShown,
-    onLoadMore = viewModel::loadMore,
-    onCancelAsk = viewModel::onCancelAsk,
-    onCancelDismiss = viewModel::onCancelDismiss,
-    onCancelConfirm = viewModel::onCancelConfirm
-)
+private fun crewFindActions(viewModel: CrewFindViewModel, onCreate: () -> Unit, onSearchOpen: () -> Unit) =
+    CrewFindActions(
+        onSearchOpen = onSearchOpen,
+        onConditionOpen = viewModel::onConditionOpen,
+        onConditionToggle = viewModel::onConditionToggle,
+        onConditionApply = viewModel::onConditionApply,
+        onConditionDismiss = viewModel::onConditionDismiss,
+        onOpen = viewModel::onOpen,
+        onCloseDetail = viewModel::onCloseDetail,
+        onJoin = viewModel::onJoin,
+        onCreate = onCreate,
+        onInviteOpen = viewModel::onInviteOpen,
+        onInviteClose = viewModel::onInviteClose,
+        onInviteCode = viewModel::onInviteCode,
+        onInviteConfirm = viewModel::onInviteConfirm,
+        onInviteSubmit = viewModel::onInviteSubmit,
+        onInvitePreviewOpen = viewModel::onInvitePreviewOpen,
+        onRetry = viewModel::load,
+        onMessageShown = viewModel::onMessageShown,
+        onLoadMore = viewModel::loadMore,
+        onCancelAsk = viewModel::onCancelAsk,
+        onCancelDismiss = viewModel::onCancelDismiss,
+        onCancelConfirm = viewModel::onCancelConfirm
+    )
 
 /** 크루 찾기 화면의 입력 묶음. */
 data class CrewFindActions(
-    val onKeyword: (String) -> Unit = {},
-    val onSearch: () -> Unit = {},
+    /** 검색 바를 누르면 크루 검색 화면(피그마 F-01d)으로 간다. */
+    val onSearchOpen: () -> Unit = {},
     /** 조건 설정 팝업(피그마 F-01b) 열기, 칩 누름, 적용, 닫기. */
     val onConditionOpen: () -> Unit = {},
     val onConditionToggle: (String) -> Unit = {},
@@ -160,10 +156,14 @@ data class CrewFindActions(
     val onCloseDetail: () -> Unit = {},
     val onJoin: (CrewList.Item) -> Unit = {},
     val onCreate: () -> Unit = {},
+    /** 초대 코드 시트(피그마 F-03): 열기·닫기, 코드 입력, "확인"(조회), "가입하기", 미리보기 카드(상세 열기). */
     val onInviteOpen: () -> Unit = {},
     val onInviteClose: () -> Unit = {},
     val onInviteCode: (String) -> Unit = {},
+    val onInviteConfirm: () -> Unit = {},
     val onInviteSubmit: () -> Unit = {},
+    val onInvitePreviewOpen: (CrewPreview) -> Unit = {},
+    /** 목록 다시 읽기(새로고침 단추, 오류 다시 시도). */
     val onRetry: () -> Unit = {},
     val onMessageShown: () -> Unit = {},
     val onLoadMore: () -> Unit = {},
@@ -194,26 +194,33 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
     LaunchedEffect(nearEnd, state.nextCursor, state.crews.size) {
         if (nearEnd && state.nextCursor != null) actions.onLoadMore()
     }
-    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         val detail = state.detail
-        when {
-            // 초대 코드(E5)와 크루 정보(I1)는 목록 위에 덮는 전체 화면이다(시스템 뒤로 가기로 닫는다).
-            state.isInviteOpen -> CrewInvitePage(state, actions)
-
-            detail != null -> CrewDetailPage(state, detail, actions)
-
-            else -> LazyColumn(
+        if (detail != null) {
+            // 크루 정보(F-02)는 목록 위에 덮는 전체 화면이다(시스템 뒤로 가기로 닫는다).
+            CrewDetailPage(
+                crew = detail,
+                info = state.detailInfo,
+                pending = state.pending.firstOrNull { it.crewId == detail.crewId },
+                joinRemaining = state.joinRemaining,
+                isJoining = state.isJoining,
+                onBack = actions.onCloseDetail,
+                onJoin = { actions.onJoin(detail) },
+                onCancel = actions.onCancelAsk
+            )
+        } else {
+            LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 // 목록 끝은 솟은 탭 원에 가리지 않게 원 높이만큼 더 비운다(D100).
                 contentPadding = PaddingValues(
-                    start = 16.dp,
-                    end = 16.dp,
-                    top = 16.dp,
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 11.dp,
                     bottom =
                         16.dp + RUNKK_BOTTOM_BAR_RISE
                 ),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 crewFindItems(state, actions)
             }
@@ -224,6 +231,7 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
         )
     }
     if (state.isConditionOpen) ConditionSheet(state.conditionDraft, actions)
+    state.invite?.let { CrewInviteSheet(it, actions) }
     state.confirmCancel?.let { request ->
         RunkkConfirmDialog(
             title = stringResource(R.string.crew_find_cancel_confirm_title),
@@ -236,10 +244,10 @@ fun CrewFindScreen(state: CrewFindUiState, actions: CrewFindActions, modifier: M
     }
 }
 
-/** 크루 찾기 목록의 줄들(와이어 E1): 머리글, 검색, 태그로 찾기, 대기 중 신청, 목록 제목, 공개 크루. */
+/** 크루 찾기 목록의 줄들(피그마 F-01): 머리글, 검색 바, 조건 설정 칸, 대기 중 신청, 목록 제목·새로고침, 공개 크루. */
 private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFindActions) {
     item { FindHeaderRow(onInviteOpen = actions.onInviteOpen, onCreate = actions.onCreate) }
-    item { FindSearchField(state.keyword, actions.onKeyword, actions.onSearch) }
+    item { FindSearchBar(onOpen = actions.onSearchOpen) }
     // 요일과 시간대 조건이 크루 찾기의 주 경로다(FR-117, 피그마 F-01). 추천 영역은 지웠다(FR-118 삭제).
     item { ConditionBox(selected = state.tags, onOpen = actions.onConditionOpen) }
     if (state.pending.isNotEmpty()) {
@@ -247,10 +255,10 @@ private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFin
             PendingJoinCard(request, isBusy = state.isJoining, onCancel = { actions.onCancelAsk(request) })
         }
     }
-    item { FindListTitle(hasCondition = state.tags.isNotEmpty()) }
+    item { FindListTitle(hasCondition = state.tags.isNotEmpty(), onRefresh = actions.onRetry) }
     when {
         state.isLoading && state.crews.isEmpty() -> item {
-            Box(Modifier.fillMaxWidth().padding(32.dp)) { RunkkLoading() }
+            RunkkLoading(Modifier.padding(32.dp))
         }
 
         state.error != null && state.crews.isEmpty() -> item {
@@ -266,184 +274,193 @@ private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFin
         }
 
         else -> {
-            items(state.crews, key = { it.crewId }) { crew -> CrewRow(crew, onClick = { actions.onOpen(crew) }) }
+            items(state.crews, key = { it.crewId }) { crew -> FindCrewCard(crew, onClick = { actions.onOpen(crew) }) }
             if (state.isLoadingMore) {
-                item { Box(Modifier.fillMaxWidth().padding(16.dp)) { RunkkLoading() } }
+                item { RunkkLoading(Modifier.padding(16.dp)) }
             }
         }
     }
 }
 
-/** 머리글: 제목과 초대 코드, 크루 만들기 단추. */
+/** 머리글(피그마 F-01): "크루" 18 Bold, 오른쪽 Outline Small "초대 코드" + 8 + Lime Small "크루 만들기"(아이콘 없음). */
 @Composable
 private fun FindHeaderRow(onInviteOpen: () -> Unit, onCreate: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(R.string.crew_find_title),
-            style = RunkkTextStyles.Headline,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = RunkkTextStyles.SheetTitle,
+            color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f).semantics { heading() }
         )
-        RunkkPillButton(stringResource(R.string.crew_find_invite_code), onClick = onInviteOpen)
-        RunkkLimePillButton(
-            stringResource(R.string.crew_create_title),
-            onClick = onCreate,
-            leadingIcon = RunkkIcons.Plus
+        RunkkButton(
+            stringResource(R.string.crew_find_invite_code),
+            onClick = onInviteOpen,
+            style = RunkkButtonStyle.Outline,
+            size = RunkkButtonSize.Small
+        )
+        RunkkButton(stringResource(R.string.crew_create_title), onClick = onCreate, size = RunkkButtonSize.Small)
+    }
+}
+
+/** 검색 바(피그마 F-01): 누르면 크루 검색 화면으로 간다. 자리 문구 "크루명 검색". */
+@Composable
+private fun FindSearchBar(onOpen: () -> Unit) {
+    val label = stringResource(R.string.crew_find_search_open)
+    CrewSearchBarFrame(
+        Modifier
+            .clip(RunkkShapes.Pill)
+            .clickable(onClickLabel = label, role = Role.Button, onClick = onOpen)
+            .semantics(mergeDescendants = true) { contentDescription = label }
+    ) {
+        Text(
+            stringResource(R.string.crew_find_search_placeholder),
+            style = RunkkTextStyles.text(14),
+            color = RunkkColors.TextSecondary
         )
     }
 }
 
-/** 검색 칸(와이어 E1): 돋보기와 자리 문구. 키보드 검색 단추로 찾는다. 보조 기술에는 "크루 찾기" 입력칸으로 읽힌다. */
-@Composable
-private fun FindSearchField(keyword: String, onKeyword: (String) -> Unit, onSearch: () -> Unit) {
-    val label = stringResource(R.string.crew_find_search_label)
-    val shape = RunkkShapes.Medium
-    BasicTextField(
-        value = keyword,
-        onValueChange = onKeyword,
-        singleLine = true,
-        textStyle = RunkkTextStyles.text(15).copy(color = RunkkColors.TextPrimary),
-        cursorBrush = SolidColor(RunkkColors.Lime),
-        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-        keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-        modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
-        decorationBox = { inner ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-                    .clip(shape)
-                    .background(RunkkColors.Surface)
-                    .border(1.dp, RunkkColors.InputBorder, shape)
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Icon(
-                    RunkkIcons.Search,
-                    contentDescription = null,
-                    tint = RunkkColors.TextSecondary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Box(Modifier.weight(1f)) {
-                    if (keyword.isEmpty()) {
-                        Text(
-                            stringResource(R.string.crew_find_search_placeholder),
-                            style = RunkkTextStyles.text(15),
-                            color = RunkkColors.TextSecondary
-                        )
-                    }
-                    inner()
-                }
-            }
-        }
-    )
-}
-
-/** 조건 설정 칸(피그마 F-01·F-01c): 제목과 고른 조건 배지(없으면 안내 한 줄). 누르면 조건 설정 팝업(F-01b)을 연다. */
+/**
+ * 조건 설정 칸(피그마 F-01·F-01c): surface + divider, 모서리 24, 안쪽 12, 간격 8. 제목 "조건 설정하기"(14 Bold)와 안내 한 줄(13),
+ * 조건을 고르면 안내 대신 Medium 태그 줄. 누르면 조건 설정 팝업(F-01b)을 연다.
+ */
 @Composable
 private fun ConditionBox(selected: Set<String>, onOpen: () -> Unit) {
-    RunkkCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onOpen,
-        onClickLabel = stringResource(R.string.crew_find_condition_open),
-        borderColor = MaterialTheme.colorScheme.outlineVariant,
-        background = MaterialTheme.colorScheme.surface
+    val shape = RunkkShapes.ExtraLarge
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, shape)
+            .clickable(
+                onClickLabel = stringResource(R.string.crew_find_condition_open),
+                role = Role.Button,
+                onClick = onOpen
+            )
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             stringResource(R.string.crew_find_condition_title),
-            style = RunkkTextStyles.BodyStrong,
-            color = MaterialTheme.colorScheme.onSurface
+            style = RunkkTextStyles.text(14, FontWeight.Bold, lineHeight = 17),
+            color = RunkkColors.TextPrimary
         )
         if (selected.isEmpty()) {
             Text(
                 stringResource(R.string.crew_find_condition_hint),
-                style = RunkkTextStyles.Caption,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                style = RunkkTextStyles.text(13, lineHeight = 16),
+                color = RunkkColors.TextSecondary
             )
         } else {
-            CrewTagBadges(selected)
+            CrewTagPills(selected)
         }
     }
 }
 
-/** 조건 설정 팝업(피그마 F-01b): 제목과 닫기, 평일과 주말 시간대 칩, 적용하기. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 조건 설정 팝업(피그마 F-01b): 바텀시트 제목·✕, "평일"·"주말" 줄마다 시간대 칩 넷, "적용하기"(Medium 48). */
 @Composable
 private fun ConditionSheet(draft: Set<String>, actions: CrewFindActions) {
-    val colors = MaterialTheme.colorScheme
-    ModalBottomSheet(onDismissRequest = actions.onConditionDismiss, containerColor = colors.surface) {
-        Column(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+    RunkkBottomSheet(
+        onDismissRequest = actions.onConditionDismiss,
+        title = stringResource(R.string.crew_find_condition_title)
+    ) {
+        CrewTagRows(selected = draft, onToggle = actions.onConditionToggle, isLabelBold = true, rowGap = 12)
+        RunkkButton(
+            stringResource(R.string.crew_find_condition_apply),
+            onClick = actions.onConditionApply,
+            size = RunkkButtonSize.Medium,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * 크루 태그 고르기(피그마 F-01b·F-04): 줄마다 "평일"·"주말"(14) + 12 + 시간대 칩 넷(32, 간격 8). 3개를 넘기면
+ * [com.a207.runkk.app.core.designsystem.RunkkTags.toggle]이 더 켜지 않는다. 조건 팝업은 이름이 Bold·줄 간격 12, 만들기는 Regular·8이다.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun CrewTagRows(selected: Set<String>, onToggle: (String) -> Unit, isLabelBold: Boolean, rowGap: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(rowGap.dp)) {
+        CREW_TAG_CATEGORIES.forEach { category ->
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    stringResource(R.string.crew_find_condition_title),
-                    style = RunkkTextStyles.CardTitle,
-                    color = colors.onSurface,
-                    modifier = Modifier.weight(1f).semantics { heading() }
+                    stringResource(category.nameRes),
+                    style = RunkkTextStyles.text(
+                        14,
+                        if (isLabelBold) FontWeight.Bold else FontWeight.Normal,
+                        lineHeight = 17
+                    ),
+                    color = RunkkColors.TextPrimary
                 )
-                RunkkIconButton(
-                    RunkkIcons.Close,
-                    contentDescription = stringResource(R.string.crew_find_condition_close),
-                    onClick = actions.onConditionDismiss
-                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    category.tags.forEach { tag ->
+                        RunkkChoiceChip(
+                            label = stringResource(tag.slotRes),
+                            isSelected = tag.id in selected,
+                            onSelectedChange = { onToggle(tag.id) }
+                        )
+                    }
+                }
             }
-            CrewTagPicker(selected = draft, onToggle = actions.onConditionToggle)
-            RunkkPrimaryButton(
-                stringResource(R.string.crew_find_condition_apply),
-                onClick = actions.onConditionApply,
-                modifier = Modifier.fillMaxWidth()
-            )
         }
     }
 }
 
-/** 목록 제목(피그마 F-01·F-01c): 조건이 없으면 "전체 크루", 있으면 "조건에 맞는 크루". */
+/** 목록 제목 줄(피그마 F-01·F-01c): "전체 크루"·"조건에 맞는 크루"(14 Bold) + 오른쪽 새로고침 단추. */
 @Composable
-private fun FindListTitle(hasCondition: Boolean) {
-    Text(
-        stringResource(if (hasCondition) R.string.crew_find_list_title_tags else R.string.crew_find_list_title),
-        style = RunkkTextStyles.text(13, FontWeight.Bold),
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.semantics {
-            heading()
-            liveRegion = LiveRegionMode.Polite
-        }
-    )
+private fun FindListTitle(hasCondition: Boolean, onRefresh: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            stringResource(if (hasCondition) R.string.crew_find_list_title_tags else R.string.crew_find_list_title),
+            style = RunkkTextStyles.text(14, FontWeight.Bold, lineHeight = 17),
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.weight(1f).semantics {
+                heading()
+                liveRegion = LiveRegionMode.Polite
+            }
+        )
+        RefreshButton(onClick = onRefresh)
+    }
 }
 
 /** 끝에서 이만큼 안쪽 줄이 보이면 다음 쪽을 읽는다. */
 private const val LOAD_MORE_AHEAD = 3
 
-/** 대기 중인 내 가입 신청 한 건(FR-143): 크루명, 신청 일시와 취소 단추. */
+/** 대기 중인 내 가입 신청 한 건(FR-143, 피그마에 없는 앱 상태): 크루명, 신청 일시와 취소 단추. */
 @Composable
 private fun PendingJoinCard(request: MyCrew.PendingJoin, isBusy: Boolean, onCancel: () -> Unit) {
     val cancelDescription = stringResource(R.string.crew_find_pending_cancel_description, request.crewName)
-    CrewCard {
+    RunkkCard(
+        Modifier.fillMaxWidth(),
+        shape = RunkkShapes.ExtraLarge,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        borderColor = RunkkColors.Border
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
                 Text(
                     request.crewName,
                     style = RunkkTextStyles.BodyStrong,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = RunkkColors.TextPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     stringResource(R.string.crew_find_pending_caption, postedLabel(request.requestedAt)),
-                    style = RunkkTextStyles.Caption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = RunkkTextStyles.Meta,
+                    color = RunkkColors.TextSecondary
                 )
             }
-            RunkkBadge(stringResource(R.string.crew_find_pending_badge), tone = RunkkBadgeTone.Muted)
-            RunkkPillButton(
+            RunkkButton(
                 stringResource(R.string.crew_action_cancel),
                 onClick = onCancel,
+                style = RunkkButtonStyle.Outline,
+                size = RunkkButtonSize.Small,
                 isEnabled = !isBusy,
                 modifier = Modifier.semantics { contentDescription = cancelDescription }
             )
@@ -451,108 +468,7 @@ private fun PendingJoinCard(request: MyCrew.PendingJoin, isBusy: Boolean, onCanc
     }
 }
 
-@Composable
-private fun CrewRow(crew: CrewList.Item, onClick: () -> Unit) {
-    val resources = LocalContext.current.resources
-    RunkkCard(
-        onClick = onClick,
-        onClickLabel = stringResource(R.string.crew_find_open_detail, crew.name),
-        borderColor = MaterialTheme.colorScheme.outlineVariant,
-        background = MaterialTheme.colorScheme.surface
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            CrewLogo(crew.name)
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    crew.name,
-                    style = RunkkTextStyles.text(15, FontWeight.Black),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    crewMeta(crew),
-                    style = RunkkTextStyles.Caption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (crew.tags.isNotEmpty()) {
-                    Text(
-                        RunkkTags.sorted(crew.tags).joinToString(", ") { RunkkTags.label(resources, it) },
-                        style = RunkkTextStyles.Caption,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            RunkkBadge(stringResource(crew.joinPolicy.labelRes))
-        }
-    }
-}
-
-/** "크루장 X, 4/10명, 이번 주 12.3km"(크루 밖 열람 범위, FR-117·W-16). */
-@Composable
-internal fun crewMeta(crew: CrewList.Item): String = listOfNotNull(
-    crew.leaderName.takeIf { it.isNotBlank() }?.let { stringResource(R.string.crew_meta_leader, it) },
-    stringResource(R.string.crew_meta_headcount, crew.headcount, CREW_MAX),
-    stringResource(R.string.crew_meta_weekly_distance, RunkkFormat.kmShort(crew.weeklyDistance))
-).joinToString(", ")
-
 internal const val CREW_MAX = 10
-
-/** 크루 만들기. */
-@Composable
-fun CrewCreateRoute(viewModel: CrewCreateViewModel = hiltViewModel()) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val navigator = LocalRunkkNavigator.current
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
-            when (event) {
-                // 크루 탭을 새로 열면 내 크루를 다시 확인해 방금 만든 크루 홈을 보인다.
-                CrewEvent.Created -> navigator.selectTab(Routes.CREW)
-            }
-        }
-    }
-    CrewCreateScreen(state, onBack = navigator::back, onForm = viewModel::onForm, onSubmit = viewModel::onSubmit)
-}
-
-/** 크루 만들기(와이어 I2): 크루명, 한줄 소개, 성향 태그, 공개 여부, 가입 방식, 크루 만들기 단추. */
-@Composable
-fun CrewCreateScreen(
-    state: CrewCreateUiState,
-    onBack: () -> Unit,
-    onForm: (CrewFormState) -> Unit,
-    onSubmit: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        RunkkTopBar(title = stringResource(R.string.crew_create_title), onBack = onBack)
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            CrewFormFields(state.form, onForm)
-            state.error?.let {
-                Text(
-                    it.asString(),
-                    style = RunkkTextStyles.text(13, FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.secondary,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-                )
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        RunkkPrimaryButton(
-            stringResource(R.string.crew_create_title),
-            onClick = onSubmit,
-            isEnabled = state.form.isValid,
-            isLoading = state.isSaving,
-            // E2E(android/e2e/maestro) 선택자: 상단 "크루 만들기"와 이름이 같아 태그로 찾는다.
-            modifier = Modifier
-                .testTag("crew_create_submit")
-                .fillMaxWidth()
-                .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
-        )
-    }
-}
 
 @Preview(name = "크루 찾기", widthDp = 390, heightDp = 844)
 @Composable

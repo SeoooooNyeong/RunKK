@@ -128,6 +128,15 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `주간 목표가 없어도 이번 주 달린 거리는 대시보드의 이번 주 값이다(실기기 DV3-4)`() {
+        records.dashboardResult =
+            Outcome.Success(sampleDashboard.copy(weekly = null, weekRuns = 2, weekDistance = Distance(8_300)))
+        val state = viewModel().state.value
+        assertNull(state.weeklyGoal)
+        assertEquals(Distance(8_300), state.weeklyDistance)
+    }
+
+    @Test
     fun `자유런 카드의 음성·진동은 러닝 설정 값이다`() {
         account.settingsResult = Outcome.Success(
             MemberSettings(

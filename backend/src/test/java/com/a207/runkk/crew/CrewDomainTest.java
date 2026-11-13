@@ -32,8 +32,8 @@ class CrewDomainTest {
     class Values {
 
         @ParameterizedTest
-        @ValueSource(strings = {"", "가", "123456789012345678901"})
-        @DisplayName("크루명은 2~20자")
+        @ValueSource(strings = {"", "가", " 가 ", "1234567890123", "새벽에함께달리는러너들모임"})
+        @DisplayName("입력 크루명은 2~12자(결정 C1, S15P31A207-295)")
         void crewName_length(String name) {
             assertThatThrownBy(() -> CrewName.of(name))
                     .satisfies(
@@ -41,11 +41,24 @@ class CrewDomainTest {
         }
 
         @Test
-        @DisplayName("크루명 2자·20자는 된다, null은 거부")
+        @DisplayName("입력 크루명 2자·12자는 된다(앞뒤 공백 제거), null은 거부")
         void crewName_bounds() {
             assertThat(CrewName.of("새벽").value()).isEqualTo("새벽");
-            assertThat(CrewName.of("12345678901234567890").value()).hasSize(20);
+            assertThat(CrewName.of(" 123456789012 ").value()).hasSize(12);
             assertThatThrownBy(() -> CrewName.of(null)).isInstanceOf(BusinessRuleException.class);
+        }
+
+        @Test
+        @DisplayName("이미 저장된 13~20자 크루명은 읽기와 변경 없는 PATCH에서 그대로 쓴다(결정 C1)")
+        void storedCrewName_keepsUpToTwenty() {
+            assertThat(new CrewName("12345678901234567890").value()).hasSize(20);
+            assertThat(CrewName.edited(" 1234567890123 ").value()).hasSize(13);
+            assertThatThrownBy(() -> new CrewName("123456789012345678901"))
+                    .isInstanceOf(BusinessRuleException.class);
+            assertThatThrownBy(() -> CrewName.edited("1234567890123").requireInputLength())
+                    .satisfies(
+                            e -> assertThat(reasonOf(e)).isEqualTo(ReasonCode.CREW_NAME_INVALID));
+            assertThat(CrewName.edited("123456789012").requireInputLength().value()).hasSize(12);
         }
 
         @Test

@@ -43,8 +43,8 @@ class AvatarService:
     def max_image_pixels(self) -> int:
         return self._max_image_pixels
 
-    async def submit(self, user_id: str, image: bytes) -> HeadJobOut:
-        key = request_id(user_id, image)
+    async def submit(self, user_id: str, image: bytes, attempt: int = 1) -> HeadJobOut:
+        key = request_id(user_id, image, attempt)
         job = await self._call("submit", lambda: self._client.submit_head(user_id, key, image), size=len(image))
         return job
 
@@ -100,7 +100,13 @@ class AvatarService:
         return value
 
 
-def request_id(user_id: str, image: bytes) -> str:
-    """사용자와 셀카 내용으로 정해지는 UUID v5. 셀카 자체는 쓰지 않고 해시만 쓴다."""
+def request_id(user_id: str, image: bytes, attempt: int = 1) -> str:
+    """사용자·셀카 내용·시도 번호로 정해지는 UUID v5. 셀카 자체는 쓰지 않고 해시만 쓴다.
+
+    시도 1은 예전 키와 같다(같은 요청 재전송은 Node가 같은 작업을 돌려준다).
+    사용자가 명시적으로 다시 시도하면 api가 시도 번호를 올려 새 작업을 만든다
+    (DV-성-9: 결과가 불명확하게 실패한 작업을 같은 사진으로 다시 만들 수 없었다).
+    """
     digest = hashlib.sha256(image).hexdigest()
-    return str(uuid.uuid5(_REQUEST_ID_NAMESPACE, f"{user_id}:{digest}"))
+    name = f"{user_id}:{digest}" if attempt == 1 else f"{user_id}:{digest}:{attempt}"
+    return str(uuid.uuid5(_REQUEST_ID_NAMESPACE, name))

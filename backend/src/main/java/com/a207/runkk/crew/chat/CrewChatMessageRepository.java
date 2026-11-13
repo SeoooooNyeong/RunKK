@@ -25,6 +25,9 @@ public interface CrewChatMessageRepository {
      */
     List<CrewChatMessage> findPage(long crewId, ChatCursor cursor);
 
-    /** 그 회원이 쓴 메시지의 작성자를 지운다(탈퇴, FR-021). */
+    /**
+     * 그 회원이 쓴 메시지의 작성자를 지운다(탈퇴, FR-021). 그 회원의 러닝 완료 시스템 메시지(RUN_FINISHED)는 먼저 삭제 표시해 목록에서 뺀다(피그마
+     * 맞춤 W5 결정).
+     */
     void anonymizeAuthor(long memberId);
 }

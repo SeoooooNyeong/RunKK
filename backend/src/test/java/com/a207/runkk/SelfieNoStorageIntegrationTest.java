@@ -122,7 +122,10 @@ class SelfieNoStorageIntegrationTest {
         CountDownLatch entered = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
         AtomicLong filesDuringConversion = new AtomicLong(-1);
-        when(faceJobGateway.submit(org.mockito.ArgumentMatchers.anyLong(), any()))
+        when(faceJobGateway.submit(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        any(),
+                        org.mockito.ArgumentMatchers.anyInt()))
                 .thenAnswer(
                         inv -> {
                             filesDuringConversion.set(filesIn(uploadDir));
@@ -146,7 +149,11 @@ class SelfieNoStorageIntegrationTest {
         assertThat(second.getBody()).contains("SELFIE_IN_PROGRESS");
         assertThat(done.getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
         assertThat(done.getBody()).contains("\"status\":\"QUEUED\"");
-        verify(faceJobGateway, times(1)).submit(org.mockito.ArgumentMatchers.anyLong(), any());
+        verify(faceJobGateway, times(1))
+                .submit(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        any(),
+                        org.mockito.ArgumentMatchers.anyInt());
         assertThat(filesDuringConversion.get()).as("변환 중 multipart 임시 파일").isZero();
         assertThat(filesIn(uploadDir)).as("요청 뒤 multipart 임시 파일").isZero();
     }
@@ -155,7 +162,10 @@ class SelfieNoStorageIntegrationTest {
     void concurrentResultsSpendQuotaOnce() throws Exception {
         String token = consentedMember("완료중복곰");
         AtomicLong owner = new AtomicLong();
-        when(faceJobGateway.submit(org.mockito.ArgumentMatchers.anyLong(), any()))
+        when(faceJobGateway.submit(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        any(),
+                        org.mockito.ArgumentMatchers.anyInt()))
                 .thenAnswer(
                         inv -> {
                             owner.set(inv.getArgument(0));
@@ -204,12 +214,86 @@ class SelfieNoStorageIntegrationTest {
     }
 
     @Test
+    @DisplayName("DV-성-9 결과가 불명확하게 실패한 작업을 ai가 뒤에 성공으로 회수하면 성공으로 바꾸고 결과를 한 번 반영한다")
+    void unknownOutcomeRecoveredLaterIsApplied() {
+        String token = consentedMember("회수곰");
+        AtomicLong owner = new AtomicLong();
+        when(faceJobGateway.submit(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        any(),
+                        org.mockito.ArgumentMatchers.anyInt()))
+                .thenAnswer(
+                        inv -> {
+                            owner.set(inv.getArgument(0));
+                            return new com.a207.runkk.avatar.FaceJob(
+                                    "unknown-job",
+                                    com.a207.runkk.avatar.FaceJob.Status.QUEUED,
+                                    null,
+                                    null);
+                        });
+        assertThat(upload(token, jpeg(48)).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        when(faceJobGateway.status(owner.get(), "unknown-job"))
+                .thenReturn(
+                        new com.a207.runkk.avatar.FaceJob(
+                                "unknown-job",
+                                com.a207.runkk.avatar.FaceJob.Status.FAILED,
+                                null,
+                                new com.a207.runkk.avatar.FaceJob.Error(
+                                        "GENERATION_OUTCOME_UNKNOWN", "불명확")));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        java.util.function.Function<String, ResponseEntity<String>> get =
+                path ->
+                        http.exchange(
+                                "/api/v1/avatar/selfie/jobs/" + path,
+                                HttpMethod.GET,
+                                new HttpEntity<>(headers),
+                                String.class);
+        assertThat(get.apply("unknown-job").getBody()).contains("\"status\":\"FAILED\"");
+        when(faceJobGateway.status(owner.get(), "unknown-job"))
+                .thenReturn(
+                        new com.a207.runkk.avatar.FaceJob(
+                                "unknown-job",
+                                com.a207.runkk.avatar.FaceJob.Status.SUCCEEDED,
+                                "late-head",
+                                null));
+        when(faceJobGateway.result(owner.get(), "unknown-job"))
+                .thenReturn(
+                        new com.a207.runkk.avatar.GeneratedHead(
+                                "late-head",
+                                Long.toString(owner.get()),
+                                "face",
+                                "eyes",
+                                "hair",
+                                Map.of(),
+                                "short",
+                                Map.of(),
+                                Map.of(),
+                                "now"));
+        assertThat(get.apply("unknown-job").getBody()).contains("\"status\":\"SUCCEEDED\"");
+        assertThat(get.apply("current").getBody()).contains("unknown-job");
+        assertThat(get.apply("unknown-job/result").getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get.apply("unknown-job/result").getStatusCode()).isEqualTo(HttpStatus.OK);
+        Integer count = tx.execute(s -> avatars.findOrCreate(owner.get()).creationCount());
+        assertThat(count).isEqualTo(1);
+        verify(faceJobGateway, times(1))
+                .submit(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        any(),
+                        org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
     @DisplayName("1MB를 넘는 셀카는 413이고 ai를 부르지 않는다")
     void oversizedSelfie_isRejected() {
         String token = consentedMember("큰사진곰");
         ResponseEntity<String> response = upload(token, jpeg(ONE_AND_HALF_MB));
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
-        verify(faceJobGateway, times(0)).submit(org.mockito.ArgumentMatchers.anyLong(), any());
+        verify(faceJobGateway, times(0))
+                .submit(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        any(),
+                        org.mockito.ArgumentMatchers.anyInt());
         assertThat(filesIn(uploadDir)).isZero();
     }
 }

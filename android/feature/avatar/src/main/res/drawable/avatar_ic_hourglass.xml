@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 제안 페이지 icon/hourglass (Material). 색은 쓰는 자리에서 칠한다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="16dp"
+    android:height="16dp"
+    android:viewportWidth="16"
+    android:viewportHeight="16">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M4 1.33333V5.33333H4.00667L4 5.34L6.66667 8L4 10.6667L4.00667 10.6733H4V14.6667H12V10.6733H11.9933L12 10.6667L9.33333 8L12 5.34L11.9933 5.33333H12V1.33333H4Z" />
+</vector>

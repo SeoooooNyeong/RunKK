@@ -236,7 +236,7 @@ class CrewThreadIntegrationTest {
                                 leader,
                                 crewId,
                                 new CrewRunDraft(
-                                        "10명 크루런", scheduledAt, StandardDistance.KM1, null))
+                                        "10명 크루런", scheduledAt, StandardDistance.KM3, null))
                         .postId();
         for (long m : runners) {
             crewRuns.enterLobby(m, postId);
@@ -304,7 +304,7 @@ class CrewThreadIntegrationTest {
         for (Future<Long> f : together(uploadsAtOnce)) {
             f.get();
         }
-        crewRuns.tick(start.plusMinutes(15));
+        crewRuns.tick(start.plusMinutes(45)); // 3km × km당 15분(W6에서 1km가 빠졌다)
 
         CrewRunResultView result = crewRuns.result(leader, postId);
         assertThat(result.status()).isEqualTo(CrewRunStatus.FINISHED);
@@ -496,7 +496,14 @@ class CrewThreadIntegrationTest {
                 .isEqualTo(5);
         assertThat(avatars.equip(m, List.of(EquipChange.wear(ItemSlot.HAT, 77))).rejected())
                 .containsKey(ItemSlot.HAT);
-        assertThat(appearance.refreshAll(LocalDate.now())).isZero();
+        // 한 번도 달리지 않은 회원은 기본 몸(4단계) 그대로다([임시:D-성-212]: 셀카·기본 아바타 몸이 가입 직후부터 같다)
+        appearance.refreshAll(LocalDate.now());
+        assertThat(
+                        jdbc.queryForObject(
+                                "select body_shape from avatar where member_id = ?",
+                                String.class,
+                                m))
+                .isEqualTo("STAGE4");
         avatarWithdrawal.onMemberWithdrawn(new MemberWithdrawn(m, LocalDateTime.now()));
         assertThat(
                         jdbc.queryForObject(

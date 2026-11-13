@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -50,6 +49,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.GuideStep
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonSize
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkLimePillButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -164,13 +166,12 @@ private fun GuideBubble(
                 Text(page, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
                 Spacer(Modifier.weight(1f))
                 if (!isLast) {
-                    TextButton(onClick = onSkip) {
-                        Text(
-                            stringResource(R.string.home_guide_skip),
-                            style = RunkkTextStyles.text(14, FontWeight.Medium),
-                            color = RunkkColors.TextPrimary
-                        )
-                    }
+                    RunkkButton(
+                        stringResource(R.string.home_guide_skip),
+                        onClick = onSkip,
+                        style = RunkkButtonStyle.Text,
+                        size = RunkkButtonSize.Small
+                    )
                 }
                 RunkkLimePillButton(
                     stringResource(if (isLast) R.string.home_guide_start else R.string.home_guide_next),

@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.crew
 import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.api.core.ServerTime
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
@@ -11,19 +12,30 @@ import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewForm
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewMembers
+import com.a207.runkk.app.domain.crew.CrewPreview
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRepository
+import com.a207.runkk.app.domain.crew.CrewRunDetail
+import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.MyCrew
+import com.a207.runkk.app.domain.crew.PastCrewRuns
+import com.a207.runkk.app.domain.crew.PastGoals
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import java.time.Duration
 import java.time.LocalDate
+import java.time.YearMonth
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * 크루·게시판·대기실 포트를 REST로 구현한다(6.1.14 api.crew). 갈래마다 엔드포인트가 나뉜다(D-36).
@@ -32,6 +44,8 @@ import javax.inject.Inject
 internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, private val faces: FaceImageSource) :
     CrewRepository {
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+
+    override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
 
     override suspend fun myCrew(): Outcome<MyCrew> = ApiErrorMapper.call { api.myCrew().toDomain() }
 
@@ -43,9 +57,6 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
 
     override suspend fun changeInfo(crewId: Long, form: CrewForm): Outcome<Unit> =
         ApiErrorMapper.call { api.changeInfo(crewId, form.toRequest()) }
-
-    override suspend fun reissueInviteCode(crewId: Long): Outcome<String> =
-        ApiErrorMapper.call { api.reissueInviteCode(crewId).inviteCode }
 
     override suspend fun transferLeadership(crewId: Long, memberId: Long): Outcome<Unit> =
         ApiErrorMapper.call { api.transferLeadership(crewId, LeaderRequest(memberId)) }
@@ -89,6 +100,13 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
     override suspend fun pendingRequests(crewId: Long): Outcome<PendingRequests> =
         ApiErrorMapper.call { api.pendingRequests(crewId).toDomain() }
 
+    override suspend fun pastGoals(crewId: Long, before: LocalDate?): Outcome<PastGoals> = ApiErrorMapper.call {
+        api.goalHistory(crewId, before?.toString(), PAST_GOALS_PAGE_SIZE).toDomain()
+    }
+
+    override suspend fun pastCrewRuns(crewId: Long, month: YearMonth, date: LocalDate?): Outcome<PastCrewRuns> =
+        ApiErrorMapper.call { api.pastCrewRuns(crewId, month.toString(), date?.toString()).toDomain(month) }
+
     override suspend fun crewRanking(crewId: Long, period: CrewRanking.Period): Outcome<CrewRanking> =
         ApiErrorMapper.call { api.crewRanking(crewId, period.name).toDomain() }
 
@@ -109,15 +127,17 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
         Unit
     }
 
-    override suspend fun appointManager(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call {
-        api.appointManager(crewId, memberId)
+    /** 참석 취소(DELETE /posts/{id}/attendance, W6). */
+    override suspend fun withdrawAttendance(postId: Long): Outcome<Unit> = ApiErrorMapper.call {
+        api.withdrawAttendance(postId)
         Unit
     }
 
-    override suspend fun dismissManager(crewId: Long, memberId: Long): Outcome<Unit> = ApiErrorMapper.call {
-        api.dismissManager(crewId, memberId)
-        Unit
-    }
+    override suspend fun crewRun(postId: Long): Outcome<CrewRunDetail> =
+        ApiErrorMapper.call { api.crewRun(postId).toDomain() }
+
+    override suspend fun editCrewRun(postId: Long, edit: CrewRunEdit): Outcome<CrewRunDetail> =
+        ApiErrorMapper.call { api.editCrewRun(postId, edit.toRequest()).toDomain() }
 
     override suspend fun setWeeklyGoal(crewId: Long, goal: Distance): Outcome<RaceStatus> =
         ApiErrorMapper.call { api.setGoal(crewId, GoalRequest(goal.meters)).toDomain() }
@@ -143,8 +163,42 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
     override suspend fun crewRunResult(postId: Long): Outcome<CrewRunResult> =
         ApiErrorMapper.call { api.result(postId).toDomain() }
 
+    override suspend fun previewByInviteCode(code: String): Outcome<CrewPreview> =
+        ApiErrorMapper.call { api.invitePreview(InvitePreviewRequest(code)).toDomain() }
+
+    override suspend fun uploadLogo(jpeg: ByteArray): Outcome<String> = ApiErrorMapper.call {
+        api.uploadLogo(MultipartBody.Part.createFormData(LOGO_PART, LOGO_FILE, jpeg.toRequestBody(JPEG))).logoUrl
+    }
+
+    /**
+     * 이 서버의 로고 경로(/api/v1/crew-logos/{id})만 읽는다. 예전 https 주소는 인증 토큰을 실어 남의 서버로 보내지 않도록 읽지 않는다
+     * (화면은 기본 이미지). 로고는 ID마다 바뀌지 않아 최근 몇 장을 메모리에 둔다.
+     */
+    override suspend fun logo(url: String): Outcome<ByteArray> {
+        val logoId = LOGO_PATH.matchEntire(url)?.groupValues?.get(1)?.toLongOrNull()
+            ?: return Outcome.Failure(AppError.Rejected(NOT_CREW_LOGO))
+        synchronized(logos) { logos[logoId] }?.let { return Outcome.Success(it) }
+        val read = ApiErrorMapper.call { api.logo(logoId).use { body -> withContext(Dispatchers.IO) { body.bytes() } } }
+        if (read is Outcome.Success) synchronized(logos) { logos[logoId] = read.value }
+        return read
+    }
+
+    private val logos = object : LinkedHashMap<Long, ByteArray>(LOGO_CACHE, LOAD_FACTOR, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, ByteArray>?): Boolean = size > LOGO_CACHE
+    }
+
     private companion object {
         /** 크루 목록·게시글 한 쪽 크기(서버 PageCursor 1~100). */
         const val PAGE_SIZE = 20
+        const val LOGO_PART = "logo"
+        const val LOGO_FILE = "logo.jpg"
+        const val NOT_CREW_LOGO = "NOT_CREW_LOGO"
+        const val LOGO_CACHE = 32
+        const val LOAD_FACTOR = 0.75f
+        val JPEG = "image/jpeg".toMediaType()
+        val LOGO_PATH = Regex("^/api/v1/crew-logos/(\\d{1,18})$")
+
+        /** 지난 공동 목표 한 쪽 크기(서버 기본과 같다). */
+        const val PAST_GOALS_PAGE_SIZE = 20
     }
 }

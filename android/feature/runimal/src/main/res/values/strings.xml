@@ -37,7 +37,6 @@
     <string name="runimal_types_never_confirmed">확정받은 적 없음</string>
     <string name="runimal_type_title">유형 상세</string>
     <string name="runimal_type_traits_title">이런 러너예요</string>
-    <string name="runimal_type_trait">· %1$s</string>
     <string name="runimal_type_share">러너 중 %1$d%%가 이 유형이에요</string>
     <string name="evaluation_valid_runs">유효 러닝 %1$d회 달성</string>
     <string name="evaluation_title">새 평가가 나왔어요</string>

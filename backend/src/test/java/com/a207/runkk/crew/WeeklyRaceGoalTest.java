@@ -43,9 +43,9 @@ class WeeklyRaceGoalTest {
     }
 
     @Test
-    @DisplayName("TC-6149: 진행률은 버림이고 100에서 자른다, 목표가 없으면 없음")
+    @DisplayName("TC-6149: 진행률은 버림이고 100을 넘어도 자르지 않는다(사용자 결정 C2), 목표가 없으면 없음")
     void progress() {
-        long[][] cases = {{2_500, 25}, {9_999, 99}, {10_000, 100}, {15_000, 100}};
+        long[][] cases = {{2_500, 25}, {9_999, 99}, {10_000, 100}, {10_500, 105}, {15_000, 150}};
         for (long[] c : cases) {
             WeeklyRace race = race(c[0]);
             race.setGoal(Distance.ofMeters(10_000), 1);

@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.chat.ChatMessage
+import com.a207.runkk.app.domain.chat.ChatRepository
 import com.a207.runkk.app.domain.chat.ChatRoom
 import com.a207.runkk.app.domain.chat.ReactionKind
 import com.a207.runkk.app.domain.report.ReportReason
@@ -32,8 +33,13 @@ import kotlinx.coroutines.launch
  * (FR-214, 기타는 상세 1~200자, D-149). 업무 규칙은 ChatRoom·서버가 갖는다.
  */
 @HiltViewModel
-class ChatViewModel @Inject constructor(private val room: ChatRoom, private val reports: ReportRepository) :
-    ViewModel() {
+class ChatViewModel
+@Inject
+constructor(
+    private val room: ChatRoom,
+    private val chats: ChatRepository,
+    private val reports: ReportRepository
+) : ViewModel() {
     private val local = MutableStateFlow(ChatUiState())
 
     val state: StateFlow<ChatUiState> =
@@ -83,6 +89,45 @@ class ChatViewModel @Inject constructor(private val room: ChatRoom, private val 
 
     fun onLoadOlder() = room.loadOlder()
 
+    // 반응한 사람(피그마 F-09d, D-성-24)
+
+    /** 서버에 있는 보이는 메시지만 연다. [tab]은 길게 누른 알약의 종류(null = 전체). */
+    fun onOpenReactors(message: ChatMessage, tab: ReactionKind?) {
+        val id = message.messageId ?: return
+        if (message.isRemoved) return
+        local.update {
+            it.copy(
+                reactorsTarget = message,
+                reactorsTab = tab,
+                reactors = emptyList(),
+                isLoadingReactors = true,
+                isReactorsFailed = false
+            )
+        }
+        viewModelScope.launch {
+            val result = chats.reactors(id)
+            local.update { s ->
+                if (s.reactorsTarget?.messageId != id) return@update s
+                when (result) {
+                    is Outcome.Success -> s.copy(reactors = result.value, isLoadingReactors = false)
+                    is Outcome.Failure -> s.copy(isLoadingReactors = false, isReactorsFailed = true)
+                }
+            }
+        }
+    }
+
+    fun onReactorTab(tab: ReactionKind?) = local.update { it.copy(reactorsTab = tab) }
+
+    fun onCloseReactors() = local.update {
+        it.copy(
+            reactorsTarget = null,
+            reactorsTab = null,
+            reactors = emptyList(),
+            isLoadingReactors = false,
+            isReactorsFailed = false
+        )
+    }
+
     // 삭제(FR-213)
 
     fun onDeleteAsk(message: ChatMessage) {
@@ -103,7 +148,7 @@ class ChatViewModel @Inject constructor(private val room: ChatRoom, private val 
 
     /** 남의 메시지만 신고한다(본인 콘텐츠는 서버가 TARGET_INVALID로 거부한다, FR-214). */
     fun onReportAsk(message: ChatMessage) {
-        if (message.isMine || message.isRemoved || message.messageId == null) return
+        if (message.isMine || message.isRemoved || message.isSystem || message.messageId == null) return
         local.update { it.copy(reportTarget = message, reportReason = null, reportDetail = "") }
     }
 

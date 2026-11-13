@@ -21,6 +21,21 @@ async def test_jpeg_is_accepted_as_a_job(client: httpx.AsyncClient, fake_face: F
     assert fake_face.submitted[0][2] == len(JPEG_HEAD)
 
 
+async def test_attempt_query_changes_request_id_and_bad_attempt_is_422(
+    client: httpx.AsyncClient, fake_face: FakeAvatarClient
+) -> None:
+    """DV-성-9: api가 명시적 재시도에 attempt(1~20)를 붙인다. 없으면 1이고, 범위 밖이면 Node를 부르지 않는다."""
+    assert (await client.post(JOBS, content=JPEG_HEAD, headers=OCTET)).status_code == 202
+    assert (await client.post(JOBS + "?attempt=1", content=JPEG_HEAD, headers=OCTET)).status_code == 202
+    assert (await client.post(JOBS + "?attempt=2", content=JPEG_HEAD, headers=OCTET)).status_code == 202
+    for bad in ("0", "21", "x"):
+        assert (await client.post(JOBS + "?attempt=" + bad, content=JPEG_HEAD, headers=OCTET)).status_code == 422
+
+    keys = [k for _, k, _ in fake_face.submitted]
+    assert len(keys) == 3
+    assert keys[0] == keys[1] != keys[2]
+
+
 async def test_png_is_accepted(client: httpx.AsyncClient) -> None:
     assert (await client.post(JOBS, content=PNG_1X1, headers=OCTET)).status_code == 202
 
