@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -47,6 +48,7 @@ import com.a207.runkk.app.core.designsystem.RunkkBottomSheet
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
@@ -256,7 +258,7 @@ private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFin
     item { FindListTitle(hasCondition = state.tags.isNotEmpty(), onRefresh = actions.onRetry) }
     when {
         state.isLoading && state.crews.isEmpty() -> item {
-            Box(Modifier.fillMaxWidth().padding(32.dp)) { RunkkLoading() }
+            RunkkLoading(Modifier.padding(32.dp))
         }
 
         state.error != null && state.crews.isEmpty() -> item {
@@ -274,7 +276,7 @@ private fun LazyListScope.crewFindItems(state: CrewFindUiState, actions: CrewFin
         else -> {
             items(state.crews, key = { it.crewId }) { crew -> FindCrewCard(crew, onClick = { actions.onOpen(crew) }) }
             if (state.isLoadingMore) {
-                item { Box(Modifier.fillMaxWidth().padding(16.dp)) { RunkkLoading() } }
+                item { RunkkLoading(Modifier.padding(16.dp)) }
             }
         }
     }
@@ -286,7 +288,7 @@ private fun FindHeaderRow(onInviteOpen: () -> Unit, onCreate: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             stringResource(R.string.crew_find_title),
-            style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 22),
+            style = RunkkTextStyles.SheetTitle,
             color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f).semantics { heading() }
         )
@@ -433,39 +435,36 @@ private const val LOAD_MORE_AHEAD = 3
 @Composable
 private fun PendingJoinCard(request: MyCrew.PendingJoin, isBusy: Boolean, onCancel: () -> Unit) {
     val cancelDescription = stringResource(R.string.crew_find_pending_cancel_description, request.crewName)
-    val shape = RunkkShapes.ExtraLarge
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    RunkkCard(
+        Modifier.fillMaxWidth(),
+        shape = RunkkShapes.ExtraLarge,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+        borderColor = RunkkColors.Border
     ) {
-        Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
-            Text(
-                request.crewName,
-                style = RunkkTextStyles.text(14, FontWeight.Bold),
-                color = RunkkColors.TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                stringResource(R.string.crew_find_pending_caption, postedLabel(request.requestedAt)),
-                style = RunkkTextStyles.Meta,
-                color = RunkkColors.TextSecondary
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f).semantics(mergeDescendants = true) {}) {
+                Text(
+                    request.crewName,
+                    style = RunkkTextStyles.BodyStrong,
+                    color = RunkkColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    stringResource(R.string.crew_find_pending_caption, postedLabel(request.requestedAt)),
+                    style = RunkkTextStyles.Meta,
+                    color = RunkkColors.TextSecondary
+                )
+            }
+            RunkkButton(
+                stringResource(R.string.crew_action_cancel),
+                onClick = onCancel,
+                style = RunkkButtonStyle.Outline,
+                size = RunkkButtonSize.Small,
+                isEnabled = !isBusy,
+                modifier = Modifier.semantics { contentDescription = cancelDescription }
             )
         }
-        RunkkButton(
-            stringResource(R.string.crew_action_cancel),
-            onClick = onCancel,
-            style = RunkkButtonStyle.Outline,
-            size = RunkkButtonSize.Small,
-            isEnabled = !isBusy,
-            modifier = Modifier.semantics { contentDescription = cancelDescription }
-        )
     }
 }
 

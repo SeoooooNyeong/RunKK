@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
@@ -38,7 +37,6 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -46,13 +44,18 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.MetaRow
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkDialog
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
 import com.a207.runkk.app.core.designsystem.RunkkSegmented
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.CrewRanking
@@ -191,19 +194,15 @@ private fun GoalCard(race: RaceStatus, canSetGoal: Boolean, onEdit: () -> Unit) 
     }
 }
 
-/** 「목표 정하기」(피그마 F-06): 13 Regular 본문색 밑줄, 누름 칸 48. */
+/** 「목표 정하기」(피그마 F-06): 13/16 Regular 본문색 밑줄, 누름 칸 48. */
 @Composable
 private fun GoalLink(onEdit: () -> Unit) {
-    Box(
-        Modifier.defaultMinSize(minWidth = 48.dp, minHeight = 48.dp).clickable(role = Role.Button, onClick = onEdit),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            stringResource(R.string.crew_goal_set),
-            style = RunkkTextStyles.text(13, lineHeight = 16).copy(textDecoration = TextDecoration.Underline),
-            color = RunkkColors.TextPrimary
-        )
-    }
+    RunkkTextLink(
+        stringResource(R.string.crew_goal_set),
+        onClick = onEdit,
+        isUnderlined = true,
+        style = RunkkTextStyles.text(13, lineHeight = 16)
+    )
 }
 
 /**
@@ -254,10 +253,7 @@ internal fun CelebrationDialog(race: RaceStatus, card: CelebrationCard, onClose:
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(title, style = RunkkTextStyles.text(14, FontWeight.Bold, 18), color = RunkkColors.TextPrimary)
-            Box(
-                Modifier.size(80.dp).clip(CircleShape).background(RunkkColors.SurfaceHigh).clearAndSetSemantics {},
-                contentAlignment = Alignment.Center
-            ) {
+            RunkkAvatarCircle(80.dp) {
                 Icon(
                     RunkkIcons.Group,
                     contentDescription = null,
@@ -313,7 +309,7 @@ private fun RowScope.CelebrationStat(value: String, label: String) {
     ) {
         Text(
             value,
-            style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 22),
+            style = RunkkTextStyles.SheetTitle,
             color = RunkkColors.TextPrimary,
             maxLines = 1
         )
@@ -333,13 +329,7 @@ private fun RunningBoard(
     onPeriod: (CrewRanking.Period) -> Unit
 ) {
     val isWeekly = isWeekOnly || state.period == CrewRanking.Period.WEEKLY
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            stringResource(R.string.crew_contribution_title),
-            style = RunkkTextStyles.text(14, FontWeight.Bold, lineHeight = 17),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f).semantics { heading() }
-        )
+    RunkkSectionHeader(stringResource(R.string.crew_contribution_title), size = RunkkSectionHeaderSize.Compact) {
         if (isWeekOnly) {
             Text(
                 stringResource(R.string.crew_contribution_this_week),
@@ -385,7 +375,7 @@ private fun ContributionRow(bar: ContributionBar) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(Modifier.size(32.dp).clip(CircleShape).background(RunkkColors.SurfaceHigh))
+        RunkkAvatarCircle(32.dp)
         Text(
             name,
             style = RunkkTextStyles.text(13, lineHeight = 16),

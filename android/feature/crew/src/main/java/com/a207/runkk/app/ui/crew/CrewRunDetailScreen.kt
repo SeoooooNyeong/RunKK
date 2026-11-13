@@ -6,16 +6,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
@@ -31,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -44,16 +43,24 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.MetaRow
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPersonRow
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTagSize
+import com.a207.runkk.app.core.designsystem.RunkkTagTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
@@ -212,7 +219,7 @@ fun CrewRunDetailScreen(
 private fun DetailMenu(state: CrewRunDetailUiState, actions: CrewRunDetailActions) {
     val detail = state.detail ?: return
     Box {
-        CrewMoreButton(stringResource(R.string.crew_run_detail_menu), onClick = { actions.onMenu(true) })
+        CrewMoreDots(stringResource(R.string.crew_run_detail_menu), onClick = { actions.onMenu(true) })
         DropdownMenu(
             expanded = state.isMenuOpen,
             onDismissRequest = { actions.onMenu(false) },
@@ -272,12 +279,7 @@ private fun DetailBody(detail: CrewRunDetail, state: CrewRunDetailUiState) {
                 .padding(horizontal = 12.dp, vertical = 10.dp)
         )
     }
-    Text(
-        stringResource(R.string.crew_run_detail_attendees),
-        style = RunkkTextStyles.text(15, FontWeight.Bold, lineHeight = 18),
-        color = RunkkColors.TextPrimary,
-        modifier = Modifier.padding(top = 2.dp).semantics { heading() }
-    )
+    RunkkSectionHeader(stringResource(R.string.crew_run_detail_attendees), modifier = Modifier.padding(top = 2.dp))
     Column {
         detail.attendees.forEach { AttendeeRow(it) }
     }
@@ -286,11 +288,14 @@ private fun DetailBody(detail: CrewRunDetail, state: CrewRunDetailUiState) {
 /** 정보 카드(피그마: 테두리 1 divider, 모서리 28, 안쪽 14, 줄 간격 10): 일시(+ "매주" 배지), 거리, 참석 수를 메타 항목으로. */
 @Composable
 private fun InfoCard(detail: CrewRunDetail) {
-    val shape = RoundedCornerShape(28.dp)
     val at = detail.scheduledAt.atZone(ZoneId.systemDefault())
     val date = at.format(DateTimeFormatter.ofPattern(stringResource(R.string.crew_schedule_pattern), Locale.KOREAN))
-    Column(
-        modifier = Modifier.fillMaxWidth().border(1.dp, RunkkColors.Border, shape).padding(14.dp),
+    RunkkCard(
+        Modifier.fillMaxWidth(),
+        shape = RunkkShapes.Dialog,
+        contentPadding = PaddingValues(14.dp),
+        borderColor = RunkkColors.Border,
+        background = Color.Transparent,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -312,17 +317,13 @@ private fun InfoCard(detail: CrewRunDetail) {
     }
 }
 
-/** "매주" 배지(피그마: 바탕 surfaceHigh, 모서리 10, 좌우 8·위아래 2, 12 Medium). */
+/** "매주" 배지(피그마: surfaceHigh 알약 꼬리표, 12 Medium). */
 @Composable
 private fun WeeklyBadge() {
-    Text(
+    RunkkTagPill(
         stringResource(R.string.crew_run_detail_weekly),
-        style = RunkkTextStyles.text(12, FontWeight.Medium, lineHeight = 14),
-        color = RunkkColors.TextPrimary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(RunkkColors.SurfaceHigh)
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+        tone = RunkkTagTone.Neutral,
+        size = RunkkTagSize.Small
     )
 }
 
@@ -337,19 +338,11 @@ private fun AttendeeRow(attendee: CrewRunDetail.Attendee) {
     val ran = attendee.distance?.let { stringResource(R.string.crew_contribution_km, RunkkFormat.km(it)) }
     val base = if (attendee.isAuthor) stringResource(R.string.crew_run_detail_attendee_author, name) else name
     val spoken = if (ran == null) base else stringResource(R.string.crew_run_detail_attendee_distance, base, ran)
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 45.dp)
-                .clearAndSetSemantics { contentDescription = spoken },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                Modifier.size(32.dp).clip(CircleShape).background(RunkkColors.SurfaceHigh),
-                contentAlignment = Alignment.Center
-            ) {
+    RunkkPersonRow(
+        name = name,
+        modifier = Modifier.clearAndSetSemantics { contentDescription = spoken },
+        avatar = {
+            RunkkAvatarCircle(32.dp) {
                 Icon(
                     RunkkIcons.Person,
                     contentDescription = null,
@@ -357,29 +350,25 @@ private fun AttendeeRow(attendee: CrewRunDetail.Attendee) {
                     modifier = Modifier.size(18.dp)
                 )
             }
-            Text(
-                name,
-                style = RunkkTextStyles.text(
-                    15,
-                    if (attendee.isMe) FontWeight.Bold else FontWeight.Normal,
-                    lineHeight = 18
-                ),
-                color = RunkkColors.TextPrimary
-            )
-            if (attendee.isAuthor) {
-                Text(authorTag, style = RunkkTextStyles.text(12, lineHeight = 14), color = RunkkColors.TextSecondary)
-            }
-            if (ran != null) {
-                Spacer(Modifier.weight(1f))
+        },
+        isMe = attendee.isMe,
+        badge = if (attendee.isAuthor) {
+            { Text(authorTag, style = RunkkTextStyles.text(12, lineHeight = 14), color = RunkkColors.TextSecondary) }
+        } else {
+            null
+        },
+        trailing = ran?.let {
+            {
                 Text(
-                    ran,
+                    it,
                     style = RunkkTextStyles.text(15, FontWeight.Medium, lineHeight = 18),
                     color = RunkkColors.TextPrimary
                 )
             }
-        }
-        HorizontalDivider(color = RunkkColors.Border)
-    }
+        },
+        minHeight = 45.dp,
+        nameStyle = RunkkTextStyles.text(15, if (attendee.isMe) FontWeight.Bold else FontWeight.Normal, lineHeight = 18)
+    )
 }
 
 /** 하단 버튼(pt12 px20 pb32): 참석 중이면 "참석 취소하기"(White Medium 48), 아니면 "참석하기"(Lime Large 52). */

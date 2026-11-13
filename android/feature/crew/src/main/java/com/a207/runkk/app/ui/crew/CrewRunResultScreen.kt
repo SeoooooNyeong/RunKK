@@ -1,16 +1,15 @@
 package com.a207.runkk.app.ui.crew
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -18,7 +17,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -28,10 +26,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -51,14 +45,18 @@ import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.RunResultDetail
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPageDots
+import com.a207.runkk.app.core.designsystem.RunkkPersonRow
+import com.a207.runkk.app.core.designsystem.RunkkRowDivider
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
@@ -296,48 +294,41 @@ private fun ParticipantCard(
     myAvatar: MyAvatar?,
     mateFaces: Map<String, List<FaceLayer>>
 ) {
-    val shape = RoundedCornerShape(26.dp)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(horizontal = 19.dp, vertical = 5.dp)
+    RunkkCard(
+        Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        contentPadding = PaddingValues(horizontal = 19.dp, vertical = 5.dp),
+        borderColor = RunkkColors.Border,
+        verticalArrangement = Arrangement.Top
     ) {
         participants.forEachIndexed { index, p ->
-            if (index > 0) DashedDivider()
             val name = if (p.isMe) stringResource(R.string.crew_member_me) else p.displayName
             val km = RunkkFormat.km(p.distance)
             val description = listOf(
                 if (p.isMe) stringResource(R.string.crew_run_me_named, p.displayName) else p.displayName,
                 stringResource(R.string.crew_run_km_spoken, km)
             ).joinToString(", ")
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 49.dp)
-                    .padding(vertical = 14.dp)
-                    .clearAndSetSemantics { contentDescription = description },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                ParticipantFace(p, myAvatar, mateFaces)
-                Text(
-                    name,
-                    style = RunkkTextStyles.text(15, FontWeight.Bold, lineHeight = 18),
-                    color = RunkkColors.TextPrimary,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    stringResource(R.string.crew_contribution_km, km),
-                    style = RunkkTextStyles.text(17, FontWeight.Bold, lineHeight = 20),
-                    color = RunkkColors.TextPrimary
-                )
-            }
+            RunkkPersonRow(
+                name = name,
+                modifier = Modifier.clearAndSetSemantics { contentDescription = description },
+                avatar = { ParticipantFace(p, myAvatar, mateFaces) },
+                trailing = {
+                    Text(
+                        stringResource(R.string.crew_contribution_km, km),
+                        style = RunkkTextStyles.text(17, FontWeight.Bold, lineHeight = 20),
+                        color = RunkkColors.TextPrimary
+                    )
+                },
+                divider = if (index < participants.lastIndex) RunkkRowDivider.Dashed else RunkkRowDivider.None,
+                minHeight = PARTICIPANT_ROW,
+                nameStyle = RunkkTextStyles.text(15, FontWeight.Bold, lineHeight = 18)
+            )
         }
     }
 }
+
+/** 참가자 줄 높이(얼굴 36 + 위아래 14). */
+private val PARTICIPANT_ROW = 64.dp
 
 /** 참가자 줄 얼굴 원 36(surfaceHigh 바탕): 나는 내 아바타 얼굴, 크루원은 얼굴 키·셀카 부위 그림·표시 성별의 얼굴. */
 @Composable
@@ -348,35 +339,11 @@ private fun ParticipantFace(
 ) {
     val faceKey = if (p.isMe) myAvatar?.faceKey else p.faceKey
     val layers = if (p.isMe) myAvatar?.faceLayers.orEmpty() else p.faceKey?.let(mateFaces::get).orEmpty()
-    Box(
-        Modifier.size(36.dp).clip(CircleShape).background(RunkkColors.SurfaceHigh),
-        contentAlignment = Alignment.Center
-    ) {
-        RunkkAvatar(
-            faceKey = faceKey,
-            expression = AvatarExpression.FACE,
-            modifier = Modifier.fillMaxSize(),
-            faceLayers = layers,
-            character = if (p.isMe) LocalAvatarCharacter.current else AvatarCharacter.of(p.shownGender)
-        )
-    }
-}
-
-/** 참가자 줄 사이 점선(1, divider). */
-@Composable
-private fun DashedDivider() {
-    val color = RunkkColors.Border
-    Box(
-        Modifier.fillMaxWidth().height(1.dp).drawBehind {
-            val dash = 4.dp.toPx()
-            drawLine(
-                color = color,
-                start = Offset(0f, size.height / 2),
-                end = Offset(size.width, size.height / 2),
-                strokeWidth = size.height,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(dash, dash))
-            )
-        }
+    RunkkAvatarCircle(
+        faceKey = faceKey,
+        size = 36.dp,
+        faceLayers = layers,
+        character = if (p.isMe) LocalAvatarCharacter.current else AvatarCharacter.of(p.shownGender)
     )
 }
 

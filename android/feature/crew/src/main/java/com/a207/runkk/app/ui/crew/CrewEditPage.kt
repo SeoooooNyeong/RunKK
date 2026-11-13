@@ -11,17 +11,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -44,6 +40,7 @@ import com.a207.runkk.app.core.designsystem.RunkkBottomSheet
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkSegmented
+import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -141,7 +138,7 @@ private fun FieldLabel(title: String, suffix: String? = null) {
     Text(
         buildAnnotatedString {
             withStyle(RunkkTextStyles.text(13, FontWeight.Medium).toSpanStyle()) { append(title) }
-            suffix?.let { withStyle(RunkkTextStyles.text(13).toSpanStyle()) { append(it) } }
+            suffix?.let { withStyle(RunkkTextStyles.Label.toSpanStyle()) { append(it) } }
         },
         color = RunkkColors.TextPrimary,
         modifier = Modifier.semantics { heading() }
@@ -235,41 +232,17 @@ internal fun MyInfoSheet(state: CrewHomeUiState, actions: CrewHomeActions) {
     }
 }
 
-/** 공개 토글 줄(피그마 F-23): "나이" 15 Bold + "20대, 공개" 15 Regular, 오른쪽 토글(켜짐 라임), 최소 높이 45, 아래 divider. */
+/** 공개 토글 줄(피그마 F-23): 이름("나이") + 설명("20대, 공개"), 오른쪽 라임 스위치, 아래 divider. */
 @Composable
 private fun VisibilityRow(title: String, value: String?, isPublic: Boolean, onChange: (Boolean) -> Unit) {
     val state = stringResource(if (isPublic) R.string.crew_my_info_public else R.string.crew_member_private)
     Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp)
-                .toggleable(value = isPublic, role = Role.Switch, onValueChange = onChange),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                buildAnnotatedString {
-                    withStyle(RunkkTextStyles.text(15, FontWeight.Bold).toSpanStyle()) { append(title) }
-                    append("  ")
-                    withStyle(RunkkTextStyles.text(15).toSpanStyle()) {
-                        append(value?.let { stringResource(R.string.crew_my_info_age_value, it, state) } ?: state)
-                    }
-                },
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Switch(
-                checked = isPublic,
-                onCheckedChange = null,
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = RunkkColors.OnLimeFill,
-                    checkedTrackColor = RunkkColors.LimeFill,
-                    uncheckedThumbColor = RunkkColors.Surface,
-                    uncheckedTrackColor = RunkkColors.ToggleOff,
-                    uncheckedBorderColor = RunkkColors.ToggleOff
-                )
-            )
-        }
+        RunkkSwitchRow(
+            title = title,
+            isChecked = isPublic,
+            onCheckedChange = onChange,
+            description = value?.let { stringResource(R.string.crew_my_info_age_value, it, state) } ?: state
+        )
         HorizontalDivider(color = RunkkColors.Border, thickness = 1.dp)
     }
 }

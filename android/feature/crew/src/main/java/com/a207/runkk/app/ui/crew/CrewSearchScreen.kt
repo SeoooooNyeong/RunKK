@@ -211,7 +211,7 @@ private fun SearchResults(state: CrewSearchUiState, actions: CrewSearchActions) 
         if (nearEnd && state.nextCursor != null) actions.onLoadMore()
     }
     when {
-        state.isLoading && state.results.isEmpty() -> Box(Modifier.fillMaxWidth().padding(32.dp)) { RunkkLoading() }
+        state.isLoading && state.results.isEmpty() -> RunkkLoading(Modifier.padding(32.dp))
 
         state.error != null && state.results.isEmpty() ->
             Box(Modifier.padding(20.dp)) { RunkkErrorState(state.error.asString(), onRetry = actions.onSearch) }
@@ -241,7 +241,7 @@ private fun SearchResults(state: CrewSearchUiState, actions: CrewSearchActions) 
                 items(state.results, key = {
                     it.crewId
                 }) { crew -> FindCrewCard(crew, onClick = { actions.onOpen(crew) }) }
-                if (state.isLoadingMore) item { Box(Modifier.fillMaxWidth().padding(16.dp)) { RunkkLoading() } }
+                if (state.isLoadingMore) item { RunkkLoading(Modifier.padding(16.dp)) }
             }
         }
     }

@@ -16,13 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,25 +34,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation3.runtime.NavKey
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
-import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmented
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedSelection
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
-import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
@@ -243,7 +240,7 @@ fun CrewHomeScreen(
             actions.onMessageShown()
         }
     }
-    Box(modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         when (state.page) {
             CrewHomePage.INFO -> CrewInfoPage(state, actions)
             CrewHomePage.MEMBERS -> CrewMembersPage(state, actions)
@@ -315,7 +312,7 @@ private fun LazyListScope.homeTabItems(state: CrewHomeUiState, actions: CrewHome
     }
     if (state.isLoadingMore) {
         item(key = "loading-more") {
-            Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() }
+            RunkkLoading(height = 64.dp)
         }
     }
 }
@@ -392,7 +389,7 @@ private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRoot
         Text(
             state.crewName,
             style = RunkkTextStyles.TopBarTitle,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = RunkkColors.TextPrimary,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).semantics { heading() }
@@ -411,5 +408,5 @@ internal fun CrewRole.labelRes(): Int = when (this) {
 /** 탭을 처음 읽는 동안의 자리. */
 @Composable
 internal fun ColumnScope.TabLoading(isLoading: Boolean) {
-    if (isLoading) Box(Modifier.fillMaxWidth().height(160.dp)) { RunkkLoading() }
+    if (isLoading) RunkkLoading(height = 160.dp)
 }
