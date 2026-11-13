@@ -3,6 +3,8 @@ package com.a207.runkk.app.domain.avatar
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * 아바타·상점 포트(5.7.1 /avatar/…, /shop/…). 구현 api.avatar.
@@ -37,6 +39,18 @@ interface AvatarRepository {
      * 구현이 없으면 null이다.
      */
     suspend fun lastSelfieFailure(): SelfieFailure? = null
+
+    /**
+     * 셀카 작업 진행(design-oo 05-30 6.1, [임시:D-성-117]). 기기에 남긴 작업·실패와 워커가 고친 최근 상태를 합쳐 낸다. 얼굴 만들기·
+     * 꾸미기·내 러너·홈 진행 표시가 같은 흐름을 듣는다. 구현이 없으면 [SelfieProgress.None] 하나다.
+     */
+    fun selfieProgress(): Flow<SelfieProgress> = flowOf(SelfieProgress.None)
+
+    /**
+     * 끝난 작업의 결과(성공·실패)를 보았다(얼굴 만들기 화면의 「확인」, 「다른 사진 고르기」·「기본 얼굴 쓰기」). 남긴 실패를 지우고 진행을
+     * [SelfieProgress.None]으로 둔다. 만드는 중인 작업은 그대로다. 구현이 없으면 아무것도 하지 않는다.
+     */
+    fun dismissSelfieResult() = Unit
 
     suspend fun chooseDefault(characterId: String): Outcome<Avatar>
 

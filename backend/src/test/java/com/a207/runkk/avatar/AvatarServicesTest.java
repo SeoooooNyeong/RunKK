@@ -3,10 +3,8 @@ package com.a207.runkk.avatar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -14,7 +12,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.a207.runkk.common.BusinessRuleException;
-import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.ReasonCode;
@@ -31,10 +28,8 @@ import com.a207.runkk.policy.ShopCatalog;
 import com.a207.runkk.policy.ShopItem;
 import com.a207.runkk.policy.SkinToneRule;
 import com.a207.runkk.reward.RewardService;
-import com.a207.runkk.running.DayStats;
 import com.a207.runkk.running.RunQueryService;
 import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -134,32 +129,52 @@ class AvatarServicesTest {
     }
 
     @Test
-    @DisplayName("0시 외형 재계산: 체형이 바뀐 회원만 알림, 바뀐 수를 돌려준다, 러닝 없으면 피부색 그대로")
+    @DisplayName("0시 외형 재계산: 최근에 달린 회원은 기본 몸, 쉰 회원만 한 단계 통통해져 알림, 달린 적 없으면 기본 몸·피부색 그대로")
     void refreshAll() {
+        when(policy.bodyShapeReleased()).thenReturn(true);
         avatars.save(Avatar.create(ALICE));
         avatars.save(Avatar.create(2));
-        when(runs.dailyStats(eq(ALICE), any(DateRange.class)))
-                .thenReturn(
-                        Map.of(
-                                TODAY.minusDays(1),
-                                new DayStats(
-                                        TODAY.minusDays(1),
-                                        Distance.ofKm(5),
-                                        Duration.ofMinutes(30),
-                                        3)));
+        avatars.save(Avatar.create(3));
         when(runs.recentStartTimes(ALICE, 10))
                 .thenReturn(List.of(TODAY.minusDays(1).atTime(5, 30)));
-        when(runs.dailyStats(eq(2L), any(DateRange.class))).thenReturn(Map.of());
-        when(runs.recentStartTimes(2L, 10)).thenReturn(List.of());
+        when(runs.recentStartTimes(2L, 10)).thenReturn(List.of(TODAY.minusDays(10).atTime(12, 0)));
+        // 달린 적 없는 회원은 기본 몸 그대로다([임시:D-성-212])
+        when(runs.recentStartTimes(3L, 10)).thenReturn(List.of());
 
         assertThat(appearance.refreshAll(TODAY)).isEqualTo(1);
 
-        assertThat(avatars.findOrCreate(ALICE).bodyShape()).isEqualTo(BodyShape.STAGE3);
+        assertThat(avatars.findOrCreate(ALICE).bodyShape()).isEqualTo(BodyShape.STAGE4);
         assertThat(avatars.findOrCreate(ALICE).skinTone()).isEqualTo(SkinTone.DAWN);
+        assertThat(avatars.findOrCreate(2).bodyShape()).isEqualTo(BodyShape.STAGE3);
         assertThat(avatars.findOrCreate(2).skinTone()).isEqualTo(SkinTone.DAYTIME);
+        assertThat(avatars.findOrCreate(3).bodyShape()).isEqualTo(BodyShape.STAGE4);
+        assertThat(avatars.findOrCreate(3).skinTone()).isEqualTo(SkinTone.DAYTIME);
         verify(notifications, times(1))
-                .notify(argThat(r -> r.type() == NotificationType.BODY_SHAPE_CHANGED));
-        verify(runs).dailyStats(ALICE, new DateRange(TODAY.minusDays(7), TODAY.minusDays(1)));
+                .notify(
+                        argThat(
+                                r ->
+                                        r.type() == NotificationType.BODY_SHAPE_CHANGED
+                                                && r.recipientId() == 2L));
+    }
+
+    @Test
+    @DisplayName("체형 변화 미공개(BODY_SHAPE_RELEASED 꺼짐): 쉰 회원도 기본 몸, 이미 통통한 몸은 알림 없이 기본 몸으로, 피부색은 계산한다")
+    void refreshAll_bodyShapeClosed() {
+        when(policy.bodyShapeReleased()).thenReturn(false);
+        avatars.save(Avatar.create(ALICE));
+        Avatar fuller = Avatar.create(2);
+        fuller.updateAppearance(BodyShape.STAGE2, SkinTone.DAYTIME);
+        avatars.save(fuller);
+        when(runs.recentStartTimes(ALICE, 10))
+                .thenReturn(List.of(TODAY.minusDays(10).atTime(5, 30)));
+        when(runs.recentStartTimes(2L, 10)).thenReturn(List.of(TODAY.minusDays(10).atTime(12, 0)));
+
+        appearance.refreshAll(TODAY);
+
+        assertThat(avatars.findOrCreate(ALICE).bodyShape()).isEqualTo(BodyShape.STAGE4);
+        assertThat(avatars.findOrCreate(ALICE).skinTone()).isEqualTo(SkinTone.DAWN);
+        assertThat(avatars.findOrCreate(2).bodyShape()).isEqualTo(BodyShape.STAGE4);
+        verify(notifications, never()).notify(any());
     }
 
     @Test
@@ -167,10 +182,8 @@ class AvatarServicesTest {
     void refreshAll_isolatesFailures() {
         avatars.save(Avatar.create(ALICE));
         avatars.save(Avatar.create(2));
-        when(runs.dailyStats(eq(ALICE), any(DateRange.class)))
-                .thenThrow(new IllegalStateException("고장"));
-        when(runs.dailyStats(eq(2L), any(DateRange.class))).thenReturn(Map.of());
-        when(runs.recentStartTimes(anyLong(), anyInt())).thenReturn(List.of());
+        when(runs.recentStartTimes(ALICE, 10)).thenThrow(new IllegalStateException("고장"));
+        when(runs.recentStartTimes(2L, 10)).thenReturn(List.of(TODAY.minusDays(1).atTime(12, 0)));
 
         assertThat(appearance.refreshAll(TODAY)).isZero();
         verify(runs).recentStartTimes(2L, 10);

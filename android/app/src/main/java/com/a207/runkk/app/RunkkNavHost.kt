@@ -79,7 +79,9 @@ fun RunkkNavHost(
     pendingInvite: PendingInvite? = null,
     onInviteDone: () -> Unit = {},
     pendingBattleReturn: Long? = null,
-    onBattleReturnDone: () -> Unit = {}
+    onBattleReturnDone: () -> Unit = {},
+    pendingSelfieResult: Boolean = false,
+    onSelfieResultDone: () -> Unit = {}
 ) {
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
@@ -95,6 +97,14 @@ fun RunkkNavHost(
         inviteToOpen(pendingInvite, loggedIn, current, now)?.let { token ->
             navigator.navigate(Routes.FriendInviteJoin(token))
             onInviteDone()
+        }
+    }
+    // 셀카 결과 알림([임시:D-성-146], [임시:D-성-160]): 초대와 같이 로그인 상태이고 홈이 맨 위일 때만 얼굴 만들기(결과 단계)를 연다.
+    // 로그인·가입 중이거나 측정 중(자유런·크루런·대결)이면 홈이 맨 위가 될 때까지 기다린다.
+    LaunchedEffect(pendingSelfieResult, loggedIn, current) {
+        if (selfieResultToOpen(pendingSelfieResult, loggedIn, current)) {
+            navigator.navigate(Routes.AVATAR_SETUP)
+            onSelfieResultDone()
         }
     }
     // 로그인 상태가 풀리면(로그아웃·토큰 갱신 실패 → TokenProvider.clear, 6.1.14) 로그인·가입 화면이 아닌 한 로그인으로 돌린다.
@@ -118,11 +128,14 @@ fun RunkkNavHost(
     var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
     val guideAnchors = remember { GuideAnchors() }
     val slots = remember(featureEntries) { featureEntries.collectSlots() }
+    // 기능이 앱 전체에 내려 주는 값(예: 아바타 기능의 내 얼굴 그을림, [임시:D-성-220])
+    val featureLocals = featureEntries.flatMap { it.providedLocals() }
     CompositionLocalProvider(
         LocalRunkkNavigator provides navigator,
         LocalReleaseScope provides releaseScope,
         LocalGuideAnchors provides guideAnchors,
-        LocalSlots provides slots
+        LocalSlots provides slots,
+        *featureLocals.toTypedArray()
     ) {
         Scaffold(
             modifier = modifier.fillMaxSize(),
@@ -174,6 +187,10 @@ fun RunkkNavHost(
         if (isLockedNoticeVisible) LockedFeatureDialog(onDismiss = { isLockedNoticeVisible = false })
     }
 }
+
+/** 셀카 결과 알림으로 얼굴 만들기를 지금 열지: 받은 알림이 있고 로그인 상태이며 홈이 맨 위일 때(초대 [inviteToOpen]과 같다). */
+internal fun selfieResultToOpen(pendingSelfieResult: Boolean, loggedIn: Boolean, top: NavKey?): Boolean =
+    pendingSelfieResult && loggedIn && top == Routes.Key(Routes.HOME)
 
 /** 지금 열 초대 토큰: 받은 지 5분이 안 된 초대가 있고 로그인 상태이며 홈이 맨 위일 때만(D-272, AN8-8). 그 밖에는 null(기다린다). */
 internal fun inviteToOpen(pendingInvite: PendingInvite?, loggedIn: Boolean, top: NavKey?, now: Instant): String? =

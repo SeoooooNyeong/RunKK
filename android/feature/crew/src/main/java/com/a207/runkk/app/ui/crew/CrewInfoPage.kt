@@ -6,8 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.MetaRow
@@ -36,9 +33,12 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkTags
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkStatTile
+import com.a207.runkk.app.core.designsystem.RunkkStatTileDefaults
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
@@ -89,7 +89,7 @@ internal fun CrewInfoPage(state: CrewHomeUiState, actions: CrewHomeActions) {
                     modifier = Modifier.padding(horizontal = 5.dp)
                 )
             }
-            CrewTagTints(detail.tags)
+            CrewTagPills(detail.tags)
             CrewStats(detail)
             Column {
                 CrewNavRow(stringResource(R.string.crew_info_past_runs), actions.onPastRuns)
@@ -109,7 +109,7 @@ private fun CrewHeadline(detail: CrewDetail, isLeader: Boolean, onEdit: () -> Un
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 detail.name,
-                style = RunkkTextStyles.text(19, FontWeight.Bold, lineHeight = 23),
+                style = RunkkTextStyles.TopBarTitle,
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.semantics { heading() }
             )
@@ -121,32 +121,6 @@ private fun CrewHeadline(detail: CrewDetail, isLeader: Boolean, onEdit: () -> Un
             )
         }
         if (isLeader) CrewUnderlineLink(stringResource(R.string.crew_info_edit), onClick = onEdit)
-    }
-}
-
-/** 태그(피그마 `RunKK / Tag / 태그` Medium): 높이 28, 좌우 14, 모서리 14, 14 Medium. 평일 보라 틴트, 주말 라임 틴트. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CrewTagTints(tags: Collection<String>) {
-    if (tags.isEmpty()) return
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        RunkkTags.sorted(tags).forEach { id ->
-            val isWeekend = RunkkTags.of(id)?.isWeekend == true
-            Box(
-                Modifier
-                    .heightIn(min = 28.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (isWeekend) RunkkColors.TagLime else RunkkColors.TagPurple)
-                    .padding(horizontal = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    RunkkTags.label(id),
-                    style = RunkkTextStyles.text(14, FontWeight.Medium),
-                    color = if (isWeekend) RunkkColors.OnTagLime else RunkkColors.OnTagPurple
-                )
-            }
-        }
     }
 }
 
@@ -169,16 +143,7 @@ private fun CrewStats(detail: CrewDetail) {
 
 @Composable
 private fun StatBox(label: String, value: String?, modifier: Modifier = Modifier) {
-    CrewOutlinedCard(modifier.semantics(mergeDescendants = true) {}) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, style = RunkkTextStyles.text(12), color = RunkkColors.TextPrimary)
-            Text(
-                value ?: RunkkFormat.EMPTY,
-                style = RunkkTextStyles.text(20, FontWeight.Bold, lineHeight = 24),
-                color = RunkkColors.TextPrimary
-            )
-        }
-    }
+    RunkkStatTile(label, StatTileValue(value ?: RunkkFormat.EMPTY), modifier, style = RunkkStatTileDefaults.Outlined)
 }
 
 /** "1,284.67"(천 단위 쉼표, 소수 둘째 자리). */
@@ -191,14 +156,15 @@ private const val METERS_PER_KM = 1000.0
 private fun JoinRequestSection(requests: PendingRequests?, actions: CrewHomeActions, isBusy: Boolean) {
     val list = requests?.requests ?: return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        SectionTitle(
+        RunkkSectionHeader(
             stringResource(R.string.crew_info_requests),
-            stringResource(R.string.crew_info_requests_count, list.size)
+            count = stringResource(R.string.crew_info_requests_count, list.size),
+            countColor = RunkkColors.TextPrimary
         )
         if (list.isEmpty()) {
             Text(
                 stringResource(R.string.crew_manage_requests_empty),
-                style = RunkkTextStyles.text(13),
+                style = RunkkTextStyles.Label,
                 color = RunkkColors.TextSecondary
             )
         }

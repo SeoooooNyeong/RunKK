@@ -47,16 +47,19 @@ class RunResultViewModel internal constructor(
     private val pendingRuns: PendingRunRepository,
     private val records: RecordRepository,
     /** 내 아바타(홈과 같은 출처). 못 읽으면 null이고 기본 아바타를 그린다. */
-    private val myAvatar: suspend () -> MyAvatar? = { null }
+    private val myAvatar: suspend () -> MyAvatar? = { null },
+    /** 첫 그림의 내 아바타(기기에 남긴 마지막 모습, 없으면 null). */
+    lastAvatar: () -> MyAvatar? = { null }
 ) : ViewModel() {
     @Inject
     constructor(
         pendingRuns: PendingRunRepository,
         records: RecordRepository,
         account: AccountRepository
-    ) : this(pendingRuns, records, { account.myAvatar() })
+    ) : this(pendingRuns, records, { account.myAvatar() }, account::lastMyAvatar)
 
-    private val _state = MutableStateFlow(RunResultUiState())
+    // 기기에 남긴 마지막 내 아바타(AccountRepository.lastMyAvatar)를 첫 값으로 그려 기본 아바타가 보였다가 바뀌지 않게 한다.
+    private val _state = MutableStateFlow(RunResultUiState(myAvatar = lastAvatar()))
     val state: StateFlow<RunResultUiState> = _state.asStateFlow()
 
     private val _events = Channel<RunResultEvent>(Channel.BUFFERED)
@@ -114,7 +117,7 @@ class RunResultViewModel internal constructor(
 
     /** 내 아바타를 한 번 읽는다. 다른 기록을 다시 읽어도 그대로 둔다. */
     private fun readMyAvatar() {
-        if (_state.value.myAvatar != null || avatarJob != null) return
+        if (avatarJob != null) return
         avatarJob = viewModelScope.launch {
             myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
         }

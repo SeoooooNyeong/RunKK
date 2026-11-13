@@ -45,6 +45,7 @@ private val NOTIFICATION_DOT_RING: Dp = 2.dp
 /**
  * 넘김 점(피그마 RunKK / 이벤트 / 넘김 점 62268:2845): 지금 장은 18×6 막대, 나머지는 6dp 점. 보조 기술에는 [description]
  * ("1 / 3" 등) 하나로 읽힌다. 결과 화면의 쪽 점은 [gap] 6, [inactiveColor] 강한 테두리로 부른다.
+ * 점 크기는 [dotSize](기본 6, 기록 카드 K-1은 8), 지금 장 막대 길이는 [activeWidth](기본 18)다.
  */
 @Composable
 fun RunkkPageDots(
@@ -53,7 +54,9 @@ fun RunkkPageDots(
     description: String,
     modifier: Modifier = Modifier,
     gap: Dp = 5.dp,
-    inactiveColor: Color = RunkkColors.Border
+    inactiveColor: Color = RunkkColors.Border,
+    dotSize: Dp = 6.dp,
+    activeWidth: Dp = 18.dp
 ) {
     Row(
         modifier = modifier.clearAndSetSemantics { contentDescription = description },
@@ -62,7 +65,7 @@ fun RunkkPageDots(
         repeat(count) { index ->
             Box(
                 Modifier
-                    .size(width = if (index == current) 18.dp else 6.dp, height = 6.dp)
+                    .size(width = if (index == current) activeWidth else dotSize, height = dotSize)
                     .clip(CircleShape)
                     .background(if (index == current) RunkkColors.TextPrimary else inactiveColor)
             )

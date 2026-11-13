@@ -46,6 +46,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.CelebrityPortrait
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
+import com.a207.runkk.app.core.designsystem.RunkkAlpha
 import com.a207.runkk.app.core.designsystem.RunkkChoiceChip
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
@@ -58,6 +59,7 @@ import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
@@ -73,12 +75,7 @@ import java.time.LocalDate
 fun RecordRunRoute(initialSegment: Int = SELF_SEGMENT) {
     var selected by rememberSaveable { mutableIntStateOf(initialSegment) }
     Column(modifier = Modifier.fillMaxSize().background(RunkkColors.Background)) {
-        Text(
-            stringResource(R.string.battle_record_run_title),
-            style = RunkkTextStyles.TopBarTitle,
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 16.dp).semantics { heading() }
-        )
+        RunkkTopBar(stringResource(R.string.battle_record_run_title), isTitleCentered = false)
         RunkkSegmentedTabs(
             options = listOf(
                 stringResource(R.string.battle_record_run_self),
@@ -325,7 +322,7 @@ private fun CelebCandidateCard(candidate: CandidateUi, isSelected: Boolean, onCl
                 RunkkShapes.ExtraLarge
             )
             .clickable(enabled = candidate.isSelectable, role = Role.RadioButton, onClick = onClick)
-            .alpha(if (candidate.isSelectable) 1f else FADED)
+            .alpha(if (candidate.isSelectable) 1f else RunkkAlpha.Disabled)
             .padding(14.dp)
             .semantics(mergeDescendants = true) {
                 contentDescription = description

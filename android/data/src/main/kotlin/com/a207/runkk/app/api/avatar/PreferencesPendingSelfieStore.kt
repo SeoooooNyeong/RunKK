@@ -9,7 +9,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 앱 전용 SharedPreferences에 회원 ID와 작업 ID, 마지막 실패(작업 ID·사유)만 둔다. 다른 회원으로 로그인했으면 없는 것으로 보고,
+ * 앱 전용 SharedPreferences에 회원 ID와 작업 ID·접수 시각, 마지막 실패(작업 ID·사유)만 둔다. 다른 회원으로 로그인했으면 없는 것으로 보고,
  * 다른 회원이 남기면 앞 회원 것을 지운다.
  */
 @Singleton
@@ -23,12 +23,24 @@ constructor(
 
     override fun load(): String? = mine()?.getString(KEY_JOB, null)
 
-    override fun save(jobId: String) {
-        edit()?.putString(KEY_JOB, jobId)?.apply()
+    override fun save(jobId: String, submittedAtMillis: Long?) {
+        val sameJob = load() == jobId
+        val editor = edit() ?: return
+        editor.putString(KEY_JOB, jobId)
+        when {
+            sameJob && prefs.contains(KEY_AT) -> Unit
+            submittedAtMillis != null -> editor.putLong(KEY_AT, submittedAtMillis)
+            else -> editor.remove(KEY_AT)
+        }
+        editor.apply()
     }
 
+    override fun submittedAt(): Long? = mine()?.takeIf {
+        it.contains(KEY_AT) && it.contains(KEY_JOB)
+    }?.getLong(KEY_AT, 0L)
+
     override fun clear() {
-        prefs.edit().remove(KEY_JOB).apply()
+        prefs.edit().remove(KEY_JOB).remove(KEY_AT).apply()
     }
 
     override fun failure(): SelfieFailure? {
@@ -63,6 +75,7 @@ constructor(
         const val FILE = "runkk_pending_selfie"
         const val KEY_MEMBER = "memberId"
         const val KEY_JOB = "jobId"
+        const val KEY_AT = "submittedAt"
         const val KEY_FAILED_JOB = "failedJobId"
         const val KEY_FAILED_CODE = "failedCode"
         const val NONE = -1L

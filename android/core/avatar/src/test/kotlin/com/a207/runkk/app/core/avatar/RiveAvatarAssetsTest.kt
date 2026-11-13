@@ -37,13 +37,17 @@ class RiveAvatarAssetsTest {
     }
 
     @Test
-    fun `준비한 바이트는 4개 매핑 Rive 파일(검수 바탕 투명), 내장 머리 12장, 앞 단계 서기 몸이다`() = runBlocking {
+    fun `준비한 바이트는 4개 매핑 Rive 파일(검수 바탕·내장 그림자 투명, 엉덩이 잇기 칸, 소매 이음매, 서기 바이트 패치), 내장 머리 12장, 앞 단계 서기 몸이다`() = runBlocking {
         for (gender in AvatarGender.entries) {
             val prepared = assets.load(context, gender)
             assertEquals(gender, prepared.gender)
             for (motion in AvatarMotion.entries) {
                 assertContentEquals(
-                    RivReviewBackground.hidden(raw(RiveAvatarScene.rawResource(gender, motion))),
+                    RivGroundShadow.hidden(
+                        RivReviewBackground.hidden(raw(RiveAvatarScene.rawResource(gender, motion)))
+                    ).also(RivHipConnection::retargetInPlace).also(RivSleeveSeam::closeInPlace).also { riv ->
+                        RivBytePatch.resource(gender, motion)?.let { RivBytePatch.applyInPlace(riv, raw(it)) }
+                    },
                     prepared.riv(motion),
                     "$gender $motion"
                 )
@@ -51,6 +55,21 @@ class RiveAvatarAssetsTest {
             assertContentEquals(raw(R.raw.avatar_legacy_standing_body), prepared.legacyStandingBody)
             assertEquals(AvatarVariantAssets.FRONT_SLOTS, prepared.builtIn.front.keys)
         }
+    }
+
+    @Test
+    fun `내장 이미지는 동작마다 처음 물을 때 한 번 읽어 둔다`() = runBlocking {
+        val prepared = assets.load(context, AvatarGender.FEMALE)
+        val stand = prepared.embeddedImages(AvatarMotion.STAND)
+        assertSame(stand, prepared.embeddedImages(AvatarMotion.STAND), "두 번째는 같은 목록")
+        assertTrue(BodySkinLayers.STANDING_BODY in stand)
+        assertTrue("side_head" in prepared.embeddedImages(AvatarMotion.RUN))
+    }
+
+    @Test
+    fun `공개 preloadRiveAvatar는 공용 자산을 남녀마다 읽어 둔다`() = runBlocking {
+        preloadRiveAvatar(context, AvatarGender.MALE)
+        assertEquals(AvatarGender.MALE, RiveAvatarAssets.shared.cached(AvatarGender.MALE)?.gender)
     }
 
     private fun raw(id: Int): ByteArray = context.resources.openRawResource(id).use { it.readBytes() }

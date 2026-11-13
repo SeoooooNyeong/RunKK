@@ -49,6 +49,7 @@ import com.a207.runkk.app.core.designsystem.LocalRunkkTierColors
 import com.a207.runkk.app.core.designsystem.ResultBottomBar
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkElevation
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
@@ -118,7 +119,7 @@ fun PlacementCompleteScreen(
                 when {
                     tier != null -> CompleteBody(tier, state)
 
-                    state.isLoading -> Box(Modifier.fillMaxWidth().height(240.dp)) { RunkkLoading() }
+                    state.isLoading -> RunkkLoading(height = 240.dp)
 
                     else -> RunkkErrorState(
                         state.error?.asString() ?: stringResource(R.string.placement_load_failed),
@@ -164,8 +165,8 @@ private fun CelebrationHero(tier: String) {
                 .size(188.dp)
                 .alpha(GLOW_ALPHA)
                 .clip(CircleShape)
-                // 다크에서 흰 빛 위 다크 티어 글자(밝은 금색)는 대비가 낮아 표면색 빛을 쓴다(8절 17).
-                .background(if (LocalRunkkColors.current.isDark) RunkkColors.Surface else Color.White)
+                // 라이트는 흰 빛, 다크는 표면색 빛(흰 빛 위 밝은 금색 티어 글자는 대비가 낮다, 8절 17). 둘 다 표면색이다.
+                .background(RunkkColors.Surface)
         )
         CONFETTI.forEach { piece ->
             val color = when (piece.tone) {
@@ -198,7 +199,7 @@ private fun RoundsCard(state: PlacementCompleteUiState) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(6.dp, shape, ambientColor = BAR_SHADOW, spotColor = BAR_SHADOW)
+            .shadow(RunkkElevation.Medium, shape, ambientColor = RunkkColors.Shadow, spotColor = RunkkColors.Shadow)
             .clip(shape)
             .background(RunkkColors.Surface)
             .padding(horizontal = 16.dp, vertical = 6.dp)
@@ -256,7 +257,7 @@ private fun RoundRow(round: PlacementRound) {
     ) {
         Text(
             stringResource(R.string.placement_complete_round, round.round),
-            style = RunkkTextStyles.text(14, FontWeight.Bold),
+            style = RunkkTextStyles.BodyStrong,
             color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f)
         )
@@ -284,7 +285,7 @@ private fun ValueWithUnit(value: String, unit: String, width: Dp) {
     Row(Modifier.width(width), horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End)) {
         Text(
             value,
-            style = RunkkTextStyles.text(16, FontWeight.Bold),
+            style = RunkkTextStyles.CardTitle,
             color = RunkkColors.TextPrimary,
             modifier = Modifier.alignByBaseline()
         )

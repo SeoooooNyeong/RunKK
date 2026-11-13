@@ -5,20 +5,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,15 +31,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextDecoration
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkMenuRow
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Gender
 import java.time.Instant
@@ -53,97 +47,37 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** 크루원 아바타 자리(피그마 F-22 목록 36, 팝업 80): surfaceHigh 원. 팝업은 divider 점선 대신 실선 테두리로 근사한다. */
+/** 밑줄 글자 링크(피그마 "탈퇴하기"·"수정"·"크루 삭제하기": 13/18 Regular 보조색 밑줄, 누름 칸 48). */
 @Composable
-internal fun MemberAvatar(size: Dp, modifier: Modifier = Modifier, isBordered: Boolean = false) {
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(RunkkColors.SurfaceHigh)
-            .then(if (isBordered) Modifier.border(1.dp, RunkkColors.Border, CircleShape) else Modifier)
-            .clearAndSetSemantics {}
+internal fun CrewUnderlineLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    RunkkTextLink(
+        text,
+        onClick = onClick,
+        modifier = modifier,
+        isUnderlined = true,
+        style = RunkkTextStyles.text(13, lineHeight = 18),
+        color = RunkkColors.TextSecondary
     )
 }
 
-/** 밑줄 글자 링크(피그마 "탈퇴하기"·"수정"·"크루 삭제하기": 13 Regular 보조색 밑줄, 안쪽 좌우 8·위아래 6, 누름 칸 48). */
-@Composable
-internal fun CrewUnderlineLink(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier
-            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text,
-            style = RunkkTextStyles.text(13, lineHeight = 18).copy(textDecoration = TextDecoration.Underline),
-            color = RunkkColors.TextSecondary
-        )
-    }
-}
-
-/** 이동 줄(피그마 F-18 "지난 크루런 ›"·"지난 목표 ›"): 높이 52, 아래 divider, 15 Regular, 오른쪽 "›" 18 보조색. */
+/** 이동 줄(피그마 F-18 "지난 크루런 ›"·"지난 목표 ›"): 높이 52, 좌우 0, 15 Regular, 꺾쇠 18 보조색, 아래 divider. */
 @Composable
 internal fun CrewNavRow(title: String, onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 52.dp)
-                .clickable(role = Role.Button, onClick = onClick),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                title,
-                style = RunkkTextStyles.text(15),
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Text("›", style = RunkkTextStyles.text(18), color = RunkkColors.TextSecondary)
-        }
-        HorizontalDivider(color = RunkkColors.Border, thickness = 1.dp)
-    }
+    RunkkMenuRow(
+        title,
+        onClick = onClick,
+        minHeight = 52.dp,
+        horizontalPadding = 0.dp,
+        titleStyle = RunkkTextStyles.text(15),
+        chevronSize = 18.dp,
+        hasDivider = true
+    )
 }
 
-/** 테두리 카드(피그마 F-18 통계 칸·F-22 내 정보: 흰 바탕, divider 테두리, 모서리 24, 안쪽 14). */
-@Composable
-internal fun CrewOutlinedCard(
-    modifier: Modifier = Modifier,
-    corner: Dp = 24.dp,
-    background: Color = RunkkColors.Surface,
-    content: @Composable () -> Unit
-) {
-    val shape = RoundedCornerShape(corner)
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(background)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(14.dp)
-    ) { content() }
-}
-
-/** 크루장 배지(피그마 F-22: 흰 바탕, divider 테두리, 높이 20, 좌우 8, 모서리 16, 11 Regular). */
+/** 크루장 배지(피그마 F-22: divider 테두리 꼬리표, 11 Regular). */
 @Composable
 internal fun LeaderBadge(modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(16.dp)
-    Box(
-        modifier = modifier
-            .heightIn(min = 20.dp)
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(horizontal = 8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            stringResource(R.string.crew_role_leader),
-            style = RunkkTextStyles.text(11),
-            color = RunkkColors.TextPrimary
-        )
-    }
+    RunkkTagPill(stringResource(R.string.crew_role_leader), modifier = modifier)
 }
 
 /**
@@ -202,28 +136,8 @@ private fun MenuLine(text: String, onClick: () -> Unit) {
 @Composable
 internal fun InfoPair(label: String, value: String) {
     Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = RunkkTextStyles.text(13), color = RunkkColors.TextSecondary, modifier = Modifier.weight(1f))
-        Text(value, style = RunkkTextStyles.text(14, FontWeight.Bold), color = RunkkColors.TextPrimary)
-    }
-}
-
-/** 섹션 제목(피그마 15 Bold) + 개수 13 Regular(예 "크루원 7", "가입 신청 2건"). */
-@Composable
-internal fun SectionTitle(title: String, count: String, modifier: Modifier = Modifier, trailing: String? = null) {
-    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-        Row(
-            Modifier.weight(1f).semantics(mergeDescendants = true) { heading() },
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                title,
-                style = RunkkTextStyles.text(15, FontWeight.Bold, lineHeight = 18),
-                color = RunkkColors.TextPrimary
-            )
-            Text(count, style = RunkkTextStyles.text(13, lineHeight = 18), color = RunkkColors.TextPrimary)
-        }
-        trailing?.let { Text(it, style = RunkkTextStyles.text(12), color = RunkkColors.TextPrimary) }
+        Text(label, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary, modifier = Modifier.weight(1f))
+        Text(value, style = RunkkTextStyles.BodyStrong, color = RunkkColors.TextPrimary)
     }
 }
 
@@ -261,27 +175,15 @@ internal val LOGO_EDIT_SCRIM = Color.Black.copy(alpha = 0.5f)
 @Composable
 internal fun orPrivate(value: String?): String = value ?: stringResource(R.string.crew_member_private)
 
-/** ⋯ 단추(피그마 `RunKK / Buttons / 아이콘` Medium44): 44 칸(누름 48), more_horiz 24 본문색. */
+/** ⋯ 단추(피그마 `RunKK / Buttons / 아이콘` Medium44): 바탕·테두리 없는 원 단추(누름 48), more_horiz 24 본문색. */
 @Composable
 internal fun CrewMoreDots(description: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(48.dp)
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(MoreHorizIcon, contentDescription = null, tint = RunkkColors.TextPrimary, modifier = Modifier.size(24.dp))
-    }
-}
-
-/** more_horiz(Material 24): 점 셋. */
-private val MoreHorizIcon: ImageVector by lazy {
-    ImageVector.Builder("MoreHoriz", 24.dp, 24.dp, 24f, 24f).addPath(
-        pathData = PathParser().parsePathString(
-            "M6 10c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm12 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" +
-                "m-6 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
-        ).toNodes(),
-        fill = SolidColor(Color.Black)
-    ).build()
+    RunkkIconButton(
+        icon = RunkkIcons.MoreHoriz,
+        contentDescription = description,
+        onClick = onClick,
+        iconSize = 24.dp,
+        borderColor = Color.Transparent,
+        containerColor = Color.Transparent
+    )
 }

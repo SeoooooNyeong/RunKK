@@ -317,7 +317,7 @@ class CrewScreensTest {
         compose.onNodeWithText("대기실 입장하기").performClick()
         compose.onNodeWithText("같이 달려요").performClick()
         compose.onNodeWithText("크루런 모집하기").performClick()
-        compose.onNodeWithContentDescription("지난 크루런").performClick()
+        compose.onNodeWithText("지난 크루런").performClick()
         // 끝난 크루런(32)은 이 탭에 두지 않는다(지난 크루런 화면 F-11b가 보인다).
         compose.onNodeWithText("10km LSD").assertDoesNotExist()
         assertEquals(listOf("lobby:31", "open:31", "write", "past"), calls)

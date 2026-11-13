@@ -24,13 +24,13 @@ class AvatarAppearanceInputTest {
     }
 
     @Test
-    fun `피부톤 행렬은 0이면 그대로이고 100이면 RGB를 0·70·0·50·0·32배로 줄이며 알파는 그대로다`() {
+    fun `피부톤 행렬은 0이면 그대로이고 100이면 가장 어두운 톤의 60%(RGB 0·82·0·70·0·592배)까지만 줄이며 알파는 그대로다`() {
         val identity = SkinToneFilter.matrix(0)
         assertEquals(listOf(1f, 1f, 1f, 1f), listOf(identity[0], identity[6], identity[12], identity[18]))
         val dark = SkinToneFilter.matrix(100)
-        assertEquals(.7f, dark[0], .0001f)
-        assertEquals(.5f, dark[6], .0001f)
-        assertEquals(.32f, dark[12], .0001f)
+        assertEquals(.82f, dark[0], .0001f)
+        assertEquals(.70f, dark[6], .0001f)
+        assertEquals(.592f, dark[12], .0001f)
         assertEquals(1f, dark[18])
         assertFailsWith<IllegalArgumentException> { SkinToneFilter.matrix(101) }
     }
@@ -39,11 +39,16 @@ class AvatarAppearanceInputTest {
     fun `피부 텍스처 캐시 키는 그 자산을 바꾸는 의상 부위만 담는다`() {
         val outfit = AvatarOutfit(top = 1, bottom = 2, shoes = 3)
         assertEquals(SkinRenderKey(40, 1, 2, 3), SkinRenderKey.of("standing_body", 40, outfit))
-        // 남자 선택 몸 원본의 옷은 Rive 메시(selected_*)가 고르므로 피부톤만 키가 된다.
+        assertEquals(
+            SkinRenderKey(40, 1, 2, 3, shape = 2),
+            SkinRenderKey.of("standing_body", 40, outfit, AvatarBodyShape.CHANGE_2),
+            "체형 전용 파일이 있을 수 있어 체형도 키"
+        )
+        // 남자 내장 기본 옷 몸은 의상 이전 뒤 그리지 않는다(의상 슬롯 아님).
         assertEquals(SkinRenderKey(40), SkinRenderKey.of(MaleSelectedBody.ASSET, 40, outfit))
         assertEquals(SkinRenderKey(40, top = 1), SkinRenderKey.of("continuous_arm", 40, outfit))
         assertEquals(SkinRenderKey(40, top = 1), SkinRenderKey.of("side_body_cream", 40, outfit))
-        assertEquals(SkinRenderKey(40, bottom = 2, shoes = 3), SkinRenderKey.of("side_leg_skin", 40, outfit))
+        assertEquals(SkinRenderKey(40, bottom = 2), SkinRenderKey.of("side_leg_skin", 40, outfit))
         assertEquals(SkinRenderKey(40, shoes = 3), SkinRenderKey.of("side_shoe", 40, outfit))
         assertEquals(SkinRenderKey(40), SkinRenderKey.of("side_head", 40, outfit))
     }

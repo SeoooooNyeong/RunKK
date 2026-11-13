@@ -1,16 +1,28 @@
 package com.a207.runkk.app.ui.me
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,30 +31,43 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.RunkkCheckRow
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
+import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.defaultAvatarOf
+import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 
 /**
- * 동의 화면 하나(가입·게스트 공용, FR-003·FR-004·FR-028·FR-197). [isGuest]면 로그인 화면의 "게스트로 시작"에서 온 것이고,
- * 아니면 소셜 로그인 결과 "가입필요"에서 온 것이다. 가입필요에서도 게스트로 시작할 수 있다(FR-001).
+ * 가입·게스트 공용 화면(FR-003·FR-004·FR-028·FR-197): 동의 → 성별 고르기(S15P31A207-300) 두 단계. [isGuest]면 로그인 화면의
+ * "게스트로 시작"에서 온 것이고, 아니면 소셜 로그인 결과 "가입필요"에서 온 것이다. 가입필요에서도 게스트로 시작할 수 있다(FR-001).
  */
 @Composable
 fun SignUpRoute(isGuest: Boolean, viewModel: SignUpViewModel = hiltViewModel()) {
@@ -66,17 +91,20 @@ fun SignUpRoute(isGuest: Boolean, viewModel: SignUpViewModel = hiltViewModel()) 
             }
         }
     }
-    BackHandler(enabled = !state.isGuestNoticeVisible, onBack = viewModel::onExit)
+    BackHandler(enabled = !state.isGuestNoticeVisible, onBack = viewModel::onBack)
     SignUpScreen(state = state, isGuest = isGuest, actions = viewModel.asActions())
 }
 
 private fun SignUpViewModel.asActions() = SignUpActions(
-    onBack = ::onExit,
+    onBack = ::onBack,
+    onExit = ::onExit,
     onAllAgreedChange = ::onAllAgreedChange,
     onConsentChange = ::onConsentChange,
     onViewLegal = ::onViewLegal,
     onLegalDismissed = ::onLegalDismissed,
-    onSubmit = ::onSubmit,
+    onConsentNext = ::onConsentNext,
+    onGenderSelect = ::onGenderSelect,
+    onStart = ::onStart,
     onGuestNoticeConfirmed = ::onGuestNoticeConfirmed,
     onGuestNoticeLink = ::onGuestNoticeLinkTapped,
     onErrorShown = ::onErrorShown
@@ -94,22 +122,27 @@ fun SignUpScreen(state: SignUpUiState, isGuest: Boolean, actions: SignUpActions,
     }
     Box(modifier = modifier.fillMaxSize().background(RunkkColors.Background)) {
         Column(modifier = Modifier.fillMaxSize()) {
+            val isGenderStep = state.step == SignUpStep.GENDER
             RunkkTopBar(
                 title = stringResource(R.string.me_signup_title),
-                onBack = actions.onBack,
-                isTitleCentered = true
+                // 계정을 만든 뒤(성별 저장만 남음)에는 동의로 돌아가지 않는다
+                onBack = actions.onBack.takeIf { !isGenderStep || state.canGoBackToConsent },
+                isTitleCentered = true,
+                actions = { if (isGenderStep) StepCounter(current = GENDER_STEP, total = GENDER_STEP) }
             )
+            // 단계마다 스크롤을 따로 둔다(동의를 내려 본 채로 성별 단계가 중간부터 보이지 않게)
+            val scroll = remember(state.step) { ScrollState(initial = 0) }
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scroll)
                     .padding(horizontal = 16.dp, vertical = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 state.submitError?.let { SubmitError(state, it.asString(), actions) }
-                ConsentBody(state, actions)
+                if (isGenderStep) GenderBody(state, actions) else ConsentBody(state, actions)
             }
-            BottomActions(state, isGuest, actions)
+            if (isGenderStep) GenderBottomAction(state, isGuest, actions) else BottomActions(state, actions)
         }
         RunkkSnackbarHost(snackbar, modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 112.dp))
     }
@@ -131,7 +164,7 @@ private fun SubmitError(state: SignUpUiState, message: String, actions: SignUpAc
     } else {
         RunkkErrorState(
             message,
-            onRetry = actions.onBack,
+            onRetry = actions.onExit,
             retryLabel = stringResource(R.string.me_signup_back_to_login)
         )
     }
@@ -188,16 +221,180 @@ private fun ConsentRow(line: ConsentLine, state: SignUpUiState, actions: SignUpA
 /** 필수와 선택 사이 구분선의 시험 표지. */
 internal const val CONSENT_DIVIDER_TAG = "signup-consent-divider"
 
-/** 아래 버튼 하나: "시작하기". 소셜 로그인에서 왔으면 가입, 게스트로 시작에서 왔으면 게스트로 시작한다. */
+/** 동의 단계 아래 버튼 하나: "시작하기". 필수 동의를 마치면 성별 단계로 간다(아직 보내지 않는다, S15P31A207-300). */
 @Composable
-private fun BottomActions(state: SignUpUiState, isGuest: Boolean, actions: SignUpActions) {
+private fun BottomActions(state: SignUpUiState, actions: SignUpActions) {
     RunkkPrimaryButton(
         text = stringResource(R.string.me_signup_submit),
-        onClick = { actions.onSubmit(isGuest) },
-        isEnabled = state.canSubmit || state.isSubmitting,
-        isLoading = state.isSubmitting,
-        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
+        onClick = actions.onConsentNext,
+        isEnabled = state.canSubmit,
+        modifier = Modifier.fillMaxWidth().padding(BOTTOM_BUTTON_PADDING)
     )
+}
+
+/** 위 바 오른쪽의 단계 표시("2 / 2", 12 보조색). 보조 기술은 "2단계 중 2단계"로 읽는다. */
+@Composable
+private fun StepCounter(current: Int, total: Int) {
+    val spoken = stringResource(R.string.me_signup_step_description, current, total)
+    Text(
+        text = stringResource(R.string.me_signup_step, current, total),
+        style = RunkkTextStyles.Caption,
+        color = RunkkColors.TextSecondary,
+        modifier = Modifier.padding(end = 16.dp).semantics { contentDescription = spoken }
+    )
+}
+
+/**
+ * 성별 고르기 단계(S15P31A207-300, 피그마 "가입 · 성별 고르기 단계 · 제안"): 제목, 설명, 남자·여자 카드 둘(나란히, 처음에는 고르지 않음).
+ * 카드에는 그 성별의 기본 전신 아바타를 세운다.
+ */
+@Composable
+private fun GenderBody(state: SignUpUiState, actions: SignUpActions) {
+    Column(modifier = Modifier.padding(horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = stringResource(R.string.me_signup_gender_headline),
+            style = RunkkTextStyles.Headline,
+            color = RunkkColors.TextPrimary,
+            modifier = Modifier.semantics { heading() }
+        )
+        Text(
+            text = stringResource(R.string.me_signup_gender_body),
+            style = RunkkTextStyles.Body,
+            color = RunkkColors.TextSecondary
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp).selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        GENDER_CHOICES.forEach { gender ->
+            GenderCard(
+                gender = gender,
+                isSelected = state.gender == gender,
+                isEnabled = !state.isSubmitting,
+                onSelect = { actions.onGenderSelect(gender) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+/**
+ * 성별 카드 하나(피그마 152×300, 모서리 20, 흰 바탕·1 테두리). 고르면 2 보라 테두리, 보라 옅은 바탕, 오른쪽 위 체크, 보라 글자다.
+ * 그림은 전신 정지 그림 칸(꾸미기가 열려 있으면 그 성별의 기본 모습)이고, 칸이 없으면 성별 기본 서기 그림이다.
+ */
+@Composable
+private fun GenderCard(
+    gender: Gender,
+    isSelected: Boolean,
+    isEnabled: Boolean,
+    onSelect: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(GENDER_CARD_RADIUS)
+    Box(
+        modifier = modifier
+            .height(GENDER_CARD_HEIGHT)
+            .clip(shape)
+            .background(if (isSelected) RunkkColors.SecondaryContainer else RunkkColors.Surface)
+            .border(
+                width = if (isSelected) 2.dp else 1.dp,
+                color = if (isSelected) RunkkColors.Violet else RunkkColors.Border,
+                shape = shape
+            )
+            .selectable(selected = isSelected, enabled = isEnabled, role = Role.RadioButton, onClick = onSelect)
+            .testTag(GENDER_CARD_TAG + gender.name)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(top = 28.dp, bottom = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            val figure = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)
+            AvatarStillSlot(AvatarStillSubject(isMine = false, isFemale = gender == Gender.FEMALE), figure) {
+                Image(
+                    painterResource(defaultAvatarOf(AvatarExpression.STAND, AvatarCharacter.of(gender))),
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    alignment = Alignment.BottomCenter,
+                    modifier = figure
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = stringResource(
+                    if (gender == Gender.FEMALE) R.string.me_signup_gender_female else R.string.me_signup_gender_male
+                ),
+                style = RunkkTextStyles.CardTitle,
+                // 라이트는 보라(color/secondary), 다크는 옅은 보라 바탕 위에서 읽히는 연보라다
+                color = if (isSelected) RunkkColors.Lavender else RunkkColors.TextPrimary
+            )
+        }
+        if (isSelected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .size(CHECK_BADGE_SIZE)
+                    .clip(CircleShape)
+                    .background(RunkkColors.Violet)
+                    .testTag(GENDER_CHECK_TAG),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    RunkkIcons.Check,
+                    contentDescription = null,
+                    tint = RunkkColors.OnSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+/** 성별 단계 아래 버튼: "시작하기". 고르기 전에는 꺼져 있고, 누르면 가입(게스트 시작) 뒤 성별을 저장하고 홈으로 간다. */
+@Composable
+private fun GenderBottomAction(state: SignUpUiState, isGuest: Boolean, actions: SignUpActions) {
+    RunkkPrimaryButton(
+        text = stringResource(R.string.me_signup_submit),
+        onClick = { actions.onStart(isGuest) },
+        isEnabled = state.canStart || state.isSubmitting,
+        isLoading = state.isSubmitting,
+        modifier = Modifier.fillMaxWidth().padding(BOTTOM_BUTTON_PADDING)
+    )
+}
+
+/** 성별 카드의 시험 표지(뒤에 Gender 이름). */
+internal const val GENDER_CARD_TAG = "signup-gender-card-"
+
+/** 고른 성별 카드의 체크 표지. */
+internal const val GENDER_CHECK_TAG = "signup-gender-check"
+
+/** 성별 단계에서 고를 수 있는 성별(왼쪽부터). */
+private val GENDER_CHOICES = listOf(Gender.MALE, Gender.FEMALE)
+
+/** 성별 단계는 두 단계 중 둘째다. */
+private const val GENDER_STEP = 2
+
+private val GENDER_CARD_HEIGHT: Dp = 300.dp
+private val GENDER_CARD_RADIUS: Dp = 20.dp
+private val CHECK_BADGE_SIZE: Dp = 24.dp
+private val BOTTOM_BUTTON_PADDING = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 32.dp)
+
+@Preview(name = "A2 가입 성별 고르기", widthDp = 360, heightDp = 800)
+@Composable
+private fun SignUpGenderPreview() {
+    RunkkTheme(reduceMotion = true) {
+        SignUpScreen(
+            state = SignUpUiState(
+                step = SignUpStep.GENDER,
+                consents = SignUpConsents.items.associate { it.item to it.isRequired },
+                gender = Gender.MALE
+            ),
+            isGuest = false,
+            actions = SignUpActions()
+        )
+    }
 }
 
 @Preview(name = "A2 가입 동의", widthDp = 390, heightDp = 844)

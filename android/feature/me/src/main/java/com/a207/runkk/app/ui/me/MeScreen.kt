@@ -3,33 +3,23 @@ package com.a207.runkk.app.ui.me
 import android.content.res.Resources
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -45,8 +35,9 @@ import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBadge
-import com.a207.runkk.app.core.designsystem.RunkkBadgeTone
+import com.a207.runkk.app.core.designsystem.RunkkChevronLink
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
@@ -54,8 +45,13 @@ import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkMenuRow
+import com.a207.runkk.app.core.designsystem.RunkkStatTile
+import com.a207.runkk.app.core.designsystem.RunkkStatTileDefaults
+import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.StatTileLabelPosition
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.core.designsystem.TierBadge
 import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
@@ -105,6 +101,7 @@ fun MeScreen(state: MeUiState, onNavigate: (String) -> Unit, onRetry: () -> Unit
                     state.profile,
                     state.tierDisplay,
                     state.faceLayers,
+                    isFaceLoading = state.isFaceLoading,
                     onEdit = { onNavigate(Routes.PROFILE_EDIT) },
                     onRunimal = { onNavigate(Routes.RUNIMAL) }
                 )
@@ -152,24 +149,24 @@ private fun ProfileHeader(
     profile: Profile,
     tierDisplay: TierDisplay?,
     faceLayers: List<FaceLayer>,
+    isFaceLoading: Boolean,
     onEdit: () -> Unit,
     onRunimal: () -> Unit
 ) {
     val level = stringResource(R.string.me_profile_level, profile.level ?: RunkkFormat.EMPTY)
     Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(RunkkColors.SurfacePressed)
-                .border(1.dp, RunkkColors.Border, CircleShape),
-            contentAlignment = Alignment.Center
+        RunkkAvatarCircle(
+            72.dp,
+            modifier = Modifier.testTag(PROFILE_FACE_TAG),
+            background = RunkkColors.SurfacePressed,
+            borderColor = RunkkColors.Border
         ) {
             RunkkAvatar(
                 profile.faceKey,
                 AvatarExpression.FACE,
-                modifier = Modifier.size(64.dp).testTag(PROFILE_FACE_TAG),
-                faceLayers = faceLayers
+                modifier = Modifier.fillMaxSize(),
+                faceLayers = faceLayers,
+                isFaceLoading = isFaceLoading
             )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -196,13 +193,12 @@ private fun ProfileHeader(
             RunimalLink(profile.runimalType, onRunimal)
         }
         val editDescription = stringResource(R.string.me_main_edit_description)
-        TextButton(onClick = onEdit, modifier = Modifier.semantics { contentDescription = editDescription }) {
-            Text(
-                stringResource(R.string.me_main_edit),
-                style = RunkkTextStyles.BodyStrong,
-                color = RunkkColors.TextPrimary
-            )
-        }
+        RunkkTextLink(
+            stringResource(R.string.me_main_edit),
+            onClick = onEdit,
+            contentDescription = editDescription,
+            style = RunkkTextStyles.BodyStrong
+        )
     }
 }
 
@@ -214,28 +210,7 @@ private fun RunimalLink(type: String?, onClick: () -> Unit) {
     } else {
         stringResource(RunimalArt.of(type).nameRes)
     }
-    // 글자 줄 높이(약 30dp)만으로는 누르기 어려워 최소 터치 크기(48dp)를 둔다(AN8-17).
-    Row(
-        modifier = Modifier
-            .minimumInteractiveComponentSize()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(
-                role = Role.Button,
-                onClickLabel = stringResource(R.string.me_profile_runimal),
-                onClick = onClick
-            )
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(name, style = RunkkTextStyles.text(15, FontWeight.Bold), color = RunkkColors.TextPrimary)
-        Icon(
-            RunkkIcons.ChevronRight,
-            contentDescription = null,
-            tint = RunkkColors.TextPrimary,
-            modifier = Modifier.size(16.dp)
-        )
-    }
+    RunkkChevronLink(name, onClick = onClick, onClickLabel = stringResource(R.string.me_profile_runimal))
 }
 
 /** 누적 거리·최장 거리·러닝 횟수 칸 세 개. 모르는 값은 "-". */
@@ -258,20 +233,19 @@ private fun kmValue(distance: Distance?): String =
 
 @Composable
 private fun StatTile(value: String, label: String, modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(24.dp)
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(vertical = 14.dp, horizontal = 4.dp)
-            .semantics(mergeDescendants = true) {},
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(value, style = RunkkTextStyles.text(17, FontWeight.Black), color = RunkkColors.TextPrimary, maxLines = 1)
-        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-    }
+    RunkkStatTile(
+        label = label,
+        value = StatTileValue(value),
+        modifier = modifier,
+        style = RunkkStatTileDefaults.Outlined.copy(
+            valueStyle = RunkkTextStyles.text(17, FontWeight.Black),
+            isCentered = true,
+            contentPadding = PaddingValues(vertical = 14.dp, horizontal = 4.dp),
+            labelPosition = StatTileLabelPosition.Bottom,
+            labelColor = RunkkColors.TextSecondary,
+            spacing = 4.dp
+        )
+    )
 }
 
 /** 메뉴 줄(구분선). 1차 배포에서는 런바디를 숨긴다(UnreleasedFeature.RUNBODY). */
@@ -280,8 +254,7 @@ private fun MenuList(onNavigate: (String) -> Unit) {
     val isRunBodyOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.RUNBODY)
     Column {
         MENU.filter { (_, route) -> isRunBodyOpen || route != Routes.REPORT }.forEach { (label, route) ->
-            RunkkMenuRow(stringResource(label), onClick = { onNavigate(route) })
-            HorizontalDivider(color = RunkkColors.Border)
+            RunkkMenuRow(stringResource(label), onClick = { onNavigate(route) }, hasDivider = true)
         }
     }
 }

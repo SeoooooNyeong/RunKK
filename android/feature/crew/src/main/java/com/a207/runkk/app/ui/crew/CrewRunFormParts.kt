@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
@@ -223,7 +221,7 @@ internal fun CrewWheel(
                     Text(
                         item,
                         style = if (isCenter) {
-                            RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 22)
+                            RunkkTextStyles.SheetTitle
                         } else {
                             RunkkTextStyles.text(16, lineHeight = 19)
                         },
@@ -238,44 +236,6 @@ internal fun CrewWheel(
                         )
                     )
                 }
-            }
-        }
-    }
-}
-
-/**
- * 라디오 줄(피그마 F-12f 반복 선택): 높이 52, 글자 16 Regular, 오른쪽 22 원(안 고름: 테두리 1.5 radioStroke, 고름: 보라 테두리 + 가운데
- * 점). 아래 구분선은 부르는 쪽이 둔다.
- */
-@Composable
-internal fun CrewRadioRow(label: String, isSelected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 52.dp)
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .semantics(mergeDescendants = true) { selected = isSelected },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            label,
-            style = RunkkTextStyles.text(16, lineHeight = 19),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f)
-        )
-        Box(
-            modifier = Modifier
-                .size(22.dp)
-                .clip(CircleShape)
-                .border(
-                    if (isSelected) 2.dp else 1.5.dp,
-                    if (isSelected) RunkkColors.RadioSelectedOuter else RunkkColors.RadioStroke,
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isSelected) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(RunkkColors.RadioDot))
             }
         }
     }

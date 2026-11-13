@@ -1,0 +1,219 @@
+{
+  "version": 2,
+  "outfits": [
+    {
+      "assetKey": "base_top",
+      "part": "TOP",
+      "maleTopSurface": 1,
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_arm": "female_run_arm",
+        "male_run_body": "female_run_body",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "top_lime_singlet",
+      "part": "TOP",
+      "maleTopSurface": 1,
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_arm": "female_run_arm",
+        "male_run_body": "female_run_body",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "top_crew_tee",
+      "part": "TOP",
+      "maleTopSurface": 1,
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_arm": "female_run_arm",
+        "male_run_body": "female_run_body",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "top_finisher_tee",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_arm": "female_run_arm",
+        "male_run_body": "female_run_body",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "top_winter_hoodie",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_arm": "female_run_arm",
+        "male_run_body": "female_run_body",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "top_dawn_windbreaker",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_arm": "female_run_arm",
+        "male_run_body": "female_run_body",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "top_cherry_vest",
+      "part": "TOP",
+      "maleTopSurface": 2,
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_arm": "female_run_arm",
+        "male_run_body": "female_run_body",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "base_bottom",
+      "part": "BOTTOM",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_leg": "female_run_leg",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "bottom_running_shorts",
+      "part": "BOTTOM",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_leg": "female_run_leg",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "bottom_leggings",
+      "part": "BOTTOM",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_leg": "female_run_leg",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "bottom_jogger_pants",
+      "part": "BOTTOM",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_leg": "female_run_leg",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "bottom_wide_pants",
+      "part": "BOTTOM",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_leg": "female_run_leg",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "bottom_cargo_shorts",
+      "part": "BOTTOM",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_leg": "female_run_leg",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "bottom_line_shorts",
+      "part": "BOTTOM",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_leg": "female_run_leg",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "base_shoes",
+      "part": "SHOES",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_shoe": "female_run_shoe",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "shoes_basic_runner",
+      "part": "SHOES",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_shoe": "female_run_shoe",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "shoes_high_top",
+      "part": "SHOES",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_shoe": "female_run_shoe",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "shoes_carbon_racer",
+      "part": "SHOES",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_shoe": "female_run_shoe",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "shoes_slip_on",
+      "part": "SHOES",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_shoe": "female_run_shoe",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "shoes_ankle_boots",
+      "part": "SHOES",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_shoe": "female_run_shoe",
+        "male_stand": "female_stand"
+      }
+    },
+    {
+      "assetKey": "shoes_lime_runner",
+      "part": "SHOES",
+      "bodyOverrides": [],
+      "shared": {
+        "male_run_shoe": "female_run_shoe",
+        "male_stand": "female_stand"
+      }
+    }
+  ],
+  "body": {
+    "shared": {
+      "male_stand": "female_stand",
+      "male_run_body": "female_run_body",
+      "male_run_arm": "female_run_arm",
+      "male_run_leg": "female_run_leg",
+      "male_stand_cut": "female_stand_cut",
+      "male_run_body_cut": "female_run_body_cut",
+      "male_run_arm_cut": "female_run_arm_cut"
+    }
+  }
+}

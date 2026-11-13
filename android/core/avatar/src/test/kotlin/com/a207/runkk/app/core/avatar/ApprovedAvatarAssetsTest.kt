@@ -21,7 +21,7 @@ class ApprovedAvatarAssetsTest {
             assertTrue(file.isFile, "$name 이 없다")
             assertEquals(sha, sha256(file), name)
         }
-        val extra = File(main, "res/raw").list().orEmpty().toSet() - APPROVED.keys
+        val extra = File(main, "res/raw").list().orEmpty().toSet() - APPROVED.keys - RIV_PATCHES
         assertEquals(emptySet(), extra, "4개 매핑 밖 Rive·이미지(avatar.riv, avatar_idle_approved.riv 등)를 넣지 않는다")
     }
 
@@ -53,5 +53,8 @@ class ApprovedAvatarAssetsTest {
             "avatar_male_run.riv" to "51ab4626bdfced4053e825b0531652861bd4bd8383e7b53679c40d4088b83835",
             "avatar_legacy_standing_body.png" to "25c669b6a14f984453bb2eead8656363e05ff1e1e8c79292fb4e58eccbfd67b7"
         )
+
+        /** 서기 riv 바이트 패치(RivBytePatch). 승인 riv에 덮이는지는 RivBytePatchTest가 본다. */
+        val RIV_PATCHES = AvatarGender.entries.map { RivBytePatch.resourceName(it) + ".bin" }.toSet()
     }
 }

@@ -13,31 +13,38 @@ internal object RivReviewBackground {
     private const val COLOR_VALUE_KEY: Byte = 0x25
     private const val ALPHA_OFFSET = 3 + 3
     private const val SEARCH_WINDOW = 128
+
+    // 찾는 이름(「Background」 10자, 「Ground shadow」 13자)보다 짧은 후보는 보지 않는다.
+    private const val MIN_NAME = 10
     private const val MAX_NAME = 0x7f
     private const val NAME_SUFFIX = "background"
 
     /** [riv]의 사본. 이름이 background로 끝나는 도형마다 그 뒤 첫 SolidColor를 투명하게 한다. 없으면 같은 내용의 사본이다. */
-    fun hidden(riv: ByteArray): ByteArray {
-        val out = riv.copyOf()
+    fun hidden(riv: ByteArray): ByteArray = riv.copyOf().also(::hideInPlace)
+
+    /** [hidden]과 같은 일을 [riv] 배열에 바로 한다(방금 읽은 바이트라 사본이 필요 없을 때). */
+    fun hideInPlace(riv: ByteArray) = hideShapesInPlace(riv) { it.lowercase().endsWith(NAME_SUFFIX) }
+
+    /** 이름(컴포넌트 이름, 키 4)이 [matches]인 도형마다 그 뒤 첫 SolidColor 칠의 알파 바이트를 0으로 바꾼다. */
+    internal fun hideShapesInPlace(riv: ByteArray, matches: (String) -> Boolean) {
         var i = 0
-        while (i < out.size - 2) {
-            val length = out[i + 1].toInt()
-            if (out[i] == NAME_KEY && length in NAME_SUFFIX.length..MAX_NAME && i + 2 + length <= out.size &&
-                isBackgroundName(out, i + 2, length)
+        while (i < riv.size - 2) {
+            val length = riv[i + 1].toInt()
+            if (riv[i] == NAME_KEY && length in MIN_NAME..MAX_NAME && i + 2 + length <= riv.size &&
+                isShapeName(riv, i + 2, length, matches)
             ) {
                 val nameEnd = i + 2 + length
-                solidColorAfter(out, nameEnd)?.let { out[it + ALPHA_OFFSET] = 0 }
+                solidColorAfter(riv, nameEnd)?.let { riv[it + ALPHA_OFFSET] = 0 }
                 i = nameEnd
             } else {
                 i++
             }
         }
-        return out
     }
 
-    private fun isBackgroundName(bytes: ByteArray, start: Int, length: Int): Boolean {
+    private fun isShapeName(bytes: ByteArray, start: Int, length: Int, matches: (String) -> Boolean): Boolean {
         val name = String(bytes, start, length, Charsets.US_ASCII)
-        return name.all { it.code in PRINTABLE } && name.lowercase().endsWith(NAME_SUFFIX)
+        return name.all { it.code in PRINTABLE } && matches(name)
     }
 
     /** [from] 뒤 [SEARCH_WINDOW] 바이트 안의 첫 SolidColor 객체 시작(앞 객체 끝 0 + 형식 18 + 색 키 37). 없으면 null. */

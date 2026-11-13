@@ -54,8 +54,11 @@ internal class RunAvatarAssetLoader : FileAssetLoader() {
         originalFullness = null
     }
 
-    private companion object {
+    companion object {
+        /** 옆볼 덮개 자리 이름. */
         const val FULLNESS = "fullness_overlay_side"
+
+        /** 달리기 피부·의상 자리 이름(미리 준비가 riv 내장 이미지에서 같은 이름을 고른다). */
         val SLOTS = setOf(
             "side_head",
             "side_body_coral",

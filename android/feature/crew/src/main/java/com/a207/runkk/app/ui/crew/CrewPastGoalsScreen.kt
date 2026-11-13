@@ -1,13 +1,11 @@
 package com.a207.runkk.app.ui.crew
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,21 +22,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -97,9 +95,7 @@ fun CrewPastGoalsScreen(
             when {
                 error != null -> RunkkErrorState(error.asString(), onRetry = onRetry)
 
-                state.isLoading && state.goals.isEmpty() -> Box(Modifier.fillMaxWidth().height(160.dp)) {
-                    RunkkLoading()
-                }
+                state.isLoading && state.goals.isEmpty() -> RunkkLoading(height = 160.dp)
 
                 state.isLoaded && state.goals.isEmpty() -> RunkkEmptyState(
                     stringResource(R.string.crew_past_goals_empty)
@@ -114,7 +110,7 @@ fun CrewPastGoalsScreen(
                     items(state.goals, key = { it.weekStart.toString() }) { PastGoalCard(it) }
                     if (state.isLoadingMore) {
                         item(key = "more") {
-                            Box(Modifier.fillMaxWidth().height(64.dp)) { RunkkLoading() }
+                            RunkkLoading(height = 64.dp)
                         }
                     }
                 }
@@ -125,91 +121,92 @@ fun CrewPastGoalsScreen(
 }
 
 /**
- * 지난 목표 카드(피그마 F-21): 바탕 없음, divider 테두리, 모서리 28, 안쪽 14, 간격 8. "10월 3주차" + "달성/달성 실패", "72.0 / 80 km" +
- * "90%", 막대(트랙 8 surfaceHigh, 채움 barCrew, 100% 넘으면 가득), "참여 6명". 보조 기술에는 한 문장으로 읽힌다.
+ * 지난 목표 카드(피그마 F-21): "10월 3주차" + "달성/달성 실패", "72.0 / 80 km" + "90%", 막대(100% 넘으면 가득), "참여 6명".
+ * 보조 기술에는 한 문장으로 읽힌다.
  */
 @Composable
 private fun PastGoalCard(goal: PastGoals.Goal) {
-    val shape = RoundedCornerShape(28.dp)
     val result =
         stringResource(if (goal.isAchieved) R.string.crew_past_goals_achieved else R.string.crew_past_goals_failed)
     val total = RunkkFormat.kmShort(goal.total)
     val target = targetKm(goal.goal)
-    val spoken = stringResource(
-        R.string.crew_past_goals_spoken,
-        goal.month,
-        goal.weekOfMonth,
-        result,
-        target,
-        total,
-        goal.progressPercent,
-        goal.participantCount
+    PastGoalWeekCard(
+        week = stringResource(R.string.crew_past_goals_week, goal.month, goal.weekOfMonth),
+        status = result,
+        total = total,
+        goalLabel = stringResource(R.string.crew_past_goals_goal, target),
+        percent = stringResource(R.string.crew_past_goals_percent, goal.progressPercent),
+        progress = goal.progressPercent.coerceIn(0, FULL_PERCENT) / FULL_PERCENT.toFloat(),
+        participants = stringResource(R.string.crew_past_goals_participants, goal.participantCount),
+        spoken = stringResource(
+            R.string.crew_past_goals_spoken,
+            goal.month,
+            goal.weekOfMonth,
+            result,
+            target,
+            total,
+            goal.progressPercent,
+            goal.participantCount
+        )
     )
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .border(1.dp, RunkkColors.Border, shape)
-            .clearAndSetSemantics { contentDescription = spoken }
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+}
+
+/**
+ * 지난 목표 한 주 카드(피그마 F-07·F-21 공용): 투명 바탕 + 테두리 1, 모서리 28, 안쪽 14, 간격 8. 주 이름 13/16과 오른쪽 결과 12/18 Bold,
+ * 합산 22/26 Bold + 「/ 80 km」 13/16 + 진행률 15 Bold, 8 두께 막대(barCrew, [progress]가 null이면 없음), 참여 인원 12/18.
+ * 보조 기술에는 [spoken] 한 문장으로 읽힌다.
+ */
+@Composable
+internal fun PastGoalWeekCard(
+    week: String,
+    status: String,
+    total: String,
+    goalLabel: String,
+    percent: String?,
+    progress: Float?,
+    participants: String,
+    spoken: String
+) {
+    RunkkCard(
+        Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spoken },
+        shape = RunkkShapes.Dialog,
+        contentPadding = PaddingValues(14.dp),
+        borderColor = RunkkColors.Border,
+        background = Color.Transparent
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                stringResource(R.string.crew_past_goals_week, goal.month, goal.weekOfMonth),
-                style = RunkkTextStyles.text(13),
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Text(result, style = RunkkTextStyles.text(12, FontWeight.Bold), color = RunkkColors.TextPrimary)
-        }
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                buildAnnotatedString {
-                    withStyle(RunkkTextStyles.text(22, FontWeight.Bold, lineHeight = 26).toSpanStyle()) {
-                        append(total)
-                    }
-                    append(" ")
-                    withStyle(RunkkTextStyles.text(13).toSpanStyle()) {
-                        append(stringResource(R.string.crew_past_goals_goal, target))
-                    }
-                },
+                week,
+                style = RunkkTextStyles.text(13, lineHeight = 16),
                 color = RunkkColors.TextPrimary,
                 modifier = Modifier.weight(1f)
             )
             Text(
-                stringResource(R.string.crew_past_goals_percent, goal.progressPercent),
-                style = RunkkTextStyles.text(15, FontWeight.Bold),
+                status,
+                style = RunkkTextStyles.text(12, FontWeight.Bold, lineHeight = 18),
                 color = RunkkColors.TextPrimary
             )
         }
-        GoalBar(goal.progressPercent)
-        Text(
-            stringResource(R.string.crew_past_goals_participants, goal.participantCount),
-            style = RunkkTextStyles.text(12),
-            color = RunkkColors.TextPrimary
-        )
-    }
-}
-
-/** 진행 막대(피그마 `RunKK / Race / 막대 채움` Style=Crew): 트랙 8 surfaceHigh 모서리 4, 채움 barCrew. 100 넘으면 가득. */
-@Composable
-private fun GoalBar(percent: Int) {
-    val fraction = percent.coerceIn(0, FULL_PERCENT) / FULL_PERCENT.toFloat()
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(8.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(RunkkColors.SurfaceHigh)
-    ) {
-        Box(
-            Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(fraction)
-                .clip(RoundedCornerShape(4.dp))
-                .background(RunkkColors.BarCrew)
-        )
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                total,
+                style = RunkkTextStyles.text(22, FontWeight.Bold, lineHeight = 26),
+                color = RunkkColors.TextPrimary
+            )
+            Text(
+                goalLabel,
+                style = RunkkTextStyles.text(13, lineHeight = 16),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.weight(1f).padding(bottom = 3.dp)
+            )
+            percent?.let {
+                Text(it, style = RunkkTextStyles.text(15, FontWeight.Bold), color = RunkkColors.TextPrimary)
+            }
+        }
+        progress?.let {
+            RunkkProgressBar(it, height = 8.dp, color = RunkkColors.BarCrew, trackColor = RunkkColors.SurfaceHigh)
+        }
+        Text(participants, style = RunkkTextStyles.Caption, color = RunkkColors.TextPrimary)
     }
 }
 

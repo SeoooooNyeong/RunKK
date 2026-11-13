@@ -48,7 +48,8 @@ class PlacementContractTest {
                         + "|battleId,sourceLabel|placementRound,opponentMemberId",
                 "web.record.RecordDtos$Entry"
                         + "|rank,subjectId,name,tier,distanceMeters,shownGender|publicTier",
-                "web.record.RecordDtos$DashboardResponse|baseDate,streakWeeks|latestRun",
+                "web.record.RecordDtos$DashboardResponse"
+                        + "|baseDate,streakWeeks,latestRun|weekRuns,weekMeters",
             })
     void changedResponses_keepOldFieldsAndAppendNewOnes(String type, String kept, String added)
             throws Exception {
