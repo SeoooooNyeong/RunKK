@@ -4,38 +4,42 @@ import android.content.res.Resources
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.MetaRow
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkStatTile
+import com.a207.runkk.app.core.designsystem.RunkkStatTileDefaults
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.StatTileValue
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.JoinPolicy
@@ -141,38 +145,17 @@ internal fun CrewDetailContent(
     }
 }
 
-/** 통계 칸(피그마 F-02 2칸 그리드): surface + divider, 모서리 24, 안쪽 14, 간격 6. 이름 12/18, 값 20/24 Bold. 값을 모르면 빈 값. */
+/** 통계 칸(피그마 F-02 2칸 그리드): 테두리 통계 칸(이름 12/18, 값 20/24 Bold). 값을 모르면 빈 값. */
 @Composable
 private fun DetailStatTile(label: String, value: String?, modifier: Modifier = Modifier) {
-    val shape = RunkkShapes.ExtraLarge
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(14.dp)
-            .semantics(mergeDescendants = true) {},
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Text(label, style = RunkkTextStyles.text(12, lineHeight = 18), color = RunkkColors.TextPrimary)
-        Text(
-            value ?: RunkkFormat.EMPTY,
-            style = RunkkTextStyles.text(20, FontWeight.Bold, lineHeight = 24),
-            color = RunkkColors.TextPrimary
-        )
-    }
+    RunkkStatTile(label, StatTileValue(value ?: RunkkFormat.EMPTY), modifier, style = RunkkStatTileDefaults.Outlined)
 }
 
 /** 최근 크루런(피그마 F-02): 제목 14 Bold + 줄마다 날짜(12/18)와 인원·총 거리 메타 줄. 없으면 안내 한 줄. */
 @Composable
 private fun RecentCrewRuns(runs: List<RecentCrewRun>) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(R.string.crew_detail_recent_title),
-            style = RunkkTextStyles.text(14, FontWeight.Bold, lineHeight = 22),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.semantics { heading() }
-        )
+        RunkkSectionHeader(stringResource(R.string.crew_detail_recent_title), size = RunkkSectionHeaderSize.Compact)
         if (runs.isEmpty()) {
             Text(
                 stringResource(R.string.crew_detail_recent_empty),
@@ -181,20 +164,16 @@ private fun RecentCrewRuns(runs: List<RecentCrewRun>) {
             )
         }
         runs.forEach { run ->
-            val shape = RunkkShapes.ExtraLarge
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .background(RunkkColors.Surface)
-                    .border(1.dp, RunkkColors.Border, shape)
-                    .padding(14.dp)
-                    .semantics(mergeDescendants = true) {},
+            RunkkCard(
+                Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+                shape = RunkkShapes.ExtraLarge,
+                contentPadding = PaddingValues(14.dp),
+                borderColor = RunkkColors.Border,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     recentRunLabel(LocalContext.current.resources, run.scheduledAt),
-                    style = RunkkTextStyles.text(12, lineHeight = 18),
+                    style = RunkkTextStyles.Caption,
                     color = RunkkColors.TextPrimary
                 )
                 // 가운뎃점 대신 아이콘 메타 줄(결정 P3): "[n]명 참여", "총 [n]km"
@@ -282,7 +261,7 @@ private fun PendingNotice(pending: MyCrew.PendingJoin, isBusy: Boolean, onCancel
         ) {
             Text(
                 stringResource(R.string.crew_detail_pending_title),
-                style = RunkkTextStyles.text(14, FontWeight.Bold),
+                style = RunkkTextStyles.BodyStrong,
                 color = RunkkColors.TextPrimary
             )
             Text(

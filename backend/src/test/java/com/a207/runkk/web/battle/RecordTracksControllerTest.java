@@ -192,7 +192,7 @@ class RecordTracksControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("CELEBRITY: 등록된 기록 전부, 거리 → 완주 시간순, 구간 없으면 균등 페이스 estimated")
+    @DisplayName("CELEBRITY: 코치 기록만(다른 셀럽은 숨김, [임시:D-성-219]), 거리 → 완주 시간순, 구간 없으면 균등 페이스 estimated")
     void celebrity_allSortedAndEstimated() throws Exception {
         Distance fiveK = Distance.ofMeters(5_000);
         List<Long> ids = new ArrayList<>();
@@ -207,7 +207,7 @@ class RecordTracksControllerTest extends WebTestSupport {
                                     "대회 공식 기록",
                                     null,
                                     null,
-                                    "legend"));
+                                    "joo"));
             ids.add(uniform);
             long split =
                     register(
@@ -221,19 +221,35 @@ class RecordTracksControllerTest extends WebTestSupport {
                                                     Distance.ofMeters(2_500)),
                                             new TrackSample(Duration.ofSeconds(960), fiveK)),
                                     "대회 공식 기록",
-                                    null));
+                                    null,
+                                    null,
+                                    "KIM"));
             ids.add(split);
+            long hidden =
+                    register(
+                            new CelebrityInput(
+                                    "숨은전설",
+                                    fiveK,
+                                    Duration.ofSeconds(800),
+                                    List.of(),
+                                    "대회 공식 기록",
+                                    null,
+                                    null,
+                                    "lee"));
+            ids.add(hidden);
 
             Session s = signUp();
             JsonNode tracks = tracks(s, "CELEBRITY");
 
             assertSorted(tracks);
+            assertThat(tracks.findValues("celebrityId").stream().map(JsonNode::asLong))
+                    .doesNotContain(hidden);
             JsonNode estimated = byCelebrity(tracks, uniform);
             assertThat(estimated.get("estimated").asBoolean()).isTrue();
             assertThat(estimated.get("opponentName").asText()).isEqualTo("균등전설");
             assertThat(estimated.get("finishSeconds").asLong()).isEqualTo(900);
             assertThat(estimated.get("sourceLabel").asText()).isEqualTo("출처: 대회 공식 기록");
-            assertThat(estimated.get("celebrityFigure").asText()).isEqualTo("legend");
+            assertThat(estimated.get("celebrityFigure").asText()).isEqualTo("joo");
             assertThat(estimated.get("track").isArray()).isTrue();
             assertThat(estimated.get("track")).isEmpty(); // W31: 목록은 표 없이
             // 단건: 균등 페이스 1초 표본 (0,0) + 1..899초 + (900, 5000)
@@ -244,7 +260,7 @@ class RecordTracksControllerTest extends WebTestSupport {
 
             JsonNode withSplits = byCelebrity(tracks, split);
             assertThat(withSplits.get("estimated").asBoolean()).isFalse();
-            assertThat(withSplits.get("celebrityFigure").isNull()).isTrue();
+            assertThat(withSplits.get("celebrityFigure").asText()).isEqualTo("KIM");
             assertThat(withSplits.get("track")).isEmpty();
             assertThat(single(s, split).get("track")).hasSize(3);
             assertThat(tracks.findValues("celebrityId").indexOf(estimated.get("celebrityId")))
@@ -297,7 +313,9 @@ class RecordTracksControllerTest extends WebTestSupport {
                                         Duration.ofSeconds(7_200 + i * 37L),
                                         List.of(),
                                         "대회 공식 기록",
-                                        null)));
+                                        null,
+                                        null,
+                                        i % 2 == 0 ? "joo" : "kim")));
             }
             Session s = signUp();
             byte[] list = bytesOf(s, PATH, "kind", "CELEBRITY");

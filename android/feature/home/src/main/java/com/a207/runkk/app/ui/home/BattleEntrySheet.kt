@@ -15,11 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,15 +28,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkBottomSheet
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -47,29 +44,29 @@ import com.a207.runkk.app.core.designsystem.TierBadge
 import com.a207.runkk.app.core.designsystem.TierBadgeSize
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.TierDisplay
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.account.PlacementStatus
 
 /**
- * 배틀런 진입 시트(FR-284, D-499, 피그마 61355:3402): 홈 배틀런 카드에서 홈 위로 연다(경로가 아니다). 덮개 45%, 표면 위쪽 둥근 28.
+ * 배틀런 진입 시트(FR-284, D-499, 피그마 61355:3402): 홈 배틀런 카드에서 홈 위로 연다(경로가 아니다). 디자인 시스템 시트에 손잡이를 달고
+ * 닫기 ✕ 없이 제목만 둔다(덮개 45%, 표면 위쪽 둥근 28).
  * 랜덤 카드는 배치 중이면 칩 「배치고사 n/3」과 「3판을 뛰면 티어가 정해져요」, 확정 티어면 확정 배지와 「비슷한 페이스의 러너와 대결해요」,
  * 진행을 못 읽었으면 「랜덤 대결」만 보인다. 친구 카드는 「카톡으로 친구를 불러 함께」.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BattleEntrySheet(state: BattleEntrySheetState, onRandom: () -> Unit, onFriend: () -> Unit, onDismiss: () -> Unit) {
-    ModalBottomSheet(
+    RunkkBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER),
-        containerColor = RunkkColors.Surface,
-        scrimColor = SHEET_SCRIM,
-        dragHandle = null
+        title = stringResource(R.string.home_entry_title),
+        hasDragHandle = true,
+        hasCloseButton = false
     ) {
         BattleEntrySheetContent(state, onRandom, onFriend)
     }
 }
 
-/** 시트 안쪽(손잡이·제목·두 카드). 스크린샷은 이것을 홈 위에 겹쳐 찍는다. */
+/** 시트 안쪽 두 카드(사이 12). */
 @Composable
 internal fun BattleEntrySheetContent(
     state: BattleEntrySheetState,
@@ -77,18 +74,7 @@ internal fun BattleEntrySheetContent(
     onFriend: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(Modifier.size(width = 36.dp, height = 4.dp).clip(CircleShape).background(RunkkColors.Border))
-        Text(
-            stringResource(R.string.home_entry_title),
-            style = RunkkTextStyles.text(18, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.fillMaxWidth().semantics { heading() }
-        )
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         RandomCard(state, onRandom)
         FriendCard(onFriend)
     }
@@ -132,8 +118,14 @@ private fun RandomCard(state: BattleEntrySheetState, onClick: () -> Unit) {
         spoken = listOfNotNull(title, chip, tierSpoken, caption).joinToString(", "),
         container = RunkkColors.Violet,
         onClick = onClick,
-        art = { QuestionCircle() },
-        chevron = Color.White
+        art = {
+            // 나(전신 정지 그림) VS 모르는 상대(물음표)
+            Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
+                AvatarStillSlot(MY_STILL, Modifier.offset(x = 4.dp).size(width = 48.dp, height = ART_HEIGHT)) {}
+                Box(Modifier.offset(x = 54.dp, y = 21.dp).size(48.dp)) { QuestionMark(48.dp) }
+            }
+        },
+        chevron = RunkkColors.OnSecondary
     ) {
         chip?.let {
             Text(
@@ -142,12 +134,12 @@ private fun RandomCard(state: BattleEntrySheetState, onClick: () -> Unit) {
                 color = RunkkColors.Violet,
                 modifier = Modifier.clip(
                     CircleShape
-                ).background(Color.White).padding(horizontal = 8.dp, vertical = 2.dp)
+                ).background(RunkkColors.OnSecondary).padding(horizontal = 8.dp, vertical = 2.dp)
             )
         }
         confirmed?.let { TierBadge(it, TierBadgeSize.SMALL) }
-        Text(title, style = RunkkTextStyles.text(19, FontWeight.Bold), color = Color.White)
-        caption?.let { Text(it, style = RunkkTextStyles.Caption, color = Color.White) }
+        Text(title, style = RunkkTextStyles.text(19, FontWeight.Bold), color = RunkkColors.OnSecondary)
+        caption?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.OnSecondary) }
     }
 }
 
@@ -162,17 +154,29 @@ private fun FriendCard(onClick: () -> Unit) {
         onClick = onClick,
         art = {
             Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
-                RunkkAvatar(
-                    faceKey = null,
-                    expression = AvatarExpression.STAND,
-                    modifier = Modifier.offset(x = 14.dp).size(width = 48.dp, height = ART_HEIGHT)
-                )
-                RunkkAvatar(
-                    faceKey = null,
-                    expression = AvatarExpression.STAND,
-                    modifier = Modifier.offset(x = 56.dp).size(width = 48.dp, height = ART_HEIGHT),
-                    character = if (me == AvatarCharacter.MALE) AvatarCharacter.FEMALE else AvatarCharacter.MALE
-                )
+                val friend = if (me == AvatarCharacter.MALE) AvatarCharacter.FEMALE else AvatarCharacter.MALE
+                // 2026-11-12 PM 요구: 대결 고르기 카드도 얼굴 대신 아바타 몸체(전신 정지 그림)
+                AvatarStillSlot(MY_STILL, Modifier.offset(x = 14.dp).size(width = 48.dp, height = ART_HEIGHT)) {
+                    RunkkAvatar(
+                        faceKey = null,
+                        expression = AvatarExpression.STAND,
+                        modifier = Modifier.size(width = 48.dp, height = ART_HEIGHT)
+                    )
+                }
+                AvatarStillSlot(
+                    AvatarStillSubject(
+                        isMine = false,
+                        isFemale = friend == AvatarCharacter.FEMALE
+                    ),
+                    Modifier.offset(x = 56.dp).size(width = 48.dp, height = ART_HEIGHT)
+                ) {
+                    RunkkAvatar(
+                        faceKey = null,
+                        expression = AvatarExpression.STAND,
+                        modifier = Modifier.size(width = 48.dp, height = ART_HEIGHT),
+                        character = friend
+                    )
+                }
             }
         },
         chevron = RunkkColors.OnLimeFill
@@ -212,34 +216,32 @@ private fun EntryCard(
     }
 }
 
-/** 고스트 자리: 흰 점선 원 64 안 「?」 30 Bold(그림 110×90 안 (23,13)). */
+/** 고스트 자리: 흰 점선 원 [size] 안 「?」(지름 64면 30 Bold). 랜덤 대결 카드에서 내 전신 그림 오른쪽에 둔다. */
 @Composable
-private fun QuestionCircle() {
-    Box(Modifier.size(width = ART_WIDTH, height = ART_HEIGHT)) {
-        Box(
-            Modifier.offset(x = 23.dp, y = 13.dp).size(64.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Canvas(Modifier.size(64.dp)) {
-                val stroke = 2.dp.toPx()
-                drawCircle(
-                    color = Color.White,
-                    radius = size.minDimension / 2 - stroke / 2,
-                    style = Stroke(
-                        width = stroke,
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
-                    )
+private fun QuestionMark(size: Dp) {
+    val ring = RunkkColors.OnSecondary
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.size(size)) {
+            val stroke = 2.dp.toPx()
+            drawCircle(
+                color = ring,
+                radius = this.size.minDimension / 2 - stroke / 2,
+                style = Stroke(
+                    width = stroke,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
                 )
-            }
-            Text(QUESTION, style = RunkkTextStyles.text(30, FontWeight.Bold), color = Color.White)
+            )
         }
+        Text(
+            QUESTION,
+            style = RunkkTextStyles.text((30 * size.value / 64).toInt(), FontWeight.Bold),
+            color = RunkkColors.OnSecondary
+        )
     }
 }
 
+private val MY_STILL = AvatarStillSubject(isMine = true, isLightSkin = true)
+
 private const val QUESTION = "?"
-private val SHEET_CORNER = 28.dp
 private val ART_WIDTH = 110.dp
 private val ART_HEIGHT = 90.dp
-
-/** 시트 덮개(피그마 rgba(23,26,18,0.45)). */
-internal val SHEET_SCRIM = Color(0x73171A12)

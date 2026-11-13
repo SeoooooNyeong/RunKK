@@ -20,7 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,9 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -54,6 +50,8 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigator
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
@@ -124,7 +122,7 @@ fun CrewPastRunsScreen(state: CrewPastRunsUiState, actions: CrewPastRunsActions,
                 error != null -> item(key = "error") { RunkkErrorState(error.asString(), onRetry = actions.onRetry) }
 
                 state.isLoading -> item(key = "loading") {
-                    Box(Modifier.fillMaxWidth().height(120.dp)) { RunkkLoading() }
+                    RunkkLoading(height = 120.dp)
                 }
 
                 else -> {
@@ -133,7 +131,7 @@ fun CrewPastRunsScreen(state: CrewPastRunsUiState, actions: CrewPastRunsActions,
                         item(key = "empty") {
                             Text(
                                 stringResource(R.string.crew_past_runs_empty),
-                                style = RunkkTextStyles.text(13),
+                                style = RunkkTextStyles.Label,
                                 color = RunkkColors.TextSecondary
                             )
                         }
@@ -146,57 +144,19 @@ fun CrewPastRunsScreen(state: CrewPastRunsUiState, actions: CrewPastRunsActions,
     if (state.isPeriodSheetOpen) PeriodSheet(state, actions)
 }
 
-/** 월 이동 줄: ‹ 32, 가운데 "2026년 10월" 16 Bold + 꺾쇠(누르면 기간 선택), › 32(이번 달이면 흐림). */
+/** 월 이동 줄: ‹, 가운데 "2026년 10월" 16 Bold + 꺾쇠(누르면 기간 선택), ›(첫 달·이번 달 끝이면 흐리고 누를 수 없다). */
 @Composable
 private fun MonthBar(state: CrewPastRunsUiState, actions: CrewPastRunsActions) {
     val title = stringResource(R.string.crew_past_runs_month, state.month.year, state.month.monthValue)
-    val pick = stringResource(R.string.crew_past_runs_month_pick, state.month.year, state.month.monthValue)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        MonthArrow("‹", stringResource(R.string.crew_past_runs_prev), state.canGoPrev, actions.onPrev)
-        Row(
-            Modifier
-                .weight(1f)
-                .heightIn(min = 48.dp)
-                .clickable(role = Role.Button, onClick = actions.onPeriodOpen)
-                .clearAndSetSemantics {
-                    contentDescription = pick
-                    heading()
-                },
-            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, style = RunkkTextStyles.text(16, FontWeight.Bold), color = RunkkColors.TextPrimary)
-            Icon(
-                RunkkIcons.ChevronDown,
-                contentDescription = null,
-                tint = RunkkColors.TextPrimary,
-                modifier = Modifier.size(12.dp)
-            )
-        }
-        MonthArrow("›", stringResource(R.string.crew_past_runs_next), state.canGoNext, actions.onNext)
-    }
-}
-
-/** 달력 이동 화살표. 범위 밖(첫 달 앞, 이번 달 뒤)이면 흐리게(보조색 30%) 그리고 누를 수 없다(실기기 관찰 DV-성 9(a)). */
-@Composable
-private fun MonthArrow(glyph: String, description: String, isEnabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(48.dp)
-            .clickable(enabled = isEnabled, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            glyph,
-            style = RunkkTextStyles.text(28),
-            color = if (isEnabled) {
-                RunkkColors.TextPrimary
-            } else {
-                RunkkColors.TextSecondary.copy(alpha = MONTH_ARROW_DISABLED_ALPHA)
-            }
-        )
-    }
+    RunkkPeriodNavigator(
+        label = title,
+        onPrevious = actions.onPrev.takeIf { state.canGoPrev },
+        onNext = actions.onNext.takeIf { state.canGoNext },
+        onLabelClick = actions.onPeriodOpen,
+        labelClickLabel = stringResource(R.string.crew_past_runs_month_pick, state.month.year, state.month.monthValue),
+        previousDescription = stringResource(R.string.crew_past_runs_prev),
+        nextDescription = stringResource(R.string.crew_past_runs_next)
+    )
 }
 
 /** 달력 카드(흰 바탕, 모서리 16, 줄 간격 4): 요일 줄(일~토, 14 보조색) + 날짜 칸(높이 36). */
@@ -295,10 +255,11 @@ private fun ListHeader(state: CrewPastRunsUiState) {
     val title = state.selectedDate?.let {
         stringResource(R.string.crew_past_runs_day_header, it.monthValue, it.dayOfMonth)
     } ?: stringResource(R.string.crew_past_runs_month_header, state.month.monthValue)
-    SectionTitle(
+    RunkkSectionHeader(
         title,
-        stringResource(R.string.crew_past_runs_count, state.shownRuns.size),
-        Modifier.heightIn(min = 30.dp)
+        modifier = Modifier.heightIn(min = 30.dp),
+        count = stringResource(R.string.crew_past_runs_count, state.shownRuns.size),
+        countColor = RunkkColors.TextPrimary
     )
 }
 
@@ -438,6 +399,3 @@ private val WEEK = listOf(
 
 /** "10.20(화) 19:00". */
 private val ROW_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("M.d(E) HH:mm", Locale.KOREAN)
-
-/** 누를 수 없는 달력 화살표의 투명도(보조색에 곱한다). 켜진 화살표와 모양으로 구분되게 흐리게 둔다. */
-internal const val MONTH_ARROW_DISABLED_ALPHA = 0.3f

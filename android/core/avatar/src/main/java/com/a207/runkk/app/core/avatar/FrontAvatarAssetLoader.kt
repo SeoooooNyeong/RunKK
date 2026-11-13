@@ -30,6 +30,11 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
                 asset.assignPng(defaultStandingBody)
                 return true
             }
+            if (name == MaleSelectedBody.ASSET) {
+                // 내장 기본 옷 몸은 그리지 않는다(D-성-115): 투명으로 바꿔 아틀라스 표면 빈 곳으로 비치지 않게 한다
+                asset.assignPng(MaleSelectedBody.transparentPng)
+                return true
+            }
         } else if (name == FULLNESS) {
             check(inBandBytes.isNotEmpty()) { "embedded fullness overlay missing" }
             fullnessAsset = asset
@@ -59,15 +64,12 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
         return originals.getValue(BodySkinLayers.STANDING_BODY)
     }
 
+    /** 남자 서기 riv(내장 기본 옷 몸 자리와 selected_* 입력이 있다)인가. 그 자리는 바꾸지 않는다. */
     fun hasSelectedBody(): Boolean = MaleSelectedBody.ASSET in assets
-
-    fun originalSelectedBodyBytes(): ByteArray? = originals[MaleSelectedBody.ASSET]
 
     fun originalFullnessBytes(): ByteArray = checkNotNull(originalFullness) { "fullness overlay slot missing" }
 
     fun replaceBody(bytes: ByteArray) = assets.getValue(BodySkinLayers.STANDING_BODY).assignPng(bytes)
-
-    fun replaceSelectedBody(bytes: ByteArray) = assets.getValue(MaleSelectedBody.ASSET).assignPng(bytes)
 
     /** 볼 레이어. null이면 비운다. */
     fun replaceFullnessOverlay(bytes: ByteArray?) =
@@ -109,7 +111,8 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
         return (sources ?: originals).getValue(slot)
     }
 
-    private companion object {
+    companion object {
+        /** 정면 볼 덮개 자리 이름. */
         const val FULLNESS = "fullness_overlay"
     }
 }

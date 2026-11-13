@@ -6,20 +6,19 @@ import androidx.compose.ui.unit.sp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** 글꼴·글자 스타일이 피그마(IBM Plex Sans KR, RunKK 글자 스타일)와 같은지(S15P31A207-292). */
+/** 글꼴은 prod와 같고(Noto Sans KR·Barlow Condensed 기울임, 2026-11-12 PM 결정) 글자 크기·굵기는 피그마 RunKK 글자 스타일인지. */
 class RunkkTypeTest {
     @Test
-    fun `본문과 큰 숫자 모두 IBM Plex Sans KR이고 기울이지 않는다`() {
-        assertEquals(IbmPlexSansKr, RunkkTextStyles.Body.fontFamily)
-        assertEquals(IbmPlexSansKr, RunkkTextStyles.DisplayHuge.fontFamily)
-        assertEquals(FontStyle.Normal, RunkkTextStyles.DisplayHuge.fontStyle ?: FontStyle.Normal)
-        assertEquals(FontWeight.Bold, RunkkTextStyles.DisplayHuge.fontWeight)
+    fun `본문은 Noto Sans KR이고 큰 숫자는 Barlow Condensed 기울임 800이다`() {
+        assertEquals(NotoSansKr, RunkkTextStyles.Body.fontFamily)
+        assertEquals(BarlowCondensed, RunkkTextStyles.DisplayHuge.fontFamily)
+        assertEquals(FontStyle.Italic, RunkkTextStyles.DisplayHuge.fontStyle)
+        assertEquals(FontWeight.ExtraBold, RunkkTextStyles.DisplayHuge.fontWeight)
     }
 
     @Test
-    fun `피그마에 없는 굵기(800·900)는 Bold로 맞춘다`() {
-        assertEquals(FontWeight.Bold, RunkkTextStyles.text(16, FontWeight.Black).fontWeight)
-        assertEquals(FontWeight.Bold, RunkkTextStyles.display(26, FontWeight.ExtraBold).fontWeight)
+    fun `굵기는 넘긴 값 그대로다(가변 글꼴)`() {
+        assertEquals(FontWeight.Black, RunkkTextStyles.text(16, FontWeight.Black).fontWeight)
         assertEquals(FontWeight.SemiBold, RunkkTextStyles.text(15, FontWeight.SemiBold).fontWeight)
     }
 
@@ -34,7 +33,7 @@ class RunkkTypeTest {
             Triple(RunkkTextStyles.BodyMedium, 14 to FontWeight.Medium, 22),
             Triple(RunkkTextStyles.Caption, 12 to FontWeight.Normal, 18),
             Triple(RunkkTextStyles.Meta, 13 to FontWeight.Normal, 20),
-            Triple(RunkkTextStyles.DisplayHuge, 96 to FontWeight.Bold, 72)
+            Triple(RunkkTextStyles.DisplayHuge, 96 to FontWeight.ExtraBold, 72)
         )
         table.forEach { (style, sizeWeight, lineHeight) ->
             assertEquals(sizeWeight.first.sp, style.fontSize)

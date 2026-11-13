@@ -23,6 +23,8 @@ import java.util.Map;
  * @param calendar 기준일이 속한 달의 날짜별 기록
  * @param latestRun 본인 기록 가운데 시작 시각이 가장 늦은 1건(유효·무효 모두, 기록 목록 맨 위 행과 같은 값), 없으면 null(05-21 D-491).
  *     대결 결과는 analysis가 battle을 모르므로 web.record가 붙인다(D-33)
+ * @param weekRuns 이번 주(기준일이 속한 주 월요일 ~ 기준일, KST) 유효 러닝 횟수. 주간 목표와 무관하게 늘 준다(실기기 DV3-4)
+ * @param weekMeters 같은 기간 유효 거리
  */
 public record DashboardView(
         LocalDate baseDate,
@@ -39,7 +41,9 @@ public record DashboardView(
         int monthRuns,
         Distance monthMeters,
         int streakWeeks,
-        RecordRow latestRun) {
+        RecordRow latestRun,
+        int weekRuns,
+        Distance weekMeters) {
 
     /**
      * 거리·시간·횟수 합.

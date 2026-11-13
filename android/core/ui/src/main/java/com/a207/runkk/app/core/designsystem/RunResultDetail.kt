@@ -407,7 +407,7 @@ private val CARD_SECTION_TITLE = RunkkTextStyles.text(14, FontWeight.Bold, lineH
 
 /**
  * 결과 위쪽 거리 히어로(피그마 61326:1878): 종류 칩(없으면 생략) + 날짜 줄, 큰 거리 60 Bold + 「km」, 오른쪽 기뻐하는 아바타 84.
- * 큰 숫자는 IBM Plex Sans KR Bold다(D-497, S15P31A207-292). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
+ * 큰 숫자는 Barlow Condensed 기울임이다(prod 글꼴, 2026-11-12). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
  */
 @Composable
 fun ResultDistanceHero(

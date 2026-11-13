@@ -45,6 +45,8 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
     CrewRepository {
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
+    override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
+
     override suspend fun myCrew(): Outcome<MyCrew> = ApiErrorMapper.call { api.myCrew().toDomain() }
 
     override suspend fun detail(crewId: Long): Outcome<CrewDetail> = ApiErrorMapper.call {

@@ -50,6 +50,9 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.account.MyAvatar
 import java.time.Duration
 import java.time.LocalDate
@@ -132,15 +135,23 @@ internal fun OpponentFigure(
     myAvatar: MyAvatar? = null
 ) {
     when (figure) {
-        Figure.AVATAR -> RunkkAvatar(
-            myAvatar?.faceKey,
-            expression,
-            Modifier.size(size),
-            myAvatar?.faceLayers.orEmpty(),
-            colorFilter = colorFilter
-        )
+        Figure.AVATAR -> StillOr(MY_STILL, size, colorFilter) {
+            RunkkAvatar(
+                myAvatar?.faceKey,
+                expression,
+                Modifier.size(size),
+                myAvatar?.faceLayers.orEmpty(),
+                colorFilter = colorFilter
+            )
+        }
 
-        Figure.RIVAL -> RivalAvatar(Modifier.size(size), colorFilter, character)
+        Figure.RIVAL -> StillOr(
+            AvatarStillSubject(isMine = false, isFemale = character == AvatarCharacter.FEMALE),
+            size,
+            colorFilter
+        ) {
+            RivalAvatar(Modifier.size(size), colorFilter, character)
+        }
 
         Figure.PAST_SELF -> RunkkAvatar(
             null,
@@ -154,6 +165,27 @@ internal fun OpponentFigure(
         Figure.UNKNOWN -> QuestionCircle(size = size * UNKNOWN_CIRCLE_RATIO, color = RunkkColors.TextSecondary)
     }
 }
+
+/**
+ * 대결 화면의 전신 정지 그림 칸(2026-11-12 PM 요구: 배틀런 친구대결·랜덤대결도 얼굴 대신 아바타 몸체). 색 거르개를 쓰는 곳(흐림·흑백)은
+ * 정지 그림에 거르개를 줄 수 없어 지금 그림 그대로 둔다.
+ */
+@Composable
+internal fun StillOr(
+    subject: AvatarStillSubject,
+    size: Dp,
+    colorFilter: ColorFilter?,
+    fallback: @Composable () -> Unit
+) {
+    if (colorFilter != null) {
+        fallback()
+    } else {
+        AvatarStillSlot(subject, Modifier.size(size), fallback)
+    }
+}
+
+/** 내 전신 정지 그림(의상·체형·러닝량·셀카 머리 그대로). */
+internal val MY_STILL = AvatarStillSubject(isMine = true)
 
 /** 나 VS 상대 한 줄. */
 @Composable

@@ -36,7 +36,9 @@ internal object AvatarErrorText {
         "NO_FACE_DETECTED" to R.string.avatar_error_no_face,
         "UPSTREAM_TIMEOUT" to R.string.avatar_error_timeout,
         "JOB_NOT_FOUND" to R.string.avatar_error_selfie_failed,
-        "JOB_NOT_READY" to R.string.avatar_error_selfie_failed
+        "JOB_NOT_READY" to R.string.avatar_error_selfie_failed,
+        // 앱 워커가 접수 뒤 약 16분 넘게 끝나지 않은 작업을 멈춘 사유(SelfieProgress.TIMEOUT, design-oo 05-30 6.1)
+        "SELFIE_TIMEOUT" to R.string.avatar_error_selfie_timeout
     )
 
     private const val SERVICE_UNAVAILABLE = 503

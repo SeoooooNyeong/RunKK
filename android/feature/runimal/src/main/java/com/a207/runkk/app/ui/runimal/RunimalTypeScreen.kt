@@ -34,6 +34,8 @@ import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkInfoChip
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeaderSize
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -133,12 +135,7 @@ private fun TypeCard(detail: RunimalTypeDetail) {
 private fun Traits(traits: List<String>) {
     if (traits.isEmpty()) return
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            stringResource(R.string.runimal_type_traits_title),
-            style = RunkkTextStyles.CardTitle,
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.semantics { heading() }
-        )
+        RunkkSectionHeader(stringResource(R.string.runimal_type_traits_title), size = RunkkSectionHeaderSize.Card)
         // 특징은 한 줄에 하나씩 문구만 보인다(앱 전체 규칙: 구분용 가운뎃점을 쓰지 않는다).
         traits.forEach { Text(it, style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary) }
     }

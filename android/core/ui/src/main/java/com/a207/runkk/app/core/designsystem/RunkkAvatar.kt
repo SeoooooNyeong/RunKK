@@ -2,7 +2,6 @@ package com.a207.runkk.app.core.designsystem
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,9 +16,11 @@ import com.a207.runkk.app.core.model.FaceLayer
 
 /**
  * 아바타 한 칸(D-254). 아바타 꾸미기(AVATAR_CUSTOMIZE)가 닫혀 있으면 [faceKey]를 무시하고 기본 아바타의 [expression] 그림을 그리고,
- * 열려 있으면 기존 얼굴 그림([RunkkAvatarPortrait])을 쓴다. 홈·마이·결과·랭킹 행·매칭 성공 등이 모두 이 하나를 부른다.
- * 장식이므로 읽기 정보는 부르는 쪽이 붙인다. 기본 그림의 남녀는 [character]다: 내 그림이면 기본값(내 성별), 다른 러너면 그 러너의
- * 표시 성별(`AvatarCharacter.of(shownGender)`, D-327)을 넘긴다.
+ * 열려 있으면 아바타 머리 그림([RunkkAvatarPortrait], [임시:D-성-180])을 쓴다. 홈·마이·결과·랭킹 행·매칭 성공 등이 모두 이 하나를 부른다.
+ * 장식이므로 읽기 정보는 부르는 쪽이 붙인다. 기본 그림·기본 머리의 남녀는 [character]다: 내 그림이면 기본값(내 성별), 다른 러너면 그 러너의
+ * 표시 성별(`AvatarCharacter.of(shownGender)`, D-327)을 넘긴다. [isFaceLoading]은 열린 배포의 머리 그림이 받는 중 자리를 둘 때 쓴다
+ * ([RunkkAvatarPortrait], [임시:D-성-190]). [isInCircle]은 머리 그림을 얼굴 원 안에 그리는가다. 얼굴 원은 [AvatarExpression.FACE]이고 그
+ * 밖의 장면(서기·달리기·대결 등)은 원 밖이다. 원이 아닌 곳에 FACE를 그리면(지도 마커) false를 넘긴다([임시:D-성-193]).
  */
 @Composable
 fun RunkkAvatar(
@@ -28,13 +29,14 @@ fun RunkkAvatar(
     modifier: Modifier = Modifier,
     faceLayers: List<FaceLayer> = emptyList(),
     colorFilter: ColorFilter? = null,
-    character: AvatarCharacter = LocalAvatarCharacter.current
+    character: AvatarCharacter = LocalAvatarCharacter.current,
+    isFaceLoading: Boolean = false,
+    isInCircle: Boolean = expression == AvatarExpression.FACE
 ) {
     if (LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
-        // 셀카 얼굴 그림을 아직 받지 못했거나 받지 못하면(셀카 머리 head:·부위 selfie:) 빈 칸이 아니라 기본 캐릭터(토끼)를 그린다.
-        RunkkAvatarPortrait(faceKey ?: RunkkAvatarArt.DEFAULT_FACE_KEY, faceLayers, modifier) {
-            RunkkAvatarPortrait(RunkkAvatarArt.DEFAULT_FACE_KEY, emptyList(), Modifier.fillMaxSize())
-        }
+        // 아바타 머리([임시:D-성-180]): 셀카 머리면 받은 층, 받는 중이면 중립 자리, 얼굴 없음·기본 캐릭터 값·셀카 그림을 받지 못함이면
+        // [character]의 기본 머리를 그린다(동물 그림 없음, [임시:D-성-190]).
+        RunkkAvatarPortrait(faceKey, faceLayers, modifier, character, isFaceLoading, isInCircle)
     } else {
         val isFace = expression == AvatarExpression.FACE
         // 여자 서기·기쁨은 남자와 같은 짧은 체형으로 다시 그렸다(사용자 요청 2026-10-31). 아직 머리가 작고 다리가 긴 점프·달리기

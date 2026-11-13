@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
@@ -45,7 +44,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Distance
@@ -89,10 +90,10 @@ internal fun ChatMessageRow(message: ChatMessage, actions: ChatActions) {
 /** 남의 메시지 앞 아바타 자리(피그마 32 원 surfaceHigh). 장식이라 보조 기술에는 숨긴다(말풍선이 작성자를 읽는다). */
 @Composable
 private fun AuthorAvatar() {
-    Box(Modifier.size(32.dp).clip(CircleShape).background(RunkkColors.SurfaceHigh).clearAndSetSemantics {})
+    RunkkAvatarCircle(32.dp)
 }
 
-/** 이름 12 Bold와 크루장 배지(테두리 1, r8, 좌우 6·위아래 1, 10 Regular). 보조 기술에는 말풍선 설명이 함께 읽는다. */
+/** 이름 12 Bold와 크루장 배지(테두리 꼬리표 11). 보조 기술에는 말풍선 설명이 함께 읽는다. */
 @Composable
 private fun AuthorName(message: ChatMessage) {
     Row(
@@ -105,19 +106,8 @@ private fun AuthorName(message: ChatMessage) {
             style = RunkkTextStyles.text(12, FontWeight.Bold, lineHeight = 14),
             color = RunkkColors.TextPrimary
         )
-        if (message.isLeaderBadge) LeaderBadge()
+        if (message.isLeaderBadge) RunkkTagPill(stringResource(R.string.chat_leader_badge))
     }
-}
-
-@Composable
-private fun LeaderBadge() {
-    val shape = RoundedCornerShape(8.dp)
-    Text(
-        stringResource(R.string.chat_leader_badge),
-        style = RunkkTextStyles.text(10, lineHeight = 12),
-        color = RunkkColors.TextPrimary,
-        modifier = Modifier.border(1.dp, RunkkColors.Border, shape).padding(horizontal = 6.dp, vertical = 1.dp)
-    )
 }
 
 /**

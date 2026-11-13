@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 제안 페이지 icon/landscape (Material). 색은 쓰는 자리에서 칠한다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M11.6667 5L8.54167 9.16667L10.9167 12.3333L9.58333 13.3333C8.175 11.4583 5.83333 8.33333 5.83333 8.33333L0.833333 15H19.1667L11.6667 5Z" />
+</vector>

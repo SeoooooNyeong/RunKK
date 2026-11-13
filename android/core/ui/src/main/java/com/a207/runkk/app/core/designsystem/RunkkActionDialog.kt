@@ -1,21 +1,32 @@
 package com.a207.runkk.app.core.designsystem
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
@@ -28,6 +39,7 @@ import androidx.compose.ui.window.DialogWindowProvider
  * 대화상자 틀(피그마 확인 대화상자, S15P31A207-292): 화면 가운데에 양옆 28을 띄운 카드(폭 334 기준, 모서리 28, 안쪽 위 24·좌우 20·
  * 아래 20, 줄 간격 10)에 제목(18/26 Bold)과 [content]를 놓는다. 뒤 딤은 45%다(피그마 rgba(23,27,18,0.45), 창 딤은 검정이라 근사).
  * 바깥 누름·뒤로가기는 [onDismissRequest]다. 버튼 줄은 [RunkkDialogButtons]로 만든다.
+ * [onClose]가 있으면 카드 오른쪽 위에 닫기 ✕([closeLabel])를 단다(크루 초대 코드·크루원 정보). [borderColor]는 카드 테두리(1dp)다.
  *
  * ```
  * RunkkDialog(title = "기록을 지울까요?", onDismissRequest = onDismiss) {
@@ -41,31 +53,64 @@ fun RunkkDialog(
     title: String,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    onClose: (() -> Unit)? = null,
+    closeLabel: String = stringResource(R.string.core_sheet_close),
+    borderColor: Color = Color.Transparent,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Dialog(onDismissRequest = onDismissRequest, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
         SideEffect { window?.setDimAmount(DIALOG_DIM) }
-        Column(
+        Box(
             modifier = modifier
                 .padding(horizontal = DIALOG_SIDE)
                 .widthIn(max = DIALOG_MAX_WIDTH)
                 .fillMaxWidth()
                 .clip(RunkkShapes.Dialog)
                 .background(RunkkColors.Surface)
+                .then(if (borderColor.alpha > 0f) Modifier.border(1.dp, borderColor, RunkkShapes.Dialog) else Modifier)
                 .semantics { paneTitle = title }
-                .verticalScroll(rememberScrollState())
-                .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                title,
-                style = RunkkTextStyles.DialogTitle,
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.semantics { heading() }
-            )
-            content()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    title,
+                    style = RunkkTextStyles.DialogTitle,
+                    color = RunkkColors.TextPrimary,
+                    modifier = Modifier
+                        .then(if (onClose != null) Modifier.padding(end = CLOSE_TITLE_GAP) else Modifier)
+                        .semantics { heading() }
+                )
+                content()
+            }
+            if (onClose != null) DialogCloseButton(closeLabel, onClose, Modifier.align(Alignment.TopEnd))
         }
+    }
+}
+
+/** 대화상자 오른쪽 위 닫기 ✕(피그마 F-18b·F-22b: 카드 모서리에서 4 띄운 48 누름 칸, 아이콘 20). */
+@Composable
+private fun DialogCloseButton(label: String, onClose: () -> Unit, modifier: Modifier) {
+    Box(
+        modifier = modifier
+            .padding(top = 4.dp, end = 4.dp)
+            .size(48.dp)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClose)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            RunkkIcons.Close,
+            contentDescription = null,
+            tint = RunkkColors.TextPrimary,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -149,5 +194,8 @@ private val DIALOG_MAX_WIDTH = 400.dp
 
 /** 대화상자 뒤 딤(피그마 0.45). */
 private const val DIALOG_DIM = 0.45f
+
+/** 닫기 ✕가 있을 때 제목이 ✕ 아래로 들어가지 않게 띄우는 오른쪽 여백. */
+private val CLOSE_TITLE_GAP = 32.dp
 
 private val DIALOG_BODY = RunkkTextStyles.text(14, lineHeight = 21)

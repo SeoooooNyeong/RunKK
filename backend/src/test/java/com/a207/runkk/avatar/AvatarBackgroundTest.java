@@ -20,8 +20,8 @@ class AvatarBackgroundTest {
     private static final LocalDateTime N = LocalDateTime.of(2026, 10, 22, 9, 0);
     static final Landmark INCHEON =
             new Landmark("INCHEON", LandmarkStage.DOMESTIC, "인천", Distance.ofKm(60), true);
-    static final Landmark KAESONG =
-            new Landmark("KAESONG", LandmarkStage.DOMESTIC, "개성", Distance.ofKm(120), true);
+    static final Landmark CHUNCHEON =
+            new Landmark("CHUNCHEON", LandmarkStage.DOMESTIC, "춘천", Distance.ofKm(150), true);
 
     @Test
     @DisplayName("TC-6160 ① 같은 랜드마크를 두 번 넘겨도 하나만 더하고 새로 해금한 것만 돌려준다")
@@ -36,9 +36,9 @@ class AvatarBackgroundTest {
         assertThat(u.stage()).isEqualTo(LandmarkStage.DOMESTIC);
         assertThat(u.distance()).isEqualTo(Distance.ofKm(60));
         assertThat(u.unlockedAt()).isEqualTo(N);
-        assertThat(avatar.unlock(List.of(INCHEON, KAESONG), N.plusHours(1)))
+        assertThat(avatar.unlock(List.of(INCHEON, CHUNCHEON), N.plusHours(1)))
                 .extracting(UnlockedBackground::landmarkKey)
-                .containsExactly("KAESONG");
+                .containsExactly("CHUNCHEON");
         assertThat(avatar.unlockedBackgrounds()).hasSize(2);
     }
 
@@ -59,18 +59,18 @@ class AvatarBackgroundTest {
     @DisplayName("TC-6161 해금한 키만 고를 수 있고 비어 있으면 기본 배경, 잠긴 키는 BACKGROUND_LOCKED이고 선택은 그대로다")
     void selectBackground() {
         Avatar avatar = Avatar.create(3);
-        avatar.unlock(List.of(INCHEON, KAESONG), N);
+        avatar.unlock(List.of(INCHEON, CHUNCHEON), N);
 
-        avatar.selectBackground("KAESONG");
-        assertThat(avatar.selectedBackgroundKey()).contains("KAESONG");
-        assertThat(avatar.view(0).backgroundKey()).isEqualTo("KAESONG");
+        avatar.selectBackground("CHUNCHEON");
+        assertThat(avatar.selectedBackgroundKey()).contains("CHUNCHEON");
+        assertThat(avatar.view(0).backgroundKey()).isEqualTo("CHUNCHEON");
 
         for (String locked : List.of("BUSAN", "NO_SUCH")) {
             assertThatThrownBy(() -> avatar.selectBackground(locked))
                     .isInstanceOf(BusinessRuleException.class)
                     .extracting(e -> ((BusinessRuleException) e).reason())
                     .isEqualTo(ReasonCode.BACKGROUND_LOCKED);
-            assertThat(avatar.selectedBackgroundKey()).contains("KAESONG");
+            assertThat(avatar.selectedBackgroundKey()).contains("CHUNCHEON");
         }
 
         avatar.useDefaultBackground();

@@ -63,7 +63,7 @@ data class RunMapMarker(
 /**
  * 측정 중 Kakao 지도(C-005, 사용자 요청 2026-10-30): 지도 위에 경로선을 그리고 카메라가 늘 내 위치(경로 끝)를 가운데에 둔다.
  * 끌기·회전·기울이기는 막고 확대·축소만 받으며, 확대·축소해도 가운데(내 위치)는 그대로다. 새 위치가 와도 사용자가 정한 확대 단계는 지킨다.
- * 내 아바타([figure])와 [others](대결 상대)는 지도 좌표 → 화면 위치(toScreenPoint)로 놓아 확대·축소에도 지도 위 제자리를 지킨다
+ * 내 아바타([figure], 칸 [myMarkerSize], 기본은 [markerSize]. 내 Rive 아바타 칸은 88dp, [임시:D-성-121])와 [others](대결 상대)는 지도 좌표 → 화면 위치(toScreenPoint)로 놓아 확대·축소에도 지도 위 제자리를 지킨다
  * (카메라가 움직이는 동안은 매 프레임 다시 놓는다). 지도를 띄울 수 없으면(키·지도 라이브러리 없음, canShowKakaoMap) 부르는 쪽이 RouteCanvas를 그린다.
  * 실행 중 지도 오류(잘못된 키·네트워크, MapLifeCycleCallback.onMapError)면 [onMapError]를 알리고, 부르는 쪽이 그 상태를
  * canShowKakaoMap(key, isMapFailed)에 넘겨 격자 바탕 RouteCanvas로 바꾼다(FR-034, D-322 (3), D-340).
@@ -76,6 +76,7 @@ fun KakaoRunMap(
     modifier: Modifier = Modifier,
     markerSize: Dp = 72.dp,
     others: List<RunMapMarker> = emptyList(),
+    myMarkerSize: Dp = markerSize,
     myLabel: String? = null,
     onMapError: () -> Unit = {},
     isFramed: Boolean = true,
@@ -209,8 +210,8 @@ fun KakaoRunMap(
         }
         // 내 위치를 아직 못 놓았으면(지도 준비 전) 가운데에 둔다: 카메라가 내 위치를 가운데에 두므로 발이 가운데에 오게 반 칸 올린다
         val me = placedMe
-        val mine = if (me != null) Modifier.atScreenPoint(me, markerSize) else Modifier.offset(y = -markerSize / 2)
-        MapFigure(myLabel, markerSize, Modifier.testTag(MY_MARKER_TAG).then(mine)) { figure() }
+        val mine = if (me != null) Modifier.atScreenPoint(me, myMarkerSize) else Modifier.offset(y = -myMarkerSize / 2)
+        MapFigure(myLabel, myMarkerSize, Modifier.testTag(MY_MARKER_TAG).then(mine)) { figure() }
     }
 }
 

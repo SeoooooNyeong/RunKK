@@ -46,14 +46,20 @@ import okhttp3.Response
  * - 셀카 머리 얼굴("head:{회원ID}:{작업ID}", 서버 Avatar.face의 비동기 셀카 결과, S15P31A207-276)은 머리 하나를
  *   GET /avatar/heads/{회원ID}/{작업ID}(다른 러너도 받을 수 있다, 프로필 얼굴 공개 규칙)로 받아 그 안의 세 층 PNG(Data URL
  *   faceImage·eyesImage·hairImage, 같은 캔버스)를 아래부터 얼굴(EARS 자리)·눈(EYES)·머리카락(HAIR) 순서로 겹친다. 서버가 no-store로
- *   주므로 메모리에 두지 않는다. 층 하나라도 비었거나 PNG가 아니면 실패라 화면이 기본 캐릭터를 그린다.
+ *   주므로 HTTP 디스크 캐시에는 두지 않는다. 층 하나라도 비었거나 PNG가 아니면 실패라 화면이 기본 캐릭터를 그린다.
+ * - 셀카 머리 메모리 캐시: 머리 키는 작업마다 새로 생겨 내용이 바뀌지 않으므로, 받은 정면 세 층을 회원 캐시와 같은 규칙으로 메모리에
+ *   [HEAD_ENTRIES]개 둔다(화면마다 다시 받지 않는다). 내 머리(키의 회원 ID = 로그인한 회원)는 [selfStore]에도 남겨 앱을 새로 켜도 바로
+ *   그린다.
+ * - 바로 그리기([peek]): 받아 둔 그림이 있으면 기다리지 않고 준다. 화면이 첫 그림부터 내 얼굴을 그리고 기본 머리를 거치지 않게 한다.
  */
 class FaceImageSource internal constructor(
     private val client: OkHttpClient,
     private val baseUrl: HttpUrl,
     private val selfId: () -> Long?,
     private val now: () -> Long = System::currentTimeMillis,
-    private val io: CoroutineDispatcher = Dispatchers.IO
+    private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** 내 얼굴의 마지막 모습(앱 전용 저장소). 없으면 남기지 않는다. */
+    private val selfStore: SelfFaceStore? = null
 ) {
     private val lock = Any()
     private val memory = object : LinkedHashMap<String, Cached>(MEMORY_ENTRIES, LOAD_FACTOR, true) {
@@ -61,8 +67,52 @@ class FaceImageSource internal constructor(
             size > MEMORY_ENTRIES
     }
 
+    /** 받은 셀카 머리 정면 세 층(머리 키 "{회원ID}:{작업ID}" → 층). */
+    private val heads = object : LinkedHashMap<String, List<FaceLayer>>(HEAD_ENTRIES, LOAD_FACTOR, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<FaceLayer>>?): Boolean =
+            size > HEAD_ENTRIES
+    }
+
     /** 캐시가 담고 있는 그림의 회원. */
     private var cachedFor: Long? = null
+
+    /**
+     * 기다리지 않고 바로 그릴 수 있는 얼굴 그림. 셀카 얼굴이 아니면(기본 캐릭터·없음) 빈 목록, 받아 둔 그림(메모리, 내 얼굴이면 기기에
+     * 남긴 것)이 있으면 그 층, 없으면 null(그때는 [faceLayers]로 받는다). 로그인한 회원의 캐시만 본다. 네트워크는 쓰지 않는다.
+     */
+    fun peek(faceKey: String?): List<FaceLayer>? {
+        val member = selfId() ?: return null
+        if (faceKey == null) return emptyList()
+        if (faceKey.startsWith(HEAD_PREFIX)) {
+            val location = faceKey.removePrefix(HEAD_PREFIX)
+            synchronized(lock) { if (cachedFor == member) heads[location] else null }?.let { return it }
+            val saved = selfStore?.layers(member, faceKey) ?: return null
+            synchronized(lock) { if (cachedFor == member || cachedFor == null) heads[location] = saved }
+            return saved
+        }
+        val location = faceKey.takeIf { it.startsWith(SELFIE_PREFIX) }?.removePrefix(SELFIE_PREFIX)
+            ?: return emptyList()
+        val segments = location.split('/')
+        if (segments.any { it.isBlank() || it == "." || it == ".." }) return null
+        return synchronized(lock) {
+            if (cachedFor != member) return null
+            FacePart.entries.map { part ->
+                val cached = memory[partUrl(segments, part).toString()]
+                if (cached == null || cached.expiresAt <= now()) return null
+                FaceLayer(part, cached.png)
+            }
+        }
+    }
+
+    /** 내 프로필의 얼굴·배경 키를 남긴다(본인 프로필을 읽을 때마다). 로그아웃 상태면 남기지 않는다. */
+    suspend fun rememberSelf(faceKey: String?, backgroundKey: String?) {
+        val member = selfId() ?: return
+        val store = selfStore ?: return
+        withContext(io) { store.saveKeys(member, SelfFaceStore.Keys(faceKey, backgroundKey)) }
+    }
+
+    /** 내 프로필의 마지막 얼굴·배경 키(기기에 남긴 것). 모르거나 다른 회원 것이면 null. */
+    internal fun lastSelf(): SelfFaceStore.Keys? = selfStore?.keys(selfId())
 
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> {
         if (faceKey != null && faceKey.startsWith(HEAD_PREFIX)) return headLayers(faceKey.removePrefix(HEAD_PREFIX))
@@ -76,9 +126,25 @@ class FaceImageSource internal constructor(
         return loadLayers(segments)
     }
 
-    /** 셀카 머리 얼굴("{회원ID}:{작업ID}") 하나를 받아 세 층으로 바꾼다. 층 하나라도 틀리면 실패다. */
-    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> = headBody(location) { body ->
-        headOf(body)?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Server(MALFORMED))
+    /**
+     * 셀카 머리 얼굴("{회원ID}:{작업ID}") 하나를 받아 세 층으로 바꾼다. 층 하나라도 틀리면 실패다. 받은 층은 메모리에 두고(머리 키는 내용이
+     * 바뀌지 않는다), 내 머리면 기기에도 남긴다.
+     */
+    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> {
+        val member = selfId()
+        synchronized(lock) { if (member != null && cachedFor == member) heads[location] else null }
+            ?.let { return Outcome.Success(it) }
+        val result = headBody(location) { body ->
+            headOf(body)?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Server(MALFORMED))
+        }
+        val layers = (result as? Outcome.Success)?.value ?: return result
+        synchronized(lock) { if (cachedFor == member) heads[location] = layers }
+        val owner = location.substringBefore(':').toLongOrNull()
+        val store = selfStore
+        if (member != null && owner == member && store != null) {
+            withContext(io) { store.saveLayers(member, HEAD_PREFIX + location, layers) }
+        }
+        return result
     }
 
     /**
@@ -185,11 +251,14 @@ class FaceImageSource internal constructor(
             val different = cachedFor != member
             if (different) {
                 memory.clear()
+                heads.clear()
                 cachedFor = member
             }
             different
         }
         if (changed) {
+            // 앞 회원이 남긴 내 얼굴도 지운다(다른 계정에 앞 계정 얼굴이 첫 그림으로 나가지 않게).
+            selfStore?.clearUnless(member)
             try {
                 client.cache?.evictAll()
             } catch (e: IOException) {
@@ -206,10 +275,14 @@ class FaceImageSource internal constructor(
         Outcome.Failure(AppError.Network)
     }
 
+    private fun partUrl(segments: List<String>, part: FacePart): HttpUrl = baseUrl.newBuilder()
+        .addPathSegments(PARTS_PATH)
+        .apply { segments.forEach { addPathSegment(it) } }
+        .addPathSegment(part.name)
+        .build()
+
     private suspend fun download(segments: List<String>, part: FacePart): Outcome<ByteArray> {
-        val url = baseUrl.newBuilder().addPathSegments(PARTS_PATH).apply {
-            segments.forEach { addPathSegment(it) }
-        }.addPathSegment(part.name).build()
+        val url = partUrl(segments, part)
         val key = url.toString()
         synchronized(lock) {
             val cached = memory[key]
@@ -287,6 +360,9 @@ class FaceImageSource internal constructor(
         const val AGE = "Age"
         const val PNG = "image/png"
         const val MEMORY_ENTRIES = 40
+
+        /** 메모리에 두는 셀카 머리 수(머리 하나는 정면 세 층 PNG, 수백 KB). */
+        const val HEAD_ENTRIES = 12
         const val LOAD_FACTOR = 0.75f
         const val MILLIS_PER_SECOND = 1_000L
 

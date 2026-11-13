@@ -22,7 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -36,10 +35,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.MetaItem
 import com.a207.runkk.app.core.designsystem.MetaRow
+import com.a207.runkk.app.core.designsystem.RunkkButton
+import com.a207.runkk.app.core.designsystem.RunkkButtonSize
+import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
+import com.a207.runkk.app.core.designsystem.RunkkChevronLink
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRunStatus
@@ -159,23 +163,13 @@ private fun ScheduleTopRow(actions: CrewHomeActions) {
             }
         }
         Box(Modifier.weight(1f))
-        val pastLabel = stringResource(R.string.crew_schedule_past)
-        Row(
-            modifier = Modifier
-                .heightIn(min = 48.dp)
-                .clickable(role = Role.Button, onClick = actions.onPastRuns)
-                .clearAndSetSemantics { contentDescription = pastLabel }
-                .padding(end = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                pastLabel,
-                style = RunkkTextStyles.text(13, FontWeight.Medium, lineHeight = 16),
-                color = RunkkColors.TextPrimary
-            )
-            Text("›", style = RunkkTextStyles.text(16, lineHeight = 19), color = RunkkColors.TextSecondary)
-        }
+        RunkkChevronLink(
+            stringResource(R.string.crew_schedule_past),
+            onClick = actions.onPastRuns,
+            modifier = Modifier.padding(end = 6.dp),
+            style = RunkkTextStyles.text(13, FontWeight.Medium, lineHeight = 16),
+            chevronColor = RunkkColors.TextSecondary
+        )
     }
 }
 
@@ -199,20 +193,20 @@ private fun HeroRun(post: PostList.Item, lobby: LobbyAvailability?, now: Instant
             Text(
                 heroDateLabel(run.scheduledAt, now),
                 style = RunkkTextStyles.text(12),
-                color = Color.White,
+                color = RunkkColors.OnSecondary,
                 modifier = Modifier.weight(1f)
             )
             Text(
                 stringResource(R.string.crew_schedule_going_people, run.goingCount),
                 style = RunkkTextStyles.text(12),
-                color = Color.White
+                color = RunkkColors.OnSecondary
             )
         }
         RunTitle(
             runTitle(post).ifBlank { crewRunSummary(run) },
             style = RunkkTextStyles.text(20, FontWeight.Bold, lineHeight = 24),
-            color = Color.White,
-            chevronColor = Color.White,
+            color = RunkkColors.OnSecondary,
+            chevronColor = RunkkColors.OnSecondary,
             onClick = { actions.onRunOpen(post) }
         )
         StartsIn(Duration.between(now, run.scheduledAt))
@@ -239,11 +233,11 @@ private fun StartsIn(left: Duration) {
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
     ) {
-        Text(big, style = RunkkTextStyles.text(28, FontWeight.Bold), color = Color.White)
+        Text(big, style = RunkkTextStyles.text(28, FontWeight.Bold), color = RunkkColors.OnSecondary)
         Text(
             stringResource(R.string.crew_schedule_starts_in),
-            style = RunkkTextStyles.text(13),
-            color = Color.White,
+            style = RunkkTextStyles.Label,
+            color = RunkkColors.OnSecondary,
             modifier = Modifier.padding(bottom = 4.dp)
         )
     }
@@ -255,20 +249,14 @@ private fun HeroLobbyButton(post: PostList.Item, lobby: LobbyAvailability, actio
     val text = lobbyButtonText(lobby)
     val label = runTitle(post).ifBlank { post.crewRun?.let { crewRunSummary(it) }.orEmpty() }
     val description = stringResource(R.string.crew_home_run_lobby_description, text, label)
-    val isOpen = lobby == LobbyAvailability.Open
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(RunkkColors.Surface)
-            .alpha(if (isOpen) 1f else DISABLED_ALPHA)
-            .clickable(enabled = isOpen, role = Role.Button, onClick = { actions.onLobby(post) })
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text, style = RunkkTextStyles.text(15, FontWeight.SemiBold), color = RunkkColors.TextPrimary)
-    }
+    RunkkButton(
+        text,
+        onClick = { actions.onLobby(post) },
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = description },
+        style = RunkkButtonStyle.White,
+        size = RunkkButtonSize.Medium,
+        isEnabled = lobby == LobbyAvailability.Open
+    )
 }
 
 /** "오늘 10.21 (수) 19:30"(오늘이 아니면 날짜·시각만). */
@@ -316,17 +304,14 @@ private fun ScheduleGroupSection(group: ScheduleGroup, posts: List<PostList.Item
     val label = stringResource(group.labelRes)
     val spoken = stringResource(R.string.crew_schedule_group_spoken, label, posts.size)
     Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(top = 6.dp, bottom = 6.dp).semantics(mergeDescendants = true) {
+        RunkkSectionHeader(
+            label,
+            modifier = Modifier.padding(top = 6.dp, bottom = 6.dp).clearAndSetSemantics {
                 heading()
                 contentDescription = spoken
             },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Text(label, style = RunkkTextStyles.text(15, FontWeight.Bold), color = RunkkColors.TextPrimary)
-            Text(posts.size.toString(), style = RunkkTextStyles.text(13), color = RunkkColors.TextSecondary)
-        }
+            count = posts.size.toString()
+        )
         posts.forEach { post ->
             ScheduleRow(post, actions)
             HorizontalDivider(color = RunkkColors.Border)
@@ -393,7 +378,7 @@ private fun GoingChip(post: PostList.Item, going: Int, isGoing: Boolean, actions
         .clip(shape)
         .then(
             if (isGoing) {
-                Modifier.background(RunkkColors.TextSecondary)
+                Modifier.background(RunkkColors.ChipSelected)
             } else {
                 Modifier.border(1.dp, RunkkColors.Border, shape)
             }
@@ -419,7 +404,7 @@ private fun GoingChip(post: PostList.Item, going: Int, isGoing: Boolean, actions
             } else {
                 RunkkTextStyles.text(14, FontWeight.Medium)
             },
-            color = if (isGoing) Color.White else RunkkColors.TextSecondary
+            color = if (isGoing) RunkkColors.OnChipSelected else RunkkColors.TextSecondary
         )
     }
 }
@@ -439,6 +424,3 @@ private fun lobbyButtonText(lobby: LobbyAvailability): String = when (lobby) {
 
 /** 이만큼(분) 남았을 때부터 "N분 뒤 열려요"로 센다. */
 private const val LOBBY_COUNTDOWN_MINUTES = 60L
-
-/** 누를 수 없는 강조 카드 단추의 진하기. */
-private const val DISABLED_ALPHA = 0.6f

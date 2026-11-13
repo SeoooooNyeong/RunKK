@@ -159,7 +159,7 @@ private fun CoachFab(onClick: () -> Unit, modifier: Modifier = Modifier) {
 @Composable
 internal fun RunBodyLoadable(isLoading: Boolean, error: String?, onRetry: () -> Unit, content: @Composable () -> Unit) {
     when {
-        isLoading -> Box(Modifier.fillMaxWidth().padding(vertical = 48.dp)) { RunkkLoading() }
+        isLoading -> RunkkLoading(height = LOADING_HEIGHT)
         error != null -> RunkkErrorState(error, onRetry = onRetry)
         else -> content()
     }
@@ -171,3 +171,6 @@ private val COACH_FAB_HEIGHT = 56.dp
 
 /** 떠 있는 "AI 코치"(56) + 아래 20 + 본문과 띄울 20. */
 private val COACH_CLEARANCE = 96.dp
+
+/** 불러오는 칸 높이(위아래 48 + 원 40). */
+private val LOADING_HEIGHT = 136.dp

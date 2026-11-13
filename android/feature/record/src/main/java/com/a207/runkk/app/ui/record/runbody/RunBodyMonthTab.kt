@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -25,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigator
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -82,34 +84,14 @@ private fun MonthHeader(state: RunBodyUiState, actions: RunBodyActions) {
         Locale.KOREAN
     ).format(state.month)
     // 피그마 "‹  2026년 10월  ›"(16 Bold, 왼쪽 정렬). 화살표는 누름 칸 48을 두고 꺾쇠가 본문 왼쪽 끝에 오게 당긴다.
-    Row(Modifier.offset(x = -ARROW_INSET), verticalAlignment = Alignment.CenterVertically) {
-        MonthArrow(
-            RunkkIcons.Back,
-            stringResource(R.string.record_runbody_month_previous),
-            isEnabled = state.canGoPreviousMonth,
-            actions.onPreviousMonth
-        )
-        Text(label, style = RunkkTextStyles.text(16, FontWeight.Bold), color = RunkkColors.TextPrimary)
-        MonthArrow(
-            RunkkIcons.ChevronRight,
-            stringResource(R.string.record_runbody_month_next),
-            isEnabled = state.canGoNextMonth,
-            actions.onNextMonth
-        )
-    }
-}
-
-@Composable
-private fun MonthArrow(icon: ImageVector, label: String, isEnabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(MONTH_ARROW_SIZE)
-            .clickable(enabled = isEnabled, onClickLabel = label, role = Role.Button, onClick = onClick)
-            .alpha(if (isEnabled) 1f else DISABLED_ALPHA),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(icon, contentDescription = label, tint = RunkkColors.TextPrimary, modifier = Modifier.size(16.dp))
-    }
+    RunkkPeriodNavigator(
+        label = label,
+        onPrevious = actions.onPreviousMonth.takeIf { state.canGoPreviousMonth },
+        onNext = actions.onNextMonth.takeIf { state.canGoNextMonth },
+        modifier = Modifier.offset(x = -ARROW_INSET).width(IntrinsicSize.Max),
+        previousDescription = stringResource(R.string.record_runbody_month_previous),
+        nextDescription = stringResource(R.string.record_runbody_month_next)
+    )
 }
 
 /** 월간 러닝 분석(간격 14): 점수가 있는 축마다 이름(13 Medium)·점수(17 Bold)·막대(6, 트랙 surfaceHigh). 가장 높은 축은 라임, 나머지는 보라. */
@@ -347,9 +329,7 @@ private fun kmSpaced(distance: Distance): String =
 
 private const val MAX_SCORE = 100f
 private const val PERCENT = 100
-private const val DISABLED_ALPHA = 0.3f
 private const val WEEK_AXIS_STEP_METERS = 5_000L
 private val WEEK_VALUE_WIDTH = 54.dp
 private val BAR_HEIGHT = 6.dp
 private val ARROW_INSET = 16.dp
-private val MONTH_ARROW_SIZE = 48.dp

@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -12,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
@@ -32,7 +32,7 @@ fun CrewChatEntryRoute(viewModel: CrewFindViewModel = hiltViewModel()) {
     LaunchedEffect(crewId) {
         if (crewId != null) navigator.replace(Routes.CrewHome(crewId, CrewTab.CHAT.name))
     }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(Modifier.fillMaxSize().background(RunkkColors.Background)) {
         RunkkTopBar(title = stringResource(R.string.crew_home_chat), onBack = navigator::back)
         Box(Modifier.fillMaxSize()) {
             when {

@@ -22,6 +22,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunimalArt
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTagTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.domain.runimal.RunimalCard
 
@@ -35,7 +38,7 @@ internal fun RunimalShareCard(card: RunimalCard, isProvisional: Boolean, modifie
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
+            .clip(RunkkShapes.Dialog)
             .background(RunkkColors.Surface)
             .padding(horizontal = 20.dp, vertical = 22.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -69,7 +72,7 @@ internal fun RunimalShareCard(card: RunimalCard, isProvisional: Boolean, modifie
                 )
                 Text(
                     card.description,
-                    style = RunkkTextStyles.text(13),
+                    style = RunkkTextStyles.Label,
                     color = RunkkColors.TextSecondary,
                     textAlign = TextAlign.Center
                 )
@@ -87,22 +90,10 @@ internal fun RunimalShareCard(card: RunimalCard, isProvisional: Boolean, modifie
     }
 }
 
-/** 작은 꼬리표(높이 17 남짓, 둥근 알약, 글자 11): 라임 채움 또는 테두리. */
+/** 작은 꼬리표(디자인 시스템 RunkkTagPill XSmall, 글자 11): 라임 채움 또는 테두리. */
 @Composable
 private fun SmallTag(label: String, isLime: Boolean) {
-    val base = Modifier.clip(CircleShape)
-    Text(
-        label,
-        style = RunkkTextStyles.text(11),
-        color = if (isLime) RunkkColors.OnLimeFill else RunkkColors.TextPrimary,
-        modifier = (
-            if (isLime) {
-                base.background(RunkkColors.LimeFill)
-            } else {
-                base.border(1.dp, RunkkColors.Border, CircleShape)
-            }
-            ).padding(horizontal = 8.dp, vertical = 2.dp)
-    )
+    RunkkTagPill(label, tone = if (isLime) RunkkTagTone.Lime else RunkkTagTone.Outline)
 }
 
 private val ART_SIZE = 120.dp

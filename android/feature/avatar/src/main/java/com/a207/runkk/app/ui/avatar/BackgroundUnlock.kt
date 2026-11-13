@@ -15,7 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.dp
-import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.AvatarStageBackdrop
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkDialog
@@ -76,7 +76,7 @@ internal fun BackgroundUnlockDialog(unlock: BackgroundUnlock, onClose: () -> Uni
                 .background(RunkkColors.SurfaceHigh)
                 .clearAndSetSemantics {}
         ) {
-            AvatarBackdrop(unlock.title.key, Modifier.matchParentSize(), unlock.title.stage)
+            AvatarStageBackdrop(unlock.title.key, Modifier.matchParentSize(), unlock.title.stage)
         }
         if (unlock.items.size > 1) {
             Column(

@@ -19,7 +19,10 @@ import kotlinx.coroutines.launch
  * 잠긴 배경은 보내지 않고 남은 거리를 안내한다. 서버가 잠김(BACKGROUND_LOCKED)으로 거부해도 같은 안내를 보인다.
  */
 @HiltViewModel
-class AvatarBackgroundViewModel @Inject constructor(private val avatars: AvatarRepository) : ViewModel() {
+class AvatarBackgroundViewModel @Inject constructor(
+    private val avatars: AvatarRepository,
+    private val myAvatar: MyAvatarStore
+) : ViewModel() {
     private val _state = MutableStateFlow(AvatarBackgroundUiState())
     val state: StateFlow<AvatarBackgroundUiState> = _state.asStateFlow()
 
@@ -61,12 +64,16 @@ class AvatarBackgroundViewModel @Inject constructor(private val avatars: AvatarR
         _state.update { it.copy(choosingKey = key ?: AvatarBackgroundUiState.DEFAULT_KEY) }
         viewModelScope.launch {
             when (val result = avatars.chooseBackground(key)) {
-                is Outcome.Success -> _state.update {
-                    it.copy(
-                        choosingKey = null,
-                        backgrounds = it.backgrounds?.copy(selectedKey = key),
-                        message = UiText.Res(R.string.avatar_background_chosen)
-                    )
+                is Outcome.Success -> {
+                    _state.update {
+                        it.copy(
+                            choosingKey = null,
+                            backgrounds = it.backgrounds?.copy(selectedKey = key),
+                            message = UiText.Res(R.string.avatar_background_chosen)
+                        )
+                    }
+                    // 홈·러닝 칸의 배경도 바꾼다(design-oo 05-30 3절 6단계).
+                    myAvatar.refresh()
                 }
 
                 is Outcome.Failure -> _state.update {

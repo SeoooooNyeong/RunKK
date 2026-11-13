@@ -651,7 +651,7 @@ class CrewW7ScreensTest {
         compose.onNodeWithText("10월 크루런").assertExists()
         compose.onNodeWithText("화요일 인터벌").performClick()
         compose.onNodeWithText("토요일 하프").performClick()
-        compose.onNodeWithContentDescription("기간 선택, 지금 2026년 10월").performClick()
+        compose.onNodeWithText("2026년 10월").performClick()
         compose.onNodeWithText("취소됨", useUnmergedTree = true).assertExists()
         assertEquals(listOf("run:40", "run:35", "period"), calls)
     }

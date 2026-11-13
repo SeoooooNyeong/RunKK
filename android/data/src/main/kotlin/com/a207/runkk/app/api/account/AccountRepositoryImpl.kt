@@ -13,6 +13,7 @@ import com.a207.runkk.app.core.model.map
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.MemberSettings
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.account.PlacementProgress
 import com.a207.runkk.app.domain.account.Profile
@@ -46,6 +47,15 @@ constructor(
     private val settings: SettingsRepository
 ) : AccountRepository {
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+
+    override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
+
+    /** 기기에 남긴 내 얼굴·배경 키와 받아 둔 층. 셀카 얼굴인데 층이 없으면 null(화면이 받는 동안 중립 자리를 둔다). */
+    override fun lastMyAvatar(): MyAvatar? {
+        val keys = faces.lastSelf() ?: return null
+        val layers = faces.peek(keys.faceKey) ?: return null
+        return MyAvatar(keys.faceKey, layers, keys.backgroundKey)
+    }
 
     @Volatile
     private var signUpTicket: String? = null
@@ -129,7 +139,11 @@ constructor(
     override suspend fun profile(memberId: Long): Outcome<Profile> {
         val id = self.resolve(memberId, AccountRepository.SELF) ?: return Outcome.Failure(AppError.Unauthorized)
         val result = ApiErrorMapper.call { me.profile(id).toDomain() }
-        if (memberId == AccountRepository.SELF && result is Outcome.Success) currentGender.value = result.value.gender
+        if (memberId == AccountRepository.SELF && result is Outcome.Success) {
+            currentGender.value = result.value.gender
+            // 다음 실행의 첫 그림부터 내 얼굴을 그리게 얼굴·배경 키를 남긴다.
+            faces.rememberSelf(result.value.faceKey, result.value.avatarBackgroundKey)
+        }
         return result
     }
 

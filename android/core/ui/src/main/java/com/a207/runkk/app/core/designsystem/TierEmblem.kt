@@ -42,7 +42,7 @@ fun TierEmblem(tier: String?, size: TierEmblemSize, modifier: Modifier = Modifie
             Text(
                 QUESTION,
                 style = TextStyle(
-                    fontFamily = IbmPlexSansKr,
+                    fontFamily = NotoSansKr,
                     fontWeight = FontWeight.Bold,
                     fontSize = fontSize,
                     lineHeight = fontSize

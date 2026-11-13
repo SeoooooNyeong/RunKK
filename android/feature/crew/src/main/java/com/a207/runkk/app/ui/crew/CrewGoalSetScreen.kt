@@ -22,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -148,7 +147,7 @@ private fun GoalInput(draft: String, onDraft: (String) -> Unit) {
                     Box(Modifier.weight(1f)) { inner() }
                     Text(
                         stringResource(R.string.crew_goal_set_unit),
-                        style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 22),
+                        style = RunkkTextStyles.SheetTitle,
                         color = RunkkColors.TextPrimary
                     )
                 }
@@ -157,10 +156,7 @@ private fun GoalInput(draft: String, onDraft: (String) -> Unit) {
     }
 }
 
-/**
- * 지난 목표 한 주(피그마 F-07): 투명 바탕 + 테두리 1, r28, 안쪽 14, 간격 8. 「10월 3주차」와 오른쪽 달성·달성 실패·목표 없음, 합산 Bold 22 +
- * 「/ 80 km」 + 진행률 Bold 15(100을 넘으면 그대로), 8 두께 막대(barCrew, 100%에서 꽉 참), 참여 인원.
- */
+/** 지난 목표 한 주(피그마 F-07): 달성·달성 실패·목표 없음, 목표가 있으면 진행률과 막대(100%에서 꽉 참). */
 @Composable
 private fun PastGoalCard(race: RaceStatus) {
     val (month, week) = weekOfMonth(race)
@@ -175,61 +171,20 @@ private fun PastGoalCard(race: RaceStatus) {
         }
     )
     val total = RunkkFormat.kmShort(race.total)
-    val description = stringResource(R.string.crew_goal_set_past_description, weekLabel, total, status)
-    val shape = RoundedCornerShape(28.dp)
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .border(1.dp, RunkkColors.Border, shape)
-            .padding(14.dp)
-            .clearAndSetSemantics { contentDescription = description },
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                weekLabel,
-                style = RunkkTextStyles.text(13, lineHeight = 16),
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                status,
-                style = RunkkTextStyles.text(12, FontWeight.Bold, lineHeight = 18),
-                color = RunkkColors.TextPrimary
-            )
-        }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                total,
-                style = RunkkTextStyles.text(22, FontWeight.Bold, lineHeight = 26),
-                color = RunkkColors.TextPrimary
-            )
-            Text(
-                if (goal != null) {
-                    stringResource(R.string.crew_goal_of, RunkkFormat.kmShort(goal))
-                } else {
-                    stringResource(R.string.crew_goal_km_unit)
-                },
-                style = RunkkTextStyles.text(13, lineHeight = 16),
-                color = RunkkColors.TextPrimary,
-                modifier = Modifier.weight(1f).padding(bottom = 3.dp)
-            )
-            if (progress != null) {
-                Text(
-                    stringResource(R.string.crew_race_share_percent, progress),
-                    style = RunkkTextStyles.text(15, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary
-                )
-            }
-        }
-        if (goal != null) RaceBar(total = goalFillFraction(race))
-        Text(
-            stringResource(R.string.crew_goal_set_participants, participantCount(race)),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextPrimary
-        )
-    }
+    PastGoalWeekCard(
+        week = weekLabel,
+        status = status,
+        total = total,
+        goalLabel = if (goal != null) {
+            stringResource(R.string.crew_goal_of, RunkkFormat.kmShort(goal))
+        } else {
+            stringResource(R.string.crew_goal_km_unit)
+        },
+        percent = progress?.let { stringResource(R.string.crew_race_share_percent, it) },
+        progress = if (goal != null) goalFillFraction(race) else null,
+        participants = stringResource(R.string.crew_goal_set_participants, participantCount(race)),
+        spoken = stringResource(R.string.crew_goal_set_past_description, weekLabel, total, status)
+    )
 }
 
 /** "10.20 (월)". 틀은 문자열 리소스(crew_goal_set_day_pattern)다. */

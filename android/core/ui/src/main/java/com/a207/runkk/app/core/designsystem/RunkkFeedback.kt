@@ -193,11 +193,19 @@ private const val WORDMARK_HOP_UP_MS = 220
 private const val WORDMARK_HOP_DAMPING = 0.45f
 private val WORDMARK_HOP_HEIGHT = 18.dp
 
-/** 불러오는 중(가운데 라임 원). 보조 기술에 [label]을 알린다. */
+/**
+ * 불러오는 중(가운데 라임 원). 보조 기술에 [label]을 알린다. 기본은 부모를 가득 채운다. [height]를 주면 폭 가득·그 높이 칸
+ * 가운데에 둔다(목록 아래·카드 안 불러오기: 화면이 높이 상자로 감싸지 않는다).
+ */
 @Composable
-fun RunkkLoading(modifier: Modifier = Modifier, label: String = stringResource(R.string.core_feedback_loading)) {
+fun RunkkLoading(
+    modifier: Modifier = Modifier,
+    label: String = stringResource(R.string.core_feedback_loading),
+    height: Dp = Dp.Unspecified
+) {
+    val area = if (height == Dp.Unspecified) Modifier.fillMaxSize() else Modifier.fillMaxWidth().height(height)
     Box(
-        modifier = modifier.fillMaxSize().semantics {
+        modifier = modifier.then(area).semantics {
             contentDescription = label
             progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
         },

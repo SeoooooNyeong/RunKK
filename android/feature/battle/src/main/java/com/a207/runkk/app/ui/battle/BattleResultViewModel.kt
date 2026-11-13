@@ -39,7 +39,9 @@ class BattleResultViewModel internal constructor(
     private val uploads: BattleRecordUploads,
     private val runDetails: RunDetailSource,
     /** 내 아바타(홈과 같은 출처, AccountRepository.myAvatar). 결과 쪽 내 그림과 배경에 쓴다. */
-    private val myAvatar: suspend () -> MyAvatar? = { null }
+    private val myAvatar: suspend () -> MyAvatar? = { null },
+    /** 첫 그림의 내 아바타(기기에 남긴 마지막 모습, 없으면 null). */
+    lastAvatar: () -> MyAvatar? = { null }
 ) : ViewModel() {
     @Inject
     constructor(
@@ -48,9 +50,11 @@ class BattleResultViewModel internal constructor(
         uploads: BattleRecordUploads,
         runDetails: RunDetailSource,
         account: AccountRepository
-    ) : this(battles, coordinator, uploads, runDetails, { account.myAvatar() })
+    ) : this(battles, coordinator, uploads, runDetails, { account.myAvatar() }, account::lastMyAvatar)
 
-    private val _state = MutableStateFlow(BattleResultUiState())
+    // 기기에 남긴 마지막 내 아바타(AccountRepository.lastMyAvatar)를 첫 값으로 그려 기본 아바타가 보였다가 바뀌지 않게 한다.
+    private val _state = MutableStateFlow(BattleResultUiState(myAvatar = lastAvatar()))
+    private var isAvatarRead = false
     val state: StateFlow<BattleResultUiState> = _state.asStateFlow()
 
     private val _events = Channel<BattleResultEvent>(Channel.BUFFERED)
@@ -96,9 +100,12 @@ class BattleResultViewModel internal constructor(
 
     /** 내 아바타(홈과 같은 얼굴·배경)를 한 번 읽는다. 못 읽으면 기본 아바타 그대로다. */
     private fun readMyAvatar() {
-        if (_state.value.myAvatar != null || avatarJob?.isActive == true) return
+        if (isAvatarRead || avatarJob?.isActive == true) return
         avatarJob = viewModelScope.launch {
-            myAvatar()?.let { look -> _state.update { it.copy(myAvatar = look) } }
+            myAvatar()?.let { look ->
+                isAvatarRead = true
+                _state.update { it.copy(myAvatar = look) }
+            }
         }
     }
 

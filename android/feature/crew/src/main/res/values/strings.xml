@@ -469,7 +469,6 @@
     <string name="crew_run_sheet_repeat">반복 설정</string>
     <string name="crew_run_sheet_confirm">확인</string>
     <string name="crew_run_calendar_month">%1$d월</string>
-    <string name="crew_run_calendar_month_spoken">%1$d년 %2$d월</string>
     <string name="crew_run_calendar_prev">이전 달</string>
     <string name="crew_run_calendar_next">다음 달</string>
     <string name="crew_run_calendar_today">오늘</string>

@@ -20,7 +20,7 @@ data class HomeUiState(
      * 여자로 바뀌지 않게 한다(FR-162, 시험 TF-V12-02).
      */
     val isAvatarReady: Boolean = false,
-    /** 이번 주 달린 거리(weekly.actualMeters). 읽기 전·목표 없음이면 0이다. */
+    /** 이번 주 달린 거리(대시보드 weekMeters, 옛 서버면 weekly.actualMeters). 읽기 전이면 0이다. */
     val weeklyDistance: Distance = Distance.ZERO,
     /** 이번 주 목표 거리(weekly.goalMeters). 목표가 없거나 옛 서버면 null이다. */
     val weeklyGoal: Distance? = null,

@@ -170,7 +170,6 @@
     <string name="record_delete_cancel">취소</string>
     <string name="record_delete_not_allowed">삭제할 수 없는 기록이에요</string>
     <string name="record_ranking_me">나</string>
-    <string name="record_ranking_scope_locked">%1$s, 잠김</string>
     <string name="record_ranking_range">%1$s – %2$s</string>
     <string name="record_ranking_deadline_days">%1$d일 %2$d시간 뒤 마감</string>
     <string name="record_ranking_deadline_hours">%1$d시간 뒤 마감</string>

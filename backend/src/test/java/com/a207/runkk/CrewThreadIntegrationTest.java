@@ -496,7 +496,14 @@ class CrewThreadIntegrationTest {
                 .isEqualTo(5);
         assertThat(avatars.equip(m, List.of(EquipChange.wear(ItemSlot.HAT, 77))).rejected())
                 .containsKey(ItemSlot.HAT);
-        assertThat(appearance.refreshAll(LocalDate.now())).isZero();
+        // 한 번도 달리지 않은 회원은 기본 몸(4단계) 그대로다([임시:D-성-212]: 셀카·기본 아바타 몸이 가입 직후부터 같다)
+        appearance.refreshAll(LocalDate.now());
+        assertThat(
+                        jdbc.queryForObject(
+                                "select body_shape from avatar where member_id = ?",
+                                String.class,
+                                m))
+                .isEqualTo("STAGE4");
         avatarWithdrawal.onMemberWithdrawn(new MemberWithdrawn(m, LocalDateTime.now()));
         assertThat(
                         jdbc.queryForObject(

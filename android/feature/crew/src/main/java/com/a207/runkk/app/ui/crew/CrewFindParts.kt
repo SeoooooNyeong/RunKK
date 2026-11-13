@@ -14,11 +14,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -29,6 +27,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -42,8 +41,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTagSize
+import com.a207.runkk.app.core.designsystem.RunkkTagTone
 import com.a207.runkk.app.core.designsystem.RunkkTags
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Outcome
@@ -113,40 +116,21 @@ internal fun CrewTagPills(tags: Collection<String>, modifier: Modifier = Modifie
     ) {
         RunkkTags.sorted(tags).forEach { id ->
             val weekend = RunkkTags.of(id)?.isWeekend == true
-            Box(
-                Modifier
-                    .heightIn(min = 28.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (weekend) RunkkColors.TagLime else RunkkColors.TagPurple)
-                    .padding(horizontal = 14.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    RunkkTags.label(id),
-                    style = RunkkTextStyles.text(14, FontWeight.Medium),
-                    color = if (weekend) RunkkColors.OnTagLime else RunkkColors.OnTagPurple
-                )
-            }
+            RunkkTagPill(
+                RunkkTags.label(id),
+                tone = if (weekend) RunkkTagTone.LimeTint else RunkkTagTone.PurpleTint,
+                size = RunkkTagSize.Medium
+            )
         }
     }
 }
 
-/** 카드 안 작은 태그 줄(피그마 Outline Small 태그, F-01 카드): 높이 22, 알약, divider 테두리, 11 Regular, 간격 4. */
+/** 카드 안 작은 태그 줄(피그마 Outline Small 태그, F-01 카드): 알약, divider 테두리, 11 Regular, 간격 4. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CrewTagOutlines(tags: Collection<String>) {
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        RunkkTags.sorted(tags).forEach { id ->
-            Box(
-                Modifier
-                    .heightIn(min = 22.dp)
-                    .border(1.dp, RunkkColors.Border, RunkkShapes.Pill)
-                    .padding(horizontal = 8.dp, vertical = 2.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(RunkkTags.label(id), style = RunkkTextStyles.text(11), color = RunkkColors.TextPrimary)
-            }
-        }
+        RunkkTags.sorted(tags).forEach { id -> RunkkTagPill(RunkkTags.label(id)) }
     }
 }
 
@@ -197,31 +181,25 @@ internal fun FindCrewCard(crew: CrewList.Item, onClick: () -> Unit, modifier: Mo
         }
         Text(
             "${crew.headcount}/$CREW_MAX",
-            style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 22),
+            style = RunkkTextStyles.SheetTitle,
             color = RunkkColors.TextPrimary,
             modifier = Modifier.clearAndSetSemantics { contentDescription = headcount }
         )
     }
 }
 
-/** 목록 제목 줄의 새로고침 단추(피그마 F-01: 32 원, divider 테두리, "↻"). 누르는 칸은 48dp다. */
+/** 목록 제목 줄의 새로고침 단추(피그마 F-01: 32 원, divider 테두리, 새로고침 아이콘). 누르는 칸은 48dp다. */
 @Composable
 internal fun RefreshButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val label = stringResource(R.string.crew_find_refresh)
-    Box(
-        modifier = modifier
-            .size(48.dp)
-            .clickable(onClickLabel = label, role = Role.Button, onClick = onClick)
-            .clearAndSetSemantics { contentDescription = label },
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            Modifier.size(32.dp).clip(CircleShape).border(1.dp, RunkkColors.Border, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("↻", style = RunkkTextStyles.text(16, FontWeight.Bold), color = RunkkColors.TextPrimary)
-        }
-    }
+    RunkkIconButton(
+        icon = RunkkIcons.Refresh,
+        contentDescription = stringResource(R.string.crew_find_refresh),
+        onClick = onClick,
+        modifier = modifier,
+        visualSize = 32.dp,
+        iconSize = 16.dp,
+        containerColor = Color.Transparent
+    )
 }
 
 /**
