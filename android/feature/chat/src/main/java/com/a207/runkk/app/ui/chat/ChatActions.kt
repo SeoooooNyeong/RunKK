@@ -20,5 +20,9 @@ data class ChatActions(
     val onReportDetail: (String) -> Unit = {},
     val onReportDismiss: () -> Unit = {},
     val onReportSubmit: () -> Unit = {},
-    val onMessageShown: () -> Unit = {}
+    val onMessageShown: () -> Unit = {},
+    /** 반응 알약을 길게 누름: 그 종류 탭으로 반응한 사람 시트를 연다(D-성-24). */
+    val onOpenReactors: (ChatMessage, ReactionKind?) -> Unit = { _, _ -> },
+    val onReactorTab: (ReactionKind?) -> Unit = {},
+    val onCloseReactors: () -> Unit = {}
 )

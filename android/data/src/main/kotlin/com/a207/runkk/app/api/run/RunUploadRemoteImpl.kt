@@ -15,7 +15,7 @@ internal class RunUploadRemoteImpl
 @Inject
 constructor(private val api: RunApi) : RunUploadRemote {
     override suspend fun upload(run: CompletedRun): Outcome<UploadReceipt> =
-        ApiErrorMapper.call { api.upload(run.toRequest()).toDomain() }
+        ApiErrorMapper.call { api.upload(run.toFittedRequest()).toDomain() }
 
     override suspend fun appendHeartRates(recordId: String, samples: List<HeartRateSample>): Outcome<Unit> =
         ApiErrorMapper.call { api.appendHeartRates(recordId, LateHeartRatesRequest(samples.map { it.toRequest() })) }

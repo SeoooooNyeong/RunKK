@@ -47,7 +47,6 @@ fun context(
     progress: RunProgress,
     plan: PlanSnapshot? = null,
     gapMeters: Int? = null,
-    rank: CrewRank? = null,
     birthYear: Int? = null,
     settings: GuidanceSettings = GuidanceSettings.DEFAULT
-): GuidanceContext = GuidanceContext(progress, plan, gapMeters, rank, birthYear, settings)
+): GuidanceContext = GuidanceContext(progress, plan, gapMeters, birthYear, settings)

@@ -3,6 +3,7 @@ package com.a207.runkk.crew;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
@@ -47,6 +48,7 @@ public class WeeklyRaceService {
     private final MemberQueryService memberQueryService;
     private final NotificationService notificationService;
     private final CrewTransactions transactions;
+    private final DomainEventPublisher events;
     private final Clock clock;
 
     WeeklyRaceService(
@@ -57,6 +59,7 @@ public class WeeklyRaceService {
             MemberQueryService memberQueryService,
             NotificationService notificationService,
             CrewTransactions transactions,
+            DomainEventPublisher events,
             Clock clock) {
         this.weeklyRaceRepository = weeklyRaceRepository;
         this.crewRepository = crewRepository;
@@ -65,6 +68,7 @@ public class WeeklyRaceService {
         this.memberQueryService = memberQueryService;
         this.notificationService = notificationService;
         this.transactions = transactions;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -83,7 +87,7 @@ public class WeeklyRaceService {
     /**
      * 기록 시작일시에 소속이던 크루 → Week.of(startedAt) → addAtomically. 더했으면 같은 트랜잭션에서 markAchievedIfReached를
      * 부르고 한 행을 바꿨으면 그 크루의 현재 크루원 모두에게 CREW_GOAL_ACHIEVED(푸시는 커밋 뒤). 늦게 저장된 지난 주 기록도 지난 주에 더하고 지난 주를
-     * 판정한다(FR-217, D-105).
+     * 판정한다(FR-217, D-105). 더했으면 RaceContributionAdded를 발행한다(crew.chat 러닝 완료 메시지, W5 C7).
      */
     private void addToRace(RunRecordSaved e) {
         crewRepository.findMembershipHistory(e.memberId()).stream()
@@ -96,7 +100,16 @@ public class WeeklyRaceService {
                                     new RaceContributionKey(
                                             m.crewId(), week, e.memberId(), e.recordId()),
                                     e.distance())) {
-                                judgeGoal(m.crewId(), week, LocalDateTime.now(clock));
+                                LocalDateTime now = LocalDateTime.now(clock);
+                                events.publish(
+                                        new RaceContributionAdded(
+                                                m.crewId(),
+                                                e.memberId(),
+                                                e.recordId(),
+                                                e.distance(),
+                                                e.startedAt(),
+                                                now));
+                                judgeGoal(m.crewId(), week, now);
                             }
                         });
     }
@@ -185,6 +198,30 @@ public class WeeklyRaceService {
                 celebrationOf(crewId, race));
     }
 
+    /** 지난 목표 한 페이지 크기 상한(contract-W7.md). */
+    public static final int MAX_HISTORY_SIZE = 100;
+
+    /**
+     * check(VIEW_CREW_INTERNAL, 크기 검사보다 먼저) → 이번 주 앞의, 목표가 있던 주를 최신 주부터 size개(피그마 맞춤 W7 F-21).
+     * before가 있으면 그보다 앞선 주만(이번 주 월요일보다 늦으면 이번 주 월요일로 줄인다). 더 남았으면 nextBefore가 이 페이지 마지막 주 월요일이다.
+     * size가 1~100 밖이면 IllegalArgumentException(400).
+     */
+    @Transactional(readOnly = true)
+    public GoalHistoryView goalHistory(
+            long viewerId, long crewId, Optional<LocalDate> before, int size) {
+        crewAccess.check(viewerId, crewId, CrewAction.VIEW_CREW_INTERNAL);
+        if (size < 1 || size > MAX_HISTORY_SIZE) {
+            throw new IllegalArgumentException("페이지 크기는 1~" + MAX_HISTORY_SIZE + ": " + size);
+        }
+        LocalDate thisMonday = Week.of(LocalDateTime.now(clock)).monday();
+        LocalDate bound = before.filter(b -> b.isBefore(thisMonday)).orElse(thisMonday);
+        List<GoalHistoryRow> rows = weeklyRaceRepository.goalHistory(crewId, bound, size + 1);
+        List<GoalHistoryView.Line> page =
+                rows.stream().limit(size).map(GoalHistoryView.Line::of).toList();
+        LocalDate next = rows.size() > size ? page.get(page.size() - 1).weekStart() : null;
+        return new GoalHistoryView(page, next);
+    }
+
     /** 달성한 주만 축하 카드(크루명, 합계, 목표, 참여 인원 = 그 주 기여가 있는 회원 수). 저장하지 않고 조회 때 만든다(FR-141, D-105). */
     private CelebrationCard celebrationOf(long crewId, WeeklyRace race) {
         if (!race.isAchieved() || race.goal().isEmpty()) {
@@ -214,6 +251,15 @@ public class WeeklyRaceService {
     @Transactional(readOnly = true)
     public Distance contributionOf(String recordId) {
         return weeklyRaceRepository.contributionOf(recordId);
+    }
+
+    /** 기록 하나가 반영된 크루의 이름(결과 화면 "OO 크루 목표에 반영", B-6 v2, S15P31A207-251). 반영이 없으면 빈 값. */
+    @Transactional(readOnly = true)
+    public Optional<String> contributedCrewNameOf(String recordId) {
+        return weeklyRaceRepository
+                .contributedCrewOf(recordId)
+                .flatMap(crewRepository::findById)
+                .map(crew -> crew.name().value());
     }
 
     /**

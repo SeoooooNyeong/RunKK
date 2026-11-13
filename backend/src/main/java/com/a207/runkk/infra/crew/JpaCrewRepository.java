@@ -1,9 +1,9 @@
 package com.a207.runkk.infra.crew;
 
+import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.PageCursor;
-import com.a207.runkk.common.PersonalityTag;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.crew.Crew;
 import com.a207.runkk.crew.CrewListRow;
@@ -107,29 +107,15 @@ public class JpaCrewRepository implements CrewRepository {
      */
     @Override
     public List<CrewListRow> search(CrewSearch cond, PageCursor page, Week week) {
-        List<PersonalityTag> tags = cond.tags().stream().sorted().toList();
-        StringBuilder jpql = new StringBuilder("select c from Crew c where c.visibility = :public");
-        if (cond.keyword() != null) {
-            jpql.append(
-                    " and (lower(c.name) like :keyword escape '!' or lower(c.intro) like :keyword"
-                            + " escape '!')");
-        }
-        for (int i = 0; i < tags.size(); i++) {
-            jpql.append(" and concat(',', c.tags, ',') like :tag").append(i).append(" escape '!'");
-        }
+        StringBuilder jpql = new StringBuilder("select c from Crew c");
+        appendFilter(jpql, cond);
         if (page.cursor() != null) {
             jpql.append(" and c.id < :cursor");
         }
         TypedQuery<Crew> query =
                 entityManager.createQuery(
                         jpql.append(" order by c.id desc").toString(), Crew.class);
-        query.setParameter("public", CrewVisibility.PUBLIC);
-        if (cond.keyword() != null) {
-            query.setParameter("keyword", "%" + likeLiteral(cond.keyword()) + "%");
-        }
-        for (int i = 0; i < tags.size(); i++) {
-            query.setParameter("tag" + i, "%," + escapeLike(tags.get(i).name()) + ",%");
-        }
+        bindFilter(query, cond);
         if (page.cursor() != null) {
             query.setParameter("cursor", page.cursor());
         }
@@ -155,9 +141,59 @@ public class JpaCrewRepository implements CrewRepository {
                 .toList();
     }
 
+    /** search와 같은 거름(공개·키워드·태그 AND), 커서·크기 없이 센다(S15P31A207-295). */
+    @Override
+    public long count(CrewSearch cond) {
+        StringBuilder jpql = new StringBuilder("select count(c) from Crew c");
+        appendFilter(jpql, cond);
+        TypedQuery<Long> query = entityManager.createQuery(jpql.toString(), Long.class);
+        bindFilter(query, cond);
+        return query.getSingleResult();
+    }
+
+    /**
+     * 공개 크루 + 키워드(이름·소개, LIKE 글자 그대로) + 태그 AND. 태그 칸은 정렬된 쉼표 구분 이름이라 앞뒤에 쉼표를 붙여 ",태그,"를 찾는다(코드 리뷰
+     * 2차 L13).
+     */
+    private static void appendFilter(StringBuilder jpql, CrewSearch cond) {
+        jpql.append(" where c.visibility = :public");
+        if (cond.keyword() != null) {
+            jpql.append(
+                    " and (lower(c.name) like :keyword escape '!' or lower(c.intro) like :keyword"
+                            + " escape '!')");
+        }
+        for (int i = 0; i < cond.tags().size(); i++) {
+            jpql.append(" and concat(',', c.tags, ',') like :tag").append(i).append(" escape '!'");
+        }
+    }
+
+    private static void bindFilter(TypedQuery<?> query, CrewSearch cond) {
+        List<CrewTag> tags = cond.tags().stream().sorted().toList();
+        query.setParameter("public", CrewVisibility.PUBLIC);
+        if (cond.keyword() != null) {
+            query.setParameter("keyword", "%" + likeLiteral(cond.keyword()) + "%");
+        }
+        for (int i = 0; i < tags.size(); i++) {
+            query.setParameter("tag" + i, "%," + escapeLike(tags.get(i).name()) + ",%");
+        }
+    }
+
     @Override
     public Distance weeklyDistance(long crewId, Week week) {
         return Distance.ofMeters(weeklyTotals(List.of(crewId), week).getOrDefault(crewId, 0L));
+    }
+
+    @Override
+    public Distance totalDistance(long crewId) {
+        Long sum =
+                entityManager
+                        .createQuery(
+                                "select sum(r.totalMeters) from WeeklyRaceRow r where r.crewId ="
+                                        + " :crew",
+                                Long.class)
+                        .setParameter("crew", crewId)
+                        .getSingleResult();
+        return Distance.ofMeters(sum == null ? 0L : sum);
     }
 
     @Override

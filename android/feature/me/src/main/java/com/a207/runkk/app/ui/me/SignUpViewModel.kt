@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.ProfileEdit
 import com.a207.runkk.app.domain.account.SignUpForm
 import com.a207.runkk.app.domain.account.SignUpUseCase
 import com.a207.runkk.app.domain.account.StartAsGuestUseCase
@@ -26,6 +28,7 @@ import kotlinx.coroutines.launch
  * 동의 화면 하나(가입·게스트 공용, FR-003·FR-004·FR-028·FR-197, D-90). 같은 동의로 가입(SignUpUseCase)하거나
  * 게스트로 시작(StartAsGuestUseCase)한다. 닉네임은 보내지 않고 서버가 정한다(D-143). 거부는 화면에 남겨 보인다.
  * 게스트로 시작하면 홈으로 가기 전에 자료 유실 고지를 보인다(FR-199).
+ * 동의 다음에 성별(남·여) 단계를 두고, 그 단계의 시작하기에서 계정을 만든 뒤 고른 성별을 프로필 성별로 저장한다(S15P31A207-300).
  */
 @HiltViewModel
 class SignUpViewModel @Inject constructor(
@@ -49,7 +52,7 @@ class SignUpViewModel @Inject constructor(
 
     fun onErrorShown() = _state.update { it.copy(error = null) }
 
-    /** 뒤로·"로그인으로 돌아가기". */
+    /** "로그인으로 돌아가기"와 동의 단계의 뒤로. */
     fun onExit() {
         _events.trySend(SignUpEvent.Exit)
     }
@@ -78,31 +81,79 @@ class SignUpViewModel @Inject constructor(
     /** 브라우저가 없거나 막혀 고지 문서 주소를 열지 못했다(FR-018 필수 고지라 안내한다). */
     fun onLegalOpenFailed() = _state.update { it.copy(error = UiText.Res(R.string.me_legal_open_failed)) }
 
-    /** 동의하고 시작: [isGuest]면 게스트로, 아니면 소셜 계정 가입으로. 필수 동의가 빠지면 보내지 않는다. */
-    fun onSubmit(isGuest: Boolean) {
+    /** 뒤로: 성별 단계면 동의로(고른 동의 그대로), 동의 단계면 로그인으로. 계정을 만든 뒤 성별 단계에서는 머문다(앞으로만 간다). */
+    fun onBack() {
         val s = _state.value
-        if (!s.canSubmit) return
+        when {
+            s.step == SignUpStep.CONSENT -> onExit()
+            s.canGoBackToConsent -> _state.update { it.copy(step = SignUpStep.CONSENT, submitError = null) }
+        }
+    }
+
+    /** 동의 단계의 시작하기: 아직 보내지 않고 성별 단계로 간다(S15P31A207-300). 필수 동의가 빠지면 넘어가지 않는다. */
+    fun onConsentNext() {
+        if (_state.value.step != SignUpStep.CONSENT || !_state.value.canSubmit) return
+        _state.update { it.copy(step = SignUpStep.GENDER, submitError = null) }
+    }
+
+    /** 성별 고르기. 남자·여자만 받는다("밝히지 않음" 없음). */
+    fun onGenderSelect(gender: Gender) {
+        if (gender !in SELECTABLE_GENDERS || _state.value.isSubmitting) return
+        _state.update { it.copy(gender = gender) }
+    }
+
+    /**
+     * 성별 단계의 시작하기: [isGuest]면 게스트로, 아니면 소셜 계정 가입으로 계정을 만들고(토큰 저장까지), 고른 성별을 프로필 성별로
+     * 저장한 뒤 홈으로(게스트는 자료 유실 고지 뒤) 간다. 가입 요청에는 성별이 없어(서버 SignUpRequest) 따로 PATCH /me/profile로 저장한다.
+     * 성별 저장이 실패하면 단계에 남아 안내하고, 다시 누르면 계정은 다시 만들지 않고 성별만 저장한다.
+     */
+    fun onStart(isGuest: Boolean) {
+        val s = _state.value
+        val gender = s.gender ?: return
+        if (!s.canStart) return
         _state.update { it.copy(isSubmitting = true, error = null, submitError = null) }
         viewModelScope.launch {
-            val result = if (isGuest) startAsGuest(s.consents) else signUp(SignUpForm(nickname = null, s.consents))
-            when (result) {
-                is Outcome.Success -> {
-                    _state.update { it.copy(isSubmitting = false, isGuestNoticeVisible = isGuest) }
-                    if (isGuest) {
-                        val nickname = account.profile(AccountRepository.SELF).getOrNull()?.displayName
-                        _state.update { it.copy(guestNickname = nickname) }
-                    } else {
-                        _events.send(SignUpEvent.Completed)
+            if (!s.isAccountCreated) {
+                val result = if (isGuest) startAsGuest(s.consents) else signUp(SignUpForm(nickname = null, s.consents))
+                if (result is Outcome.Failure) {
+                    _state.update {
+                        it.copy(
+                            isSubmitting = false,
+                            submitError = submitErrorText(result.error),
+                            canRetrySubmit = (result.error as? AppError.Rejected)?.code !in LOGIN_AGAIN
+                        )
                     }
+                    return@launch
                 }
+                _state.update { it.copy(isAccountCreated = true) }
+            }
+            saveGender(gender, isGuest)
+        }
+    }
 
-                is Outcome.Failure -> _state.update {
-                    it.copy(
-                        isSubmitting = false,
-                        submitError = submitErrorText(result.error),
-                        canRetrySubmit = (result.error as? AppError.Rejected)?.code !in LOGIN_AGAIN
-                    )
-                }
+    /**
+     * 고른 성별을 프로필 성별로 저장한다(PATCH /me/profile). 닉네임·소개는 null(그대로 둠)이고, 함께 보내야 하는 나이대·성별 공개는
+     * 본인 프로필에서 읽은 값을 그대로 보낸다. 읽지 못하면 새 계정의 서버 기본(비공개)이다. 저장이 성공하면 저장소가 내 성별(myGender)을
+     * 바로 바꿔 홈·꾸미기·대결의 기본 몸이 이 성별이 된다. 게스트는 같은 프로필 응답의 닉네임을 고지에 쓴다.
+     */
+    private suspend fun saveGender(gender: Gender, isGuest: Boolean) {
+        val profile = account.profile(AccountRepository.SELF).getOrNull()
+        if (isGuest && profile != null) _state.update { it.copy(guestNickname = profile.displayName) }
+        val edit = ProfileEdit(
+            nickname = null,
+            intro = null,
+            isAgePublic = profile?.isAgePublic ?: false,
+            isGenderPublic = profile?.isGenderPublic ?: false,
+            gender = gender
+        )
+        when (val saved = account.editProfile(edit)) {
+            is Outcome.Success -> {
+                _state.update { it.copy(isSubmitting = false, isGuestNoticeVisible = isGuest) }
+                if (!isGuest) _events.send(SignUpEvent.Completed)
+            }
+
+            is Outcome.Failure -> _state.update {
+                it.copy(isSubmitting = false, submitError = RunkkErrorText.of(saved.error), canRetrySubmit = true)
             }
         }
     }
@@ -133,5 +184,8 @@ class SignUpViewModel @Inject constructor(
 
         /** 같은 입력으로 다시 보내도 소용없는 사유: 가입 티켓(15분)이 끝났거나 이미 가입한 계정. 로그인부터 다시 한다. */
         val LOGIN_AGAIN = setOf("SIGN_UP_TICKET_INVALID", "ALREADY_MEMBER", AppError.Rejected.SIGN_UP_REQUIRED)
+
+        /** 성별 단계에서 고를 수 있는 성별. "밝히지 않음"은 없다(S15P31A207-300). */
+        val SELECTABLE_GENDERS = setOf(Gender.MALE, Gender.FEMALE)
     }
 }

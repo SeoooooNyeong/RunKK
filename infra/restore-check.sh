@@ -15,7 +15,8 @@ CHECK="$APP_PROJECT-restore-check"
 # 매일 덤프가 하루 한 번 뜨므로 2시간 여유를 둔다. 이보다 오래됐으면 매일 백업이 멈춘 것이다
 MAX_AGE_HOURS="${RESTORE_CHECK_MAX_AGE_HOURS:-26}"
 
-cleanup() { docker rm -f "$CHECK" >/dev/null 2>&1 || true; }
+# -v: postgres 이미지가 만드는 익명 데이터 볼륨(복원한 운영 백업 사본)까지 지운다
+cleanup() { docker rm -fv "$CHECK" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 cleanup
 

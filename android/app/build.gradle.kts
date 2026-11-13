@@ -47,7 +47,7 @@ android {
             if (kakaoNativeAppKey.isBlank()) "runkk-kakao-disabled" else "kakao$kakaoNativeAppKey"
         // 폰은 IID×10, 워치는 IID×10+1로 Play 버전 코드 충돌을 막는다.
         versionCode = providers.gradleProperty("runkk.versionCode").orElse("10").get().toInt()
-        versionName = "0.11.6"
+        versionName = "0.12.0"
     }
 
     // 서명은 runkk.android.application 공통 플러그인이 RUNKK_KEYSTORE_* 환경 변수로 정한다(.gitlab-ci.yml).
@@ -128,7 +128,8 @@ androidComponents {
             tasks.configureEach { if (name == taskName) enabled = false }
         }
     }
-    // 1차 배포 잠금(D-251, BetaLock.kt·ReleaseScope): prod·develop 플레이버는 참(팀 시험 빌드도 출시 모습), local은 거짓이다.
+    // 미공개 기능 잠금(D-251, BetaLock.kt·ReleaseScope): prod·develop 플레이버는 참(팀 시험 빌드도 출시 모습), local은 거짓이다.
+    // 참이면 지금 배포 범위(2차 배포 ReleaseScope.SECOND_RELEASE: 카드 뒷면·Runimal 공유만 닫힘)다.
     // Gradle 속성 -Prunkk.lockUnreleased=true|false가 있으면 플레이버 기본값보다 앞선다(2차 배포 기능 개발용).
     val lockUnreleasedOverride = providers.gradleProperty("runkk.lockUnreleased").orNull?.toBooleanStrictOrNull()
     onVariants { variant ->

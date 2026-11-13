@@ -5,7 +5,8 @@ import org.gradle.api.artifacts.ProjectDependency
 /**
  * 설계서 13.2 "계층 규칙"을 Gradle 의존 선언으로 강제한다.
  * - `:feature:*`는 `:domain`·`:core:*`만 의존한다. 예외는 `:feature:record`·`:feature:runimal`·`:feature:crew` → `:feature:share`
- *   (크루 축하 카드 공유, ui.crew → ui.share, D-140).
+ *   (크루 축하 카드 공유, ui.crew → ui.share, D-140). `:feature:avatar`는 공용 Rive 아바타 렌더러 `:core:avatar`도 의존한다
+ *   (S15P31A207-300). `:core:avatar`는 아무 모듈도 의존하지 않는다.
  * - `:data`(폰·워치 공용)는 `:domain`·`:core:model`만 의존한다. 폰 전용 `:data:phone`(D-365, W16)은 `:data`·`:domain`·
  *   `:core:model`·`:wear-contract`를 의존한다.
  * - `:wear`는 `:wear-contract`·`:domain`·`:data`·`:core:model`을 의존한다(D-366). `:data:phone`은 넣지 않는다: Hilt가 의존 모듈의
@@ -22,6 +23,8 @@ internal object ModuleRules {
             ":core:model" to emptySet(),
             ":wear-contract" to emptySet(),
             ":core:ui" to setOf(":core:model"),
+            // 공용 Rive 아바타 렌더러(S15P31A207-300)는 다른 모듈을 쓰지 않는다. 아바타 화면만 붙인다.
+            ":core:avatar" to emptySet(),
             ":domain" to setOf(":core:model"),
             ":data" to setOf(":domain", ":core:model"),
             ":data:phone" to setOf(":data", ":domain", ":core:model", ":wear-contract"),
@@ -33,7 +36,7 @@ internal object ModuleRules {
             ":feature:crew" to featureBase + ":feature:share",
             ":feature:chat" to featureBase,
             ":feature:runimal" to featureBase + ":feature:share",
-            ":feature:avatar" to featureBase,
+            ":feature:avatar" to featureBase + ":core:avatar",
             ":feature:me" to featureBase,
             ":feature:notification" to featureBase,
             ":feature:share" to featureBase,

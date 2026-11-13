@@ -16,6 +16,9 @@ interface ChatRepository {
     /** 리액션 빼기(DELETE /chat-messages/{id}/reactions/{kind}, 멱등). */
     suspend fun unreact(messageId: Long, kind: ReactionKind): Outcome<ChatReactions>
 
+    /** 반응한 사람(GET /chat-messages/{id}/reactions). 먼저 단 순서이고 종류 탭은 화면이 거른다(피그마 F-09d, contract-W5). */
+    suspend fun reactors(messageId: Long): Outcome<List<Reactor>>
+
     /** 삭제(DELETE /chat-messages/{id}). 본인 또는 운영진 이상만(FR-213). */
     suspend fun delete(messageId: Long): Outcome<Unit>
 }

@@ -45,6 +45,7 @@ object Routes {
     const val FREE_RUN_SETTINGS = "me/settings/run"
     const val NOTIFICATION_SETTINGS = "me/settings/notifications"
     const val CONSENTS = "me/consents"
+    const val COACH_CONSENTS = "me/consents/coach"
     const val WITHDRAW = "me/withdraw"
 
     // 기록(ui.record)
@@ -57,6 +58,9 @@ object Routes {
     /** 런바디(v0.14에서 리포트 화면 제목을 바꿨다, CR-32). 경로 이름은 그대로다. */
     const val REPORT = "records/report"
     const val COACH = "records/coach"
+
+    /** AI 코치 대화(런바디 화면의 "AI 코치에게 물어보기"). 러닝 코치 계획(COACH)과 경로를 나눈다. */
+    const val COACH_CHAT = "records/coach/chat"
 
     // 알림(ui.notification)
     const val NOTIFICATIONS = "notifications"
@@ -85,6 +89,9 @@ object Routes {
     /** Runimal 16유형(G-5, ui.runimal RunimalTypesScreen, D-285). */
     const val RUNIMAL_TYPES = "runimal/types"
     const val AVATAR = "avatar"
+
+    /** 내 러너(피그마 H-2, W8): 홈 아바타를 누르면 온다. 체형·피부톤 근거와 꾸미기·상점 입구. */
+    const val AVATAR_RUNNER = "avatar/runner"
 
     /** 아바타 만들기(가입 5단계에서 이어진다, FR-155·FR-158). */
     const val AVATAR_SETUP = "avatar/setup"
@@ -198,20 +205,36 @@ object Routes {
     /** 크루 만들기(FR-110). */
     const val CREW_CREATE = "crew/create"
 
-    /** 내 크루 홈(레이스·크루런·응원보드·크루원 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. */
-    @Serializable
-    data class CrewHome(val crewId: Long) : NavKey
+    /** 크루 검색(피그마 F-01d·F-01e, S15P31A207-295): 크루명으로 공개 크루를 찾는다. 하단 내비 없음. */
+    const val CREW_SEARCH = "crew/search"
 
     /**
-     * 크루 관리(크루장·운영진, FR-113~FR-116·FR-123·FR-127·FR-204). 보이는 기능은 내 역할(3.0.3)로 정한다.
-     * 지금 크루 정보는 화면이 GET /crews/{id}로 읽는다.
+     * 내 크루 홈(레이스·크루런·채팅 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. [tab]은 먼저 보일 탭 이름(ui.crew CrewTab.name,
+     * 채팅 알림은 "CHAT", [임시:D-성-21])이고 없으면 레이스다. [page]는 먼저 열 ⋯ 메뉴 쪽 이름(ui.crew CrewHomePage.name, 가입 신청
+     * 알림은 크루 정보 "INFO")이고 없으면 홈이다.
      */
     @Serializable
-    data class CrewManage(val crewId: Long) : NavKey
+    data class CrewHome(val crewId: Long, val tab: String? = null, val page: String? = null) : NavKey
+
+    /** 지난 공동 목표(피그마 F-21, W7). 크루 정보의 「지난 목표 ›」에서 연다. 크루 관리 화면(CrewManage)은 지웠다(W7 결정 C5). */
+    @Serializable
+    data class CrewPastGoals(val crewId: Long) : NavKey
 
     /** 일정 쓰기(FR-132): 크루런 또는 대면 모임을 고른다. 이름은 v0.10 크루런 모집글 쓰기에서 이어 왔다. */
     @Serializable
     data class CrewRunWrite(val crewId: Long) : NavKey
+
+    /** 크루런 일정 상세(피그마 F-13·F-11d, S15P31A207-297): 정보 카드, 참석자, 참석하기·참석 취소하기, 작성자 메뉴(수정·삭제). */
+    @Serializable
+    data class CrewRunDetail(val postId: Long) : NavKey
+
+    /** 크루런 모집글 수정(피그마 F-13d, S15P31A207-297). 모집하기 화면을 수정 모드로 쓰고 날짜·시간은 잠근다. */
+    @Serializable
+    data class CrewRunEdit(val postId: Long) : NavKey
+
+    /** 지난 크루런(피그마 F-11b·F-11c 연·월 조회). 화면은 지난 크루런 달력 작업(W7)이 만든다. */
+    @Serializable
+    data class CrewPastRuns(val crewId: Long) : NavKey
 
     /** 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). 크루런 거리는 대기실 응답이 준다. */
     @Serializable
@@ -245,14 +268,10 @@ object Routes {
     @Serializable
     data class CrewGoalSet(val crewId: Long) : NavKey
 
-    // 크루 채팅(ui.chat, :feature:chat) 화면(A3b)
-
-    /** 크루 채팅방(FR-208~FR-210, FR-213, FR-214). ui.chat의 ChatFeatureEntry가 등록한다(6.1.14). */
-    @Serializable
-    data class CrewChat(val crewId: Long) : NavKey
+    // 크루 채팅은 크루 홈의 세 번째 탭이다(CrewHome(crewId, tab = "CHAT"), [임시:D-성-21]). 따로 뜨는 채팅방 경로는 없다.
 
     // 알림 이동 화면(FR-178, D-150): 서버 notification.Screen 이름과 같은 v0.11 크루 화면 4종. 알림은 크루 ID를 경로로 넘기지 않으므로
-    // 내 크루(GET /crews/me)의 해당 탭이나 채팅방을 연다. ui.crew가 등록한다(채팅은 내 크루를 확인한 뒤 CrewChat(crewId)으로 넘긴다).
+    // 내 크루(GET /crews/me)의 해당 탭을 연다. ui.crew가 등록한다(채팅은 내 크루를 확인한 뒤 CrewHome(crewId, "CHAT")으로 넘긴다).
 
     /** 내 크루 홈의 공지 탭(Screen CREW_NOTICE). */
     const val CREW_NOTICE = "crew/notice"
@@ -263,6 +282,6 @@ object Routes {
     /** 내 크루 홈의 일정 탭(Screen CREW_SCHEDULE). */
     const val CREW_SCHEDULE = "crew/schedule"
 
-    /** 내 크루 채팅방(Screen CREW_CHAT). */
+    /** 내 크루 홈의 채팅 탭(Screen CREW_CHAT). */
     const val CREW_CHAT = "crew/chat"
 }

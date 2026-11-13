@@ -41,30 +41,30 @@ import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
 import com.a207.runkk.app.api.chat.ChatPostRequest
 import com.a207.runkk.app.api.chat.ReactionResponse
-import com.a207.runkk.app.api.crew.AlbumResponse
 import com.a207.runkk.app.api.crew.AttendanceRequest
 import com.a207.runkk.app.api.crew.AttendanceResponse
 import com.a207.runkk.app.api.crew.CreatedResponse
 import com.a207.runkk.app.api.crew.CrewDetailResponse
 import com.a207.runkk.app.api.crew.CrewFormDto
 import com.a207.runkk.app.api.crew.CrewListResponse
+import com.a207.runkk.app.api.crew.CrewLogoResponse
 import com.a207.runkk.app.api.crew.CrewMembersResponse
 import com.a207.runkk.app.api.crew.CrewProfileRequest
 import com.a207.runkk.app.api.crew.CrewRankingResponse
 import com.a207.runkk.app.api.crew.CrewRunResultResponse
+import com.a207.runkk.app.api.crew.GoalHistoryResponse
 import com.a207.runkk.app.api.crew.GoalRequest
 import com.a207.runkk.app.api.crew.InviteCodeResponse
+import com.a207.runkk.app.api.crew.InvitePreviewRequest
+import com.a207.runkk.app.api.crew.InvitePreviewResponse
 import com.a207.runkk.app.api.crew.JoinRequestBody
 import com.a207.runkk.app.api.crew.JoinResponse
 import com.a207.runkk.app.api.crew.LeaderRequest
 import com.a207.runkk.app.api.crew.LobbyResponse
 import com.a207.runkk.app.api.crew.ManagerResponse
 import com.a207.runkk.app.api.crew.MyCrewResponse
+import com.a207.runkk.app.api.crew.PastCrewRunsResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
-import com.a207.runkk.app.api.crew.PinRequest
-import com.a207.runkk.app.api.crew.PinResponse
-import com.a207.runkk.app.api.crew.PollAnswerRequest
-import com.a207.runkk.app.api.crew.PollResultResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
 import com.a207.runkk.app.api.crew.RaceStatusResponse
@@ -87,6 +87,9 @@ import com.a207.runkk.app.api.run.DisposalOrderResponse
 import com.a207.runkk.app.api.run.LateHeartRatesRequest
 import com.a207.runkk.app.api.run.RunUploadRequest
 import com.a207.runkk.app.api.run.UploadResponse
+import com.a207.runkk.app.api.runbody.RunBodySessionListResponse
+import com.a207.runkk.app.api.runbody.RunBodySessionResponse
+import com.a207.runkk.app.api.runbody.RunBodyTrendResponse
 import com.a207.runkk.app.api.runimal.RunimalCardResponse
 import com.a207.runkk.app.api.runimal.RunimalStatusResponse
 import com.a207.runkk.app.api.runimal.RunimalTypeResponse
@@ -177,6 +180,7 @@ class ServerContractTest {
             "AccountType" to names(AccountType.entries),
             "ScreenTheme" to names(ScreenTheme.entries),
             "PollMethod" to names(PollMethod.entries),
+            "CrewRunRepeat" to names(com.a207.runkk.app.domain.crew.CrewRunRepeat.entries),
             "ReactionKind" to names(ReactionKind.entries),
             "ReportTargetKind" to names(ReportTargetKind.entries),
             "ReportReason" to names(ReportReason.entries),
@@ -315,11 +319,11 @@ class ServerContractTest {
         request(CrewFormDto.serializer(), "CrewDtos.CrewFormRequest")
         request(LeaderRequest.serializer(), "CrewDtos.LeaderRequest")
         request(JoinRequestBody.serializer(), "CrewDtos.JoinRequestBody")
+        request(InvitePreviewRequest.serializer(), "CrewDtos.InvitePreviewRequest")
         request(CrewProfileRequest.serializer(), "CrewDtos.CrewProfileRequest")
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
+        request(com.a207.runkk.app.api.crew.CrewRunEditRequest.serializer(), "CrewScheduleDtos.CrewRunEditRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
-        request(PinRequest.serializer(), "CrewDtos.PinRequest")
-        request(PollAnswerRequest.serializer(), "CrewDtos.PollAnswerRequest")
         request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
         request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
         request(SocialLinkRequest.serializer(), "AuthController.SocialLinkRequest")
@@ -363,9 +367,6 @@ class ServerContractTest {
         response(CrewListResponse.serializer(), "CrewDtos.CrewListResponse")
         response(AttendanceResponse.serializer(), "CrewDtos.AttendanceResponse")
         response(ManagerResponse.serializer(), "CrewDtos.ManagerResponse")
-        response(PinResponse.serializer(), "CrewDtos.PinResponse")
-        response(PollResultResponse.serializer(), "CrewDtos.PollResultResponse")
-        response(AlbumResponse.serializer(), "CrewDtos.AlbumResponse")
         response(GuestStartResponse.serializer(), "SignUpController.GuestStartResponse")
         response(SocialLinkResponse.serializer(), "AuthController.SocialLinkResponse")
         response(BackgroundsResponse.serializer(), "AvatarDtos.BackgroundsResponse")
@@ -378,10 +379,16 @@ class ServerContractTest {
         )
         response(CrewMembersResponse.serializer(), "CrewMembersAssembler.CrewMembersResponse")
         response(PendingRequestsResponse.serializer(), "CrewMembersAssembler.PendingRequestsResponse")
+        response(GoalHistoryResponse.serializer(), "CrewGoalHistoryController.GoalHistoryResponse")
+        response(PastCrewRunsResponse.serializer(), "CrewScheduleDtos.PastCrewRunsResponse")
         response(CrewRankingResponse.serializer(), "CrewController.RankingResponse")
         response(RaceStatusResponse.serializer(), "CrewDtos.RaceStatusResponse")
         response(PostListResponse.serializer(), "CrewDtos.PostListResponse")
         response(LobbyResponse.serializer(), "CrewDtos.LobbyResponse")
+        response(
+            com.a207.runkk.app.api.crew.CrewRunDetailResponse.serializer(),
+            "CrewScheduleDtos.CrewRunDetailResponse"
+        )
         response(CrewRunResultResponse.serializer(), "CrewDtos.CrewRunResultResponse")
         response(CreatedResponse.serializer(), "CrewDtos.CreatedResponse")
         response(CreatedResponse.serializer(), "CrewDtos.PostResponse")
@@ -389,6 +396,10 @@ class ServerContractTest {
         response(JoinResponse.serializer(), "CrewDtos.JoinResponse")
         response(CrewDetailResponse.serializer(), "CrewDtos.CrewDetailResponse")
         response(MyCrewResponse.serializer(), "CrewDtos.MyCrewResponse")
+        // contract-W4(S15P31A207-295): 최근 크루런, 초대 코드 미리보기, 크루 로고
+        response(CrewDetailResponse.RecentCrewRun.serializer(), "CrewDtos.CrewDetailResponse.RecentCrewRun")
+        response(InvitePreviewResponse.serializer(), "CrewDtos.InvitePreviewResponse")
+        response(CrewLogoResponse.serializer(), "CrewDtos.CrewLogoResponse")
         response(InboxResponse.serializer(), "InboxView")
         response(UploadResponse.serializer(), "RunController.UploadResponse")
         response(DisposalOrderResponse.serializer(), "DisposalOrderView")
@@ -409,6 +420,10 @@ class ServerContractTest {
         response(PlanProgressResponse.serializer(), "RecordDtos.PlanProgressResponse")
         response(TodayPlanResponse.serializer(), "RecordDtos.TodayPlanResponse")
         response(RunCardResponse.serializer(), "RecordDtos.RunCardResponse")
+        // 런바디(계약 runkk-work/runbody/contract.md v1.2): 세션, 러닝 선택 점수 목록(7절), 요약 최근 10회 변화(8절)
+        response(RunBodySessionResponse.serializer(), "RunBodyDtos.RunBodySessionResponse")
+        response(RunBodySessionListResponse.serializer(), "RunBodyDtos.RunBodySessionListResponse")
+        response(RunBodyTrendResponse.serializer(), "RunBodyDtos.RunBodyTrendResponse")
         // TC-5940 배치고사 대결 항목(05-03 5.7.3.3): 선택 항목이라 위 대조가 빠뜨리지 않게 이름이 서버 record에 있는지 따로 본다
         mapOf(
             MatchAcceptanceResponse.serializer() to

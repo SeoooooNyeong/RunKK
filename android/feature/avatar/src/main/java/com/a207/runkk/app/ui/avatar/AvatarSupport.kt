@@ -2,7 +2,6 @@ package com.a207.runkk.app.ui.avatar
 
 import androidx.annotation.StringRes
 import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
-import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.ItemSlot
 
@@ -13,15 +12,16 @@ import com.a207.runkk.app.domain.avatar.ItemSlot
 internal val Avatar.renderKey: String
     get() = faceKey ?: defaultCharacterId?.let(RunkkAvatarArt::defaultKey) ?: RunkkAvatarArt.DEFAULT_FACE_KEY
 
-/** 기본 캐릭터 얼굴이면 그 캐릭터, 셀카 얼굴·얼굴 없음·모르는 값이면 null. */
-internal val Avatar.character: DefaultCharacter?
-    get() = DefaultCharacter.ofFaceKey(renderKey)
+/** 기본 캐릭터 얼굴인가(어느 캐릭터 값이든 앱은 기본 얼굴 하나로 그린다, [임시:D-성-187]). 얼굴을 고르기 전도 기본 얼굴이다. */
+internal val Avatar.isDefaultFace: Boolean
+    get() = RunkkAvatarArt.isDefaultKey(renderKey)
 
-/** 셀카 얼굴인지(서버 SelfieFace.renderKey는 "selfie:"로 시작한다). */
+/** 셀카 얼굴인지(서버 SelfieFace.renderKey "selfie:…", 비동기 셀카 머리 "head:{회원ID}:{작업ID}"). */
 internal val Avatar.isSelfieFace: Boolean
-    get() = faceKey?.startsWith(SELFIE_PREFIX) == true
+    get() = faceKey?.let { it.startsWith(SELFIE_PREFIX) || it.startsWith(HEAD_PREFIX) } == true
 
 private const val SELFIE_PREFIX = "selfie:"
+private const val HEAD_PREFIX = "head:"
 
 /** 부위 문구(FR-161). */
 @get:StringRes
@@ -33,29 +33,32 @@ internal val ItemSlot.labelRes: Int
         ItemSlot.HAT -> R.string.avatar_slot_hat
     }
 
+/**
+ * 꾸미기 탭·상점 칩에 보이는 부위(한 곳의 목록, [임시:D-성-183]). 모자(「악세서리」) 부위는 숨긴다: Rive에 모자 층이 없어 입어도 그림이
+ * 바뀌지 않는다. 서버·상점 API·저장된 모자 착용은 그대로다(저장은 바뀐 부위만 보내므로 모자 착용을 건드리지 않는다).
+ */
+internal val VISIBLE_ITEM_SLOTS: List<ItemSlot> = listOf(ItemSlot.TOP, ItemSlot.BOTTOM, ItemSlot.SHOES)
+
+/** 꾸미기 탭 부위 문구: 모자 부위는 "악세서리"(사용자 결정 A2, FR-161 표시 이름), 나머지는 [labelRes]와 같다. */
+@get:StringRes
+internal val ItemSlot.decorateLabelRes: Int
+    get() = if (this == ItemSlot.HAT) R.string.avatar_slot_accessory else labelRes
+
+/**
+ * 서버 체형 4단계를 화면·렌더러 3단계(0 기본, 1 변화 1, 2 변화 2)로 옮긴다. 서버 BodyShape.variant와 같다([임시:D-성-179]: 4단계가 기본
+ * 몸, 2·3단계가 조금 통통, 1단계가 가장 통통). 모르면 0. 앞 판은 4단계를 2(가장 통통)로 뒤집어 옮겨, 상점·꾸미기 무대가 홈(내 러너
+ * bodyVariant)과 다른 체형으로 그리며 셀카 눈 위에 볼 레이어를 얹었다([임시:D-성-191]).
+ */
+internal fun bodyVariantOf(bodyShape: String): Int = when (bodyStage(bodyShape)) {
+    1 -> 2
+    2, 3 -> 1
+    else -> 0
+}
+
 /** 체형 단계(서버 BodyShape STAGE1~4, FR-163). 모르는 값이면 null. */
 internal fun bodyStage(bodyShape: String): Int? = bodyShape.filter(Char::isDigit).toIntOrNull()?.takeIf {
     it in
         1..BODY_STAGES
 }
 
-@StringRes
-internal fun bodyLabelRes(stage: Int?): Int = when (stage) {
-    1 -> R.string.avatar_body_1
-    2 -> R.string.avatar_body_2
-    3 -> R.string.avatar_body_3
-    4 -> R.string.avatar_body_4
-    else -> R.string.avatar_body_unknown
-}
-
 internal const val BODY_STAGES = 4
-
-/** 피부톤(서버 SkinTone, FR-164): 이름과 근거 문구. */
-internal fun skinLabel(skinTone: String): UiText = when (skinTone) {
-    "DAWN" -> UiText.Res(R.string.avatar_skin_dawn)
-    "MORNING" -> UiText.Res(R.string.avatar_skin_morning)
-    "DAYTIME" -> UiText.Res(R.string.avatar_skin_daytime)
-    "EVENING" -> UiText.Res(R.string.avatar_skin_evening)
-    "NIGHT" -> UiText.Res(R.string.avatar_skin_night)
-    else -> UiText.Plain(skinTone)
-}

@@ -169,7 +169,8 @@ final class RecordDtos {
 
     /**
      * 대시보드(앱 DashboardResponse + 시간·횟수·주간 목표·달력·잔디 단계). v0.14: 리워드 잔액(rewardBalance), baseDate 달의
-     * 유효 러닝 횟수·거리(monthRuns·monthMeters)를 더했다(D-236). 주 단위 연속(streakWeeks)을 더했다(2026-10-31 결정).
+     * 유효 러닝 횟수·거리(monthRuns·monthMeters)를 더했다(D-236). 주 단위 연속(streakWeeks)을 더했다(2026-10-31 결정). 주간
+     * 목표와 무관한 이번 주(월요일 ~ baseDate) 유효 러닝 횟수·거리(weekRuns·weekMeters)를 더했다(실기기 DV3-4, 계약 추가만).
      */
     record DashboardResponse(
             LocalDate baseDate,
@@ -192,7 +193,9 @@ final class RecordDtos {
             int monthRuns,
             long monthMeters,
             int streakWeeks,
-            RunSummaryDto latestRun) {
+            RunSummaryDto latestRun,
+            int weekRuns,
+            long weekMeters) {
 
         static DashboardResponse of(DashboardView v) {
             return of(v, null);
@@ -237,7 +240,9 @@ final class RecordDtos {
                     v.monthRuns(),
                     v.monthMeters().meters(),
                     v.streakWeeks(),
-                    v.latestRun() == null ? null : RunSummaryDto.of(v.latestRun(), latestOutcome));
+                    v.latestRun() == null ? null : RunSummaryDto.of(v.latestRun(), latestOutcome),
+                    v.weekRuns(),
+                    v.weekMeters().meters());
         }
     }
 
@@ -323,6 +328,7 @@ final class RecordDtos {
             Map<String, Long> heartRateZones,
             List<String> newRecords,
             Long crewContributionMeters,
+            String contributedCrewName,
             Integer rewardPoints,
             String weather,
             Integer temperatureC,
@@ -369,6 +375,7 @@ final class RecordDtos {
                     zones,
                     v.newRecords(),
                     meters(v.crewContribution()),
+                    v.contributedCrewName(),
                     v.rewardPoints(),
                     w == null ? null : w.sky() + " " + w.temperatureC() + "°C",
                     w == null ? null : w.temperatureC(),

@@ -23,8 +23,10 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.data.phone.R
 import com.a207.runkk.app.domain.run.FreeRunGoalState
+import com.a207.runkk.app.domain.run.LocationFilter
 import com.a207.runkk.app.domain.run.LocationSample
 import com.a207.runkk.app.domain.run.MeasurementHost
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.ProgressNotice
 import com.a207.runkk.app.domain.run.RunTracker
 import com.google.android.gms.location.LocationCallback
@@ -46,7 +48,9 @@ import kotlinx.coroutines.launch
 
 /**
  * 측정 중 앱을 살려 두는 포그라운드 서비스(6.1.14 data.device, 타입 location, C-010, FR-035).
- * FusedLocationProvider 1초 구독과 폰 움직임 판정을 RunTracker로 넘긴다(D-56).
+ * 업무 규칙이 없다: FusedLocationProvider 1초 구독을 RunTracker.onPhoneLocationSample로, 1초 시계를 RunTracker.tick으로 넘긴다(D-56).
+ * 위치가 속도를 알려 주면 그 값을, 걸음 센서(StepCadenceSensor, 권한이 있을 때)의 케이던스를 RunTracker.onMotionSample로 넘긴다
+ * (S15P31A207-242).
  * 잠금 화면 진행 알림(FR-224, D-259)은 RunTracker.notice를 구독해 같은 알림 ID로 다시 그리고, 표현은 시작할 때 OS 판으로 고른다
  * ([ProgressNotificationStyle.choose]). 알림의 일시정지·재개 버튼은 action과 함께 이 서비스를 부르고, 그때는 포그라운드 진입을
  * 다시 하지 않고 RunTracker의 알림 연산만 부른다(D-260). 위치·시각 값은 로그에 쓰지 않는다.
@@ -60,6 +64,7 @@ class MeasurementService : LifecycleService() {
     lateinit var clock: Clock
 
     private val locations by lazy { LocationServices.getFusedLocationProviderClient(this) }
+    private val steps by lazy { StepCadenceSensor(this) }
     private val inertialMotion by lazy { PhoneInertialMotion(this) }
     private var ticking: Job? = null
     private var publishing: Job? = null
@@ -72,7 +77,10 @@ class MeasurementService : LifecycleService() {
     private val callback =
         object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                result.locations.forEach { runTracker.onPhoneLocationSample(it.toSample()) }
+                result.locations.forEach { location ->
+                    runTracker.onPhoneLocationSample(location.toSample())
+                    location.toMotion()?.let(runTracker::onMotionSample)
+                }
             }
         }
 
@@ -101,6 +109,7 @@ class MeasurementService : LifecycleService() {
 
     override fun onDestroy() {
         locations.removeLocationUpdates(callback)
+        steps.stop()
         inertialMotion.stop()
         ticking?.cancel()
         publishing?.cancel()
@@ -133,12 +142,14 @@ class MeasurementService : LifecycleService() {
         if (runTracker.notice.value is ProgressNotice.Free) inertialMotion.start()
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, INTERVAL_MILLIS).build()
         locations.requestLocationUpdates(request, callback, Looper.getMainLooper())
+        // 신체 활동 권한이 없으면 케이던스 없이 측정한다(서버가 비우고 ai가 no_cadence를 붙인다).
+        steps.start(runTracker::onMotionSample)
         ticking =
             lifecycleScope.launch {
                 while (isActive) {
                     delay(INTERVAL_MILLIS)
                     inertialMotion.ensureStepsStarted()
-                    runTracker.tick(clock.instant())
+                    measurementTick(steps, runTracker::onMotionSample, runTracker::tick, clock.instant())
                 }
             }
     }
@@ -191,6 +202,14 @@ class MeasurementService : LifecycleService() {
         },
         inertialMotion = this@MeasurementService.inertialMotion.forLocation(elapsedRealtimeNanos)
     )
+
+    /** 위치가 잰 속도(m/s). 속도를 모르거나 위치 정확도가 기준(30m)을 넘으면 null(서버가 위치로 셈한다). */
+    private fun Location.toMotion(): MotionSample? =
+        if (hasSpeed() && hasAccuracy() && accuracy <= LocationFilter.MAX_ACCURACY_METERS) {
+            MotionSample(Instant.ofEpochMilli(time), speedMps = speed.toDouble())
+        } else {
+            null
+        }
 
     /**
      * MeasurementHost 포트 구현: 이 서비스를 시작·정지한다. 서비스 객체는 OS가 만들므로 포트 구현은 이 중첩 클래스가 맡는다.
@@ -280,4 +299,18 @@ class MeasurementService : LifecycleService() {
             }
         }
     }
+}
+
+/**
+ * 측정 서비스 1초 시계 한 번. 측정 시작 뒤에 신체 활동 권한을 허용했으면 이때부터 걸음을 재고(MR !91 AN-4) 진행을 한 칸 민다. 서비스 밖에서 배선을
+ * 시험하려고 뗐다(CR2-T1).
+ */
+internal fun measurementTick(
+    steps: StepCadenceSensor,
+    onMotion: (MotionSample) -> Unit,
+    tick: (Instant) -> Unit,
+    now: Instant
+) {
+    steps.ensureStarted(onMotion)
+    tick(now)
 }

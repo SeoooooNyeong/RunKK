@@ -44,11 +44,11 @@ class EnumPolymorphismTest {
 
     @ParameterizedTest
     @CsvSource({
-        "KM1, 1000, true, true, true, true, false",
+        "KM1, 1000, true, true, false, true, false",
         "KM3, 3000, true, true, true, true, false",
         "KM5, 5000, true, true, true, true, true",
         "KM10, 10000, true, true, true, true, true",
-        "HALF, 21097, false, true, false, true, true",
+        "HALF, 21097, false, true, true, true, true",
         "FULL, 42195, false, false, false, true, true"
     })
     void standardDistance_flags(

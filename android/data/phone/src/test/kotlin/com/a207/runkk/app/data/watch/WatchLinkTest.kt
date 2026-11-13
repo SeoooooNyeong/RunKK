@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.WatchDisplay
@@ -117,6 +118,57 @@ class WatchLinkTest {
     }
 
     @Test
+    fun `손목 걸음은 분당 걸음 수를 그대로, 누적 걸음 수는 케이던스로 바꿔 넘기고 다시 온 걸음은 버린다(S15P31A207-242)`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        val received = mutableListOf<List<MotionSample>>()
+        linkScope().launch { link.motions.collect { received += it } }
+        val steps = HeartRateBatchMessage(
+            samples = emptyList(),
+            steps = listOf(
+                HeartRateBatchMessage.Step(T0.toEpochMilli(), perMinute = 172),
+                HeartRateBatchMessage.Step(T0.plusSeconds(10).toEpochMilli(), total = 100),
+                HeartRateBatchMessage.Step(T0.plusSeconds(16).toEpochMilli(), total = 118)
+            )
+        )
+
+        transport.receive("${WearPaths.HEART_RATE_BATCH}/1-0", steps.encode())
+        transport.receive("${WearPaths.HEART_RATE_BATCH}/1-0", steps.encode())
+        transport.receive(
+            "${WearPaths.HEART_RATE_BATCH}/2-0",
+            HeartRateBatchMessage(
+                listOf(HeartRateBatchMessage.Sample(T0.toEpochMilli(), 140, HeartRateBatchMessage.Status.OK))
+            ).encode()
+        )
+
+        assertEquals(
+            listOf(
+                listOf(
+                    MotionSample(T0, cadenceSpm = 172.0),
+                    MotionSample(T0.plusSeconds(16), cadenceSpm = 180.0)
+                )
+            ),
+            received,
+            "누적 18걸음 / 6초 = 분당 180걸음, 같은 묶음 재동기화와 걸음 없는 옛 묶음은 내지 않는다"
+        )
+    }
+
+    @Test
+    fun `심박 동의가 없으면 손목 걸음도 버린다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        val received = mutableListOf<List<MotionSample>>()
+        linkScope().launch { link.motions.collect { received += it } }
+        settings.emit(CONSENTED.copy(isHeartRateConsented = false))
+
+        transport.receive(
+            "${WearPaths.HEART_RATE_BATCH}/3-0",
+            HeartRateBatchMessage(emptyList(), listOf(HeartRateBatchMessage.Step(T0.toEpochMilli(), perMinute = 170)))
+                .encode()
+        )
+
+        assertTrue(received.isEmpty())
+    }
+
+    @Test
     fun `수집이 금지된 동안 온 심박은 버린다`() = runTest {
         val link = WatchLink(transport, settings, linkScope())
         val received = mutableListOf<List<HeartRateSample>>()
@@ -203,6 +255,62 @@ class WatchLinkTest {
         assertTrue(sent.isPaused && sent.isPausable)
     }
 
+    @Test
+    fun `S15P31A207-278 측정 중 워치가 표시를 요청하면 진행 표시를 다시 보내고 그 워치 노드를 닿는 노드로 등록한다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        link.publish(DISPLAY)
+        val before = transport.displays().size
+
+        link.onDisplayRequested("watch-1")
+
+        assertEquals(listOf("watch-1"), transport.reached)
+        assertEquals(before + 1, transport.displays().size)
+        assertEquals(transport.displays()[before - 1], transport.displays().last(), "마지막 진행 표시와 같다")
+        assertTrue(transport.displays().last().isRunning)
+    }
+
+    @Test
+    fun `S15P31A207-278 대기 중 워치가 표시를 요청하면 오늘 계획을 실은 대기 표시를 다시 보낸다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        link.publish(DISPLAY.copy(isRunning = false, elapsed = Duration.ZERO, distance = Distance(0)))
+
+        link.onDisplayRequested("watch-1")
+
+        val sent = transport.displays().last()
+        assertFalse(sent.isRunning)
+        assertEquals(5_000, sent.planDistanceMeters)
+        assertEquals(360, sent.planPaceSecondsPerKm)
+        assertTrue(sent.isHeartRateCollectionAllowed)
+    }
+
+    @Test
+    fun `S15P31A207-278 폰 프로세스가 막 깨어나 보낸 표시가 없을 때 요청이 오면 기본 대기 표시를 보낸다`() = runTest {
+        val link = WatchLink(transport, settings, linkScope())
+        transport.sent.clear()
+
+        link.onDisplayRequested("watch-1")
+
+        assertEquals(
+            WatchDisplayMessage(
+                isRunning = false,
+                elapsedSeconds = 0,
+                distanceMeters = 0,
+                isHeartRateCollectionAllowed = true
+            ),
+            transport.displays().single()
+        )
+    }
+
+    @Test
+    fun `S15P31A207-278 앱 안 리스너로 온 표시 요청으로는 다시 보내지 않는다(수신 서비스가 받는다, 중복 방지)`() = runTest {
+        WatchLink(transport, settings, linkScope()).publish(DISPLAY)
+        val before = transport.sent.size
+
+        transport.receive(WearPaths.DISPLAY_REQUEST, ByteArray(0))
+
+        assertEquals(before, transport.sent.size)
+    }
+
     /** 시험이 끝나면 함께 취소되고, 구독·방출이 바로 도는 범위. */
     private fun TestScope.linkScope(): CoroutineScope =
         CoroutineScope(backgroundScope.coroutineContext + UnconfinedTestDispatcher(testScheduler))
@@ -223,6 +331,13 @@ class WatchLinkTest {
         override suspend fun deleteItems(path: String): Boolean = false
 
         override suspend fun readItems(path: String): List<ByteArray> = emptyList()
+
+        /** 닿는 노드로 등록한 워치 노드(차례대로). */
+        val reached = mutableListOf<String>()
+
+        override fun markReachable(nodeId: String) {
+            reached += nodeId
+        }
 
         fun receive(path: String, payload: ByteArray) {
             check(incoming.tryEmit(WatchLink.Incoming(path, payload)))

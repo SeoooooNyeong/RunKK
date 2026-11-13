@@ -43,7 +43,7 @@ class RunkkComponentsScreenshotTest {
         ) {
             RunkkPrimaryButton("카카오로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkPrimaryButton("자유런 시작", onClick = {
-            }, size = RunkkButtonSize.Large, hasTrailingArrow = true, modifier = Modifier.fillMaxWidth())
+            }, size = RunkkButtonSize.Hero, hasTrailingArrow = true, modifier = Modifier.fillMaxWidth())
             RunkkSecondaryButton("Google로 시작하기", onClick = {}, modifier = Modifier.fillMaxWidth())
             RunkkAccentOutlinedButton("회원 탈퇴", onClick = {}, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -128,40 +128,149 @@ class RunkkComponentsScreenshotTest {
         TierEmblemSheet()
     }
 
-    /** 아바타 기본 캐릭터 4종(큰 그림)과 홈 상단(48dp)·마이 프로필(56dp) 원 안에 넣었을 때. */
+    /** 기본 머리(남녀, 큰 그림)와 홈 상단(48dp)·마이 프로필(56dp) 원 안에 넣었을 때([임시:D-성-180]). */
     @Test
-    fun avatarCharacters() = compose.captureRunkkScreen("designsystem_avatar_characters") {
-        val keys = RunkkAvatarArt.characters.keys.map(RunkkAvatarArt::defaultKey)
+    fun avatarDefaultHeads() = compose.captureRunkkScreen("designsystem_avatar_default_heads") {
+        val characters = AvatarCharacter.entries
         Column(
             Modifier.fillMaxSize().background(RunkkColors.Background).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            keys.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    row.forEach { key ->
-                        Column(
-                            Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(RunkkColors.Surface)
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            RunkkAvatarPortrait(key, emptyList(), Modifier.size(120.dp))
-                            Text(key, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-                        }
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                characters.forEach { character ->
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(RunkkColors.Surface)
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        RunkkAvatarPortrait(
+                            RunkkAvatarArt.DEFAULT_FACE_KEY,
+                            emptyList(),
+                            Modifier.size(120.dp).clip(CircleShape).background(RunkkColors.SurfaceHigh),
+                            character
+                        )
+                        Text(character.name, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
                     }
                 }
             }
-            listOf(48, 56).forEach { size ->
+            listOf(44, 56, 120).forEach { size ->
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    keys.forEach { key ->
+                    characters.forEach { character ->
                         RunkkAvatarPortrait(
-                            key,
+                            null,
                             emptyList(),
                             Modifier.size(size.dp).border(2.dp, RunkkColors.Lime, CircleShape).padding(3.dp)
-                                .clip(CircleShape).background(RunkkColors.Border)
+                                .clip(CircleShape).background(RunkkColors.SurfacePressed),
+                            character
                         )
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * 프로필 원의 셀카 머리 구도([임시:D-성-189]): 기본 머리와 셀카 머리(도형 픽스처: 캔버스 가운데 작은 머리·짧은 목)를 견준다. 셀카 머리도
+     * 기본 머리와 같은 크기·자리이고 목이 원 아래 가장자리까지 이어진다. 성별마다 위 줄 기본 머리, 아래 줄 셀카 머리(44·88·120dp).
+     */
+    @Test
+    fun avatarSelfieHeadPortraits() = compose.captureRunkkScreen("designsystem_avatar_selfie_head_portraits") {
+        val layers = SelfieHeadFixture.layers
+        Column(
+            Modifier.fillMaxSize().background(RunkkColors.Background).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            AvatarCharacter.entries.forEach { character ->
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                    listOf(44, 88, 120).forEach { size ->
+                        val circle = Modifier.size(size.dp).clip(CircleShape).background(RunkkColors.SurfacePressed)
+                        RunkkAvatarPortrait(RunkkAvatarArt.DEFAULT_FACE_KEY, emptyList(), circle, character)
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Bottom) {
+                    listOf(44, 88, 120).forEach { size ->
+                        val circle = Modifier.size(size.dp).clip(CircleShape).background(RunkkColors.SurfacePressed)
+                        RunkkAvatarPortrait("head:1:job-1", layers, circle, character)
+                    }
+                }
+            }
+        }
+    }
+
+    /** 피그마 맞춤 W1 공통 부품(라이트·다크, S15P31A207-292). */
+    @Test
+    fun figmaPartsLight() = compose.captureRunkkScreen("designsystem_figma_parts_light", isDarkTheme = false) {
+        FigmaParts()
+    }
+
+    @Test
+    fun figmaPartsDark() = compose.captureRunkkScreen("designsystem_figma_parts_dark") { FigmaParts() }
+}
+
+@Composable
+private fun FigmaParts() {
+    Column(
+        Modifier.fillMaxSize().background(RunkkColors.Background),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        RunkkTopBar(title = "크루런 결과", onBack = {})
+        Column(Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            RunkkButton("확인", onClick = {}, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                RunkkButton(
+                    "취소",
+                    onClick = {},
+                    style = RunkkButtonStyle.Outline,
+                    size = RunkkButtonSize.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                RunkkButton(
+                    "탈퇴하기",
+                    onClick = {},
+                    style = RunkkButtonStyle.Purple,
+                    size = RunkkButtonSize.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            RunkkButton("다음", onClick = {}, isEnabled = false, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                RunkkButton("초대 코드", onClick = {}, style = RunkkButtonStyle.Outline, size = RunkkButtonSize.Small)
+                RunkkButton("가입", onClick = {}, size = RunkkButtonSize.Small)
+                RunkkButton("더보기", onClick = {}, style = RunkkButtonStyle.White, size = RunkkButtonSize.XSmall)
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                RunkkChoiceChip("아침", isSelected = false, onSelectedChange = {})
+                RunkkChoiceChip("저녁", isSelected = true, onSelectedChange = {})
+            }
+            RunkkSegmented(listOf("공개", "비공개"), selectedIndex = 0, onSelect = {})
+            RunkkSegmented(
+                listOf("레이스", "크루런", "채팅"),
+                selectedIndex = 1,
+                onSelect = {},
+                selection = RunkkSegmentedSelection.Lime
+            )
+            RunkkSegmentRow(listOf("요약", "러닝별", "월간"), selectedIndex = 0, onSelect = {})
+            MetaRow(
+                listOf(
+                    MetaItem(RunkkIcons.CalendarToday, "2026.10.12 개설"),
+                    MetaItem(RunkkIcons.Group, "7명"),
+                    MetaItem(RunkkIcons.Schedule, "평일 저녁"),
+                    MetaItem(RunkkIcons.DirectionsRun, "5km")
+                )
+            )
+            MetaRow(
+                listOf(
+                    MetaItem(RunkkIcons.CheckCircle, "완료"),
+                    MetaItem(RunkkIcons.EmojiEvents, "골드"),
+                    MetaItem(RunkkIcons.TrendingUp, "Lv23"),
+                    MetaItem(RunkkIcons.Person, "20대")
+                )
+            )
+            RunkkCard(modifier = Modifier.fillMaxWidth()) {
+                Text("테두리 없는 카드", style = RunkkTextStyles.CardTitle, color = RunkkColors.TextPrimary)
+                Text("본문 14/22, Noto Sans KR", style = RunkkTextStyles.Body, color = RunkkColors.TextSecondary)
+            }
+            Text("2.14", style = RunkkTextStyles.DisplayHuge, color = RunkkColors.TextPrimary)
         }
     }
 }

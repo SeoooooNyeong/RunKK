@@ -116,6 +116,8 @@ public enum ReasonCode {
     ITEM_NOT_FOUND("아이템 없음"),
     /** 판매 중지된 아이템(D-44). */
     ITEM_NOT_ON_SALE("판매 중지된 아이템"),
+    /** 해금 조건을 아직 채우지 않은 아이템(W8, S15P31A207-299, 사용자 결정 A1). */
+    ITEM_LOCKED("아직 해금하지 않은 아이템"),
     /** 이미 보유한 아이템(6.5). */
     ALREADY_OWNED("이미 보유"),
     /** 잔액이 가격보다 적음(6.5). */
@@ -224,6 +226,18 @@ public enum ReasonCode {
     TOO_LARGE("사진이 너무 커요"),
     /** 게시글 사진이 JPEG가 아니거나 깨짐(FR-211, D-100, D-142). 422(STATUS_BY_REASON, 06-06). */
     UNSUPPORTED_IMAGE("지원하지 않는 형식"),
+    /** 크루 로고가 없음(GET /crew-logos/{logoId}, S15P31A207-295). 404(NotFoundRuleException). */
+    CREW_LOGO_NOT_FOUND("크루 로고 없음"),
+
+    // runbody (05-19 D-440·D-450, 앱 계약 runbody contract.md v1.0)
+    /** 그 기록의 런바디 분석 작업이 없음(집계 제외 기록, 기능을 켜기 전 기록, 남의 기록). 404(NotFoundRuleException). */
+    RUNBODY_NOT_FOUND("분석할 데이터가 부족해요"),
+    /** 2차 배포 기능이 운영 기준값으로 닫혀 있음(RUNBODY_ENABLED false, D-440). 403(STATUS_BY_REASON). */
+    FEATURE_CLOSED("아직 열리지 않은 기능"),
+    /** ai 결과 읽기 실패·시간 초과(D-449 읽기 10초). 503(STATUS_BY_REASON). 같은 요청을 다시 보내면 된다. */
+    RUNBODY_UNAVAILABLE("분석하지 못했어요"),
+    /** 월이 yyyy-MM(2000~2099년) 형식이 아님. 400(STATUS_BY_REASON). */
+    INVALID_YEAR_MONTH("월 형식 오류"),
 
     // web.auth (코드 리뷰 3차 B-L6)
     /** 서버 저장소 일시 장애로 지금 처리할 수 없음(갱신 토큰 폐기 목록 등). 소셜 제공자 문제가 아니다. 같은 요청을 다시 보내면 된다. */

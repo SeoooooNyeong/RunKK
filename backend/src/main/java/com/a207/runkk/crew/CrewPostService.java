@@ -44,7 +44,8 @@ public class CrewPostService {
     /** 신고 미리보기 길이(D-135). */
     static final int PREVIEW_LENGTH = 100;
 
-    private static final String RECRUIT_TEXT = "크루런 모집 · 참석 응답이 열렸어요";
+    /** 크루런 모집 알림 문구(직접 쓴 글과 반복 회차가 같다, CrewRunRepeater). */
+    static final String RECRUIT_TEXT = "크루런 모집 · 참석 응답이 열렸어요";
 
     private final CrewPostRepository crewPostRepository;
     private final CrewAccess crewAccess;
@@ -56,6 +57,7 @@ public class CrewPostService {
     private final WeeklyRaceRepository weeklyRaceRepository;
     private final AuditService auditService;
     private final CrewTransactions transactions;
+    private final CrewRunRepeater repeater;
     private final Clock clock;
 
     CrewPostService(
@@ -69,6 +71,7 @@ public class CrewPostService {
             WeeklyRaceRepository weeklyRaceRepository,
             AuditService auditService,
             CrewTransactions transactions,
+            CrewRunRepeater repeater,
             Clock clock) {
         this.crewPostRepository = crewPostRepository;
         this.crewAccess = crewAccess;
@@ -80,6 +83,7 @@ public class CrewPostService {
         this.weeklyRaceRepository = weeklyRaceRepository;
         this.auditService = auditService;
         this.transactions = transactions;
+        this.repeater = repeater;
         this.clock = clock;
     }
 
@@ -95,13 +99,17 @@ public class CrewPostService {
     }
 
     /**
-     * check(WRITE_POST) → new CrewRunPost(작성자 GOING) → 작성자를 뺀 크루원에게 CREW_RUN_RECRUIT(FR-132,
-     * FR-193).
+     * check(WRITE_POST) → new CrewRunPost(작성자 GOING) → 반복이 WEEKLY면 이 글로 반복 시작(W6) → 작성자를 뺀 크루원에게
+     * CREW_RUN_RECRUIT(FR-132, FR-193). 15일·5분 규칙(CrewRunSlot)은 요청 변환이 먼저 본다.
      */
     @Transactional
     public PostResult writeCrewRun(long memberId, long crewId, CrewRunDraft draft) {
         Crew crew = crewAccess.check(memberId, crewId, CrewAction.WRITE_POST);
-        CrewPost post = crewPostRepository.save(new CrewRunPost(crewId, memberId, draft, now()));
+        CrewRunPost post = new CrewRunPost(crewId, memberId, draft, now());
+        crewPostRepository.save(post);
+        if (draft.repeat() == CrewRunRepeat.WEEKLY) {
+            repeater.start(post, now());
+        }
         NavigationTarget target =
                 new NavigationTarget(Screen.CREW_RUN_RECRUIT, String.valueOf(post.getId()));
         crew.activeMemberIds().stream()
@@ -381,10 +389,12 @@ public class CrewPostService {
     /**
      * 글 없음·삭제·숨김 → POST_NOT_FOUND(숨김 중 삭제는 받지 않는다, D-126) → CrewPost.delete(본인 또는 L·M) → 크루런이면
      * CrewRunService.endByDeletion(D-66) → 게시글이면 PostPhotoStore.deleteByPost → FORCED면
-     * 감사(POST_FORCE_DELETE, 행위자 역할 CREW_LEADER 또는 CREW_MANAGER)(FR-130, FR-134, FR-213).
+     * 감사(POST_FORCE_DELETE, 행위자 역할 CREW_LEADER 또는 CREW_MANAGER)(FR-130, FR-134, FR-213). 반복 회차면 반복
+     * 행을 글보다 먼저 잠근다(반복 → 글 순서, 회차 생성과 같다, 코드 리뷰 M1).
      */
     @Transactional
     public PostResult delete(long requesterId, long postId) {
+        repeater.lockSeriesBeforePost(visible(postId));
         CrewPost post = visibleForUpdate(postId); // 크루런 시계·참석 응답과 줄을 세운다
         Crew crew = crewAccess.require(post.crewId());
         CrewRelation relation = crew.relationOf(requesterId);
@@ -392,6 +402,7 @@ public class CrewPostService {
         crewPostRepository.save(post);
         if (post instanceof CrewRunPost run) {
             crewRunService.endByDeletion(run);
+            repeater.stopIfLatest(run, now()); // 반복의 최신 회차를 지우면 반복도 끝난다(W6)
         }
         if (post instanceof BoardPost) {
             postPhotoStore.deleteByPost(postId);
@@ -411,7 +422,10 @@ public class CrewPostService {
         return new PostResult(postId);
     }
 
-    /** 신고용 조회(D-135). 글이 없거나 삭제됐으면 빈 값, 숨김이어도 돌려준다. report.target의 CrewPostReportAdapter만 부른다. */
+    /**
+     * 신고용 조회(D-135). 글이 없거나 삭제됐으면 빈 값, 숨김이어도 돌려준다. report.target의 CrewPostReportAdapter만 부른다. 크루런은
+     * 제목도 신고 대상이라 미리보기에 제목 + 줄바꿈 + 내용을 싣는다(코드 리뷰 M4).
+     */
     @Transactional(readOnly = true)
     public Optional<ReportedPostView> reportedView(long postId) {
         return crewPostRepository
@@ -424,8 +438,16 @@ public class CrewPostService {
                                         post.crewId(),
                                         post.kind(),
                                         post.authorId(),
-                                        preview(post.body()),
+                                        preview(reportedText(post)),
                                         post.isHidden()));
+    }
+
+    /** 크루런이면 제목 + 줄바꿈 + 내용(내용이 비면 제목만), 그 밖은 본문. */
+    private static String reportedText(CrewPost post) {
+        if (post instanceof CrewRunPost run && run.title() != null && !run.title().isBlank()) {
+            return run.body().isBlank() ? run.title() : run.title() + "\n" + run.body();
+        }
+        return post.body();
     }
 
     /** 앞 100자(코드 포인트 단위, 서로게이트 쌍을 가르지 않는다). */

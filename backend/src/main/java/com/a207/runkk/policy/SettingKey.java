@@ -213,6 +213,38 @@ public enum SettingKey {
             return ValidationResult.ok();
         }
     },
+    /**
+     * 체형 변화(FR-163) 공개 여부. 2차 배포에서 뺀다(2026-11-13 PM 결정, [임시:D-성-218]). 거짓이면 0시 외형 재계산이 모든 회원을 기본
+     * 몸(STAGE4)으로 두고 체형 변화 알림을 만들지 않는다. 피부색 계산은 그대로다. 행이 없으면 기본 false.
+     */
+    BODY_SHAPE_RELEASED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
+    /**
+     * 런바디 ai 분석 사용(2차 배포 기능, FR-265, 05-19 D-440). 거짓이면 러닝 저장 뒤 분석 작업을 만들지 않고 ai에 제출·상태 조회하지 않으며,
+     * 런바디 조회 API는 403 FEATURE_CLOSED다. 행이 없으면 기본 false.
+     */
+    RUNBODY_ENABLED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
+    COACH_ENABLED(Boolean.class, "false") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return ValidationResult.ok();
+        }
+    },
+    COACH_DAILY_LIMIT(Integer.class, "20") {
+        @Override
+        ValidationResult checkRange(Object value) {
+            return rule((Integer) value > 0, "양의 정수");
+        }
+    },
     SELFIE_LIMIT(SelfieLimit.class, "{\"perDay\":1}") {
         @Override
         ValidationResult checkRange(Object value) {
@@ -407,11 +439,14 @@ public enum SettingKey {
                         .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS)
                         .build();
 
-        /** 왕복 랜드마크의 거리는 표의 왕복 거리다. 키는 D-107 (1)의 목록이다. */
+        /**
+         * 왕복 랜드마크의 거리는 표의 왕복 거리다. 키는 D-107 (1)의 목록이다. 개성은 빼고 춘천(서울시청–춘천시청 대권 74.8km × 2)을 넣었다
+         * (D-성-129, 운영 행은 V65).
+         */
         static final List<Landmark> LANDMARKS =
                 List.of(
                         domestic("INCHEON", "인천", 60),
-                        domestic("KAESONG", "개성", 120),
+                        domestic("CHUNCHEON", "춘천", 150),
                         domestic("DAEJEON", "대전", 280),
                         domestic("JEONJU", "전주", 400),
                         domestic("YEOSU", "여수", 650),

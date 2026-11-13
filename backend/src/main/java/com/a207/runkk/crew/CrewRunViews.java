@@ -3,6 +3,8 @@ package com.a207.runkk.crew;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.Pace;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.RunQueryService;
@@ -10,16 +12,14 @@ import com.a207.runkk.running.RunSummary;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.springframework.stereotype.Component;
 
 /**
- * 크루런 대기실·결과 화면과 도착 시각을 만든다(CrewRunService.enterLobby·result·onRunSaved). 다른 패키지 자료는
- * MemberQueryService(표시명)·RunQueryService(기록·도달 시간)로만 읽는다(D-32). CrewRunService의 생성자 의존을 Fan-Out 7
- * 안에 두려고 뗀 패키지 전용 보조다.
+ * 크루런 대기실·결과 화면을 만든다(CrewRunService.enterLobby·result). 다른 패키지 자료는 MemberQueryService(표시명·표시
+ * 성별)·RunQueryService(기록)로만 읽는다(D-32). CrewRunService의 생성자 의존을 Fan-Out 7 안에 두려고 뗀 패키지 전용 보조다.
  */
 @Component
 class CrewRunViews {
@@ -52,9 +52,9 @@ class CrewRunViews {
                                         p.answer() == AttendanceAnswer.GOING
                                                 && p.memberId().isPresent())
                         .toList();
-        Map<Long, MemberSummary> names =
-                memberQueryService.summaries(
-                        going.stream().map(p -> p.memberId().orElseThrow()).toList());
+        List<Long> ids = going.stream().map(p -> p.memberId().orElseThrow()).toList();
+        Map<Long, MemberSummary> names = memberQueryService.summaries(ids);
+        Map<Long, Gender> genders = memberQueryService.shownGendersOf(ids);
         Duration remaining = Duration.between(now, post.scheduledAt());
         return new LobbyView(
                 post.getId(),
@@ -67,29 +67,33 @@ class CrewRunViews {
                                 p -> {
                                     long id = p.memberId().orElseThrow();
                                     return new LobbyView.Entry(
-                                            id, nameOf(names, id), p.readiness());
+                                            id,
+                                            nameOf(names, id),
+                                            p.readiness(),
+                                            genderOf(genders, id));
                                 })
                         .toList());
     }
 
-    /** 순위별 표시명·기록·평균 페이스(연결된 러닝), 열람자의 첫 크루런 여부, 크루 반영 거리 합(WeeklyRace.contributionOf)(FR-191). */
-    CrewRunResultView result(CrewRunPost post, long viewerId) {
+    /**
+     * 합산 방식 결과(S15P31A207-236): 진행 참가자(입장 순)의 거리·시간·평균 페이스(연결된 러닝, 없으면 끝낼 때 남긴 값, 아직 달리는 중이면 마지막 중계
+     * 값 live), 거리 합, 열람자의 연결 기록, 첫 크루런 여부, 크루 반영 거리 합(WeeklyRace.contributionOf).
+     *
+     * @param live 참가자별 마지막 중계 값(진행 중일 때만, 아니면 빈 맵)
+     */
+    CrewRunResultView result(CrewRunPost post, long viewerId, Map<Long, LiveProgress> live) {
         List<CrewRunParticipation> runners =
-                post.participations().stream()
-                        .filter(CrewRunParticipation::isRunner)
-                        .sorted(
-                                Comparator.comparing(
-                                        CrewRunParticipation::rank,
-                                        Comparator.nullsLast(Comparator.naturalOrder())))
-                        .toList();
-        Map<Long, MemberSummary> names =
-                memberQueryService.summaries(
-                        runners.stream().flatMap(p -> p.memberId().stream()).toList());
+                post.participations().stream().filter(CrewRunParticipation::isRunner).toList();
+        List<Long> ids = runners.stream().flatMap(p -> p.memberId().stream()).toList();
+        Map<Long, MemberSummary> names = memberQueryService.summaries(ids);
+        Map<Long, Gender> genders = memberQueryService.shownGendersOf(ids);
+        LocalDate day = post.scheduledAt().toLocalDate();
         List<CrewRunResultView.Line> lines =
-                runners.stream()
-                        .map(p -> lineOf(p, names, post.scheduledAt().toLocalDate()))
-                        .toList();
-        int finishers = (int) runners.stream().filter(p -> p.rank() != null).count();
+                runners.stream().map(p -> lineOf(p, names, genders, day, live)).toList();
+        Distance total =
+                lines.stream()
+                        .map(CrewRunResultView.Line::distance)
+                        .reduce(Distance.ZERO, Distance::plus);
         Distance contribution =
                 post.linkedRecordIds().stream()
                         .map(weeklyRaceRepository::contributionOf)
@@ -97,24 +101,59 @@ class CrewRunViews {
         return new CrewRunResultView(
                 post.getId(),
                 post.status(),
-                finishers,
+                post.title(),
+                post.distance(),
+                post.departedAt().orElse(null),
+                total,
                 lines,
+                post.participationOf(viewerId)
+                        .filter(CrewRunParticipation::isRunner)
+                        .flatMap(CrewRunParticipation::linkedRecordId)
+                        .orElse(null),
                 isFirstCrewRun(post, viewerId),
                 contribution);
     }
 
+    /** 연결된 기록이 있으면 그 거리·시간·페이스, 없으면 끝낼 때 남긴 값, 그것도 없고 아직 달리는 중이면 마지막 중계 값(AN-3), 모두 없으면 거리 0. */
     private CrewRunResultView.Line lineOf(
-            CrewRunParticipation p, Map<Long, MemberSummary> names, LocalDate day) {
+            CrewRunParticipation p,
+            Map<Long, MemberSummary> names,
+            Map<Long, Gender> genders,
+            LocalDate day,
+            Map<Long, LiveProgress> live) {
         Optional<RunSummary> run =
                 p.memberId().flatMap(id -> p.linkedRecordId().flatMap(r -> summaryOf(id, r, day)));
         DisplayName name = p.memberId().map(id -> nameOf(names, id)).orElse(DisplayName.WITHDRAWN);
+        Optional<LiveProgress> relayed =
+                p.hasEnded() ? Optional.empty() : p.memberId().map(live::get);
+        Distance distance =
+                run.map(RunSummary::distance)
+                        .or(p::finalDistance)
+                        .or(() -> relayed.map(LiveProgress::distance))
+                        .orElse(Distance.ZERO);
+        Duration elapsed =
+                run.map(RunSummary::elapsed)
+                        .or(p::finalElapsed)
+                        .or(() -> relayed.map(LiveProgress::elapsed))
+                        .orElse(null);
+        Pace pace = run.map(RunSummary::averagePace).orElseGet(() -> paceOf(elapsed, distance));
         return new CrewRunResultView.Line(
-                p.rank(),
                 name,
-                run.map(RunSummary::elapsed).orElse(null),
-                run.map(RunSummary::averagePace).orElse(null),
-                p.hasQuit(),
-                p.memberId().orElse(null));
+                distance,
+                elapsed,
+                pace,
+                p.hasEnded(),
+                p.memberId().orElse(null),
+                p.memberId().map(id -> genderOf(genders, id)).orElse(null));
+    }
+
+    /** 끝낼 때 남긴 값으로 계산한 평균 페이스. 거리·시간이 없거나 0이면 null. */
+    private static Pace paceOf(Duration elapsed, Distance distance) {
+        if (elapsed == null || distance.meters() <= 0) {
+            return null;
+        }
+        long secondsPerKm = Math.round(elapsed.toMillis() / (double) distance.meters());
+        return secondsPerKm > 0 ? new Pace((int) secondsPerKm) : null;
     }
 
     /**
@@ -141,9 +180,10 @@ class CrewRunViews {
                 .noneMatch(other -> other.runners().contains(viewerId));
     }
 
-    /** 기록이 크루런 거리에 닿았으면 도착 시각 = 시작 일시 + 처음 닿은 경과 시간(FR-191). */
-    Optional<LocalDateTime> arrivalAt(String recordId, LocalDateTime startedAt, Distance d) {
-        return runQueryService.timeToReach(recordId, d).map(startedAt::plus);
+    /** 표시 성별 이름(MALE·FEMALE). 맵에 없으면(조회 누락) null이고 앱은 남자 기본 캐릭터를 그린다. */
+    private static String genderOf(Map<Long, Gender> genders, long memberId) {
+        Gender gender = genders.get(memberId);
+        return gender == null ? null : gender.name();
     }
 
     private static DisplayName nameOf(Map<Long, MemberSummary> names, long memberId) {

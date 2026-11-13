@@ -13,7 +13,9 @@ import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
@@ -29,15 +31,18 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_LOADING_TAG
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
-import com.a207.runkk.app.core.designsystem.runkkAvatarCharacterTag
+import com.a207.runkk.app.core.designsystem.runkkAvatarDefaultHeadTag
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
@@ -61,20 +66,29 @@ class MeScreensTest {
     val compose = createComposeRule()
 
     @Test
-    fun `프로필 원은 기본 캐릭터면 캐릭터 그림, 모르는 값이면 비운다`() {
+    fun `프로필 원은 기본 캐릭터 값이면 어느 값이든 내 성별의 기본 머리다(동물 그림 없음, D-성-180)`() {
         var faceKey by mutableStateOf<String?>("default:BEAR")
         compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                MeScreen(MeUiState(isLoading = false, profile = sampleProfile.copy(faceKey = faceKey)), onNavigate = {
-                }, onRetry = {})
+            CompositionLocalProvider(LocalAvatarCharacter provides AvatarCharacter.FEMALE) {
+                RunkkTheme(reduceMotion = true) {
+                    MeScreen(
+                        MeUiState(isLoading = false, profile = sampleProfile.copy(faceKey = faceKey)),
+                        onNavigate = {},
+                        onRetry = {}
+                    )
+                }
             }
         }
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertExists()
 
         faceKey = "default:DRAGON"
         compose.waitForIdle()
-        compose.onNodeWithTag(runkkAvatarCharacterTag("BEAR"), useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertExists()
         compose.onNodeWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertDoesNotExist()
+
+        faceKey = null
+        compose.waitForIdle()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertExists()
     }
 
     @Test
@@ -136,7 +150,7 @@ class MeScreensTest {
         compose.onNodeWithText("42회").assertExists()
         compose.onNodeWithText("30대, 여성").assertDoesNotExist()
         compose.onNodeWithText("퇴근 뒤 한강").assertDoesNotExist()
-        listOf("러닝 기록", "성장 분석", "런바디", "목표·러닝 코치").forEach { compose.onNodeWithText(it).performClick() }
+        listOf("러닝 기록", "성장 분석", "런바디", "목표와 러닝 코치").forEach { compose.onNodeWithText(it).performClick() }
         compose.onNodeWithText("랭킹").assertDoesNotExist()
         compose.onNodeWithText("아바타 꾸미기").assertDoesNotExist()
         compose.onNodeWithContentDescription("프로필 편집").performClick()
@@ -211,9 +225,9 @@ class MeScreensTest {
             }
         }
         compose.onNodeWithText("2~20자").assertExists()
-        compose.onNodeWithText("20대 · 공개").assertExists()
-        compose.onNodeWithText("여성 · 비공개").performClick()
-        compose.onNodeWithText("20대 · 공개").performClick()
+        compose.onNodeWithText("20대, 공개").assertExists()
+        compose.onNodeWithText("여성, 비공개").performClick()
+        compose.onNodeWithText("20대, 공개").performClick()
         compose.onNodeWithText("사진").assertDoesNotExist()
         assertEquals(listOf("gender:true", "age:false"), toggled)
     }
@@ -242,6 +256,30 @@ class MeScreensTest {
     }
 
     @Test
+    fun `프로필 편집은 셀카 얼굴을 받는 동안 기본 머리를 먼저 보이지 않는다(임시 D-성-190)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                ProfileEditScreen(
+                    ProfileEditUiState(
+                        isLoading = false,
+                        nickname = "달리는곰",
+                        faceKey = "head:1:job-1",
+                        isFaceLoading = true
+                    ),
+                    onBack = {},
+                    onNicknameChange = {},
+                    onIntroChange = {},
+                    onSave = {},
+                    onErrorShown = {}
+                )
+            }
+        }
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
+
+    @Test
     fun `D100 마이 목록 끝은 솟은 탭 원에 가리지 않게 원 높이만큼 더 비운다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -253,7 +291,7 @@ class MeScreensTest {
         compose.onNode(hasScrollAction()).performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, 100_000f) }
         compose.waitForIdle()
         val screen = compose.onRoot().getUnclippedBoundsInRoot()
-        val last = compose.onNodeWithText("목표·러닝 코치").getUnclippedBoundsInRoot()
+        val last = compose.onNodeWithText("목표와 러닝 코치").getUnclippedBoundsInRoot()
         assertTrue(screen.bottom - last.bottom >= 16.dp + RUNKK_BOTTOM_BAR_RISE, "끝 여백 16 + 솟은 원 20")
     }
 
@@ -323,7 +361,7 @@ class MeScreensTest {
     }
 
     @Test
-    fun `R2-09 자유런 목표 거리 첫 칸은 자유이고 제목은 가운데다(A-5)`() {
+    fun `러닝 설정에 목표 거리와 기본 대결 거리 고르기가 없고 제목은 가운데다(A-5, 2026-11-12)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 SettingsScreen(
@@ -333,8 +371,10 @@ class MeScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("자유").assertExists()
-        compose.onNodeWithText("목표 없음").assertDoesNotExist()
+        // 거리 고르기를 뺐다(2026-11-12 PM 「거리 선택이 의미가 없으니 지워」, 「배틀런 기본 대결 거리도 지워」)
+        compose.onNodeWithText("목표 거리").assertDoesNotExist()
+        compose.onNodeWithText("자유").assertDoesNotExist()
+        compose.onNodeWithText("기본 대결 거리").assertDoesNotExist()
         // 제목은 바 가운데(A-5)
         val screen = compose.onRoot().getUnclippedBoundsInRoot()
         val title = compose.onNode(hasText("러닝 설정") and isHeading()).getUnclippedBoundsInRoot()
@@ -382,19 +422,87 @@ class MeScreensTest {
     }
 
     @Test
-    fun `동의를 채우면 시작하기 하나로 가입하거나 게스트로 시작한다(A2)`() {
-        val submitted = mutableListOf<Boolean>()
+    fun `동의를 채우면 시작하기로 성별 단계로 가고, 성별 단계의 시작하기 하나로 가입하거나 게스트로 시작한다(A2, S15P31A207-300)`() {
+        var next = 0
+        val started = mutableListOf<Boolean>()
         var isGuest by mutableStateOf(false)
         val agreed = SignUpUiState(consents = SignUpConsents.items.associate { it.item to it.isRequired })
+        var state by mutableStateOf(agreed)
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                SignUpScreen(agreed, isGuest = isGuest, SignUpActions(onSubmit = { submitted += it }))
+                SignUpScreen(
+                    state,
+                    isGuest = isGuest,
+                    SignUpActions(onConsentNext = { next++ }, onStart = { started += it })
+                )
             }
         }
         startButton().assertIsEnabled().performClick()
+        assertEquals(1, next)
+        assertEquals(emptyList(), started, "동의 단계에서는 보내지 않는다")
+        state = agreed.copy(step = SignUpStep.GENDER, gender = Gender.MALE)
+        startButton().assertIsEnabled().performClick()
         isGuest = true
         startButton().performClick()
-        assertEquals(listOf(false, true), submitted)
+        assertEquals(listOf(false, true), started)
+    }
+
+    @Test
+    fun `성별 단계는 남자·여자 카드 둘과 2 나누기 2를 보이고 고르기 전에는 시작할 수 없다(S15P31A207-300)`() {
+        val picked = mutableListOf<Gender>()
+        var back = 0
+        var state by mutableStateOf(
+            SignUpUiState(
+                step = SignUpStep.GENDER,
+                consents = SignUpConsents.items.associate { it.item to it.isRequired }
+            )
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SignUpScreen(
+                    state,
+                    isGuest = false,
+                    SignUpActions(onGenderSelect = {
+                        picked += it
+                        state = state.copy(gender = it)
+                    }, onBack = { back++ })
+                )
+            }
+        }
+        compose.onNodeWithText("성별을 골라 주세요").assertExists()
+        compose.onNodeWithText("2 / 2").assertExists()
+        compose.onNodeWithText("밝히지 않음").assertDoesNotExist()
+        compose.onNodeWithTag(GENDER_CHECK_TAG).assertDoesNotExist()
+        startButton().assertIsNotEnabled()
+        compose.onNodeWithTag(GENDER_CARD_TAG + Gender.FEMALE.name).assertIsNotSelected().performClick()
+        compose.onNodeWithTag(GENDER_CARD_TAG + Gender.FEMALE.name).assertIsSelected()
+        compose.onNodeWithTag(GENDER_CHECK_TAG, useUnmergedTree = true).assertExists()
+        startButton().assertIsEnabled()
+        compose.onNodeWithText("남자").performClick()
+        assertEquals(listOf(Gender.FEMALE, Gender.MALE), picked)
+        compose.onNodeWithContentDescription("뒤로").performClick()
+        assertEquals(1, back)
+    }
+
+    @Test
+    fun `계정을 만든 뒤 성별 저장이 실패하면 안내를 보이고 뒤로 없이 다시 시작하게 한다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                SignUpScreen(
+                    SignUpUiState(
+                        step = SignUpStep.GENDER,
+                        gender = Gender.MALE,
+                        isAccountCreated = true,
+                        submitError = UiText.Plain("잠시 뒤 다시 시도해 주세요")
+                    ),
+                    isGuest = false,
+                    SignUpActions()
+                )
+            }
+        }
+        compose.onNodeWithText("잠시 뒤 다시 시도해 주세요").assertExists()
+        compose.onNodeWithContentDescription("뒤로").assertDoesNotExist()
+        startButton().assertIsEnabled()
     }
 
     /** 상단 제목과 아래 버튼이 모두 "시작하기"다. 누를 수 있는 쪽이 버튼이다. */
@@ -476,7 +584,7 @@ class MeScreensTest {
                         canRetrySubmit = false
                     ),
                     isGuest = false,
-                    SignUpActions(onBack = { exited++ })
+                    SignUpActions(onExit = { exited++ })
                 )
             }
         }

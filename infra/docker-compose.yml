@@ -30,6 +30,8 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       SWAGGER_ENABLED: ${SWAGGER_ENABLED:-false}
+      # 서버 시간대(DF-073). 이미지(Dockerfile)와 RunkkApplication.main도 Asia/Seoul로 정한다. API_JAVA_OPTS를 바꿔도 빠지지 않게 TZ로 둔다
+      TZ: Asia/Seoul
       # 컨테이너 메모리 제한(mem_limit) 안에서 힙을 잡는다. 나머지는 메타스페이스·스레드 스택·직접 버퍼 몫이다.
       # 메모리가 바닥나면 반쯤 살아 있는 상태로 남지 않고 끝나서 restart 정책으로 다시 뜬다
       JAVA_TOOL_OPTIONS: ${API_JAVA_OPTS:--XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError}
@@ -51,19 +53,22 @@ services:
       RUNKK_QUEUE: ${RUNKK_QUEUE:-redis}
       RUNKK_LIVE: ${RUNKK_LIVE:-websocket}
       # 셀카 변환 서버 스위치(application.yml runkk.features.selfie-enabled). false면 관리툴 운영 기준값과 관계없이 셀카 변환을 막는다.
-      # 기본은 꺼짐이다. 베타(prod)는 꺼 두고(2026-10-23 결정), 셀카를 시험하는 develop만 .env에 SELFIE_ENABLED=true를 둔다
+      # 기본은 꺼짐이다. develop은 .env에 SELFIE_ENABLED=true, prod도 2차 배포(11/13)부터 SELFIE_ENABLED=true(2026-11-09 결정)
       SELFIE_ENABLED: ${SELFIE_ENABLED:-false}
       AI_SERVER_URL: http://ai:8000
       # actuator 관리 포트(develop·prod 프로필). 밖으로 열지 않는다. healthcheck·nginx /actuator/health·Prometheus만 부른다
       MANAGEMENT_PORT: "8081"
       RUNKK_INTERNAL_TOKEN: ${RUNKK_INTERNAL_TOKEN:?set RUNKK_INTERNAL_TOKEN in .env}
+      RUNKK_WRITER_MODEL_URLS: ${RUNKK_WRITER_MODEL_URLS-http://writer:8080}
       # 회원 JWT 서명 키. 비우면 api가 기동마다 임의 키를 만들어 재시작 때 모든 토큰이 무효가 되므로 배포에서는 필수
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       # 관리툴 운영자 토큰 서명 키(D-42). JWT_SECRET과 달라야 하며(같으면 api가 기동을 멈춘다) 비우면 재시작 때마다 관리툴 재로그인
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:?set ADMIN_JWT_SECRET in .env}
       # 첫 운영자 시드: 화이트리스트가 비었을 때만 한 번 넣고 감사 기록을 남긴다. 예) KAKAO:1234567890
       RUNKK_BOOTSTRAP_OPERATORS: ${RUNKK_BOOTSTRAP_OPERATORS:-}
-      SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-21}
+      # 운영 기준값 시드: 그 키의 행이 없을 때만 시작 때 한 번 넣고 감사 기록을 남긴다. 예) CREW_RELEASED=true,AVATAR_RELEASED=true
+      RUNKK_BOOTSTRAP_SETTINGS: ${RUNKK_BOOTSTRAP_SETTINGS:-}
+      SCHEDULER_POOL_SIZE: ${SCHEDULER_POOL_SIZE:-27}
       # 랜드마크 배경 알림 없이 채우기 기준 시각(D-176): 이 시각 전 유효 거리만 센다. 첫 배포 때 V25 적용 시각으로 둔다
       AVATAR_BACKFILL_CUTOFF: ${AVATAR_BACKFILL_CUTOFF:-2026-10-22T00:00:00}
       # 카카오·구글·Apple 로그인 같은 인증 요청의 클라이언트(IP)별 분당 상한
@@ -260,10 +265,10 @@ services:
       retries: 8
       start_period: 60s
 
-  # 아바타 서버(안선영 님 Node, S15P31A207-164). 셀카 → 특징 분석(gpt-4.1-mini) → 머리 1장 생성(gpt-image-2.5) → 코드 마스크로
-  # face·eyes·hair 3레이어로 나눠 저장한다. 프로필 avatar라 .env에 COMPOSE_PROFILES에 avatar를 넣은 환경에서만 뜬다.
+  # 아바타 서버(안선영 님 Node, S15P31A207-164). 셀카 → 특징 분석(gpt-4.1-mini) → 정면·우측 머리 생성(gpt-image-2.5-sunburst).
+  # 정면 전체·우측 전체·얼굴(코·입 포함)·눈+속눈썹·헤어+눈썹 5종을 사용자별로 저장한다. 프로필 avatar라 .env에 COMPOSE_PROFILES에 avatar를 넣은 환경에서만 뜬다.
   # ai만 전용 망 avatar로 부르고(기준 경로 http://avatar:3000/api/v1) 밖으로 열지 않는다. GMS 호출이 필요해 internal 망은 아니다.
-  # 결과는 named volume(/app/data, 사용자별 폴더)에 남는다. deploy.sh가 ../avatar(Dockerfile)로 환경별 태그를 만든다.
+  # 결과는 named volume(/app/data, 사용자별 폴더)에 남는다. deploy.sh가 ../avatar-ai(Dockerfile)로 환경별 태그를 만든다.
   avatar:
     image: runkk-avatar:${RUNKK_ENV}
     profiles: ["avatar"]
@@ -293,6 +298,8 @@ services:
 
   # 매일 백업(NFR-018·019·037, 처리방침 "하루 1회 이상 백업, 백업본 7일 보존"). BACKUP_TIME(기본 04:30, 3시 파기 배치 뒤)에 pg_dump -Fc를 떠서
   # 호스트 폴더 BACKUP_DIR/<환경>(기본 /var/backups/runkk/<환경>)에 두고 7일 지난 덤프를 지운다. 덤프는 BACKUP_OWNER(기본 ubuntu 1000:1000) 소유 0600.
+  # 같은 시각에 아바타 결과 볼륨(avatar-data)도 tar.gz로 같은 폴더에 같은 보존·권한으로 남긴다. 볼륨은 읽기 전용으로만 붙이고,
+  # avatar 프로필이 꺼진 환경은 빈 볼륨이라 건너뛴다. 배포 직전 덤프(now predeploy)는 DB만 뜬다(README 7절).
   # deploy.sh는 배포 직전에도 한 번 뜬다(Flyway 마이그레이션 전). 지금 바로 뜨려면: docker exec runkk-<환경>-backup-1 sh /opt/runkk-backup/pg-backup.sh now
   backup:
     image: postgres:17-alpine
@@ -312,6 +319,7 @@ services:
     volumes:
       - ./backup:/opt/runkk-backup:ro
       - ${BACKUP_DIR:-/var/backups/runkk}/${RUNKK_ENV}:/backups
+      - avatar-data:/avatar-data:ro
     mem_limit: 256m
     depends_on:
       postgres:

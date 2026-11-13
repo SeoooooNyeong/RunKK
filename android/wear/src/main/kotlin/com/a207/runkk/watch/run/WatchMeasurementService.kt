@@ -47,7 +47,8 @@ import timber.log.Timber
 
 /**
  * 워치 단독 측정 동안 포그라운드로 남아 표본을 RunTracker에 넘긴다(3.1, D-368, FR-256). 업무 규칙은 없다(폰 MeasurementService와 같다):
- * 운동 세션(WatchExerciseSource)의 위치를 RunTracker.onLocationSample로, 1초 시계를 RunTracker.tick으로, 심박을 LocalWatchGateway로
+ * 운동 세션(WatchExerciseSource)의 위치를 RunTracker.onLocationSample로, 속도·케이던스를 RunTracker.onMotionSample로(S15P31A207-242),
+ * 1초 시계를 RunTracker.tick으로, 심박을 LocalWatchGateway로
  * 넘기고, 자유런 일시정지·재개에 맞춰 운동 세션을 멈추고 잇는다([relay]).
  *
  * 타입은 location(늘)과 health(심박 권한이 있을 때)다. 측정은 앱 화면에서 시작하므로 백그라운드 위치 권한은 쓰지 않는다(C-022).
@@ -254,6 +255,7 @@ class WatchMeasurementService : LifecycleService() {
             launch(start = CoroutineStart.UNDISPATCHED) {
                 source.heartRates().collect { gateway.offerHeartRates(listOf(it)) }
             }
+            launch(start = CoroutineStart.UNDISPATCHED) { source.motions().collect(tracker::onMotionSample) }
             val ended = async(start = CoroutineStart.UNDISPATCHED) { source.ended.first() }
             val started = source.start()
             if (started is Outcome.Failure) {

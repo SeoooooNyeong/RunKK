@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 카메라 앱이 셀카 원본을 쓸 앱 전용 임시 자리(실기기 DV3-3). 읽어 줄인 뒤 바로 지운다(FR-156). -->
+<paths>
+    <cache-path name="selfie_capture" path="selfie_capture/" />
+</paths>

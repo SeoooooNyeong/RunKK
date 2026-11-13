@@ -2,7 +2,10 @@ package com.a207.runkk.crew;
 
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Week;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -38,7 +41,22 @@ public interface WeeklyRaceRepository {
     /** 기록 하나의 반영 거리(어느 크루·주든), 없으면 0. */
     Distance contributionOf(String recordId);
 
+    /** 기록 하나가 반영된 크루(1인 1크루라 하나), 반영이 없으면 빈 값. */
+    Optional<Long> contributedCrewOf(String recordId);
+
     void deleteByCrew(long crewId);
+
+    /**
+     * 이 크루에 반영된 회원별 기여 거리 합(전 기간, 피그마 맞춤 W7 크루원 누적 거리). 기여가 없는 회원과 익명화된 기여는 맵에 없다. memberIds가 비면 빈
+     * 맵.
+     */
+    Map<Long, Distance> totalsByMember(long crewId, List<Long> memberIds);
+
+    /**
+     * 목표가 있고 주 시작일이 before보다 앞선 주를 최신 주부터 limit개(피그마 맞춤 W7 F-21 지난 목표). 참여 인원은 기여 거리가 0보다 큰 기여자
+     * 수다(익명 기여는 한 묶음, 축하 카드와 같은 규칙).
+     */
+    List<GoalHistoryRow> goalHistory(long crewId, LocalDate before, int limit);
 
     /** 탈퇴 회원의 기여를 익명화한다(합계는 그대로, FR-021). */
     void anonymizeMember(long memberId);

@@ -16,7 +16,8 @@ import javax.inject.Inject
  * 배치고사 진행·판 결과·완료(FR-279~FR-281), 매칭 대기·친구 초대 대기·초대 참가 확인, 대결 진행·결과. 끝낸 직후 연 결과에 티어 평가가
  * 실리면 평가 화면(Routes.Evaluation)을 한 번 열고(D-284, U8-6), 막 끝난 배치고사 판이면 판 결과로 바꿔 연다(D-501).
  * 기록 화면 "대결" 탭 칸(SlotKey.RECORD_BATTLES)에 대결 이력 탭을 넣는다(D-281, D-298).
- * 앱 화면 위에는 서버에 남은 진행 중 대결 안내를 붙인다(배틀 QA 7번).
+ * 앱 화면 위에는 서버에 남은 진행 중 대결 안내와 아직 달리는 대결로 돌아가기 안내를 붙인다(배틀 QA 7번, S15P31A207-278).
+ * 돌아가기 판정에 맨 위 경로([top])를 쓴다.
  */
 class BattleFeatureEntry @Inject constructor(private val sharer: InviteSharer) : FeatureEntry {
     override val route: String = Routes.BATTLE_RANDOM
@@ -54,5 +55,5 @@ class BattleFeatureEntry @Inject constructor(private val sharer: InviteSharer) :
     override val slots: Map<SlotKey, @Composable () -> Unit> = mapOf(SlotKey.RECORD_BATTLES to { BattleHistoryTab() })
 
     @Composable
-    override fun Overlay(top: NavKey?) = ActiveBattleOverlay()
+    override fun Overlay(top: NavKey?) = ActiveBattleOverlay(top)
 }

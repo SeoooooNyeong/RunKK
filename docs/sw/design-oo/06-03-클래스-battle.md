@@ -60,7 +60,8 @@ QueueRemoval(enum, battle): REMOVED, ASSIGNED, ABSENT. MatchQueue.removeIfWaitin
 | `void markDisconnected(long memberId, LocalDateTime at)` / `void markReconnected(long memberId, LocalDateTime at)` | 끊김·복구 | | Disconnection 추가·닫기 |
 | `void forfeit(long memberId, LocalDateTime now)` | 포기 | 참가자, IN_PROGRESS 또는 COUNTDOWN | 포기자 패, 상대 승(랜덤). FINISHED. 출발 전 대결은 이 연산 전에 cancelIfUnstarted로 취소한다(v0.13, D-200) |
 | `void closeCountdown(LocalDateTime now)` | 카운트다운 종료·최대 시간 초과 | now ≥ countdownEndsAt 또는 now ≥ startAt + 거리 × 15분 | RESULT_PENDING |
-| `void verify(long memberId, String recordId, boolean valid)` | 참가자 기록 검증 | 참가자 | 검증 결과 기록 |
+| `void verify(long memberId, RecordCheck check)` | 참가자 기록 검증 | 참가자 | 기록 ID, 대결 판정용 유효 여부, 도달 경과 시간, 유효 러닝 순번을 참가자에 기록한다(D-482). |
+| `void markPlacement(int round)` / `OptionalInt placementRound()` | 배치고사 판 번호 지정·조회 | 저장 전 GHOST 대결에 한 번만 지정 | 생성 당시 판 번호가 이력·매칭 성사에 쓰인다(D-478·D-534). |
 | `Optional<Judgement> judge(LocalDateTime now)` | 판정 | | srs.md 6.3 4.5 의사결정표(6.2 A-10). WAITING_START이거나 포기한 참가자가 있으면 비어 있음(포기 판정은 forfeit가 이미 했다). 먼저 도착한 쪽 기록(또는 1초 안에 따라 도착한 쪽 기록)이 아직 없으면 비어 있음. 판정되면 FINISHED. 무승부는 두 기록이 모두 유효하고 1초 이내일 때만이다. 규칙 3(먼저 도착한 쪽 무효)이면 첫 판정이어도 corrected = true이고, 상대에게 유효한 도착이 없으면 두 참가자 모두 무승부(승자 없음)다. 이미 FINISHED였고 결과가 바뀌어도 corrected = true (v0.8, TF-BE-08, TF-VB-02, TF-VB-03, TF-BE-10, D-63). 규칙 3 갈래는 판정 전 상태가 FINISHED가 아닐 때만 정정이라, 이미 FINISHED인 대결에 늦은 기록이 와 판정이 같으면 corrected = false다(v0.10, TF-BE-20, D-82) |
 | `Optional<Judgement> expirePending(LocalDateTime now)` | 24시간 보류 만료 | RESULT_PENDING, now ≥ countdownEndsAt + 24시간 | 없는 기록을 무효로 보고 판정. 규칙 3이어도 corrected = false(srs.md 6.3 4.5) |
 | `boolean isAbandoned(LocalDateTime now)` | 버려진 대결인가 | | 시작 보고 없는 기록 대결(IN_PROGRESS, startAt 없음, SELF·CELEBRITY)이면 createdAt부터, WAITING_START면 startAt(없으면 createdAt)부터 ABANDON_AFTER가 지났으면 true. 그 밖의 상태는 false. BattleRepository.findAbandoned의 조건과 같다 (v0.11, CR34-01) |
@@ -183,11 +184,33 @@ v0.13 정정(코드 기준, D-211): 코드는 참가자마다 Runner(memberId, n
 
 | 시그니처 | 설명 |
 |---------|------|
-| `MatchAcceptance requestMatch(long memberId, StandardDistance distance)` | srs.md 6.3 4.1 의사결정표(티어는 MemberQueryService.summaries, 위치 동의는 hasConsent) → MatchQueue.enqueue → MemberSettingService.rememberBattleDistance(memberId, distance). Member 엔티티를 읽거나 설정 객체를 직접 고치지 않는다(design-review.md A44, 내용 결합 제거) |
+| `MatchAcceptance requestMatch(long memberId, StandardDistance distance)` | 거리·위치 동의·티어를 확인한다. 배치 중이면 `PlacementMatcher.start`로 대결을 즉시 만든다. 잠금 뒤 배치 완료가 확인되면 일반 대기열로 이어 간다. 일반 대기열을 쓸 수 없으면 QUEUE_UNAVAILABLE이다. 성공한 거리는 MemberSettingService.rememberBattleDistance로 저장한다(D-478·D-515·D-540). |
 | `MatchAcceptance cancel(long memberId)` | MatchQueue.removeIfWaiting(memberId) 한 번으로 정한다: REMOVED면 대기해제, ASSIGNED면 거부(ALREADY_MATCHED, FR-085), ABSENT면 거부(대기 중 아님). 상태 확인과 삭제를 따로 부르지 않아 고스트 시작(tryAssign)과 겹쳐도 "취소됐는데 고스트 대결"이 없다(v0.10, TF-IT-16, D-83). 고스트 매칭 중(tryAssign 뒤)도 ASSIGNED라 거부되고, 실패로 release되면 다시 취소할 수 있다 (v0.8, D-64) |
 | `MatchAcceptance status(long memberId)` | 지금 매칭 대기 상태와 기본 대결 거리(GET /battles/match). MatchQueue.findWaiting이 WAITING이면 (대기 중, 대기 거리, 기본 거리), 아니면 대기해제 + 기본 거리. 기본 거리는 MemberSettingService.battleSettingsOf(memberId).defaultDistance(마지막으로 요청한 거리, FR-080·FR-109)다. 앱 대결 화면이 회원 설정을 따로 읽지 않고 홈 배틀런 버튼의 거리를 정한다 (v0.11, CR2-U1) |
 
-MatchAcceptance(값, record): waiting(boolean, 대기등록이면 true), distance(StandardDistance, 대기 중 거리, 대기해제면 null), defaultDistance(StandardDistance, 회원의 기본 대결 거리). 자료사전 매칭접수결과(대기등록 | 대기해제)이고 거부는 BusinessRuleException 사유 코드로 알린다 (v0.11, CR2-U1)
+MatchAcceptance(값, record)는 `waiting`, `distance`, `defaultDistance`, `placementRound`, `battleId`를 담는다. 배치고사 즉시 성사 때 판 번호와 대결 ID가 있고, 기존 3인자 생성자는 두 값을 null로 둔다(D-529, D-540). 거부는 BusinessRuleException의 사유 코드로 알린다.
+
+##### 배치고사 시작과 상대 생성
+
+| 클래스 | 명세 |
+|---|---|
+| PlacementMatcher | `start(memberId, distance, now): Optional<Battle>`. 회원의 배치 진행을 잠가 다시 확인한다. 이미 완료됐으면 empty를 반환한다. `saveImmediately`로 GHOST 대결과 참가자 활성 칸을 저장한다. 활성 칸 고유 제약 충돌은 ALREADY_IN_BATTLE로 대응한다(D-515·D-518). |
+| PlacementOpponentFactory | `create(basis, distance, boundary, rule): PlacementOpponent`. 첫 판은 기준값의 공개 최저 점수, 이후 판은 임시 티어 가운데 점수로 가상 완주 시간과 상대 기록을 만든다. 같은 거리 가상 기록에서 닉네임을 빌리고 후보가 없으면 MATCH_FAILED다(FR-276, A-38). |
+| PlacementOpponent | OpponentRecord 구현. 가상 상대의 기록 ID·표시명·도달 시간·거리 곡선을 제공한다. 성사 통지의 상대 티어는 null이다(FR-276). |
+| RecordCheck | record(recordId, valid, reachElapsed, validRunOrdinal). valid는 대결 거리 도달을 포함한 판정용 검증값이다. BattleParticipant는 순번이 양수일 때 `validRunOrdinal`에 저장한다. 배치고사 판수 인정에는 붙은 러닝 기록 자체의 유효 여부를 쓴다(D-482·D-511). |
+
+##### 배치고사 판수와 결과 조회
+
+| 클래스 | 명세 |
+|---|---|
+| PlacementRoundCheck | record(finished, cancelled, forfeited, hasRecord, recordValid, expiredWithoutRecord, summaryMissingExpired). `of(battle, memberId, recordValid)`는 셈·복구용, `of(battle, memberId, recordValid, now)`는 결과 조회용이다. 기록 ID가 있어도 요약을 읽지 못하면 조회에서 `SUMMARY_GRACE`(판정 뒤 24시간) 경과 여부를 확인한다(D-521). |
+| PlacementRoundState | `of(check, counted, progressCompleted)`는 이미 센 판을 COUNTED로, 취소·포기·무효·기한 만료·배치 완료 뒤 판정은 NOT_COUNTED로, 그 밖에는 PENDING으로 분류한다(D-487·D-521). |
+| PlacementRoundReader | BattleRepository·RunQueryService·PlacementService·Clock과 협력한다. `stateOf(memberId, battleId)`는 참가자만 읽을 수 있다. 취소·미존재 대결은 409 BATTLE_NOT_FOUND, 일반 대결은 empty다. `findSummary`로 기록 유효 여부를 읽는다. 셀 수 있는 PENDING이 판정 뒤 7일을 넘기면 경고를 남기고 NOT_COUNTED로 표시한다(D-522·D-525). |
+| PlacementRecordAttached | record(battleId, memberId, at). 이미 판정된 배치 대결에 늦게 연결된 기록에서 판정이 바뀌지 않아도 판수 반영을 다시 시도한다(D-512). |
+| PlacementRoundListener | BattleJudged와 PlacementRecordAttached를 수신한다. `count(battleId)`는 셌거나 이미 셌으면 참이다. `uq_placement_round_battle` 중복은 수신자가 이미 센 것으로 처리한다. 정정은 count 뒤에 적용한다. 요약 누락은 경고를 남기고 후속 복구로 넘긴다(D-524·D-538). |
+| PlacementReconcileService | `reconcile(now)`는 `BattleRepository.findPlacementFinishedBetween(from, to)`로 최근 7일간의 판정 대결을 읽어 판수 반영을 다시 시도한다(D-490). |
+
+판수 동시 반영 시 Hibernate의 follow-on 잠금과 버전 확인 뒤 충돌한 수신자가 새로 읽어 재시도한다. Hibernate 변경의 회귀 기준은 TC-5923이다. 판 목록 크기와 판수의 불변식 위반은 오류로 남기고 일일 복구 작업으로 넘긴다(D-539).
 
 requestMatch는 이미 대기 중이거나 활성 대결이 있으면 ALREADY_IN_BATTLE로 거부한다(활성 대결 1개 불변식) (v0.11, CR34-01)
 
@@ -260,6 +283,8 @@ v0.1의 `candidates(memberId, BattleType, filter)`와 `start(memberId, RecordBat
 | `void forfeit(long memberId, long battleId)` | Battle.cancelIfUnstarted(now)가 참이면(출발 전) 승패·리워드 없이 CANCELLED로 저장하고 랜덤 상대에게 BattleEnded(OPPONENT_FORFEITED)만 커밋 뒤 보낸 뒤 끝낸다(BattleJudged 없음, 로그 battle_cancelled_by_forfeit). 거짓이면 기존대로 Battle.forfeit → 상대에게 BattleEnded(OPPONENT_FORFEITED) → BattleJudged. 취소된 대결의 결과 조회는 409 BATTLE_NOT_FOUND다 (v0.13, CR-16, D-200) |
 | `BattleResultView result(long memberId, long battleId)` | 참가자만. 보류면 "보류" + 기록이 없는 본인에게 재시도 안내. 아니면 판정 문구, ComparisonTable(RunQueryService.comparisonOf), 이번 주 전적. 적립 리워드는 이 결과에 없다. web.battle의 BattleResultAssembler가 reward.RewardService.accruedFor(BATTLE_WIN, battleId, memberId)를 붙인다(battle → reward 의존 제거, D-33). CANCELLED 대결은 결과가 없고(BATTLE_NOT_FOUND) 이번 주 전적에서도 뺀다 (v0.11, CR34-01) |
 
+`BattleResultService.applyRecord`는 `RecordCheck`로 참가자 기록을 검증하고 판정이 나오면 BattleJudged를 발행한다. 판정 없이 배치고사 기록만 붙으면 PlacementRecordAttached를 발행한다(D-512). `comparison`과 `theirs`는 `RunQueryService.findComparison`을, `recordGaps`는 `curveOf`를 사용해 기록 없음도 처리한다(D-524). 결과의 `placementRound`와 `PlacementRoundReader`가 읽은 `placementState`를 배치고사 응답에 제공한다(D-513·D-522).
+
 ##### BattleHistoryService
 | 시그니처 | 설명 |
 |---------|------|
@@ -302,6 +327,8 @@ actorId는 web.admin의 OperatorCheckInterceptor가 operator.OperatorAuthorizer.
 | `void sendAll(Collection<Long> memberIds, BattleMessage m)` | 여러 명에게 보낸다 | |
 
 BattleMessage는 `String type()` 하나를 가진 인터페이스다. 구현 record 7종(MatchFound, MatchFailed(v0.8, D-64. 항목은 code: String("MATCH_FAILED")·message: String이고 MatchFailReason enum은 없다, v0.10 D-85를 v0.13 D-210으로 대체), BattleStart, OpponentProgress, BattleGuidance, CountdownStarted, BattleEnded)은 battle.live 하위 패키지에 있고 항목은 5.7.2 표와 같다. sealed를 쓰지 않는다. 구현: realtime.WebSocketMessenger, realtime.PollingMessenger(D-06).
+
+MatchFound에 생성 당시의 `placementRound`를 싣는다. 기존 8인자 생성자는 null을 사용한다(D-529). `BattleHistoryView.Entry`는 같은 판 번호와 `opponentMemberId`를 담고, 판 번호가 있으면 「배틀런 · 배치고사 n판」을 표시한다(D-534).
 
 ##### BattleJudged (사건, record)
 battle이 발행한다(D-31). 항목: battleId, type(BattleType), judgement(참가자별 판정, 정정 여부), at. 수신: reward.RewardService. 접근자 `Optional<Side> winnerSide()`(judgement.winnerSide()에 위임, 무승부·무효면 비어 있음)와 `LocalDateTime judgedAt()`(judgement의 판정 시각)을 둔다. reward는 이 둘만 읽고 Judgement를 import하지 않는다(D-134 조건 (1), 구조 규칙 (11)) (v0.11 구현 반영, U5-A-3).

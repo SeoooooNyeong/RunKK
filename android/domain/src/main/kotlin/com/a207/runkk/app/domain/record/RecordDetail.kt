@@ -16,6 +16,7 @@ import java.time.LocalDate
  * v0.14(D-280, D-284): [isDeletable]은 "기록 삭제" 버튼(서버 deletable, 옛 서버면 본인이고 집계 제외일 때), [evaluation]은 이 러닝이
  * 일으킨 티어 평가(없으면 null), [temperatureC]·[sky]는 날씨(서버 SkyCondition 이름), [pauseCount]·[paused]는 정지 구간 수와 합계다.
  * [recordVisibility]는 본인 기록일 때만 오는 공개 범위(서버 RecordVisibility 이름: PUBLIC·CREW·PRIVATE)이고 남의 기록이나 옛 서버면 null이다.
+ * [contributedCrewName]은 [crewContribution]이 반영된 크루 이름(본인 기록, 결과 화면 크루 반영 줄)이고 모르면 null이다.
  */
 data class RecordDetail(
     val summary: RunSummary,
@@ -37,7 +38,8 @@ data class RecordDetail(
     val sky: String? = null,
     val pauseCount: Int = 0,
     val paused: Duration = Duration.ZERO,
-    val recordVisibility: String? = null
+    val recordVisibility: String? = null,
+    val contributedCrewName: String? = null
 ) {
     /** 불안정 구간 하나: 시작·끝 경과 시간과 구간 거리. */
     data class Unstable(val from: Duration, val to: Duration, val distance: Distance)

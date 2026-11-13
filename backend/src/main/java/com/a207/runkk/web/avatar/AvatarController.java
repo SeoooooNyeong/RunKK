@@ -3,20 +3,18 @@ package com.a207.runkk.web.avatar;
 import com.a207.runkk.avatar.AvatarService;
 import com.a207.runkk.avatar.BackgroundService;
 import com.a207.runkk.avatar.FaceImageService;
+import com.a207.runkk.avatar.RunnerService;
 import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.reward.PurchaseResult;
 import com.a207.runkk.reward.ShopService;
 import jakarta.validation.Valid;
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,22 +23,18 @@ import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.multipart.MultipartFile;
 
 /**
- * 아바타 꾸미기·상점 엔드포인트(설계 5.7.1 AvatarController: 아바타 4 + 배경 2(v0.11 FR-201, FR-202), 상점 2). 셀카는
- * multipart로 받되 file-size-threshold가 max-file-size보다 커서 디스크 임시 파일 없이 메모리로만 받고(D-59), JPEG·PNG만 들인다.
- * 셀카 바이트를 저장·로그하지 않는다(FR-156).
+ * 아바타 꾸미기·상점 엔드포인트(설계 5.7.1 AvatarController: 아바타 4 + 배경 2(v0.11 FR-201, FR-202), 상점 2, 내 러너
+ * 1(W8)). 셀카는 multipart로 받되 file-size-threshold가 max-file-size보다 커서 디스크 임시 파일 없이 메모리로만 받고(D-59),
+ * JPEG·PNG만 들인다. 셀카 바이트를 저장·로그하지 않는다(FR-156).
  */
 @RestController
 @RequestMapping("/api/v1")
 public class AvatarController {
 
     private static final String MEMBER_ID = "memberId";
-    private static final List<MediaType> SELFIE_TYPES =
-            List.of(MediaType.IMAGE_JPEG, MediaType.IMAGE_PNG);
 
     /** 부위 이미지 기기 캐시 기간(묶음 키가 바뀌면 새 주소다). */
     private static final Duration PART_CACHE = Duration.ofDays(30);
@@ -49,6 +43,7 @@ public class AvatarController {
     private final ShopService shopService;
     private final FaceImageService faceImageService;
     private final BackgroundService backgroundService;
+    private final RunnerService runnerService;
     private final Clock clock;
 
     AvatarController(
@@ -56,27 +51,14 @@ public class AvatarController {
             ShopService shopService,
             FaceImageService faceImageService,
             BackgroundService backgroundService,
+            RunnerService runnerService,
             Clock clock) {
         this.avatarService = avatarService;
         this.shopService = shopService;
         this.faceImageService = faceImageService;
         this.backgroundService = backgroundService;
+        this.runnerService = runnerService;
         this.clock = clock;
-    }
-
-    @PostMapping(value = "/avatar/selfie", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    AvatarDtos.AvatarResponse createFromSelfie(
-            @RequestAttribute(MEMBER_ID) long memberId, @RequestPart("selfie") MultipartFile selfie)
-            throws IOException, HttpMediaTypeNotSupportedException {
-        byte[] image = selfie.getBytes();
-        if (image.length == 0) {
-            throw new IllegalArgumentException("빈 셀카");
-        }
-        if (!SelfieFormat.isJpegOrPng(image)) {
-            throw new HttpMediaTypeNotSupportedException(
-                    MediaType.APPLICATION_OCTET_STREAM, SELFIE_TYPES);
-        }
-        return AvatarDtos.AvatarResponse.of(avatarService.createFromSelfie(memberId, image));
     }
 
     @PostMapping("/avatar/default")
@@ -97,6 +79,12 @@ public class AvatarController {
     @GetMapping("/avatar")
     AvatarDtos.AvatarResponse view(@RequestAttribute(MEMBER_ID) long memberId) {
         return AvatarDtos.AvatarResponse.of(avatarService.view(memberId));
+    }
+
+    /** 내 러너(W8, 피그마 H-2): 최근 7일 횟수·거리, 3단계 체형, 러닝량, 피부톤 근거 시각(contract-W8.md 2.1). */
+    @GetMapping("/avatar/runner")
+    AvatarDtos.RunnerResponse runner(@RequestAttribute(MEMBER_ID) long memberId) {
+        return AvatarDtos.RunnerResponse.of(runnerService.runner(memberId));
     }
 
     /** 랜드마크 배경 목록(v0.11 FR-201, FR-202). 배포 전에 넘은 랜드마크는 알림 없이 먼저 채운다(D-107 (3)). */

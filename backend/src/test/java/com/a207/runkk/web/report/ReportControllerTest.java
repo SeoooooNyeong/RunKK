@@ -16,6 +16,7 @@ import com.a207.runkk.web.WebTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -65,7 +66,7 @@ class ReportControllerTest extends WebTestSupport {
         Map<String, Object> form = new HashMap<>();
         form.put("name", "신고크루" + CREWS.incrementAndGet() + "번");
         form.put("intro", "함께 달려요");
-        form.put("tags", List.of("SOCIAL_RUN"));
+        form.put("tags", List.of("WEEKDAY_EVENING"));
         form.put("visibility", "PUBLIC");
         form.put("joinPolicy", "FREE");
         long id = json(call(l, post("/api/v1/crews"), form)).get("id").asLong();
@@ -470,7 +471,12 @@ class ReportControllerTest extends WebTestSupport {
         run.put("kind", "CREW_RUN");
         run.put("body", "같이 뛰어요");
         run.put("distanceMeters", 3000);
-        run.put("scheduledAt", inHours(26));
+        run.put(
+                "scheduledAt",
+                OffsetDateTime.now(SEOUL)
+                        .plusHours(26)
+                        .truncatedTo(ChronoUnit.HOURS)
+                        .toString()); // 5분 단위(W6)
         hiddenSchedule(run);
     }
 

@@ -174,6 +174,7 @@ class FakeAvatarClient(AvatarClient):
     error: BaseException | None = None
     delay_s: float = 0.0
     submitted: list[tuple[str, str, int]] = field(default_factory=list)  # (userId, clientRequestId, 바이트 수)
+    deleted: list[str] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)
     closed: bool = False
 
@@ -205,6 +206,12 @@ class FakeAvatarClient(AvatarClient):
     async def body(self, body_id: str) -> BodyOut:
         await self._gate("body")
         return BodyOut.model_validate(self.body_pack)
+
+    async def delete_user(self, user_id: str) -> bool:
+        await self._gate("delete")
+        first = user_id not in self.deleted
+        self.deleted.append(user_id)
+        return first
 
     async def aclose(self) -> None:
         self.closed = True

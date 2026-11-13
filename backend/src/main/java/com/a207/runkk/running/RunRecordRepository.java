@@ -70,6 +70,9 @@ public interface RunRecordRepository {
 
     Optional<RunSummary> findSummary(String recordId);
 
+    /** 여러 기록의 요약을 한 번에 읽는다. 없는 ID는 빠진다(순서 보장 없음). */
+    List<RunSummary> findSummaries(Collection<String> recordIds);
+
     /** 기간 안 기록 전부(무효 포함), 최신순. */
     List<RunSummary> summariesBetween(long memberId, DateRange range);
 
@@ -113,6 +116,12 @@ public interface RunRecordRepository {
      * 업로드가 회원 단위로 직렬화되어(5.3) 저장 때 매긴 순번(유효 기록 수 + 1)과 같다.
      */
     List<ValidRunScore> validRunsAfter(long memberId, int ordinal);
+
+    /**
+     * 그 회원의 유효 기록 중 유효 러닝 순번이 fromOrdinal 이상 toOrdinal 이하인 것, 저장 일시·기록 ID 순(validRunsAfter와 같은 순번).
+     * 위치·심박 원자료 열은 읽지 않는다(런바디 요약 G-14).
+     */
+    List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal);
 
     /**
      * 저장 일시가 [from, to)이고 티어에 아직 반영하지 않은(tier_applied = false) 유효 기록, 저장 일시·기록 ID 순(총괄 결정 7-3). 색인

@@ -185,6 +185,35 @@ public class JpaCrewPostRepository implements CrewPostRepository {
     }
 
     @Override
+    public int countFinishedCrewRuns(long crewId) {
+        return entityManager
+                .createQuery(
+                        "select count(p) from CrewRunPost p where p.crewId = :crew"
+                                + " and p.deleted = false and p.hidden = false"
+                                + " and p.status = :finished",
+                        Long.class)
+                .setParameter("crew", crewId)
+                .setParameter("finished", CrewRunStatus.FINISHED)
+                .getSingleResult()
+                .intValue();
+    }
+
+    /** V50 색인(crew_id, scheduled_at DESC, 마친 크루런만)을 탄다. */
+    @Override
+    public List<CrewRunPost> findRecentFinishedCrewRuns(long crewId, int limit) {
+        return entityManager
+                .createQuery(
+                        "select p from CrewRunPost p where p.crewId = :crew and p.deleted = false"
+                                + " and p.hidden = false and p.status = :finished"
+                                + " order by p.scheduledAt desc, p.id desc",
+                        CrewRunPost.class)
+                .setParameter("crew", crewId)
+                .setParameter("finished", CrewRunStatus.FINISHED)
+                .setMaxResults(limit)
+                .getResultList();
+    }
+
+    @Override
     public List<CrewRunPost> findCrewRunsOf(long memberId, DateRange range) {
         return entityManager
                 .createQuery(
@@ -196,6 +225,40 @@ public class JpaCrewPostRepository implements CrewPostRepository {
                 .setParameter("from", range.start().atStartOfDay())
                 .setParameter("to", range.end().plusDays(1).atStartOfDay())
                 .getResultList();
+    }
+
+    /** 지난 크루런 상태(W6). */
+    private static final List<CrewRunStatus> PAST =
+            List.of(CrewRunStatus.FINISHED, CrewRunStatus.CANCELLED);
+
+    private static final String PAST_RUNS =
+            "from CrewRunPost p where p.crewId = :crew and p.deleted = false and p.hidden = false"
+                    + " and p.status in :past";
+
+    @Override
+    public List<CrewRunPost> findPastCrewRuns(long crewId, LocalDateTime from, LocalDateTime to) {
+        return entityManager
+                .createQuery(
+                        "select p "
+                                + PAST_RUNS
+                                + " and p.scheduledAt >= :from and p.scheduledAt < :to"
+                                + " order by p.scheduledAt desc, p.id desc",
+                        CrewRunPost.class)
+                .setParameter("crew", crewId)
+                .setParameter("past", PAST)
+                .setParameter("from", from)
+                .setParameter("to", to)
+                .getResultList();
+    }
+
+    @Override
+    public Optional<LocalDateTime> findEarliestPastCrewRun(long crewId) {
+        return Optional.ofNullable(
+                entityManager
+                        .createQuery("select min(p.scheduledAt) " + PAST_RUNS, LocalDateTime.class)
+                        .setParameter("crew", crewId)
+                        .setParameter("past", PAST)
+                        .getSingleResult());
     }
 
     @Override
@@ -285,10 +348,19 @@ public class JpaCrewPostRepository implements CrewPostRepository {
         return deleted;
     }
 
-    /** 딸린 행을 FK 순서대로 먼저 지우고 글을 지운다(DB의 ON DELETE CASCADE에 기대지 않는다). */
+    /**
+     * 딸린 행을 FK 순서대로 먼저 지우고 글을 지운다(DB의 ON DELETE CASCADE에 기대지 않는다). 글을 건드리기 전에 그 크루의 반복 행부터 잠근다: 회차
+     * 생성이 반복 → 최신 회차 글 순서로 잠그므로 같은 순서여야 교착이 없다(코드 리뷰 M1).
+     */
     @Override
     public void deleteByCrew(long crewId) {
         entityManager.flush();
+        entityManager
+                .createNativeQuery(
+                        "select id from crew_run_series where crew_id = :crew order by id for"
+                                + " update")
+                .setParameter("crew", crewId)
+                .getResultList();
         for (String table :
                 List.of(
                         "crew_poll_response",
@@ -304,6 +376,11 @@ public class JpaCrewPostRepository implements CrewPostRepository {
         }
         entityManager
                 .createNativeQuery("delete from crew_post where crew_id = :crew")
+                .setParameter("crew", crewId)
+                .executeUpdate();
+        // 글이 series_id로 반복을 가리키므로 글을 지운 뒤 반복을 지운다(W6)
+        entityManager
+                .createNativeQuery("delete from crew_run_series where crew_id = :crew")
                 .setParameter("crew", crewId)
                 .executeUpdate();
     }

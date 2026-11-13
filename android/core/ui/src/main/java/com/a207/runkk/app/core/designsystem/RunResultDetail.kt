@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Pace
 import java.time.Duration
 import java.util.Locale
@@ -60,6 +62,8 @@ import kotlinx.coroutines.delay
  * [dateLine]은 부르는 쪽이 만든 "10.16 목 · 오전 7:12 · 자유런"이다. [rest]는 정지 구간 합("휴식 n분 n초")이고 없으면 줄이 없다.
  * [crewLine]은 크루 반영 줄이고 CREW가 닫혀 있으면(1차 배포) 그리지 않는다. 가장 빠른 1km·소모 열량·날씨는 싣지 않는다(D-26).
  * [expression]은 뛰어오르는 아바타가 기본이고(D84, 피그마 B-6·C-8) 패배 상세만 부르는 쪽이 SAD를 넘긴다.
+ * [faceKey]·[faceLayers]는 내 아바타 얼굴(크루런·대결 결과 상세 F-16b)이고 아바타 꾸미기가 열려 있을 때 그린다.
+ * [dateItems]가 있으면 날짜 줄을 가운뎃점 글자([dateLine]) 대신 아이콘 메타 줄(MetaRow, [임시:D-성-10])로 그린다.
  */
 @Immutable
 data class RunResultDetailState(
@@ -74,67 +78,108 @@ data class RunResultDetailState(
     val newRecords: List<String> = emptyList(),
     val crewLine: String? = null,
     val rewardPoints: Int? = null,
-    val expression: AvatarExpression = AvatarExpression.JUMP
+    val expression: AvatarExpression = AvatarExpression.JUMP,
+    /** 내 아바타 얼굴 키·부위 그림(홈과 같은 출처). 부르는 쪽이 모르면 null·빈 목록이고 기본 아바타다. */
+    val faceKey: String? = null,
+    val faceLayers: List<FaceLayer> = emptyList(),
+    val dateItems: List<MetaItem> = emptyList()
 )
 
 /**
  * 러닝 결과 상세(D-282, 피그마 B-6): 큰 거리와 날짜 줄, 기본 아바타, "시간"(아래 휴식)·"평균 페이스"·"평균 심박" 세 칸,
  * 구간 페이스(1km 막대)와 심박 구간(워치), 하이라이트 줄(★ 신기록, ♥ 크루 반영(CREW), + 리워드 합계).
- * 화면 제목·버튼은 부르는 쪽(ui.run 결과, ui.battle 결과 2쪽)이 그린다.
+ * 화면 제목·버튼은 부르는 쪽(ui.crew 크루런 결과 F-16b, ui.battle 결과 2쪽)이 그린다. 값은 피그마 F-16b(S15P31A207-293,
+ * [임시:D-성-15]): 블록 사이 14, 큰 거리 64 Bold + km 22, 테두리 1 divider 카드(통계 모서리 24, 구간 26).
+ * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(칸 [Modifier], 못 그릴 때의 지금 그림). 대결 결과는 내 전신 정지 그림을 넘긴다
+ * (S15P31A207-300). 없으면 지금 그림이다.
  */
 @Composable
-fun RunResultDetail(state: RunResultDetailState, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        DistanceHeader(state)
+fun RunResultDetail(
+    state: RunResultDetailState,
+    modifier: Modifier = Modifier,
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        DistanceHeader(state, avatarSlot)
         StatCards(state)
         if (state.splitPaces.isNotEmpty() || state.heartRateZones.isNotEmpty()) PaceAndHeartCard(state)
         Highlights(state)
     }
 }
 
-/** 큰 거리 "5.21 km"와 날짜 줄, 오른쪽 위 아바타. */
+/** 큰 거리 「4.87 km」(64 Bold, km 22 Bold, 글자 아래선 맞춤)와 날짜 줄(12 본문색 또는 메타 줄), 오른쪽 위 아바타 110. */
 @Composable
-private fun DistanceHeader(state: RunResultDetailState) {
+private fun DistanceHeader(
+    state: RunResultDetailState,
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)?
+) {
     val spoken = stringResource(R.string.result_detail_distance_spoken, RunkkFormat.km(state.distance))
     Row(verticalAlignment = Alignment.Bottom) {
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.Bottom,
-                modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
-            ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }) {
                 Text(
                     RunkkFormat.km(state.distance),
-                    style = RunkkTextStyles.DisplayLarge,
-                    color = RunkkColors.TextPrimary
+                    style = RunkkTextStyles.display(DETAIL_DISTANCE_SIZE, letterSpacingEm = DETAIL_DISTANCE_TRACKING),
+                    color = RunkkColors.TextPrimary,
+                    modifier = Modifier.alignByBaseline()
                 )
                 Text(
                     stringResource(R.string.result_detail_km),
-                    style = RunkkTextStyles.text(20, FontWeight.Bold),
+                    style = RunkkTextStyles.text(22, FontWeight.Bold),
                     color = RunkkColors.TextPrimary,
-                    modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
+                    modifier = Modifier.padding(start = 6.dp).alignByBaseline()
                 )
             }
-            Text(state.dateLine, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            if (state.dateItems.isNotEmpty()) {
+                MetaRow(state.dateItems)
+            } else {
+                Text(state.dateLine, style = RunkkTextStyles.Caption, color = RunkkColors.TextPrimary)
+            }
         }
         if (state.expression == AvatarExpression.JUMP) {
-            CheeringAvatar()
+            CheeringAvatar(faceKey = state.faceKey, faceLayers = state.faceLayers, avatarSlot = avatarSlot)
         } else {
-            RunkkAvatar(
-                faceKey = null,
-                expression = state.expression,
-                modifier = Modifier.size(110.dp),
-                colorFilter = sceneAvatarFilter()
-            )
+            AvatarOrSlot(Modifier.size(110.dp), avatarSlot) { slotModifier ->
+                RunkkAvatar(
+                    faceKey = state.faceKey,
+                    expression = state.expression,
+                    modifier = slotModifier,
+                    faceLayers = state.faceLayers,
+                    colorFilter = sceneAvatarFilter()
+                )
+            }
         }
     }
 }
 
 /**
- * 기뻐하는 결과 아바타: 서 있다가 뛰어오르기를 계속 되풀이한다(사용자 요청 2026-10-30). 뛰는 모양은 홈 아바타 탭과 같다
- * (오르기 tween, 내리기 spring). 움직임 줄이기면 뛰어오른 그림에 멈춰 있다.
+ * [avatarSlot]이 있으면 [modifier] 칸 안을 그것으로 채우고(못 그리면 [current]), 없으면 [current]를 [modifier]로 그린다.
+ * 칸이 지금 그림을 칸 안에 다시 그려도 위치·크기가 두 번 걸리지 않게 칸 안쪽은 꽉 채운다.
  */
 @Composable
-private fun CheeringAvatar(modifier: Modifier = Modifier.size(110.dp)) {
+private fun AvatarOrSlot(
+    modifier: Modifier,
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)?,
+    current: @Composable (Modifier) -> Unit
+) {
+    if (avatarSlot == null) {
+        current(modifier)
+    } else {
+        Box(modifier) { avatarSlot(Modifier.fillMaxSize()) { current(Modifier.fillMaxSize()) } }
+    }
+}
+
+/**
+ * 기뻐하는 결과 아바타: 서 있다가 뛰어오르기를 계속 되풀이한다(사용자 요청 2026-10-30). 뛰는 모양은 홈 아바타 탭과 같다
+ * (오르기 tween, 내리기 spring). 움직임 줄이기면 뛰어오른 그림에 멈춰 있다. [avatarSlot](전신 정지 그림)이면 그 그림이 통째로 뛴다.
+ */
+@Composable
+private fun CheeringAvatar(
+    modifier: Modifier = Modifier.size(110.dp),
+    faceKey: String? = null,
+    faceLayers: List<FaceLayer> = emptyList(),
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
+) {
     val reduceMotion = LocalReduceMotion.current
     val hop = remember { Animatable(0f) }
     var isJumping by remember { mutableStateOf(reduceMotion) }
@@ -148,12 +193,15 @@ private fun CheeringAvatar(modifier: Modifier = Modifier.size(110.dp)) {
             isJumping = false
         }
     }
-    RunkkAvatar(
-        faceKey = null,
-        expression = if (isJumping) AvatarExpression.JUMP else AvatarExpression.STAND,
-        modifier = modifier.graphicsLayer { translationY = -hop.value * CHEER_HOP_HEIGHT.toPx() },
-        colorFilter = sceneAvatarFilter()
-    )
+    AvatarOrSlot(modifier.graphicsLayer { translationY = -hop.value * CHEER_HOP_HEIGHT.toPx() }, avatarSlot) {
+        RunkkAvatar(
+            faceKey = faceKey,
+            expression = if (isJumping) AvatarExpression.JUMP else AvatarExpression.STAND,
+            modifier = it,
+            faceLayers = faceLayers,
+            colorFilter = sceneAvatarFilter()
+        )
+    }
 }
 
 private const val CHEER_STAND_MILLIS = 900L
@@ -199,38 +247,43 @@ private fun StatCard(
     spoken: String? = null,
     caption: String? = null
 ) {
+    val shape = RoundedCornerShape(24.dp)
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(shape)
             .background(RunkkColors.Surface)
+            .border(1.dp, RunkkColors.Border, shape)
             .padding(horizontal = 12.dp, vertical = 14.dp)
             .semantics(mergeDescendants = true) {
                 spoken?.let { contentDescription = listOfNotNull(label, it, caption).joinToString(", ") }
             },
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        Text(label, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-        Text(value, style = RunkkTextStyles.text(18, FontWeight.Black), color = RunkkColors.TextPrimary)
-        caption?.let { Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary) }
+        Text(label, style = RunkkTextStyles.text(11, lineHeight = 13), color = RunkkColors.TextPrimary)
+        Text(value, style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 22), color = RunkkColors.TextPrimary)
+        caption?.let { Text(it, style = RunkkTextStyles.Micro, color = RunkkColors.TextSecondary) }
     }
 }
 
 /** 구간 페이스(1km마다 막대와 6'20")와 심박 구간(워치) 한 카드. 빠른 구간일수록 막대가 길다. */
 @Composable
 private fun PaceAndHeartCard(state: RunResultDetailState) {
+    val shape = RoundedCornerShape(26.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(shape)
             .background(RunkkColors.Surface)
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .border(1.dp, RunkkColors.Border, shape)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         if (state.splitPaces.isNotEmpty()) {
             Text(
                 stringResource(R.string.result_detail_split_title),
-                style = RunkkTextStyles.CardTitle,
-                color = RunkkColors.TextPrimary
+                style = CARD_SECTION_TITLE,
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.semantics { heading() }
             )
             val fastest = state.splitPaces.minOf { it.secondsPerKm }.coerceAtLeast(1)
             state.splitPaces.forEachIndexed { index, pace ->
@@ -248,29 +301,31 @@ private fun SplitRow(km: Int, pace: Pace, ratio: Float) {
     val spoken = stringResource(R.string.result_detail_split_spoken, km, RunkkFormat.paceSpoken(pace))
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.heightIn(min = 18.dp).clearAndSetSemantics { contentDescription = spoken }
     ) {
-        Text(label, style = RunkkTextStyles.Label, color = RunkkColors.TextPrimary, modifier = Modifier.width(44.dp))
+        Text(label, style = RunkkTextStyles.text(12), color = RunkkColors.TextPrimary, modifier = Modifier.width(34.dp))
         Box(
             Modifier
                 .weight(1f)
-                .height(8.dp)
+                .height(9.dp)
                 .clip(CircleShape)
-                .background(RunkkColors.Border)
+                .background(RunkkColors.SurfaceHigh)
         ) {
             Box(
                 Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(ratio.coerceIn(MIN_BAR, 1f))
                     .clip(CircleShape)
-                    .background(RunkkColors.Lime)
+                    .background(RunkkColors.BarCrew)
             )
         }
         Text(
             value,
-            style = RunkkTextStyles.text(14, FontWeight.Black),
+            style = RunkkTextStyles.text(12, FontWeight.Bold),
             color = RunkkColors.TextPrimary,
-            modifier = Modifier.padding(start = 12.dp)
+            textAlign = TextAlign.End,
+            modifier = Modifier.width(44.dp)
         )
     }
 }
@@ -282,22 +337,26 @@ private fun HeartZones(zones: List<Pair<String, Duration>>) {
         R.string.result_detail_zone_spoken,
         zones.joinToString { (zone, d) -> "$zone ${d.toMinutes()}" }
     )
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
         Text(
             stringResource(R.string.result_detail_zone_title),
-            style = RunkkTextStyles.CardTitle,
+            style = CARD_SECTION_TITLE,
             color = RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f).semantics { heading() }
         )
-        Text(
-            stringResource(R.string.result_detail_zone_watch),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(RunkkColors.Background)
-                .padding(horizontal = 10.dp, vertical = 4.dp)
-        )
+        Box(
+            Modifier
+                .heightIn(min = 24.dp)
+                .border(1.dp, RunkkColors.Border, CircleShape)
+                .padding(horizontal = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                stringResource(R.string.result_detail_zone_watch),
+                style = RunkkTextStyles.Micro,
+                color = RunkkColors.TextPrimary
+            )
+        }
     }
     val total = zones.sumOf { it.second.seconds }.coerceAtLeast(1)
     val colors = zoneColors()
@@ -306,7 +365,8 @@ private fun HeartZones(zones: List<Pair<String, Duration>>) {
             d.seconds.toFloat() / total to
                 colors[i.coerceAtMost(colors.lastIndex)]
         },
-        modifier = Modifier.semantics { contentDescription = spoken }
+        modifier = Modifier.semantics { contentDescription = spoken },
+        height = ZONE_BAR_HEIGHT
     )
 }
 
@@ -314,23 +374,33 @@ private fun HeartZones(zones: List<Pair<String, Duration>>) {
 @Composable
 private fun Highlights(state: RunResultDetailState) {
     val isCrewOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        state.newRecords.forEach { HighlightRow(RunkkIcons.Star, it) }
-        state.crewLine?.takeIf { isCrewOpen }?.let { HighlightRow(RunkkIcons.Heart, it) }
-        state.rewardPoints?.let { HighlightRow(RunkkIcons.Plus, stringResource(R.string.result_detail_reward, it)) }
+    Column(modifier = Modifier.padding(horizontal = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        state.newRecords.forEach { HighlightRow(RunkkIcons.Star, it, hasCircle = true) }
+        state.crewLine?.takeIf { isCrewOpen }?.let { HighlightRow(RunkkIcons.Heart, it, hasCircle = true) }
+        state.rewardPoints?.let {
+            HighlightRow(RunkkIcons.Plus, stringResource(R.string.result_detail_reward, it), hasCircle = false)
+        }
     }
 }
 
+/** 하이라이트 한 줄(F-16b): 원 26(surfaceHigh) 안 아이콘 12, 또는 원 없이 아이콘 24(「+」 리워드), 사이 8, 글자 13. */
 @Composable
-private fun HighlightRow(icon: ImageVector, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+private fun HighlightRow(icon: ImageVector, text: String, hasCircle: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(
-            Modifier.size(28.dp).clip(CircleShape).background(RunkkColors.Surface),
+            Modifier
+                .size(HIGHLIGHT_MARK)
+                .then(if (hasCircle) Modifier.clip(CircleShape).background(RunkkColors.SurfaceHigh) else Modifier),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = null, tint = RunkkColors.TextPrimary, modifier = Modifier.size(14.dp))
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = RunkkColors.TextPrimary,
+                modifier = Modifier.size(if (hasCircle) 12.dp else 24.dp)
+            )
         }
-        Text(text, style = RunkkTextStyles.Body, color = RunkkColors.TextPrimary)
+        Text(text, style = RunkkTextStyles.text(13), color = RunkkColors.TextPrimary)
     }
 }
 
@@ -354,16 +424,34 @@ private fun zoneColors(): List<Color> = listOf(
 
 private const val SECONDS_PER_MINUTE = 60L
 private const val MIN_BAR = 0.08f
+private const val DETAIL_DISTANCE_SIZE = 64
+
+/** 피그마 자간 -0.5px(64 글자) = -0.0078em. */
+private const val DETAIL_DISTANCE_TRACKING = -0.0078f
+private val ZONE_BAR_HEIGHT = 16.dp
+private val HIGHLIGHT_MARK = 26.dp
+
+/** 결과 상세 카드 안 제목(구간 페이스·심박 구간): 14 Bold, 줄 높이 21. */
+private val CARD_SECTION_TITLE = RunkkTextStyles.text(14, FontWeight.Bold, lineHeight = 21)
 
 // ---------- 러닝 결과 상용안 공용 부품(FR-289, D-502, 피그마 61326:1878·61325:2008) ----------
 // 러닝 결과(ui.run)와 배치고사 판 결과(ui.battle)가 함께 쓴다. 위의 RunResultDetail(대결 결과 2쪽)은 그대로 둔다.
 
 /**
  * 결과 위쪽 거리 히어로(피그마 61326:1878): 종류 칩(없으면 생략) + 날짜 줄, 큰 거리 60 Bold + 「km」, 오른쪽 기뻐하는 아바타 84.
- * 큰 숫자는 Barlow가 아니라 Noto Sans KR Bold다(D-497).
+ * 큰 숫자는 Barlow Condensed 기울임이다(prod 글꼴, 2026-11-12). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
+ * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(배치고사 판 결과는 내 전신 정지 그림, S15P31A207-300).
  */
 @Composable
-fun ResultDistanceHero(distance: Distance, dateLine: String, kindLabel: String?, modifier: Modifier = Modifier) {
+fun ResultDistanceHero(
+    distance: Distance,
+    dateLine: String,
+    kindLabel: String?,
+    modifier: Modifier = Modifier,
+    faceKey: String? = null,
+    faceLayers: List<FaceLayer> = emptyList(),
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
+) {
     val km = RunkkFormat.km(distance)
     val spoken = stringResource(
         R.string.result_hero_spoken,
@@ -409,7 +497,7 @@ fun ResultDistanceHero(distance: Distance, dateLine: String, kindLabel: String?,
                 )
             }
         }
-        CheeringAvatar(Modifier.size(HERO_AVATAR))
+        CheeringAvatar(Modifier.size(HERO_AVATAR), faceKey = faceKey, faceLayers = faceLayers, avatarSlot = avatarSlot)
     }
 }
 

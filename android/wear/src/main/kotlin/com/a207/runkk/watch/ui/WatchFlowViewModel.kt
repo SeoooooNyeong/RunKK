@@ -283,8 +283,26 @@ class WatchFlowViewModel @Inject constructor(
             _flow.value = current.copy(fetching = null)
             when (fetched) {
                 is Outcome.Success -> startRecord(fetched.value, WatchMode.CELEB)
-                is Outcome.Failure -> showNotice(celebrityNotice(fetched.error))
+
+                is Outcome.Failure -> {
+                    val notice = celebrityNotice(fetched.error)
+                    if (notice == WatchFlow.Notice.CELEBRITY_REMOVED) removeUnavailableCelebrity(current, c)
+                    showNotice(notice)
+                }
             }
+        }
+    }
+
+    private fun removeUnavailableCelebrity(list: WatchFlow.CelebList, celebrity: RecordOpponent) {
+        val remaining = list.celebrities - celebrity
+        _flow.value = if (remaining.isEmpty()) {
+            celebPicker(selectedDistance = list.distance)
+        } else {
+            list.copy(
+                celebrities = remaining,
+                selected = list.selected.coerceAtMost(remaining.lastIndex),
+                fetching = null
+            )
         }
     }
 
@@ -369,10 +387,11 @@ class WatchFlowViewModel @Inject constructor(
 
     /**
      * 앱 화면이 보인다(onResume)·가려졌다(onPause). 보이는 동안만 GPS를 예열한다(W53). 빠른 설정·위치 설정에서 돌아올 때 워치 위치를
-     * 다시 본다.
+     * 다시 본다. 보일 때는 폰에 지금 표시를 요청한다: 가려진 동안 폰이 러닝을 시작·종료했어도 동행 표시와 메인을 맞춘다(S15P31A207-278).
      */
     fun onScreenShown(shown: Boolean) {
         isShown.value = shown
+        if (shown) phoneLink.requestDisplay()
     }
 
     /** 저전력 표시에 들어갔다·나왔다. 저전력 표시 중에는 GPS를 예열하지 않는다(W53, NFR-048). */

@@ -3,10 +3,12 @@ package com.a207.runkk.app.core.designsystem
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
@@ -46,9 +48,14 @@ fun CelebrityFigure(
 
 /**
  * 셀럽 전용 캐릭터(서버 celebrityFigure "lee"·"hwang"·"son"·"joo"·"kim" 등). 서 있는 그림과 달리기 한 주기 4장(오른쪽을 향함)은 기본 아바타
- * ([defaultAvatarOf]·[runCycleOf])와 같은 구성이라 [RunkkRunningFigure]에 그대로 넘긴다.
+ * ([defaultAvatarOf]·[runCycleOf])와 같은 구성이라 [RunkkRunningFigure]에 그대로 넘긴다. [face]는 얼굴 그림이 있는 셀럽(코치)만 갖는다
+ * (셀럽런 목록의 둥근 얼굴, 피그마 E-1).
  */
-enum class CelebrityCharacter(@DrawableRes val stand: Int, val runCycle: List<Int>) {
+enum class CelebrityCharacter(
+    @DrawableRes val stand: Int,
+    val runCycle: List<Int>,
+    @DrawableRes val face: Int? = null
+) {
     LEE(
         R.drawable.celebrity_lee_stand,
         listOf(
@@ -112,7 +119,8 @@ enum class CelebrityCharacter(@DrawableRes val stand: Int, val runCycle: List<In
             R.drawable.celebrity_joo_run_2,
             R.drawable.celebrity_joo_run_3,
             R.drawable.celebrity_joo_run_4
-        )
+        ),
+        R.drawable.celebrity_joo_face
     ),
     KIM(
         R.drawable.celebrity_kim_stand,
@@ -121,13 +129,37 @@ enum class CelebrityCharacter(@DrawableRes val stand: Int, val runCycle: List<In
             R.drawable.celebrity_kim_run_2,
             R.drawable.celebrity_kim_run_3,
             R.drawable.celebrity_kim_run_4
-        )
+        ),
+        R.drawable.celebrity_kim_face
     );
 
     companion object {
         /** 서버 키 → 전용 캐릭터. 대소문자는 가리지 않고, 없거나 모르는 키면 null(공통 흐린 그림)이다. */
         fun of(key: String?): CelebrityCharacter? =
             key?.trim()?.let { k -> entries.firstOrNull { it.name.equals(k, ignoreCase = true) } }
+    }
+}
+
+/**
+ * 셀럽런 목록의 셀럽 그림(피그마 E-1): 얼굴 그림이 있는 셀럽(코치)은 지름 [size]의 둥근 얼굴, 없으면 [CelebrityFigure]의 서 있는 그림이다.
+ * 장식이므로 읽기 정보는 부르는 쪽이 붙인다.
+ */
+@Composable
+fun CelebrityPortrait(modifier: Modifier = Modifier, size: Dp = 58.dp, figureKey: String? = null) {
+    val face = CelebrityCharacter.of(figureKey)?.face
+    if (face == null) {
+        CelebrityFigure(modifier = modifier, size = size, figureKey = figureKey)
+    } else {
+        Image(
+            painter = painterResource(face),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = modifier
+                .size(size)
+                .clip(CircleShape)
+                .testTag(CELEBRITY_FIGURE_TAG)
+                .clearAndSetSemantics {}
+        )
     }
 }
 

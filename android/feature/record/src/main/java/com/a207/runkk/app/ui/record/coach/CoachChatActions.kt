@@ -7,5 +7,6 @@ class CoachChatActions(
     val onNewConversation: () -> Unit = {},
     val onOpenConversation: (String) -> Unit = {},
     val onConsents: () -> Unit = {},
-    val onRefreshConversations: () -> Unit = {}
+    val onRefreshConversations: () -> Unit = {},
+    val onReloadHistory: () -> Unit = {}
 )

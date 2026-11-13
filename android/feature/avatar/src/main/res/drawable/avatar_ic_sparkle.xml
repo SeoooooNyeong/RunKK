@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 제안 페이지 icon/sparkle (Material). 색은 쓰는 자리에서 칠한다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M15.8333 7.5L16.875 5.20833L19.1667 4.16667L16.875 3.125L15.8333 0.833333L14.7917 3.125L12.5 4.16667L14.7917 5.20833L15.8333 7.5ZM9.58333 7.91667L7.5 3.33333L5.41667 7.91667L0.833333 10L5.41667 12.0833L7.5 16.6667L9.58333 12.0833L14.1667 10L9.58333 7.91667ZM15.8333 12.5L14.7917 14.7917L12.5 15.8333L14.7917 16.875L15.8333 19.1667L16.875 16.875L19.1667 15.8333L16.875 14.7917L15.8333 12.5Z" />
+</vector>

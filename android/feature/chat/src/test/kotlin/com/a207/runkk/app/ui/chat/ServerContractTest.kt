@@ -1,6 +1,8 @@
 package com.a207.runkk.app.ui.chat
 
 import com.a207.runkk.app.core.designsystem.testing.ContractEnums
+import com.a207.runkk.app.domain.chat.ChatAuthorRole
+import com.a207.runkk.app.domain.chat.ChatMessageKind
 import com.a207.runkk.app.domain.chat.ReactionKind
 import com.a207.runkk.app.domain.report.ReportReason
 import kotlin.test.Test
@@ -19,5 +21,7 @@ class ServerContractTest {
     fun `리액션 종류와 신고 사유는 서버 enum과 같다`() {
         assertEquals(ContractEnums.names("ReactionKind"), ReactionKind.entries.map { it.name }.toSet())
         assertEquals(ContractEnums.names("ReportReason"), ReportReason.entries.map { it.name }.toSet())
+        assertEquals(ContractEnums.names("ChatMessageKind"), ChatMessageKind.entries.map { it.name }.toSet())
+        assertEquals(ContractEnums.names("CrewRole"), ChatAuthorRole.entries.map { it.name }.toSet())
     }
 }

@@ -17,7 +17,7 @@ enum class GuideStep(@StringRes val textRes: Int, val requiredFeature: Unrelease
     POINT(R.string.core_guide_point, UnreleasedFeature.AVATAR_CUSTOMIZE);
 
     companion object {
-        /** [scope]에서 보이는 단계(순서 그대로). 1차 배포는 크루·포인트를 빼 6단계다(TC-9711). */
+        /** [scope]에서 보이는 단계(순서 그대로). 1차 배포는 크루·포인트를 빼 6단계(TC-9711), 2차 배포는 8단계다(J-1~J-8). */
         fun visibleIn(scope: ReleaseScope): List<GuideStep> =
             entries.filter { step -> step.requiredFeature?.let(scope::isOpen) ?: true }
     }

@@ -1,26 +1,37 @@
 package com.a207.runkk.app.ui.crew
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selectableGroup
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
-import com.a207.runkk.app.core.designsystem.RunkkProgressBar
-import com.a207.runkk.app.core.designsystem.RunkkTextField
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -40,16 +51,17 @@ fun CrewGoalSetRoute(key: Routes.CrewGoalSet, viewModel: CrewGoalSetViewModel = 
         GoalSetActions(
             onBack = navigator::back,
             onDraft = viewModel::onDraft,
-            onQuick = viewModel::onQuick,
             onSave = viewModel::onSave
         )
     )
 }
 
-/** 주간 공동 목표(와이어프레임 M8): 이번 주 날짜, 목표 거리(km), 빠른 선택 50·80·100km, 지난 주 결과 카드, 저장. */
+/**
+ * 주간 목표(피그마 F-07): 「10월 4주차」 + 이번 주 날짜, 목표 거리 알약 입력(값 Bold 20 + km), 지난 목표 3주 카드(달성·달성 실패, 100을 넘는
+ * 진행률 그대로, 막대는 100%에서 꽉 참, 참여 인원), 저장.
+ */
 @Composable
 fun CrewGoalSetScreen(state: CrewGoalSetUiState, actions: GoalSetActions, modifier: Modifier = Modifier) {
-    val colors = MaterialTheme.colorScheme
     WriteScaffold(
         state = WriteScaffoldState(
             title = stringResource(R.string.crew_goal_set_title),
@@ -63,101 +75,116 @@ fun CrewGoalSetScreen(state: CrewGoalSetUiState, actions: GoalSetActions, modifi
         modifier = modifier
     ) {
         if (state.weekStart != LocalDate.MIN) {
-            Text(
-                stringResource(
-                    R.string.crew_goal_set_week,
-                    weekDay(state.weekStart),
-                    weekDay(state.weekStart.plusDays(WEEK_LAST_DAY))
-                ),
-                style = RunkkTextStyles.Body,
-                color = colors.onSurfaceVariant
-            )
-        }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            RunkkTextField(
-                value = state.draft,
-                onValueChange = actions.onDraft,
-                label = stringResource(R.string.crew_goal_set_label),
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                stringResource(R.string.crew_goal_set_unit),
-                style = RunkkTextStyles.BodyStrong,
-                color = colors.onSurface,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
-        }
-        val quick = stringResource(R.string.crew_goal_set_quick)
-        Row(
-            Modifier.semantics {
-                selectableGroup()
-                contentDescription = quick
-            },
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            CrewGoalSetUiState.QUICK_KM.forEach { km ->
-                BoardChip(
-                    stringResource(R.string.crew_goal_set_quick_km, km),
-                    isSelected = state.draftKm == km.toDouble(),
-                    onClick = { actions.onQuick(km) }
+            val (month, week) = weekOfMonth(state.weekStart)
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    stringResource(R.string.crew_goal_set_week_title, month, week),
+                    style = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 19),
+                    color = RunkkColors.TextPrimary,
+                    modifier = Modifier.semantics { heading() }
+                )
+                Text(
+                    stringResource(
+                        R.string.crew_goal_set_week,
+                        weekDay(state.weekStart),
+                        weekDay(state.weekStart.plusDays(WEEK_LAST_DAY))
+                    ),
+                    style = RunkkTextStyles.text(13, lineHeight = 16),
+                    color = RunkkColors.TextPrimary
                 )
             }
         }
-        state.lastWeek?.let { LastWeekCard(it) }
+        GoalInput(state.draft, actions.onDraft)
+        if (state.pastWeeks.isNotEmpty()) {
+            Text(
+                stringResource(R.string.crew_goal_set_past),
+                style = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 19),
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.semantics { heading() }
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                state.pastWeeks.forEach { PastGoalCard(it) }
+            }
+        }
     }
 }
 
-/** 지난 주 결과: 달성 여부, 합산/목표 거리, 막대, 참여 인원. */
+/** 목표 거리 입력(피그마 F-07): 라벨 Medium 13, 52 높이 알약(surface + 테두리, 좌우 12), 값 Bold 20 + 8 + 「km」 Bold 18. */
 @Composable
-private fun LastWeekCard(last: RaceStatus) {
-    val colors = MaterialTheme.colorScheme
-    CrewCard {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                stringResource(R.string.crew_goal_set_last_week),
-                style = RunkkTextStyles.Caption,
-                color = colors.onSurfaceVariant,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                stringResource(
-                    when {
-                        last.goal == null -> R.string.crew_goal_set_no_goal
-                        last.achievedAt != null -> R.string.crew_goal_set_achieved
-                        else -> R.string.crew_goal_set_missed
-                    }
-                ),
-                style = RunkkTextStyles.Caption,
-                color = if (last.achievedAt != null) colors.primary else colors.onSurfaceVariant
-            )
-        }
-        val goal = last.goal
+private fun GoalInput(draft: String, onDraft: (String) -> Unit) {
+    val label = stringResource(R.string.crew_goal_set_label)
+    val shape = RoundedCornerShape(26.dp)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(
-            if (goal != null) {
-                stringResource(
-                    R.string.crew_goal_set_last_distance,
-                    RunkkFormat.kmShort(last.total),
-                    RunkkFormat.kmShort(goal)
-                )
-            } else {
-                stringResource(R.string.crew_goal_set_last_total, RunkkFormat.kmShort(last.total))
-            },
-            style = RunkkTextStyles.BodyStrong,
-            color = colors.onSurface
+            label,
+            style = RunkkTextStyles.text(13, FontWeight.Medium, lineHeight = 16),
+            color = RunkkColors.TextPrimary
         )
-        if (goal != null && goal.meters > 0) {
-            RunkkProgressBar(
-                last.total.meters.toFloat() / goal.meters,
-                color = colors.primary,
-                trackColor = colors.outlineVariant
-            )
-        }
-        Text(
-            stringResource(R.string.crew_goal_set_participants, last.contributors.count { it.distance.meters > 0 }),
-            style = RunkkTextStyles.Caption,
-            color = colors.onSurfaceVariant
+        BasicTextField(
+            value = draft,
+            onValueChange = onDraft,
+            singleLine = true,
+            textStyle = RunkkTextStyles.text(
+                20,
+                FontWeight.Bold,
+                lineHeight = 24
+            ).copy(color = RunkkColors.TextPrimary),
+            cursorBrush = SolidColor(RunkkColors.TextPrimary),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.fillMaxWidth().semantics { contentDescription = label },
+            decorationBox = { inner ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(shape)
+                        .background(RunkkColors.Surface)
+                        .border(1.dp, RunkkColors.Border, shape)
+                        .padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(Modifier.weight(1f)) { inner() }
+                    Text(
+                        stringResource(R.string.crew_goal_set_unit),
+                        style = RunkkTextStyles.SheetTitle,
+                        color = RunkkColors.TextPrimary
+                    )
+                }
+            }
         )
     }
+}
+
+/** 지난 목표 한 주(피그마 F-07): 달성·달성 실패·목표 없음, 목표가 있으면 진행률과 막대(100%에서 꽉 참). */
+@Composable
+private fun PastGoalCard(race: RaceStatus) {
+    val (month, week) = weekOfMonth(race)
+    val weekLabel = stringResource(R.string.crew_goal_set_week_title, month, week)
+    val goal = race.goal
+    val progress = goalProgressLabel(race)
+    val status = stringResource(
+        when {
+            goal == null -> R.string.crew_goal_set_no_goal
+            race.achievedAt != null -> R.string.crew_goal_set_achieved
+            else -> R.string.crew_goal_set_missed
+        }
+    )
+    val total = RunkkFormat.kmShort(race.total)
+    PastGoalWeekCard(
+        week = weekLabel,
+        status = status,
+        total = total,
+        goalLabel = if (goal != null) {
+            stringResource(R.string.crew_goal_of, RunkkFormat.kmShort(goal))
+        } else {
+            stringResource(R.string.crew_goal_km_unit)
+        },
+        percent = progress?.let { stringResource(R.string.crew_race_share_percent, it) },
+        progress = if (goal != null) goalFillFraction(race) else null,
+        participants = stringResource(R.string.crew_goal_set_participants, participantCount(race)),
+        spoken = stringResource(R.string.crew_goal_set_past_description, weekLabel, total, status)
+    )
 }
 
 /** "10.20 (월)". 틀은 문자열 리소스(crew_goal_set_day_pattern)다. */

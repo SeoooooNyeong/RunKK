@@ -10,6 +10,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.SignalState
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.PauseInterval
 import com.a207.runkk.app.domain.run.RoutePoint
 import com.a207.runkk.app.domain.run.RunStartSpec
@@ -21,6 +22,7 @@ import java.time.Instant
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -99,6 +101,62 @@ class RunUploadRemoteImplTest {
     }
 
     @Test
+    fun `멈춘 크루런 기록도 정지 구간을 실어 보낸다(FR-300, 서버 F_2_2가 CREW_RUN 정지를 받는다, MR !91 BR-1)`() {
+        val crewRun =
+            RUN.copy(
+                mode = RunMode.CREW_RUN,
+                cardKind = CardKind.CREW_RUN,
+                battleId = null,
+                crewRunPostId = 9,
+                startedAt = Instant.parse("2026-10-22T10:00:00Z"),
+                elapsed = Duration.ofMinutes(20),
+                pauses = listOf(
+                    PauseInterval(Instant.parse("2026-10-22T10:10:00Z"), Instant.parse("2026-10-22T10:12:00Z"))
+                )
+            )
+
+        val request = crewRun.toRequest()
+
+        assertEquals("CREW_RUN", request.mode)
+        assertEquals(9L, request.crewRunPostId)
+        assertEquals(
+            listOf(RunUploadRequest.Pause("2026-10-22T19:10:00+09:00", "2026-10-22T19:12:00+09:00")),
+            request.pauses
+        )
+        assertEquals("2026-10-22T19:22:00+09:00", request.endedAt, "20분 운동 + 2분 정지")
+    }
+
+    @Test
+    fun `본문 추정 크기가 상한을 넘으면 움직임 표본을 더 솎아 본문을 줄이고 위치는 그대로 둔다(MR !91 CR2-B2)`() {
+        val motions = List(20_000) { i ->
+            MotionSample(
+                START.plusMillis(i * 250L),
+                speedMps = 3.0 + (i % 3),
+                cadenceSpm = if (i % 2 ==
+                    0
+                ) {
+                    170.0
+                } else {
+                    null
+                }
+            )
+        }
+        val big = RUN.copy(motions = motions)
+        val limit = 400_000
+        fun size(request: RunUploadRequest) =
+            api.json.encodeToString(RunUploadRequest.serializer(), request).toByteArray(Charsets.UTF_8).size
+
+        assertTrue(size(big.toRequest()) > limit, "솎기 전에는 상한을 넘는다")
+        val fitted = big.toFittedRequest(limit)
+
+        assertTrue(size(fitted) <= limit, "솎은 뒤 ${size(fitted)}바이트")
+        assertTrue(fitted.motions.size in 1 until motions.size)
+        assertEquals(big.toRequest().points, fitted.points)
+        assertEquals(RUN.toRequest(), RUN.toFittedRequest(limit), "상한 안이면 그대로")
+        assertEquals(24 * 1024 * 1024, MAX_UPLOAD_BODY_BYTES)
+    }
+
+    @Test
     fun `전송 JSON에는 위치·심박이 그 항목에만 있다`() {
         val json = api.json.encodeToString(RunUploadRequest.serializer(), RUN.toRequest())
         val keys = Json.parseToJsonElement(json).let { it as kotlinx.serialization.json.JsonObject }.keys
@@ -118,10 +176,34 @@ class RunUploadRemoteImplTest {
                 "unstableSegments",
                 "heartRates",
                 "pauses",
-                "startDevice"
+                "startDevice",
+                "motions"
             ),
             keys
         )
+    }
+
+    @Test
+    fun `기기가 잰 속도·케이던스를 motions로 보내고 재지 못한 값은 뺀다(S15P31A207-242)`() {
+        val run =
+            RUN.copy(
+                motions = listOf(
+                    MotionSample(Instant.parse("2026-10-19T22:00:01Z"), speedMps = 3.25),
+                    MotionSample(Instant.parse("2026-10-19T22:00:02Z"), cadenceSpm = 172.0)
+                )
+            )
+
+        val json = Json.parseToJsonElement(api.json.encodeToString(RunUploadRequest.serializer(), run.toRequest()))
+
+        assertEquals(
+            Json.parseToJsonElement(
+                """[{"measuredAt":"2026-10-20T07:00:01+09:00","speedMps":3.25},""" +
+                    """{"measuredAt":"2026-10-20T07:00:02+09:00","cadenceSpm":172.0}]"""
+            ),
+            json.jsonObject["motions"]
+        )
+        val none = Json.parseToJsonElement(api.json.encodeToString(RunUploadRequest.serializer(), RUN.toRequest()))
+        assertEquals(Json.parseToJsonElement("[]"), none.jsonObject["motions"], "재지 못했으면 빈 배열")
     }
 
     @Test

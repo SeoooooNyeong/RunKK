@@ -1,6 +1,8 @@
 package com.a207.runkk.crew;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.policy.CrewRunRule;
@@ -13,17 +15,22 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * 크루런 모집글 하나의 생애주기(설계 6.1.7, 상태도 2.4.5·2.4.6, 6.2 A-13). 장소·위치 항목이 없다(FR-132). 시각은 매개변수로 받는다(D-09).
+ * 진행은 합산 방식이다(S15P31A207-236): 각자 달리고 각자 끝내며 순위·도착 판정이 없다. 피그마 맞춤 W6(S15P31A207-297): 제목과 내용(본문)을
+ * 나눠 두고, 거리는 3·5·10km·하프 또는 제한 없음(null), 작성자는 VOTING 동안 제목·내용·거리를 고칠 수 있으며, 매주 반복이면
+ * seriesId(CrewRunSeries)로 묶인다.
  */
 @Entity
 @DiscriminatorValue("CREW_RUN")
@@ -31,6 +38,20 @@ public class CrewRunPost extends SchedulePost {
 
     /** 출발 카운트다운(FR-148). */
     static final int COUNTDOWN_SECONDS = 3;
+
+    /** 제목 상한(코드 포인트, W6). */
+    static final int MAX_TITLE = 30;
+
+    /** 제한 없음 크루런의 종료 기준 거리(CREW_RUN_END_RULE의 km당 분을 하프 거리로 계산한다, W6). */
+    static final StandardDistance UNLIMITED_CLOSE_BASIS = StandardDistance.HALF;
+
+    /** 제목(W6). V57 전 글은 본문 첫 줄을 옮겨 넣었다. 열은 200자(옛 첫 줄), 새 글은 30자. */
+    @Column(name = "title", length = 200 * UTF16_UNITS_PER_CHAR)
+    private String title;
+
+    /** 매주 반복이면 그 반복(crew_run_series) ID, 아니면 null(W6). */
+    @Column(name = "series_id")
+    private Long seriesId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "distance", length = 10)
@@ -61,24 +82,96 @@ public class CrewRunPost extends SchedulePost {
     protected CrewRunPost() {}
 
     /**
-     * scheduledAt &gt; now, 거리 1·3·5·10km, 마감 ≤ 희망일시(비우면 희망일시). VOTING이고 작성자는 GOING으로 참여한다(제안).
-     * 위반이면 CREW_RUN_INVALID.
+     * scheduledAt &gt; now, 제목 공백 제외 1~30자, 거리 3·5·10km·하프 또는 제한 없음(null), 마감 ≤ 희망일시(비우면 희망일시).
+     * VOTING이고 작성자는 GOING으로 참여한다(제안). 위반이면 CREW_RUN_INVALID, 내용 200자 초과는 BODY_TOO_LONG. 15일·5분
+     * 규칙(CrewRunSlot)은 앱 입력에만 걸고 여기서는 보지 않는다.
      */
     public CrewRunPost(long crewId, long authorId, CrewRunDraft draft, LocalDateTime now) {
+        this(crewId, authorId, draft, now, null);
+        if (draft.distance() != null && !draft.distance().isCrewRun()) {
+            throw new BusinessRuleException(ReasonCode.CREW_RUN_INVALID);
+        }
+    }
+
+    /** 공통 생성: 거리 선택지는 부르는 쪽이 본다(반복 회차는 최신 회차 거리를 그대로 복사한다). */
+    private CrewRunPost(
+            long crewId, long authorId, CrewRunDraft draft, LocalDateTime now, Long seriesId) {
         super(crewId, authorId, new Slot(draft.body(), draft.scheduledAt()), now);
         LocalDateTime deadline =
                 draft.voteDeadline() == null ? draft.scheduledAt() : draft.voteDeadline();
         if (draft.scheduledAt() == null
                 || !draft.scheduledAt().isAfter(now)
-                || draft.distance() == null
-                || !draft.distance().isCrewRun()
                 || deadline.isAfter(draft.scheduledAt())) {
             throw new BusinessRuleException(ReasonCode.CREW_RUN_INVALID);
         }
+        this.title = requireTitle(draft.title());
         this.distance = draft.distance();
         this.voteDeadline = deadline;
         this.status = CrewRunStatus.VOTING;
+        this.seriesId = seriesId;
         participations.add(new CrewRunParticipation(authorId, AttendanceAnswer.GOING, now));
+    }
+
+    /** 공백만이거나 30자(코드 포인트) 넘는 제목은 CREW_RUN_INVALID. 앞뒤 공백은 걷는다. */
+    private static String requireTitle(String title) {
+        if (title == null || title.isBlank() || codePoints(title.strip()) > MAX_TITLE) {
+            throw new BusinessRuleException(ReasonCode.CREW_RUN_INVALID);
+        }
+        return title.strip();
+    }
+
+    /**
+     * 반복의 다음 회차(W6): 이 글(최신 회차)의 제목·내용·거리를 복사하고 일시만 scheduledAt이다. 작성자는 참석, 상태 VOTING, 마감 = 일시. 탈퇴로
+     * 작성자가 없으면 IllegalStateException(반복을 끝낼 일이다).
+     */
+    public CrewRunPost nextOccurrence(long series, LocalDateTime scheduledAt, LocalDateTime now) {
+        if (authorId() == null) {
+            throw new IllegalStateException("작성자가 없는 반복");
+        }
+        return new CrewRunPost(
+                crewId(),
+                authorId(),
+                new CrewRunDraft(title, body(), scheduledAt, distance, null, CrewRunRepeat.WEEKLY),
+                now,
+                series);
+    }
+
+    /**
+     * 모집글 수정(F-13d, W6): 삭제 안 됨, 작성자만(아니면 PermissionDeniedException), VOTING이고 now &lt; 일시(아니면
+     * ALREADY_STARTED). 제목·내용·거리만 바꾼다. 거리는 선택지이거나 지금 거리와 같아야 한다(기존 1km 유지, 아니면 CREW_RUN_INVALID).
+     * 반복은 CrewRunRepeater가 다룬다.
+     */
+    public void edit(long memberId, CrewRunEdit edit, LocalDateTime now) {
+        requireNotDeleted();
+        if (!Objects.equals(authorId(), memberId)) {
+            throw new PermissionDeniedException("작성자만 모집글을 고칠 수 있다");
+        }
+        if (!isEditable(now)) {
+            throw new BusinessRuleException(ReasonCode.ALREADY_STARTED);
+        }
+        String newTitle = requireTitle(edit.title());
+        if (edit.distance() != null
+                && !edit.distance().isCrewRun()
+                && edit.distance() != distance) {
+            throw new BusinessRuleException(ReasonCode.CREW_RUN_INVALID);
+        }
+        changeBody(edit.body());
+        this.title = newTitle;
+        this.distance = edit.distance();
+    }
+
+    /** 상세 ⋯ 메뉴 "수정하기": 작성자이고 고칠 수 있는 상태(W6). */
+    public boolean canEdit(long memberId, LocalDateTime now) {
+        return Objects.equals(authorId(), memberId) && isEditable(now);
+    }
+
+    private boolean isEditable(LocalDateTime now) {
+        return isVisible() && status == CrewRunStatus.VOTING && now.isBefore(scheduledAt());
+    }
+
+    /** 반복에 묶는다(작성 때·수정으로 반복을 시작할 때, W6). */
+    void attachSeries(long series) {
+        this.seriesId = series;
     }
 
     @Override
@@ -106,6 +199,20 @@ public class CrewRunPost extends SchedulePost {
                         p -> p.changeAnswer(answer, now),
                         () -> participations.add(new CrewRunParticipation(memberId, answer, now)));
         return AttendanceView.of(getId() == null ? 0 : getId(), answer, counts());
+    }
+
+    /**
+     * 참석 취소(피그마 F-13b "참석 취소하기", W6): 참석 응답을 거둔다(응답 행을 지워 본인 응답이 없어진다). 삭제 안 됨(아니면
+     * IllegalStateException), now &lt; voteDeadline(아니면 VOTE_CLOSED). 응답이 없으면 그대로이고, 작성자도 거둘 수 있다.
+     * 출발 뒤 진행 참가자는 마감 뒤라 여기 오지 않는다.
+     */
+    public AttendanceView withdraw(long memberId, LocalDateTime now) {
+        requireNotDeleted();
+        if (!now.isBefore(voteDeadline)) {
+            throw new BusinessRuleException(ReasonCode.VOTE_CLOSED);
+        }
+        participations.removeIf(p -> p.belongsTo(memberId) && !p.isRunner());
+        return AttendanceView.of(getId() == null ? 0 : getId(), null, counts());
     }
 
     /** GOING·NOT_GOING·UNDECIDED 응답 수(FR-133). 탈퇴로 익명화된 참여도 센다. */
@@ -218,21 +325,28 @@ public class CrewRunPost extends SchedulePost {
         return DepartureOutcome.started(departedAt, runners());
     }
 
-    /** RUNNING인 진행 참가자의 처음 도착만 기록한다. 종료 뒤 늦게 온 기록은 순위를 바꾸지 않는다. */
-    public void recordArrival(long memberId, LocalDateTime at) {
-        if (status == CrewRunStatus.RUNNING) {
-            runnerOf(memberId).ifPresent(p -> p.arrive(at));
+    /**
+     * 일시정지할 수 있는지 확인한다(합산 방식): RUNNING이고 아직 끝내지 않은 진행 참가자. 아니면 NOT_PARTICIPANT. 정지 상태는 세션에만 두고 DB에
+     * 쓰지 않는다.
+     */
+    public void checkPausable(long memberId) {
+        if (status != CrewRunStatus.RUNNING
+                || runnerOf(memberId).filter(p -> !p.hasEnded()).isEmpty()) {
+            throw new BusinessRuleException(ReasonCode.NOT_PARTICIPANT);
         }
     }
 
-    /** RUNNING인 진행 참가자만. 아니면 NOT_PARTICIPANT. 순위에서 뺀다(FR-192). */
-    public void quit(long memberId, LocalDateTime now) {
-        if (status != CrewRunStatus.RUNNING) {
+    /**
+     * 자기 크루런 끝내기(합산 방식, FR-192 대체). RUNNING·FINISHED인 크루런의 진행 참가자만, 아니면 NOT_PARTICIPANT. 거리·경과를 남기고
+     * 새로 끝냈으면 true, 이미 끝냈으면 false(재시도 안전).
+     */
+    public boolean end(long memberId, Distance distance, Duration elapsed) {
+        if (status != CrewRunStatus.RUNNING && status != CrewRunStatus.FINISHED) {
             throw new BusinessRuleException(ReasonCode.NOT_PARTICIPANT);
         }
-        runnerOf(memberId)
+        return runnerOf(memberId)
                 .orElseThrow(() -> new BusinessRuleException(ReasonCode.NOT_PARTICIPANT))
-                .quit();
+                .end(distance, elapsed);
     }
 
     /** 출발 뒤(진행·종료) 참여에 러닝 1건을 잇는다(FR-146). 참여가 없거나 이미 연결이 있으면 false. */
@@ -243,39 +357,44 @@ public class CrewRunPost extends SchedulePost {
         return participationOf(memberId).map(p -> p.link(recordId)).orElse(false);
     }
 
-    /** RUNNING이고 모두 도착·그만둠 또는 now ≥ departedAt + 거리 × 15분. */
+    /** RUNNING이고 진행 참가자가 모두 끝냈거나 now ≥ departedAt + 거리 × km당 분(CREW_RUN_END_RULE). */
     public boolean shouldClose(LocalDateTime now, CrewRunRule rule) {
         if (status != CrewRunStatus.RUNNING) {
             return false;
         }
-        boolean allDone = runnerParticipations().stream().allMatch(CrewRunParticipation::isDone);
-        return allDone || !now.isBefore(rule.closesAt(departedAt, distance));
+        boolean allEnded = runnerParticipations().stream().allMatch(CrewRunParticipation::hasEnded);
+        StandardDistance basis = distance == null ? UNLIMITED_CLOSE_BASIS : distance;
+        return allEnded || !now.isBefore(rule.closesAt(departedAt, basis));
     }
 
-    /** 도착 순 rank 1, 2, 3…, 미도착·그만둠은 rank 없음(미완주). FINISHED. RUNNING이 아니면 IllegalStateException. */
-    public void close(LocalDateTime now) {
+    /**
+     * 아직 끝내지 않은 진행 참가자를 마지막 중계 값(latest, 없으면 값 없이)으로 마감하고 FINISHED. RUNNING이 아니면
+     * IllegalStateException.
+     */
+    public void close(LocalDateTime now, Map<Long, LiveProgress> latest) {
         if (status != CrewRunStatus.RUNNING) {
             throw new IllegalStateException("진행 중이 아니다: " + status);
         }
-        List<CrewRunParticipation> arrived =
-                runnerParticipations().stream()
-                        .filter(p -> p.arrivedAt().isPresent() && !p.hasQuit())
-                        .sorted(Comparator.comparing(p -> p.arrivedAt().orElseThrow()))
-                        .toList();
-        runnerParticipations().forEach(p -> p.rankAs(null));
-        for (int i = 0; i < arrived.size(); i++) {
-            arrived.get(i).rankAs(i + 1);
+        for (CrewRunParticipation p : runnerParticipations()) {
+            Optional<LiveProgress> last = p.memberId().map(latest::get);
+            p.end(
+                    last.map(LiveProgress::distance).orElse(null),
+                    last.map(LiveProgress::elapsed).orElse(null));
         }
         endedAt = now;
         status = CrewRunStatus.FINISHED;
     }
 
-    /** 거리, 희망일시, 참석·불참·미정 인원, 본인 응답, 상태, 완주 인원, 연결 기록(FR-133). */
+    /**
+     * 제목, 거리, 희망일시, 참석·불참·미정 인원, 본인 응답, 상태, 함께 달린 인원(진행 참가자 수, 합산 방식이라 완주를 따로 세지 않는다), 연결
+     * 기록(FR-133).
+     */
     @Override
     public PostSummary summary(long viewerId) {
-        int finishers = (int) participations.stream().filter(p -> p.rank() != null).count();
+        int finishers = runnerParticipations().size();
         PostSummary.CrewRunInfo run =
                 new PostSummary.CrewRunInfo(
+                        title,
                         distance,
                         scheduledAt(),
                         voteDeadline,
@@ -333,8 +452,23 @@ public class CrewRunPost extends SchedulePost {
         return status;
     }
 
+    /** 거리, 제한 없음이면 null. */
     public StandardDistance distance() {
         return distance;
+    }
+
+    /** 제목(W6). */
+    public String title() {
+        return title;
+    }
+
+    /** 반복 ID, 반복이 아니면 null(W6). */
+    public Long seriesId() {
+        return seriesId;
+    }
+
+    public LocalDateTime voteDeadline() {
+        return voteDeadline;
     }
 
     public Optional<LocalDateTime> departedAt() {

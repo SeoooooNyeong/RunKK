@@ -71,6 +71,16 @@ public final class InMemoryRunningRepositories {
         }
 
         @Override
+        public List<RunSummary> findSummaries(Collection<String> recordIds) {
+            return recordIds.stream()
+                    .distinct()
+                    .map(this::findById)
+                    .flatMap(Optional::stream)
+                    .map(RunRecord::summary)
+                    .toList();
+        }
+
+        @Override
         public List<RunSummary> summariesBetween(long memberId, DateRange range) {
             return findByMemberBetween(memberId, range).stream().map(RunRecord::summary).toList();
         }
@@ -213,6 +223,30 @@ public final class InMemoryRunningRepositories {
             for (int i = Math.max(0, ordinal); i < valid.size(); i++) {
                 RunRecord r = valid.get(i);
                 result.add(new ValidRunScore(i + 1, r.getScore().value(), r.getDistance()));
+            }
+            return result;
+        }
+
+        @Override
+        public List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal) {
+            List<RunRecord> valid =
+                    of(memberId)
+                            .filter(RunRecord::isValid)
+                            .sorted(
+                                    Comparator.comparing(RunRecord::getSavedAt)
+                                            .thenComparing(RunRecord::getRecordId))
+                            .toList();
+            List<ValidRunStat> result = new java.util.ArrayList<>();
+            for (int i = fromOrdinal - 1; i < Math.min(toOrdinal, valid.size()); i++) {
+                RunRecord r = valid.get(i);
+                HeartRateSummary hr = r.heartRateSummary();
+                result.add(
+                        new ValidRunStat(
+                                i + 1,
+                                r.getStartedAt(),
+                                r.getDistance(),
+                                r.getAveragePace(),
+                                hr == null ? null : hr.average()));
             }
             return result;
         }

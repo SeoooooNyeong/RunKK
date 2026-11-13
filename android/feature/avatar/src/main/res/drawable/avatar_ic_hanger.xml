@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 피그마 제안 페이지 icon/hanger (Material). 색은 쓰는 자리에서 칠한다. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="20dp"
+    android:height="20dp"
+    android:viewportWidth="20"
+    android:viewportHeight="20">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M18 15.1667L10.8333 9.79167V9.03333C12.2083 8.625 13.1667 7.225 12.8583 5.65833C12.6417 4.56667 11.775 3.65833 10.6833 3.40833C8.78333 2.975 7.08333 4.41667 7.08333 6.25H8.75C8.75 5.55833 9.30833 5 10 5C10.6917 5 11.25 5.55833 11.25 6.25C11.25 6.95 10.675 7.51667 9.975 7.5C9.525 7.49167 9.16667 7.875 9.16667 8.325V9.79167L2 15.1667C1.35833 15.65 1.7 16.6667 2.5 16.6667H17.5C18.3 16.6667 18.6417 15.65 18 15.1667ZM5 15L10 11.25L15 15H5Z" />
+</vector>

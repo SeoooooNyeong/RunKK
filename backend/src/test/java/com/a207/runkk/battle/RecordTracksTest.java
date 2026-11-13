@@ -150,10 +150,10 @@ class RecordTracksTest {
     }
 
     @Test
-    @DisplayName("CELEBRITY: 공개 셀럽 기록 전부, 거리 → 완주 시간 오름차순, 출처·그림 키·균등 페이스 표시")
+    @DisplayName("CELEBRITY: 공개 코치 기록 전부(다른 셀럽은 숨김), 거리 → 완주 시간 오름차순, 출처·그림 키·균등 페이스 표시")
     void celebrity_allSortedWithEstimatedUniformPace() {
         Duration slow = Duration.ofMinutes(40);
-        CelebrityRecord tenK = celebrity("느린전설", TEN_K, slow, List.of(), null);
+        CelebrityRecord tenK = celebrity("느린전설", TEN_K, slow, List.of(), "joo");
         CelebrityRecord fiveSlow =
                 celebrity(
                         "구간전설",
@@ -162,9 +162,9 @@ class RecordTracksTest {
                         List.of(
                                 new TrackSample(Duration.ofMinutes(8), Distance.ofMeters(2_500)),
                                 new TrackSample(Duration.ofMinutes(16), FIVE_K)),
-                        "legend");
+                        "kim");
         CelebrityRecord fiveFast =
-                celebrity("빠른전설", FIVE_K, Duration.ofMinutes(15), List.of(), null);
+                celebrity("빠른전설", FIVE_K, Duration.ofMinutes(15), List.of(), "joo");
 
         List<RecordTrack> tracks = records.recordTracks(ALICE, BattleType.CELEBRITY);
 
@@ -180,7 +180,7 @@ class RecordTracksTest {
         assertThat(estimated.source().label()).isEqualTo("출처: 대회 공식 기록");
         RecordTrack splits = tracks.get(1);
         assertThat(splits.estimated()).isFalse();
-        assertThat(splits.figureKey()).isEqualTo("legend");
+        assertThat(splits.figureKey()).isEqualTo("kim");
         assertThat(splits.opponentName().value()).isEqualTo("구간전설");
         assertThat(splits.finishTime()).isEqualTo(Duration.ofMinutes(16));
         assertThat(battles.all()).isEmpty();
@@ -247,13 +247,13 @@ class RecordTracksTest {
     @Test
     @DisplayName("BE12-7 CELEBRITY: 구간 기록이 대결 거리에 닿지 않는 셀럽 기록은 뺀다")
     void celebrity_skipsTrackShorterThanDistance() {
-        CelebrityRecord full = celebrity("완주전설", FIVE_K, Duration.ofMinutes(15), List.of(), null);
+        CelebrityRecord full = celebrity("완주전설", FIVE_K, Duration.ofMinutes(15), List.of(), "joo");
         celebrity(
                 "짧은전설",
                 FIVE_K,
                 Duration.ofMinutes(16),
                 List.of(new TrackSample(Duration.ofMinutes(8), Distance.ofMeters(2_500))),
-                null);
+                "kim");
 
         assertThat(records.recordTracks(ALICE, BattleType.CELEBRITY))
                 .extracting(RecordTrack::celebrityId)

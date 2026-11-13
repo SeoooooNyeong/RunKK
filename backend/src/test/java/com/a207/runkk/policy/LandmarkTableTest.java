@@ -30,8 +30,11 @@ class LandmarkTableTest {
             delimiter = '|',
             value = {
                 "60|인천|서울에서 인천까지 달렸어요! (왕복 1회)",
-                "130|개성|서울에서 개성까지 달렸어요! (왕복 1회)",
-                "250|개성|서울에서 개성까지 달렸어요! (왕복 2회)",
+                "149|인천|서울에서 인천까지 달렸어요! (왕복 2회)",
+                "150|춘천|서울에서 춘천까지 달렸어요! (왕복 1회)",
+                "151|춘천|서울에서 춘천까지 달렸어요! (왕복 1회)",
+                "299|대전|서울에서 대전까지 달렸어요! (왕복 1회)",
+                "279|춘천|서울에서 춘천까지 달렸어요! (왕복 1회)",
                 "920|제주도|서울에서 제주도까지 달렸어요! (왕복 1회)",
                 "960|베이징|서울에서 베이징까지 달렸어요!",
                 "8900|런던|서울에서 런던까지 달렸어요!",
@@ -62,6 +65,15 @@ class LandmarkTableTest {
         LandmarkProgress progress = table.crewProgressOf(Distance.ofKm(km));
         assertThat(progress.name()).isEqualTo(name);
         assertThat(progress.label()).isEqualTo(label);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("D-성-129 춘천 149.999km는 아직 인천, 150km 정각부터 춘천(왕복 1회)")
+    void chuncheonBoundary() {
+        assertThat(table.personalProgressOf(Distance.ofMeters(149_999)).name()).isEqualTo("인천");
+        LandmarkProgress at = table.personalProgressOf(Distance.ofMeters(150_000));
+        assertThat(at.name()).isEqualTo("춘천");
+        assertThat(at.label()).isEqualTo("서울에서 춘천까지 달렸어요! (왕복 1회)");
     }
 
     @Test

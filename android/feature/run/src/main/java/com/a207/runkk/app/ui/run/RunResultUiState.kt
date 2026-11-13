@@ -5,6 +5,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.account.MyAvatar
 import java.time.Duration
 import java.time.Instant
 
@@ -37,7 +38,9 @@ data class RunResultUiState(
     /** 심박 출처(「워치」 칩). 이 앱의 심박은 워치에서만 온다. */
     val heartRateSource: String? = null,
     /** 이번 러닝 성과 줄(신기록, 리워드). 결과 화면은 이것을 그린다. */
-    val achievements: List<AchievementRow> = emptyList()
+    val achievements: List<AchievementRow> = emptyList(),
+    /** 히어로에 그릴 내 아바타(홈과 같은 얼굴). 못 읽었으면 null이고 기본 아바타다. */
+    val myAvatar: MyAvatar? = null
 ) {
     companion object {
         /** 워치 심박 출처 이름. */

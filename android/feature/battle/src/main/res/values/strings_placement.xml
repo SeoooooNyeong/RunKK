@@ -77,5 +77,5 @@
     <!-- 매칭 성사·이력의 배치고사(FR-276 J24-3, J24-22) -->
     <string name="battle_match_placement_opponent">아직 모르는 상대</string>
     <!-- (제안) J24-22 -->
-    <string name="battle_history_type_placement">%1$s · 배치고사 %2$d판</string>
+    <string name="battle_history_type_placement">%1$s 배치고사 %2$d판</string>
 </resources>

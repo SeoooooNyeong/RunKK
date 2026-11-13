@@ -1,4 +1,4 @@
-# LLM 동의·AI 코치 화면 구현 기록 (다음 판 변경)
+# LLM 동의·AI 코치 화면 구현 기록 (implementation.md v0.10)
 > 작성: 2026-11-03 | 작성자: 박재영 | 입력: 위키 SRS v0.22·설계 v0.27, Jira #247·#246 | 스킬: sw-code-review·sw-test·sw-design review
 
 ## 상태

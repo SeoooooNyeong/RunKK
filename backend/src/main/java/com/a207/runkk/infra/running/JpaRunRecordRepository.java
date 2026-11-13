@@ -18,6 +18,7 @@ import com.a207.runkk.running.RunSummary;
 import com.a207.runkk.running.SavedRun;
 import com.a207.runkk.running.TotalStats;
 import com.a207.runkk.running.ValidRunScore;
+import com.a207.runkk.running.ValidRunStat;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.Query;
@@ -255,6 +256,20 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                 .stream()
                 .findFirst()
                 .map(JpaRunRecordRepository::summary);
+    }
+
+    @Override
+    public List<RunSummary> findSummaries(Collection<String> recordIds) {
+        if (recordIds.isEmpty()) {
+            return List.of();
+        }
+        return entityManager
+                .createQuery(SUMMARY_COLUMNS + " where r.recordId in :ids", Object[].class)
+                .setParameter("ids", recordIds)
+                .getResultList()
+                .stream()
+                .map(JpaRunRecordRepository::summary)
+                .toList();
     }
 
     @Override
@@ -512,6 +527,37 @@ public class JpaRunRecordRepository implements RunRecordRepository {
             result.add(
                     new ValidRunScore(
                             skip + i + 1, (Double) row[0], Distance.ofMeters((Long) row[1])));
+        }
+        return result;
+    }
+
+    @Override
+    public List<ValidRunStat> validRunStats(long memberId, int fromOrdinal, int toOrdinal) {
+        if (fromOrdinal < 1 || toOrdinal < fromOrdinal) {
+            throw new IllegalArgumentException("순번 범위 오류: " + fromOrdinal + "~" + toOrdinal);
+        }
+        List<Object[]> rows =
+                entityManager
+                        .createQuery(
+                                "select r.startedAt, r.distanceMeters, r.averagePaceSeconds,"
+                                        + " r.heartRateAvg from RunRecord r"
+                                        + " where r.memberId = :m and r.valid = true"
+                                        + " order by r.savedAt, r.recordId",
+                                Object[].class)
+                        .setParameter("m", memberId)
+                        .setFirstResult(fromOrdinal - 1)
+                        .setMaxResults(toOrdinal - fromOrdinal + 1)
+                        .getResultList();
+        List<ValidRunStat> result = new ArrayList<>(rows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            Object[] row = rows.get(i);
+            result.add(
+                    new ValidRunStat(
+                            fromOrdinal + i,
+                            (LocalDateTime) row[0],
+                            Distance.ofMeters((Long) row[1]),
+                            new Pace((Integer) row[2]),
+                            (Integer) row[3]));
         }
         return result;
     }

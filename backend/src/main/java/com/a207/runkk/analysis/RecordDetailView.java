@@ -25,6 +25,7 @@ import java.util.Map;
  * @param weather 날씨, 없으면 null
  * @param newRecords 신기록 문구
  * @param crewContribution 크루 주간 거리 반영 거리(본인), 없으면 null
+ * @param contributedCrewName 그 거리가 반영된 크루 이름(본인, 결과 화면 크루 반영 줄), 없으면 null
  * @param rewardPoints 이 기록으로 적립한 리워드(본인), 없으면 null
  * @param pauses 정지 구간(시간순, 정지가 없으면 빈 목록, FR-036)
  * @param pausedSeconds 정지 시간 합(초). summary의 경과 시간은 정지를 뺀 운동 시간이다
@@ -44,6 +45,7 @@ public record RecordDetailView(
         WeatherInfo weather,
         List<String> newRecords,
         Distance crewContribution,
+        String contributedCrewName,
         Integer rewardPoints,
         List<PauseRange> pauses,
         long pausedSeconds,

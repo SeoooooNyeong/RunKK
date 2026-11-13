@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
@@ -30,8 +31,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
- * 크루런 대기실 → 동시 출발 → 진행 중 중계(FR-147~FR-149, FR-190, FR-192). enterLobby 성공 뒤 CrewRunCoordinator.onLobbyEntered로
- * 채널을 연다. 이후 시작·중계·종료는 조정자 상태를 보이고, 중간 그만두기는 길게 누름 + 확인 뒤 quit(D-49).
+ * 크루런 대기실 → 동시 출발 → 진행(합산 방식, S15P31A207-236, 피그마 F-14~F-15d). enterLobby 성공 뒤
+ * CrewRunCoordinator.onLobbyEntered로 채널을 연다. 이후 시작·중계·내 측정값·종료는 조정자 상태를 보이고, 일시정지·재개는 조정자에
+ * 넘기며, 내 크루런 끝내기는 길게 누름 + 확인 뒤 quit(D-49, F-15d).
  * 출발까지 남은 시간(모집 일시는 서버 시각)은 서버 시각 추정(ServerClock)으로 세고, 출발 카운트다운은 조정자가 측정을 여는
  * 기기 시계(clock)로 센다.
  */
@@ -53,6 +55,13 @@ class CrewRunViewModel @Inject constructor(
     private var hintJob: Job? = null
     private var startAt: Instant? = null
 
+    /** 대기실 응답 없이 다시 들어왔을 때 결과 응답에서 읽은 크루원 표시 성별(memberId → 성별). */
+    private var rejoinGenders: Map<Long, Gender> = emptyMap()
+    private var genderJob: Job? = null
+
+    /** 이미 받으러 간 대기실 얼굴 키(키마다 한 번). */
+    private val requestedFaces = mutableSetOf<String>()
+
     fun bind(key: Routes.CrewRunLobby) {
         if (bound == key.postId) return
         bound = key.postId
@@ -66,10 +75,7 @@ class CrewRunViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 대기실 입장(또는 새로 읽기). 모집 일시 30분 전부터 열린다(FR-147). 처음 들어오면 대기실 응답의 크루런 거리로 조정자 채널을 연다.
-     * 중계의 내 줄은 조정자가 CrewRunRelay.Entry.isMe로 가려 1km 순위 안내(FR-190)에 쓴다.
-     */
+    /** 대기실 입장(또는 새로 읽기). 모집 일시 30분 전부터 열린다(FR-147). 처음 들어오면 대기실 응답의 크루런 거리로 조정자 채널을 연다. */
     fun enter() {
         val s = _state.value
         _state.update { it.copy(isBusy = true, error = null) }
@@ -87,6 +93,7 @@ class CrewRunViewModel @Inject constructor(
                         )
                     }
                     if (first) coordinator.onLobbyEntered(s.postId, r.value.distance)
+                    readLobbyFaces(r.value)
                     tick()
                 }
 
@@ -123,8 +130,11 @@ class CrewRunViewModel @Inject constructor(
         _state.update { it.copy(isBusy = true) }
         viewModelScope.launch {
             when (val r = crews.toggleReady(s.postId)) {
-                is Outcome.Success -> _state.update {
-                    it.copy(isBusy = false, lobby = r.value, isReady = r.value.myReady() ?: !it.isReady)
+                is Outcome.Success -> {
+                    _state.update {
+                        it.copy(isBusy = false, lobby = r.value, isReady = r.value.myReady() ?: !it.isReady)
+                    }
+                    readLobbyFaces(r.value)
                 }
 
                 is Outcome.Failure -> _state.update { it.copy(isBusy = false, error = CrewErrorText.of(r.error)) }
@@ -158,10 +168,20 @@ class CrewRunViewModel @Inject constructor(
 
     fun onQuitDismissed() = _state.update { it.copy(isConfirmingQuit = false) }
 
-    /** 확인 뒤 중간 그만두기(FR-192). 그때까지 달린 기록은 저장된다. */
+    /** 확인 뒤 내 크루런 끝내기(F-15d). 그때까지 달린 기록은 저장된다. */
     fun onQuitConfirmed() {
         _state.update { it.copy(isConfirmingQuit = false) }
         coordinator.quit()
+    }
+
+    /** 일시정지(F-15c). 서버 보고는 조정자가 한다. */
+    fun onPause() {
+        if (_state.value.phase == CrewRunPhase.RUNNING) coordinator.pause()
+    }
+
+    /** 재개(F-15c). */
+    fun onResume() {
+        if (_state.value.phase == CrewRunPhase.RUNNING) coordinator.resume()
     }
 
     /** 취소된 크루런 화면을 닫을 때. */
@@ -177,17 +197,24 @@ class CrewRunViewModel @Inject constructor(
             }
 
             is CrewRunState.Running -> if (s.postId == postId) {
+                // 대기실 응답 없이 진행에 들어왔으면(진행 중 앱을 다시 띄움) 크루원 표시 성별을 결과 응답에서 한 번 읽는다(계약 v1.3).
+                if (_state.value.lobby == null) readGendersOnce(postId)
+                // 줄 순서는 서버가 준 대기실 입장 순 그대로다(순위가 없다).
                 _state.update { st ->
                     st.copy(
                         phase = CrewRunPhase.RUNNING,
                         countdown = null,
-                        relay = s.entries
-                            .map { e -> RelayRow(e.name, e.distance, e.rank, e.connection.name, e.isMe) }
-                            .sortedWith(
-                                compareBy<RelayRow> {
-                                    it.rank ?: Int.MAX_VALUE
-                                }.thenByDescending { it.distance }
+                        relay = s.entries.map { e ->
+                            RelayRow(
+                                e.name,
+                                e.distance,
+                                MateState.of(e.state.name),
+                                e.isMe,
+                                st.lobby.genderOf(e.memberId) ?: e.memberId?.let(rejoinGenders::get)
                             )
+                        },
+                        totalDistance = s.totalDistance,
+                        mine = s.mine
                     )
                 }
             }
@@ -195,7 +222,15 @@ class CrewRunViewModel @Inject constructor(
             is CrewRunState.Finished -> if (s.postId == postId) {
                 tickJob?.cancel()
                 if (s.cancelledReason != null) {
-                    _state.update { it.copy(phase = CrewRunPhase.CANCELLED, cancelledReason = s.cancelledReason) }
+                    // 취소 화면(F-14c)은 대기실 틀이다: 마지막 대기실(참가자·준비 상태)을 그대로 두고 남은 시간은 0:00이다.
+                    _state.update {
+                        it.copy(
+                            phase = CrewRunPhase.CANCELLED,
+                            cancelledReason = s.cancelledReason,
+                            untilStart = Duration.ZERO,
+                            countdown = null
+                        )
+                    }
                 } else {
                     _state.update { it.copy(phase = CrewRunPhase.FINISHED, isConfirmingQuit = false) }
                     _events.trySend(CrewRunEvent.Finished(postId))
@@ -203,6 +238,50 @@ class CrewRunViewModel @Inject constructor(
             }
 
             else -> Unit
+        }
+    }
+
+    /**
+     * 진행 중 앱을 다시 띄워 대기실에 들어가지 못하면(이미 시작) 중계에 크루원 성별이 없어 남자 기본 캐릭터가 된다. 결과 응답(진행 중에도
+     * participants에 memberId·shownGender가 있다)을 한 번 읽어 다음 중계부터 채운다. 실패하면 기본 캐릭터 그대로다.
+     */
+    private fun readGendersOnce(postId: Long) {
+        if (genderJob != null) return
+        genderJob = viewModelScope.launch {
+            val result = (crews.crewRunResult(postId) as? Outcome.Success)?.value ?: return@launch
+            // 다음 중계(1초마다)부터 이 성별로 그린다.
+            rejoinGenders = result.participants
+                .mapNotNull { p -> p.memberId?.let { id -> p.shownGender?.let { id to it } } }
+                .toMap()
+            // 칩의 크루런 거리도 결과 응답에서 채운다(대기실 응답이 없다).
+            _state.update { if (it.lobby == null) it.copy(distance = result.distance) else it }
+        }
+    }
+
+    /**
+     * 대기실에 들어온 참가자(나 포함)의 셀카 얼굴 부위 그림을 얼굴 키마다 한 번 받는다([임시:D-성-12], 결과 화면 readMateFaces와 같은
+     * 방식). 미입장은 점선 원이라 받지 않고, 들어오면 다음 대기실 응답에서 받는다. 받지 못하거나 빈 목록이면 얼굴 키로 기본 얼굴을 그린다.
+     */
+    private fun readLobbyFaces(lobby: Lobby) {
+        val keys = lobby.participants.filter {
+            it.isEntered
+        }.mapNotNull { it.faceKey }.filter { requestedFaces.add(it) }
+        // 받아 둔 그림(내 얼굴, 앞 화면에서 본 크루원)은 이번 대기실 응답과 함께 바로 그린다(기본 머리를 거치지 않게).
+        val cached = keys.mapNotNull { key ->
+            crews.cachedFaceLayers(key)?.takeIf { it.isNotEmpty() }?.let { key to it }
+        }
+        if (cached.isNotEmpty()) _state.update { it.copy(mateFaces = it.mateFaces + cached) }
+        keys.filter { key -> cached.none { it.first == key } }.forEach { key ->
+            viewModelScope.launch {
+                when (val r = crews.faceLayers(key)) {
+                    is Outcome.Success -> r.value.takeIf { it.isNotEmpty() }?.let { layers ->
+                        _state.update { it.copy(mateFaces = it.mateFaces + (key to layers)) }
+                    }
+
+                    // 일시 실패면 다음 대기실 응답에서 다시 받는다(빈 목록, 기본 캐릭터 얼굴은 다시 받지 않는다).
+                    is Outcome.Failure -> requestedFaces.remove(key)
+                }
+            }
         }
     }
 
@@ -251,3 +330,7 @@ class CrewRunViewModel @Inject constructor(
 
 /** 대기실 응답의 내 줄(me) 준비 여부. 내 줄이 없으면 null. */
 private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.isMe }?.isReady
+
+/** 중계 줄 회원의 표시 성별(대기실 응답의 같은 memberId 줄, 크루원 아바타). 중계에는 아바타 값을 싣지 않는다(계약 crewrun-sum v1.2). */
+private fun Lobby?.genderOf(memberId: Long?): Gender? =
+    memberId?.let { id -> this?.participants?.firstOrNull { it.memberId == id }?.shownGender }

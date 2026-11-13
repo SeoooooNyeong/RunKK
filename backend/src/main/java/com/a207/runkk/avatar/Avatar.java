@@ -60,6 +60,12 @@ public class Avatar {
     @Column(name = "image_key", nullable = false, length = 200)
     private Map<FacePart, String> facePartKeys = new HashMap<>();
 
+    @Column(name = "head_job_id", length = 64)
+    private String headJobId;
+
+    @Column(name = "pending_face_request", length = 64)
+    private String pendingFaceRequest;
+
     @Column(name = "creation_count", nullable = false)
     private int creationCount;
 
@@ -102,11 +108,11 @@ public class Avatar {
 
     private Avatar(long memberId) {
         this.memberId = memberId;
-        this.bodyShape = BodyShape.STAGE1;
+        this.bodyShape = BodyShape.STAGE4;
         this.skinTone = SkinTone.DAYTIME;
     }
 
-    /** 얼굴 없음, 1단계 체형, 낮 톤, 착용 없음. */
+    /** 얼굴 없음, 기본 몸(4단계, [임시:D-성-179]), 낮 톤, 착용 없음. */
     public static Avatar create(long memberId) {
         return new Avatar(memberId);
     }
@@ -122,21 +128,52 @@ public class Avatar {
      * BusinessRuleException(SELFIE_LIMIT). 셀카 한도가 운영 기준값이라(SelfieLimit, D-41) 한도를 함께 받는다.
      */
     public void applySelfieFace(SdFaceParts parts, LocalDate today, SelfieLimit limit) {
+        countSelfie(today, limit);
+        headJobId = null;
+        defaultCharacter = null;
+        facePartKeys.clear();
+        facePartKeys.putAll(parts.parts());
+    }
+
+    private void countSelfie(LocalDate today, SelfieLimit limit) {
         if (!canCreateSelfie(today, limit)) {
             throw new BusinessRuleException(ReasonCode.SELFIE_LIMIT);
         }
         createdOnLastDay = today.equals(lastCreatedOn) ? createdOnLastDay + 1 : 1;
         lastCreatedOn = today;
         creationCount++;
-        defaultCharacter = null;
-        facePartKeys.clear();
-        facePartKeys.putAll(parts.parts());
+    }
+
+    void beginFaceJob(String requestId) {
+        pendingFaceRequest = requestId;
+    }
+
+    /** 이 셀카 요청의 결과를 아직 얼굴에 반영할 수 있는가(그 뒤 기본 캐릭터를 고르거나 새 셀카를 보내지 않았다). */
+    boolean awaitsFaceJob(String requestId) {
+        return requestId.equals(pendingFaceRequest);
+    }
+
+    /** 진행 중이던 셀카 요청을 반영하지 않고 끝낸다(한도를 넘어 결과를 버릴 때). */
+    void endFaceJob(String requestId) {
+        if (requestId.equals(pendingFaceRequest)) pendingFaceRequest = null;
+    }
+
+    void applyGeneratedHead(String requestId, String jobId, LocalDate today, SelfieLimit limit) {
+        countSelfie(today, limit);
+        if (requestId.equals(pendingFaceRequest)) {
+            headJobId = jobId;
+            defaultCharacter = null;
+            facePartKeys.clear();
+            pendingFaceRequest = null;
+        }
     }
 
     /** face = DefaultFace(c). 셀카 얼굴이 있어도 바꿀 수 있다(FR-158). 생성 횟수는 그대로다. */
     public void chooseDefault(DefaultCharacter c) {
         defaultCharacter = Objects.requireNonNull(c, "기본 캐릭터");
         facePartKeys.clear();
+        headJobId = null;
+        pendingFaceRequest = null;
     }
 
     /** 같은 부위 기존 아이템을 바꾼다. 보유 확인은 AvatarService가 먼저 한다. */
@@ -206,6 +243,9 @@ public class Avatar {
     public Optional<Face> face() {
         if (defaultCharacter != null) {
             return Optional.of(new DefaultFace(defaultCharacter));
+        }
+        if (headJobId != null) {
+            return Optional.of(() -> "head:" + memberId + ":" + headJobId);
         }
         if (facePartKeys.size() == FacePart.values().length) {
             return Optional.of(new SelfieFace(new SdFaceParts(facePartKeys)));

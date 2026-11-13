@@ -11,9 +11,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -30,13 +30,12 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -100,10 +99,12 @@ import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_HEIGHT
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLimePill
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
@@ -122,6 +123,7 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.SlotKey
+import com.a207.runkk.app.core.navigation.isSlotFilled
 import java.util.Locale
 import kotlinx.coroutines.launch
 
@@ -218,7 +220,9 @@ fun HomeScreen(state: HomeUiState, actions: HomeActions, modifier: Modifier = Mo
         AvatarBackdrop(
             if (isAvatarOpen) state.backgroundKey else null,
             modifier = Modifier.fillMaxSize().extendBottom(bleed),
-            alignment = Alignment.BottomCenter
+            alignment = Alignment.BottomCenter,
+            // 사진을 아래 가운데 기준으로 키워 트랙이 아바타 발 밑까지 오게 한다(2026-11-12 PM: 발이 지평선 근처에 떠 보였다)
+            zoom = HOME_BACKDROP_ZOOM
         )
         // 점선 방 바깥은 사진 위에 반투명 막을 덮는다(라이트 흰 막, 다크 검은 막). 방 안 장면은 그대로 둔다
         var roomBounds by remember { mutableStateOf<Rect?>(null) }
@@ -301,50 +305,63 @@ private fun Top(state: HomeUiState, onNavigate: (String) -> Unit) {
 private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     val editProfile = stringResource(R.string.home_open_profile_edit)
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        // 프로필(얼굴과 닉네임)을 누르면 프로필 편집으로 간다
-        // 얼굴과 닉네임은 둥근 바탕(라이트 흰색, 다크 검은색) 위에 둔다
+    // 머리 줄 사이는 8dp다. 알림 단추는 터치 48dp 안에 40dp 원이라 잔액과의 보이는 간격은 12dp다. 좁은 기기·큰 글꼴에서
+    // 4·5자 닉네임과 「Lv.n」이 한 줄에 다 들어가도록 알약 안팎 여백을 줄였다(실기기 DV3-9).
+    Row(horizontalArrangement = Arrangement.spacedBy(HEADER_GAP), verticalAlignment = Alignment.CenterVertically) {
+        // 프로필(얼굴과 닉네임)을 누르면 프로필 편집으로 간다. 얼굴과 닉네임은 둥근 바탕(라이트 흰색, 다크 검은색) 위에 둔다.
+        // 남는 폭은 바깥 칸이 다 차지해 잔액·알림이 늘 오른쪽 끝에 있고, 알약은 그 안에서 내용 폭만큼만 넓어진다(남는 폭이
+        // 모자랄 때만 닉네임이 줄어든다).
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(RunkkColors.Surface)
+                    .clickable(role = Role.Button, onClickLabel = editProfile) { onNavigate(Routes.PROFILE_EDIT) }
+                    .padding(start = 4.dp, top = 4.dp, bottom = 4.dp, end = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RunkkAvatarCircle(48.dp, background = RunkkColors.SurfacePressed) {
+                    // 성별을 읽기 전에는 기본 머리를 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02). 셀카 얼굴 층이 있으면
+                    // (기기에 남긴 마지막 내 얼굴) 성별과 상관없으므로 첫 그림부터 그린다.
+                    if (state.isAvatarReady || (isAvatarOpen && state.faceLayers.isNotEmpty())) {
+                        RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.fillMaxSize(), state.faceLayers)
+                    }
+                }
+                HeaderIdentity(state, modifier = Modifier.weight(1f, fill = false))
+            }
+        }
+        // 잔액과 알림함을 묶어 첫 사용 가이드 포인트 단계(J-8)가 함께 강조한다(S15P31A207-250)
         Row(
-            modifier = Modifier
-                .weight(1f, fill = false)
-                .clip(RoundedCornerShape(30.dp))
-                .background(RunkkColors.Surface)
-                .clickable(role = Role.Button, onClickLabel = editProfile) { onNavigate(Routes.PROFILE_EDIT) }
-                .padding(start = 4.dp, top = 4.dp, bottom = 4.dp, end = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.guideAnchor(GuideStep.POINT),
+            horizontalArrangement = Arrangement.spacedBy(HEADER_GAP),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape).background(RunkkColors.SurfacePressed),
-                contentAlignment = Alignment.Center
-            ) {
-                // 성별을 읽기 전에는 얼굴도 그리지 않는다(남자 얼굴이 보였다가 바뀌지 않게, TF-V12-02)
-                if (state.isAvatarReady) {
-                    RunkkAvatar(state.faceKey, AvatarExpression.FACE, Modifier.size(44.dp), state.faceLayers)
-                }
-            }
-            HeaderIdentity(state, modifier = Modifier.weight(1f))
-        }
-        // 상점은 아바타 꾸미기와 함께 연다. 닫혀 있으면 잔액만 보인다(D-252, TC-9700).
-        BalancePill(
-            balance = state.header.balance,
-            onClick = if (isAvatarOpen) ({ onNavigate(Routes.SHOP) }) else null
-        )
-        // 안 본 진행 중 이벤트가 있으면 ui.notification이 칸에 라임 점을 넣는다(피그마 62206:1008)
-        Box {
-            CircleIconButton(
-                icon = RunkkIcons.Bell,
-                description = stringResource(R.string.home_header_notifications),
-                onClick = { onNavigate(Routes.NOTIFICATIONS) }
+            // 상점은 아바타 꾸미기와 함께 연다. 닫혀 있으면 잔액만 보인다(D-252, TC-9700).
+            BalancePill(
+                balance = state.header.balance,
+                onClick = if (isAvatarOpen) ({ onNavigate(Routes.SHOP) }) else null
             )
-            Box(Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp)) {
-                LocalSlots.current[SlotKey.HOME_INBOX_DOT].orEmpty().forEach { it() }
+            // 안 본 진행 중 이벤트가 있으면 ui.notification이 칸에 알림 점을 넣는다(피그마 A-4 62273:7142). 점 중심이 40dp 원의
+            // 오른쪽 위 가장자리에서 4dp 안쪽이다(48dp 터치 칸 기준 위 2, 오른쪽 2).
+            Box {
+                CircleIconButton(
+                    icon = RunkkIcons.Bell,
+                    description = stringResource(R.string.home_header_notifications),
+                    onClick = { onNavigate(Routes.NOTIFICATIONS) }
+                )
+                Box(Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 2.dp)) {
+                    LocalSlots.current[SlotKey.HOME_INBOX_DOT].orEmpty().forEach { it() }
+                }
             }
         }
     }
 }
 
-/** 닉네임과 티어 배지(아주 작게)·「Lv.n」 줄(FR-288, 불러오는 동안은 회색 막대). 진행을 못 읽었으면 배지 없이 Lv만. */
+/**
+ * 머리 알약의 이름 칸(FR-288, 불러오는 동안은 회색 막대): 위 줄 닉네임 + 「Lv.n」(사이 6dp), 아래 줄 티어 배지(아주 작게). 진행을 못
+ * 읽었으면 배지가 없다. 「Lv.n」과 배지 글자는 늘 고유 폭을 다 쓰고 닉네임만 말줄임한다(실기기 DV3-9). 읽기는 닉네임 → 레벨 → 티어다.
+ */
 @Composable
 private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
     val header = state.header
@@ -358,18 +375,29 @@ private fun HeaderIdentity(state: HomeUiState, modifier: Modifier = Modifier) {
             SkeletonBar(width = 96, height = 16)
             SkeletonBar(width = 72, height = 12)
         } else {
-            Text(
-                text = header.nickname ?: stringResource(R.string.home_header_default_nickname),
-                style = RunkkTextStyles.text(16, FontWeight.Black),
-                color = RunkkColors.TextPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.semantics { heading() }
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL) }
-                Text(text = level, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
+            // Row는 무게 없는 Lv를 먼저 재고 닉네임에 나머지를 준다(닉네임만 말줄임).
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    text = header.nickname ?: stringResource(R.string.home_header_default_nickname),
+                    style = RunkkTextStyles.text(16, FontWeight.Black),
+                    color = RunkkColors.TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .alignByBaseline()
+                        .semantics { heading() }
+                )
+                Text(
+                    text = level,
+                    style = RunkkTextStyles.Caption,
+                    color = RunkkColors.TextSecondary,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.alignByBaseline()
+                )
             }
+            state.tierDisplay?.let { TierBadge(it, TierBadgeSize.XSMALL) }
         }
     }
 }
@@ -416,6 +444,9 @@ private fun FillRemaining(
     }
 }
 
+/** 머리 줄(프로필 알약·잔액·알림) 사이 간격. */
+private val HEADER_GAP = 8.dp
+
 /** 리워드 잔액 알약 "n,nnn P". [onClick]이 없으면 누를 수 없는 표시다. 잔액을 모르면 "-". */
 @Composable
 private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
@@ -442,7 +473,8 @@ private fun BalancePill(balance: Int?, onClick: (() -> Unit)?) {
         // 디자인 시스템 라임 알약: 기기 글자 크기에 맞춰 커진다(고정 높이 40에서 글자 아래가 잘렸다, 사용자 확인 2026-10-31)
         RunkkLimePill(
             stringResource(R.string.home_balance_value, amount),
-            textStyle = RunkkTextStyles.text(15, FontWeight.Bold)
+            textStyle = RunkkTextStyles.text(15, FontWeight.Bold),
+            horizontalPadding = 12.dp
         )
     }
 }
@@ -454,20 +486,14 @@ private fun CircleIconButton(
     description: String,
     onClick: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .minimumInteractiveComponentSize()
-            .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = description },
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(RunkkColors.Violet),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-        }
-    }
+    RunkkIconButton(
+        icon = icon,
+        contentDescription = description,
+        onClick = onClick,
+        borderColor = Color.Transparent,
+        containerColor = RunkkColors.Violet,
+        iconTint = RunkkColors.OnSecondary
+    )
 }
 
 /** 불러오는 중 자리(회색 막대). */
@@ -515,12 +541,21 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
             }
             // 「내 기록 요약」은 아바타 위에 겹친다(블러 없음). 펼치면 알약 자리에 화면 가로 여백 16 안쪽 전체 폭 패널이 뜬다(8절 2).
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                RoomAvatar(
-                    state,
-                    isAvatarOpen,
-                    onAvatar = { actions.onNavigate(Routes.AVATAR) },
-                    Modifier.matchParentSize()
-                )
+                // 아바타 칸(ui.avatar의 Rive 아바타, design-oo 05-30 2절)이 있으면 칸을, 비면(미리보기·화면 시험) 지금 그림을 그린다
+                if (isSlotFilled(SlotKey.HOME_AVATAR)) {
+                    HomeAvatarSlot(
+                        isAvatarOpen,
+                        onAvatar = { actions.onNavigate(Routes.AVATAR_RUNNER) },
+                        Modifier.matchParentSize()
+                    )
+                } else {
+                    RoomAvatar(
+                        state,
+                        isAvatarOpen,
+                        onAvatar = { actions.onNavigate(Routes.AVATAR_RUNNER) },
+                        Modifier.matchParentSize()
+                    )
+                }
                 if (state.isSummaryExpanded) {
                     SummaryPanel(
                         state.summary,
@@ -624,7 +659,7 @@ private fun RunCards(state: HomeUiState, actions: HomeActions) {
             caption = battleCaption,
             spokenCaption = battleCaption,
             container = RunkkColors.Violet,
-            content = Color.White,
+            content = RunkkColors.OnSecondary,
             onClick = actions.onBattleCard,
             modifier = Modifier.weight(1f).guideAnchor(GuideStep.BATTLE_RUN)
         )
@@ -678,9 +713,17 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
     } else {
         R.raw.home_jump_male
     }
-    // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 소리와 함께 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다)
+    // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 소리와 함께 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다).
+    // 열린 배포에서 눌러 이동할 때는 물결을 그리지 않는다([임시:D-성-182]).
+    val interaction = remember { MutableInteractionSource() }
     val press = if (isAvatarOpen) {
-        Modifier.clickable(role = Role.Button, onClickLabel = editLabel, onClick = onAvatar)
+        Modifier.clickable(
+            interactionSource = interaction,
+            indication = null,
+            role = Role.Button,
+            onClickLabel = editLabel,
+            onClick = onAvatar
+        )
     } else {
         Modifier.pointerInput(reduceMotion, jumpSound) {
             detectTapGestures {
@@ -738,6 +781,45 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
     }
 }
 
+/**
+ * 아바타 칸(SlotKey.HOME_AVATAR, design-oo 05-30 2절, [임시:D-성-100], [임시:D-성-134], 피그마 62341:1878): 390×420 칸에 ui.avatar가
+ * 바닥선·그림자·Rive 서기·로딩 표시를 그린다. 배경 사진은 홈이 화면 전체에 깔아 두므로 칸은 배경을 다시 그리지 않고 같은 바닥 규칙
+ * (칸 위에서 342dp, 아래에서 [HOME_AVATAR_FLOOR_FROM_BOTTOM])만 쓴다. 칸 바닥선이 남은 자리 아래보다
+ * [HOME_AVATAR_FLOOR_ABOVE_ROOM] 위에 오게 칸을 내리고, 남은 자리가 좁으면 칸 높이를 줄인다(바닥선은 칸 아래에서 같은 거리다).
+ * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다(물결 없음, [임시:D-성-182]). 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
+ */
+@Composable
+private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
+    val description = stringResource(R.string.home_avatar_description)
+    val editLabel = stringResource(R.string.home_house_edit_avatar)
+    val slot = LocalSlots.current[SlotKey.HOME_AVATAR].orEmpty()
+    val interaction = remember { MutableInteractionSource() }
+    BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
+        val drop = HOME_AVATAR_FLOOR_FROM_BOTTOM - HOME_AVATAR_FLOOR_ABOVE_ROOM
+        val height = (maxHeight + drop).coerceIn(HOME_AVATAR_SLOT_MIN_HEIGHT, HOME_AVATAR_SLOT_HEIGHT)
+        // 아바타 그림을 누르면 물결(반투명 눌림)을 그리지 않는다. 단추 안내·누름 영역은 그대로다([임시:D-성-182]).
+        val press = if (isAvatarOpen) {
+            Modifier.clickable(
+                interactionSource = interaction,
+                indication = null,
+                role = Role.Button,
+                onClickLabel = editLabel,
+                onClick = onAvatar
+            )
+        } else {
+            Modifier
+        }
+        Box(
+            Modifier
+                .offset(y = drop)
+                .requiredSize(HOME_AVATAR_SLOT_WIDTH, height)
+                .testTag(HOME_AVATAR_SLOT_TAG)
+                .then(press)
+                .semantics { contentDescription = description }
+        ) { slot.forEach { it() } }
+    }
+}
+
 /** 주간 막대의 km 표기: 정수면 정수, 아니면 소수 한 자리("12", "12.5"). */
 internal fun compactKm(distance: Distance): String {
     val text = RunkkFormat.kmShort(distance)
@@ -761,6 +843,26 @@ private const val HOP_DAMPING = 0.45f
 
 /** 발을 남은 자리 바닥보다 더 내리는 거리. 솟은 홈 탭 원(20dp)과 신발이 조금 겹친다(사용자 요청 2026-10-30). */
 private val AVATAR_GROUND_SINK = 8.dp
+
+/** 홈 아바타 칸 크기(피그마 62341:1878, [임시:D-성-134]). 남은 자리가 좁으면 높이만 줄인다. */
+private val HOME_AVATAR_SLOT_WIDTH = 390.dp
+private val HOME_AVATAR_SLOT_HEIGHT = 420.dp
+private val HOME_AVATAR_SLOT_MIN_HEIGHT = 240.dp
+
+/**
+ * 홈 칸 바닥선의 칸 아래 끝으로부터 거리(4.4 계산: 390dp 칸에 1080×1200 배경 규격이면 그려진 그림 높이 433.3dp × 0.18 = 78dp,
+ * 칸 높이 433dp 이하에서 같다). ui.avatar 홈 칸 내용이 같은 규격으로 바닥선을 잡는다.
+ */
+internal val HOME_AVATAR_FLOOR_FROM_BOTTOM = 78.dp
+
+/**
+ * Rive 칸 바닥선을 방 아래 끝보다 올리는 거리. 신발이 솟은 홈 탭 원(방 아래 끝에서 약 18dp 위까지 솟음)과 8dp쯤만 겹친다
+ * (사용자 요청 2026-10-30 「조금 겹친다」, 2026-11-11 실기기 3차에서 방 아래 + 8dp는 신발 대부분이 가려짐, [임시:D-성-173]).
+ */
+internal val HOME_AVATAR_FLOOR_ABOVE_ROOM = 10.dp
+
+/** 홈 아바타 칸의 시험 표지. */
+internal const val HOME_AVATAR_SLOT_TAG = "home-avatar-slot"
 
 /** 서 있는 그림 칸의 가로세로 비(그림은 칸 바닥에 붙어 그려지므로 칸이 조금 넓어도 된다). */
 private const val AVATAR_ASPECT = 0.6f
@@ -794,3 +896,6 @@ private fun HomeScreenPreview() {
 /** 점선 방 모서리와 바깥 막의 진하기. */
 private val ROOM_CORNER = 28.dp
 private const val OUTSIDE_SCRIM_ALPHA = 0.4f
+
+/** 홈 배경 사진 확대 배율(아래 가운데 기준). */
+private const val HOME_BACKDROP_ZOOM = 1.35f

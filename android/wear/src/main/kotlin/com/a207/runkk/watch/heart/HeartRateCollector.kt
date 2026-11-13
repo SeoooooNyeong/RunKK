@@ -56,6 +56,9 @@ class HeartRateCollector @Inject constructor(
     private val _samples = MutableSharedFlow<WatchHeartRate>(extraBufferCapacity = SAMPLE_BUFFER)
     val samples: Flow<WatchHeartRate> = _samples.asSharedFlow()
 
+    /** 수집 중 같은 운동 세션이 잰 손목 걸음(S15P31A207-242). 수집하지 않으면 오지 않는다. */
+    val steps: Flow<WatchSteps> get() = sensor.steps
+
     /** 화면이 OS 권한 창을 띄울 때 쓸 권한 이름. */
     val permissionName: String get() = permission.name
 
