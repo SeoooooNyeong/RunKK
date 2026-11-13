@@ -18,10 +18,12 @@ import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarFacingLeft
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarPose
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarRunSpeed
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.run.RunProgress
@@ -42,9 +44,11 @@ class RunAvatarSlotScreenTest {
 
     private var pose: AvatarSlotPose? = null
     private var left: Boolean? = null
+    private var speed: Float? = null
     private val probe: @Composable () -> Unit = {
         pose = LocalSlotAvatarPose.current
         left = LocalSlotAvatarFacingLeft.current
+        speed = LocalSlotAvatarRunSpeed.current
         Box(Modifier.fillMaxSize().testTag("run-avatar-probe"))
     }
 
@@ -52,11 +56,11 @@ class RunAvatarSlotScreenTest {
     private val westward = RouteLine(listOf(GeoPoint(37.5, 127.001), GeoPoint(37.5, 127.0)))
 
     @Test
-    fun `측정 중이면 RUN과 진행 방향 원값을 넘기고 일시정지면 STAND다`() {
+    fun `움직이는 중이면 RUN과 진행 방향 원값, 페이스 빠르기를 넘기고 일시정지면 STAND다`() {
         var state by mutableStateOf(
             RunUiState(
                 phase = RunPhase.RUNNING,
-                progress = RunProgress.INITIAL.copy(distance = Distance(88)),
+                progress = RunProgress.INITIAL.copy(distance = Distance(88), currentPace = Pace(300)),
                 route = westward
             )
         )
@@ -68,10 +72,29 @@ class RunAvatarSlotScreenTest {
         compose.onNodeWithTag("run-avatar-probe").assertWidthIsEqualTo(88.dp).assertHeightIsEqualTo(88.dp)
         assertEquals(AvatarSlotPose.RUN, pose)
         assertEquals(true, left)
+        // 5:00/km는 기준(6:00/km)보다 1.2배 빠르다
+        assertEquals(1.2f, checkNotNull(speed), 0.001f)
 
         state = state.copy(progress = state.progress.copy(isPaused = true))
         compose.waitForIdle()
         assertEquals(AvatarSlotPose.STAND, pose)
+    }
+
+    @Test
+    fun `측정 중이어도 멈춰 있으면(페이스를 모름) STAND다`() {
+        val state = RunUiState(
+            phase = RunPhase.RUNNING,
+            progress = RunProgress.INITIAL.copy(distance = Distance(88)),
+            route = westward
+        )
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(probe))) {
+                RunkkTheme(reduceMotion = true) { RunScreen(state, RunActions()) }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(AvatarSlotPose.STAND, pose)
+        assertEquals(1f, checkNotNull(speed), 0.001f)
     }
 
     @Test

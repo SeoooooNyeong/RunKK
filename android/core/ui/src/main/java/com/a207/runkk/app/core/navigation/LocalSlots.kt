@@ -29,6 +29,9 @@ val LocalSlotAvatarPose = compositionLocalOf { AvatarSlotPose.STAND }
  */
 val LocalSlotAvatarFacingLeft = compositionLocalOf { false }
 
+/** 칸을 그리는 측정 화면이 아바타 칸에 넘기는 달리기 동작 빠르기(1 = 6:00/km, 빠를수록 크다). 칸 밖이면 1. */
+val LocalSlotAvatarRunSpeed = compositionLocalOf { 1f }
+
 /** 전신 정지 그림 칸(SlotKey.AVATAR_STILL)에 넘기는 사람. 칸 밖이면 null이다. [AvatarStillSlot] 참고. */
 val LocalSlotAvatarStill = compositionLocalOf<AvatarStillSubject?> { null }
 

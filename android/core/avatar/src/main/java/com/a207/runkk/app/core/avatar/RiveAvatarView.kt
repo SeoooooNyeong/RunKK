@@ -49,7 +49,14 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         Thread(task, "runkk-avatar-tone").apply { isDaemon = true }
     }
     private val main = Handler(Looper.getMainLooper())
-    private val players = EnumMap<AvatarMotion, RiveAnimationView>(AvatarMotion::class.java)
+    private val players = EnumMap<AvatarMotion, PacedRiveAnimationView>(AvatarMotion::class.java)
+
+    /** 달리기 동작 재생 빠르기(1 = 원래, 러닝 중 페이스에 맞춘다). */
+    var runSpeed: Float = 1f
+        set(value) {
+            field = value
+            players[AvatarMotion.RUN]?.playbackSpeed = value
+        }
     private val applied = EnumSet.noneOf(AvatarMotion::class.java)
     private var frontLoader: FrontAvatarAssetLoader? = null
     private var runLoader: RunAvatarAssetLoader? = null
@@ -198,16 +205,18 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             AvatarMotion.STAND -> FrontAvatarAssetLoader(prepared.legacyStandingBody).also { frontLoader = it }
             AvatarMotion.RUN -> RunAvatarAssetLoader().also { runLoader = it }
         }
-        val view = RiveAnimationView.Builder(context)
-            .setResource(prepared.riv(motion))
-            .setArtboardName(RiveAvatarScene.artboard(motion))
-            .setStateMachineName(RiveAvatarScene.stateMachine(motion))
-            .setShouldLoadCDNAssets(false)
-            .setRendererType(RendererType.Rive)
-            .setFit(Fit.CONTAIN)
-            .setAutoplay(false)
-            .setAssetLoader(loader)
-            .build()
+        val view = PacedRiveAnimationView(
+            RiveAnimationView.Builder(context)
+                .setResource(prepared.riv(motion))
+                .setArtboardName(RiveAvatarScene.artboard(motion))
+                .setStateMachineName(RiveAvatarScene.stateMachine(motion))
+                .setShouldLoadCDNAssets(false)
+                .setRendererType(RendererType.Rive)
+                .setFit(Fit.CONTAIN)
+                .setAutoplay(false)
+                .setAssetLoader(loader)
+        )
+        if (motion == AvatarMotion.RUN) view.playbackSpeed = runSpeed
         view.visibility = INVISIBLE
         // Builder는 창에 붙을 때 읽는다. 지금 한 번 읽어 자산 자리와 상태 입력을 바로 쓸 수 있게 한다
         // (onAttachedToWindow는 이미 파일이 있으면 다시 읽지 않는다).

@@ -20,6 +20,7 @@ import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarFacingLeft
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarPose
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarRunSpeed
 import kotlinx.coroutines.delay
 
 /** 러닝 중 칸이 준비에 실패했을 때 그리는 지금 그림의 시험 표지. */
@@ -77,6 +78,7 @@ internal fun RunAvatarSlotContent(store: MyAvatarStore) {
                 modifier = Modifier.fillMaxSize(),
                 motion = pose.motion(),
                 mirrored = facingLeft,
+                runSpeed = LocalSlotAvatarRunSpeed.current,
                 loadingColor = RunkkColors.TextSecondary,
                 onError = { isRiveFailed = true }
             )

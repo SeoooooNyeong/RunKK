@@ -41,7 +41,8 @@ fun RunkkRiveAvatar(
     modifier: Modifier = Modifier,
     onError: (Throwable) -> Unit = {},
     mirrored: Boolean = false,
-    onReady: () -> Unit = {}
+    onReady: () -> Unit = {},
+    runSpeed: Float = 1f
 ) {
     val amount = runningAmount.coerceIn(MIN_RUNNING_AMOUNT, MAX_RUNNING_AMOUNT)
     val currentOnError by rememberUpdatedState(onError)
@@ -71,6 +72,7 @@ fun RunkkRiveAvatar(
         modifier = modifier,
         onRelease = RiveAvatarView::release,
         update = { view ->
+            view.runSpeed = runSpeed
             view.render(AvatarRenderState(gender, motion, outfit, bodyShape, amount, headLayers, mirrored), prepared)
         }
     )

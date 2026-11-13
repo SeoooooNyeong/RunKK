@@ -9,13 +9,17 @@ import androidx.compose.runtime.CompositionLocalProvider
  * 칸 내용은 부모 크기(88dp 마커 칸)를 채운다. 측정 화면은 아바타 준비를 기다리지 않는다.
  */
 @Composable
-fun RunAvatarSlot(pose: AvatarSlotPose, facingLeft: Boolean, fallback: @Composable () -> Unit) {
+fun RunAvatarSlot(pose: AvatarSlotPose, facingLeft: Boolean, runSpeed: Float = 1f, fallback: @Composable () -> Unit) {
     val slot = LocalSlots.current[SlotKey.RUN_AVATAR]
     if (slot.isNullOrEmpty()) {
         fallback()
         return
     }
-    CompositionLocalProvider(LocalSlotAvatarPose provides pose, LocalSlotAvatarFacingLeft provides facingLeft) {
+    CompositionLocalProvider(
+        LocalSlotAvatarPose provides pose,
+        LocalSlotAvatarFacingLeft provides facingLeft,
+        LocalSlotAvatarRunSpeed provides runSpeed
+    ) {
         slot.forEach { it() }
     }
 }

@@ -130,7 +130,8 @@ fun RiveAvatarStage(
     showLoading: Boolean = true,
     loadingColor: Color = Color.Gray,
     onReady: () -> Unit = {},
-    onError: (Throwable) -> Unit = {}
+    onError: (Throwable) -> Unit = {},
+    runSpeed: Float = 1f
 ) {
     val shownAt = remember { SystemClock.uptimeMillis() }
     var isReady by remember(look?.gender, look?.headLayers, motion) { mutableStateOf(false) }
@@ -168,6 +169,7 @@ fun RiveAvatarStage(
                     currentOnError(it)
                 },
                 mirrored = flip,
+                runSpeed = runSpeed,
                 onReady = {
                     isReady = true
                     isFailed = false // 앞서 실패했어도 그림이 보이면 로딩 표시 규칙으로 돌아온다

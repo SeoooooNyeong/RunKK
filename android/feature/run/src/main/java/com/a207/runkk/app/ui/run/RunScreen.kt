@@ -98,6 +98,7 @@ import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runCycleOf
 import com.a207.runkk.app.core.designsystem.runFrameMillis
+import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
@@ -453,10 +454,12 @@ private fun RunningRoute(route: RouteLine, progress: RunProgress, isPaused: Bool
     val isMoving = rememberIsMoving(progress.distance) && !isPaused && progress.currentPace != null
     val frameMillis = runFrameMillis(progress.currentPace)
     val isLeft = rememberHeadingLeft(route)
-    val pose = if (isRunning && !isPaused) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 측정 중이어도 멈춰 있으면(거리가 3초 늘지 않음) 서 있는 동작이고, 달리기 동작은 현재 페이스 빠르기로 돈다.
+    val pose = if (isRunning && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    val runSpeed = runMotionSpeed(progress.currentPace)
     val figureSize = if (isSlotFilled(SlotKey.RUN_AVATAR)) MY_AVATAR_SLOT else MY_FIGURE
     val figure: @Composable () -> Unit = {
-        RunAvatarSlot(pose, isLeft) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        RunAvatarSlot(pose, isLeft, runSpeed) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
     }
     // Kakao 지도를 띄울 수 있으면(키 + 지도 라이브러리) 지도 위에서 카메라가 나를 따라가고, 아니면 격자 바탕 경로선이다.
     // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340).
