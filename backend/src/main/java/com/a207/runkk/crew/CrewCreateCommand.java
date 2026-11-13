@@ -1,6 +1,6 @@
 package com.a207.runkk.crew;
 
-import com.a207.runkk.common.PersonalityTag;
+import com.a207.runkk.common.CrewTag;
 import java.util.Set;
 
 /**
@@ -8,7 +8,7 @@ import java.util.Set;
  *
  * @param name 크루명
  * @param intro 한줄소개
- * @param tags 성향 태그
+ * @param tags 크루 태그(요일·시간대)
  * @param visibility 공개 여부
  * @param joinPolicy 가입 방식
  * @param logoUrl 로고 이미지 주소, 없을 수 있음
@@ -16,7 +16,7 @@ import java.util.Set;
 public record CrewCreateCommand(
         String name,
         String intro,
-        Set<PersonalityTag> tags,
+        Set<CrewTag> tags,
         CrewVisibility visibility,
         JoinPolicy joinPolicy,
         String logoUrl) {}

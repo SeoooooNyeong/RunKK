@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.notification
 
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
+import com.a207.runkk.app.core.designsystem.RunkkStatusChipTone
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.Routes
@@ -123,6 +124,16 @@ class EventTest {
         assertEquals(
             listOf(EventChip.NEW, EventChip.ENTERED, EventChip.UPCOMING, EventChip.ENDED),
             sampleEvents.map(EventChip::of)
+        )
+        // 피그마 상태 칩: 새 이벤트 보라, 참여 중 라임, 곧 열려요와 종료 회색(디자인 시스템 RunkkStatusChip)
+        assertEquals(
+            listOf(
+                RunkkStatusChipTone.Violet,
+                RunkkStatusChipTone.Lime,
+                RunkkStatusChipTone.Muted,
+                RunkkStatusChipTone.Muted
+            ),
+            EventChip.entries.map { it.tone }
         )
         assertEquals("11월 16일까지", eventPeriod(res, coach))
         assertEquals("11월 13일부터", eventPeriod(res, upcoming))

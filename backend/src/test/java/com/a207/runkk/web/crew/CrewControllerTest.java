@@ -67,7 +67,7 @@ class CrewControllerTest extends WebTestSupport {
         Map<String, Object> form = new HashMap<>();
         form.put("name", "크루" + CREWS.incrementAndGet() + "번");
         form.put("intro", "새벽에 함께 달려요");
-        form.put("tags", List.of("SOCIAL_RUN", "MORNING"));
+        form.put("tags", List.of("WEEKDAY_EVENING", "WEEKEND_MORNING"));
         form.put("visibility", "PUBLIC");
         form.put("joinPolicy", policy);
         JsonNode created =
@@ -92,16 +92,17 @@ class CrewControllerTest extends WebTestSupport {
         assertThat(list.get("crews").findValuesAsText("crewId")).contains(String.valueOf(crewId));
         assertThat(list.has("recommendations")).as("추천 삭제(FR-118)").isFalse();
         assertThat(list.get("crews").get(0).has("tagMatches")).isFalse();
-        call(a, get("/api/v1/crews").param("tags", "SOCIAL_RUN,SOLO_RUN"), null) // P2
+        call(a, get("/api/v1/crews").param("tags", "WEEKDAY_EVENING,WEEKDAY_DAWN"), null) // P2
                 .andExpect(status().isOk());
         call(a, get("/api/v1/crews").param("tags", "NOPE"), null)
                 .andExpect(status().isBadRequest());
-        // 2차 L13: 태그 AND를 SQL로 거른다(",태그," 단위라 SOCIAL_RUN이 다른 태그의 일부로 맞지 않는다)
+        // 2차 L13: 태그 AND를 SQL로 거른다(",태그," 단위라 WEEKDAY_EVENING이 다른 태그의 일부로 맞지 않는다)
         String id = String.valueOf(crewId);
         assertThat(
                         json(call(
                                         a,
-                                        get("/api/v1/crews").param("tags", "MORNING,SOCIAL_RUN"),
+                                        get("/api/v1/crews")
+                                                .param("tags", "WEEKEND_MORNING,WEEKDAY_EVENING"),
                                         null))
                                 .get("crews")
                                 .findValuesAsText("crewId"))
@@ -109,7 +110,8 @@ class CrewControllerTest extends WebTestSupport {
         assertThat(
                         json(call(
                                         a,
-                                        get("/api/v1/crews").param("tags", "SOCIAL_RUN,SOLO_RUN"),
+                                        get("/api/v1/crews")
+                                                .param("tags", "WEEKDAY_EVENING,WEEKDAY_DAWN"),
                                         null))
                                 .get("crews")
                                 .findValuesAsText("crewId"))
@@ -231,7 +233,7 @@ class CrewControllerTest extends WebTestSupport {
                                 Map.of("kind", "CHEER", "body", "화이팅")))
                         .get("id")
                         .asLong();
-        LocalDateTime scheduledAt = LocalDateTime.now().plusMinutes(20).withNano(0);
+        LocalDateTime scheduledAt = slotIn20Minutes();
         long run =
                 json(call(
                                 leader,
@@ -240,9 +242,9 @@ class CrewControllerTest extends WebTestSupport {
                                         "kind",
                                         "CREW_RUN",
                                         "body",
-                                        "1km 같이 달려요",
+                                        "3km 같이 달려요",
                                         "distanceMeters",
-                                        1000,
+                                        3000,
                                         "meetAt",
                                         scheduledAt
                                                 .atZone(java.time.ZoneId.of("Asia/Seoul"))
@@ -264,40 +266,85 @@ class CrewControllerTest extends WebTestSupport {
         call(a, get("/api/v1/crews/" + crewId + "/posts").param("kind", "NOPE"), null) // P3
                 .andExpect(status().isBadRequest());
 
+        call(a, post("/api/v1/avatar/default"), Map.of("characterId", "FOX"))
+                .andExpect(status().isOk());
         call(a, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null)
-                .andExpect(jsonPath("$.status").value("LOBBY_OPEN"));
+                .andExpect(jsonPath("$.status").value("LOBBY_OPEN"))
+                // 크루원 아바타(S15P31A207-236, 계약 crewrun-sum v1.2): 얼굴 키(프로필과 같은 값)와 표시 성별(D-327)
+                .andExpect(
+                        jsonPath("$.participants[?(@.memberId == " + a.memberId() + ")].faceKey")
+                                .value(org.hamcrest.Matchers.contains("default:FOX")))
+                .andExpect(
+                        jsonPath("$.participants[*].shownGender")
+                                .value(
+                                        org.hamcrest.Matchers.everyItem(
+                                                org.hamcrest.Matchers.oneOf("MALE", "FEMALE"))));
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
         call(a, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/leave"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null)
                 .andExpect(jsonPath("$.participants[?(@.ready == true)]").isNotEmpty())
-                .andExpect(jsonPath("$.distanceMeters").value(1000))
+                .andExpect(jsonPath("$.distanceMeters").value(3000))
                 .andExpect(
                         jsonPath("$.participants[?(@.me == true)].memberId")
                                 .value(org.hamcrest.Matchers.contains((int) leader.memberId())));
         JsonNode listed = json(call(a, get("/api/v1/crews/" + crewId + "/posts"), null));
         JsonNode crewRunPost = listed.get("posts").get(0).get("crewRun");
-        assertThat(crewRunPost.get("distanceMeters").asLong()).isEqualTo(1000);
+        assertThat(crewRunPost.get("distanceMeters").asLong()).isEqualTo(3000);
         assertThat(crewRunPost.get("myAnswer").asText()).isEqualTo("GOING");
         assertThat(crewRunPost.get("status").asText()).isEqualTo("LOBBY_OPEN");
 
         crewRunService.tick(scheduledAt);
         LocalDateTime start = scheduledAt.plusSeconds(3);
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), Map.of("elapsedSeconds", 120))
+                .andExpect(status().isNoContent());
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
+                .andExpect(status().isNoContent());
+        call(
+                        a,
+                        post("/api/v1/crew-runs/" + run + "/quit"),
+                        Map.of("distanceMeters", -1, "elapsedSeconds", 10))
+                .andExpect(status().isConflict()) // 계약 crewrun-sum v1.1 4절(MR !91 BR-C2)
+                .andExpect(jsonPath("$.code").value("CREW_RUN_INVALID"));
+        call(
+                        a,
+                        post("/api/v1/crew-runs/" + run + "/quit"),
+                        Map.of("distanceMeters", 980, "elapsedSeconds", 300))
+                .andExpect(status().isNoContent());
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         uploadCrewRun(a.memberId(), run, start, 1_000);
         uploadCrewRun(leader.memberId(), run, start, 1_100);
-        crewRunService.tick(start.plusMinutes(15));
+        crewRunService.tick(start.plusMinutes(45)); // 3km × km당 15분
 
         JsonNode result = json(call(a, get("/api/v1/crew-runs/" + run + "/result"), null));
         assertThat(result.get("status").asText()).isEqualTo("FINISHED");
-        assertThat(result.get("finisherCount").asInt()).isEqualTo(2);
-        assertThat(result.get("finishers").get(0).get("rank").asInt()).isEqualTo(1);
+        assertThat(result.get("title").asText()).isEqualTo("3km 같이 달려요");
+        assertThat(result.get("distanceMeters").asLong()).isEqualTo(3_000);
+        assertThat(result.get("startedAt").asText()).isNotBlank();
+        assertThat(result.get("totalDistanceMeters").asLong()).as("연결된 기록 거리 합").isEqualTo(2_100);
         assertThat(result.get("raceContributionMeters").asLong()).isEqualTo(2_100);
-        assertThat(result.get("finishers").findValuesAsText("memberId"))
-                .contains(String.valueOf(a.memberId()), String.valueOf(leader.memberId()));
-        assertThat(result.get("finishers").findValues("me").stream().filter(JsonNode::asBoolean))
+        assertThat(result.get("participants").findValuesAsText("memberId"))
+                .containsExactly(String.valueOf(leader.memberId()), String.valueOf(a.memberId()));
+        assertThat(result.get("participants").findValuesAsText("distanceMeters"))
+                .containsExactly("1100", "1000");
+        assertThat(result.get("participants").findValues("ended")).allMatch(JsonNode::asBoolean);
+        assertThat(result.get("participants").findValues("me").stream().filter(JsonNode::asBoolean))
                 .hasSize(1);
-        call(a, post("/api/v1/crew-runs/" + run + "/quit"), null)
+        assertThat(result.get("myRecordId").asText()).isNotBlank();
+        assertThat(result.has("finishers")).isFalse();
+        JsonNode leaderLine = result.get("participants").get(0);
+        JsonNode aLine = result.get("participants").get(1);
+        assertThat(aLine.get("faceKey").asText()).isEqualTo("default:FOX");
+        assertThat(leaderLine.hasNonNull("faceKey")).as("얼굴을 고르지 않았으면 null").isFalse();
+        assertThat(result.get("participants").findValuesAsText("shownGender"))
+                .allMatch(g -> g.equals("MALE") || g.equals("FEMALE"));
+        // 종료 뒤 다시 끝내기는 아무 일 없음(재시도 안전)
+        call(a, post("/api/v1/crew-runs/" + run + "/quit"), null).andExpect(status().isNoContent());
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), null)
+                .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("NOT_PARTICIPANT"));
         call(a, get("/api/v1/crews/" + crewId + "/race"), null)
                 .andExpect(jsonPath("$.totalMeters").value(2_100))
@@ -306,6 +353,133 @@ class CrewControllerTest extends WebTestSupport {
                                 .value(org.hamcrest.Matchers.contains((int) a.memberId())));
         assertThat(weeklyRaceService.reconcileAll(LocalDateTime.now())).isZero();
         assertThat(membershipService.expireRequests(LocalDateTime.now())).isZero();
+    }
+
+    /** 크루런 모집글 하나를 만들고 두 사람이 대기실에 들어가 준비한 뒤 출발시킨다. 모집글 ID. */
+    private long departedCrewRun(Session leader, Session a, long crewId, LocalDateTime scheduledAt)
+            throws Exception {
+        long run =
+                json(call(
+                                leader,
+                                post("/api/v1/crews/" + crewId + "/posts"),
+                                Map.of(
+                                        "kind",
+                                        "CREW_RUN",
+                                        "body",
+                                        "3km 같이 달려요",
+                                        "distanceMeters",
+                                        3000,
+                                        "meetAt",
+                                        at(scheduledAt))))
+                        .get("id")
+                        .asLong();
+        call(a, put("/api/v1/posts/" + run + "/attendance"), Map.of("answer", "GOING"));
+        for (Session s : List.of(leader, a)) {
+            call(s, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
+            call(s, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null);
+        }
+        crewRunService.tick(scheduledAt);
+        return run;
+    }
+
+    /** 20분 안쪽의 5분 단위 시각(크루런 작성 일시 규칙 W6: 5분 단위, 대기실은 30분 전에 열린다). */
+    private static LocalDateTime slotIn20Minutes() {
+        LocalDateTime t =
+                LocalDateTime.now()
+                        .plusMinutes(20)
+                        .truncatedTo(java.time.temporal.ChronoUnit.MINUTES);
+        return t.withMinute(t.getMinute() / 5 * 5);
+    }
+
+    private static String at(LocalDateTime t) {
+        return t.atZone(java.time.ZoneId.of("Asia/Seoul")).toOffsetDateTime().toString();
+    }
+
+    /** POST /runs 본문(앱 RunUploadRequest와 같은 모양). */
+    private static Map<String, Object> runBody(RunUpload u) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("recordId", u.recordId());
+        body.put("startedAt", at(u.startedAt()));
+        body.put("endedAt", at(u.endedAt()));
+        body.put("distanceMeters", u.distance().meters());
+        body.put("elapsedMillis", u.elapsed().toMillis());
+        body.put("mode", u.mode().name());
+        body.put("cardKind", u.cardKind().name());
+        body.put("crewRunPostId", u.crewRunPostId());
+        body.put("pointCount", u.points().size());
+        body.put(
+                "points",
+                u.points().stream()
+                        .map(
+                                p ->
+                                        Map.of(
+                                                "measuredAt", at(p.measuredAt()),
+                                                "latitude", p.point().latitude(),
+                                                "longitude", p.point().longitude(),
+                                                "accuracyMeters", 5))
+                        .toList());
+        body.put(
+                "pauses",
+                u.pauses().stream()
+                        .map(p -> Map.of("from", at(p.from()), "to", at(p.to())))
+                        .toList());
+        return body;
+    }
+
+    @Test
+    @DisplayName(
+            "BR-1: 한 번 멈춘 크루런 기록도 POST /runs가 받고(200 STORED) 참여에 이어져 결과·주간 레이스에 운동 시간·거리로 들어간다")
+    void pausedCrewRunUpload_isStoredAndLinked() throws Exception {
+        Session leader = signUp();
+        Session a = signUp();
+        long crewId = createCrew(leader, "FREE");
+        call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId));
+        LocalDateTime scheduledAt = slotIn20Minutes();
+        long run = departedCrewRun(leader, a, crewId, scheduledAt);
+        LocalDateTime start = scheduledAt.plusSeconds(3);
+
+        call(a, post("/api/v1/crew-runs/" + run + "/pause"), Map.of("elapsedSeconds", 450))
+                .andExpect(status().isNoContent());
+        RunUpload paused =
+                RunFixtures.pausedCrewRun(
+                        UUID.randomUUID().toString(),
+                        start,
+                        run,
+                        3_000,
+                        900,
+                        new RunFixtures.Pause(450, 120));
+        call(a, post("/api/v1/runs"), runBody(paused))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("STORED"))
+                .andExpect(jsonPath("$.valid").value(true));
+        call(
+                        a,
+                        post("/api/v1/crew-runs/" + run + "/quit"),
+                        Map.of("distanceMeters", 3_000, "elapsedSeconds", 900))
+                .andExpect(status().isNoContent());
+        uploadCrewRun(leader.memberId(), run, start, 3_000);
+        crewRunService.tick(start.plusMinutes(46));
+
+        JsonNode result = json(call(a, get("/api/v1/crew-runs/" + run + "/result"), null));
+        assertThat(result.get("myRecordId").asText())
+                .as("참여 연결(linkRun)")
+                .isEqualTo(paused.recordId());
+        assertThat(result.get("totalDistanceMeters").asLong()).isEqualTo(6_000);
+        assertThat(result.get("raceContributionMeters").asLong()).isEqualTo(6_000);
+        JsonNode mine = null;
+        for (JsonNode p : result.get("participants")) {
+            if (p.get("me").asBoolean()) {
+                mine = p;
+            }
+        }
+        assertThat(mine).isNotNull();
+        assertThat(mine.get("distanceMeters").asLong()).isEqualTo(3_000);
+        assertThat(mine.get("elapsedSeconds").asLong()).as("정지 2분을 뺀 운동 시간").isEqualTo(900);
+        call(a, get("/api/v1/crews/" + crewId + "/race"), null)
+                .andExpect(jsonPath("$.totalMeters").value(6_000));
+        call(a, get("/api/v1/runs/" + paused.recordId()), null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pausedSeconds").value(120));
     }
 
     @Test
@@ -341,12 +515,15 @@ class CrewControllerTest extends WebTestSupport {
 
         JsonNode asMember = json(call(a, get("/api/v1/crews/" + crewId), null));
         assertThat(asMember.get("myRole").asText()).isEqualTo("MEMBER");
-        assertThat(asMember.get("inviteCode").isNull()).isTrue();
+        assertThat(asMember.get("inviteCode").asText())
+                .as("크루원도 초대 코드를 본다(F-18b)")
+                .isEqualTo(mine.get("crew").get("inviteCode").asText());
         assertThat(asMember.get("leaderId").asLong()).isEqualTo(leader.memberId());
         assertThat(asMember.get("leaderName").asText()).isNotBlank();
         JsonNode asOutsider = json(call(outsider, get("/api/v1/crews/" + crewId), null));
         assertThat(asOutsider.get("myRole").isNull()).isTrue();
         assertThat(asOutsider.get("weeklyDistanceMeters").asLong()).isZero();
+        assertThat(asOutsider.get("lastWeekDistanceMeters").asLong()).isZero();
 
         call(leader, patch("/api/v1/crews/" + crewId), Map.of("visibility", "PRIVATE"))
                 .andExpect(status().isNoContent());

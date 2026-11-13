@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!-- 셀카 찍기(TakePicture): 카메라 앱이 원본(EXIF 방향 포함)을 쓸 주소. 읽어 바로 세우고 줄인 뒤 지운다(실기기 DV3-3, FR-156). -->
+        <provider
+            android:name="com.a207.runkk.app.ui.avatar.SelfieFileProvider"
+            android:authorities="${applicationId}.runkk.selfie"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/avatar_selfie_paths" />
+        </provider>
+    </application>
+
+</manifest>

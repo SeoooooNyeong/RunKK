@@ -36,17 +36,3 @@ internal suspend fun CrewRepository.postsCovering(crewId: Long, kind: PostList.K
 
 /** 갱신 한 번에 이어 읽는 쪽 수 상한(첫 쪽 포함). 넘으면 거기까지만 보이고 끝까지 내리면 이어 받는다. */
 private const val COVER_PAGES_MAX = 10
-
-/** [kind] 목록에서 [postId] 글을 찾는다(앞에서부터 [FIND_PAGES_MAX]쪽까지). 못 찾거나 읽지 못하면 null. */
-internal suspend fun CrewRepository.findPost(crewId: Long, kind: PostList.Kind, postId: Long): PostList.Item? {
-    var cursor: Long? = null
-    repeat(FIND_PAGES_MAX) {
-        val page = (posts(crewId, kind, cursor) as? Outcome.Success)?.value ?: return null
-        page.posts.firstOrNull { it.postId == postId }?.let { return it }
-        cursor = page.nextCursor ?: return null
-    }
-    return null
-}
-
-/** 글을 찾을 때 읽는 쪽 수 상한. */
-private const val FIND_PAGES_MAX = 5

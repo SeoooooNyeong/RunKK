@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.chat
 
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.live.ChatPresence
 import com.a207.runkk.app.domain.live.CrewChatPosted
@@ -380,7 +381,10 @@ constructor(
         myReactions = emptySet(),
         isMine = false,
         canDelete = false,
-        clientMessageId = clientMessageId
+        clientMessageId = clientMessageId,
+        kind = ChatMessageKind.entries.firstOrNull { it.name == messageKind } ?: ChatMessageKind.TEXT,
+        authorRole = ChatAuthorRole.entries.firstOrNull { it.name == authorRole },
+        runDistance = runDistanceMeters?.takeIf { it >= 0 }?.let(::Distance)
     )
 
     private fun Map<String, Int>.toKinds(): Map<ReactionKind, Int> = entries.mapNotNull { (name, count) ->

@@ -86,6 +86,7 @@ public class DashboardService {
                         base,
                         range -> distancesOf(runQueryService.dailyStats(memberId, range)),
                         true);
+        List<DayStats> thisWeek = thisWeekOf(daily, base);
         return new DashboardView(
                 base,
                 memberQueryService.preferenceOf(memberId).unit(),
@@ -105,7 +106,18 @@ public class DashboardService {
                                 .mapToLong(r -> r.distance().meters())
                                 .sum()),
                 Streak.countWeeksBack(runDays, base),
-                latestRun(memberId).orElse(null));
+                latestRun(memberId).orElse(null),
+                thisWeek.stream().mapToInt(DayStats::count).sum(),
+                Distance.ofMeters(thisWeek.stream().mapToLong(d -> d.distance().meters()).sum()));
+    }
+
+    /** 기준일이 속한 주(월요일 시작) 월요일 ~ 기준일의 날짜별 유효 통계(잔디 범위 12주가 이번 주를 늘 담는다). */
+    private static List<DayStats> thisWeekOf(Map<LocalDate, DayStats> daily, LocalDate base) {
+        LocalDate monday = Week.of(base.atStartOfDay()).monday();
+        return daily.values().stream()
+                .filter(d -> !d.date().isBefore(monday))
+                .filter(d -> !d.date().isAfter(base))
+                .toList();
     }
 
     /**
@@ -139,11 +151,7 @@ public class DashboardService {
                 .goalOf(week)
                 .map(
                         goal -> {
-                            List<DayStats> days =
-                                    daily.values().stream()
-                                            .filter(d -> !d.date().isBefore(week.monday()))
-                                            .filter(d -> !d.date().isAfter(base))
-                                            .toList();
+                            List<DayStats> days = thisWeekOf(daily, base);
                             return goal.achievement(
                                     days.stream().mapToInt(DayStats::count).sum(),
                                     Distance.ofMeters(

@@ -9,8 +9,9 @@ import java.util.List;
  *
  * @param crews 공개 크루, 최근 생성순
  * @param nextCursor 다음 페이지 커서(크루 ID), 마지막 페이지거나 나누지 않았으면 null
+ * @param totalCount 같은 조건(키워드·태그)의 공개 크루 전체 수, 커서·크기와 상관없다(피그마 F-01d, S15P31A207-295)
  */
-public record CrewListView(List<Item> crews, Long nextCursor) {
+public record CrewListView(List<Item> crews, Long nextCursor, long totalCount) {
 
     public CrewListView {
         crews = List.copyOf(crews);

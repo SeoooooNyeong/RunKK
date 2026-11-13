@@ -40,6 +40,34 @@ class MeScreenshotTest {
     }
 
     @Test
+    fun signUpGender() = compose.captureRunkkScreen("A2_signup_2_gender") {
+        SignUpScreen(
+            SignUpUiState(step = SignUpStep.GENDER, consents = agreedConsents),
+            isGuest = false,
+            SignUpActions()
+        )
+    }
+
+    @Test
+    fun signUpGenderSelected() = compose.captureRunkkScreen("A2_signup_2_gender_selected") {
+        SignUpScreen(
+            SignUpUiState(step = SignUpStep.GENDER, consents = agreedConsents, gender = Gender.FEMALE),
+            isGuest = false,
+            SignUpActions()
+        )
+    }
+
+    @Test
+    fun signUpGenderSelectedLight() =
+        compose.captureRunkkScreen("A2_signup_2_gender_selected_light", isDarkTheme = false) {
+            SignUpScreen(
+                SignUpUiState(step = SignUpStep.GENDER, consents = agreedConsents, gender = Gender.MALE),
+                isGuest = false,
+                SignUpActions()
+            )
+        }
+
+    @Test
     fun guestConsent() = compose.captureRunkkScreen("A2_guest_consent") {
         SignUpScreen(SignUpUiState(), isGuest = true, SignUpActions())
     }
@@ -266,6 +294,8 @@ class MeScreenshotTest {
     fun otherProfile() = compose.captureRunkkScreen("F8_other_profile") {
         OtherProfileScreen(placingOther, {}, {})
     }
+
+    private val agreedConsents = SignUpConsents.items.associate { it.item to it.isRequired }
 
     @Test
     fun otherProfileLight() = compose.captureRunkkScreen("F8_other_profile_light", isDarkTheme = false) {

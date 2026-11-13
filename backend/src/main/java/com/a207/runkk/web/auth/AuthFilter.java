@@ -14,6 +14,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
@@ -31,6 +32,8 @@ public class AuthFilter extends OncePerRequestFilter {
     public static final String WATCH_CLIENT = "runkk.watchClient";
 
     static final String ADMIN_PATH = "/api/v1/admin/";
+    static final RequestAttributeSecurityContextRepository REQUEST_CONTEXT =
+            new RequestAttributeSecurityContextRepository();
     private static final String BEARER = "Bearer ";
     private static final String UNAUTHORIZED_BODY =
             "{\"code\":\"UNAUTHORIZED\",\"message\":\"로그인이 필요합니다\"}";
@@ -77,6 +80,7 @@ public class AuthFilter extends OncePerRequestFilter {
                 .setAuthentication(
                         UsernamePasswordAuthenticationToken.authenticated(
                                 memberId, null, List.of()));
+        REQUEST_CONTEXT.saveContext(SecurityContextHolder.getContext(), request, response);
         chain.doFilter(request, response);
     }
 

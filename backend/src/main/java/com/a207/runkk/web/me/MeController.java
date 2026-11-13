@@ -39,6 +39,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -121,8 +122,12 @@ public class MeController {
 
     @PutMapping("/me/consents/{item}")
     ConsentResult giveConsent(
-            @RequestAttribute(MEMBER_ID) long memberId, @PathVariable ConsentItem item) {
-        return memberSettingService.giveConsent(memberId, item);
+            @RequestAttribute(MEMBER_ID) long memberId,
+            @PathVariable ConsentItem item,
+            @RequestParam(name = "version", required = false) Integer version) {
+        return version == null
+                ? memberSettingService.giveConsent(memberId, item)
+                : memberSettingService.giveConsent(memberId, item, version);
     }
 
     @DeleteMapping("/me/consents/{item}")

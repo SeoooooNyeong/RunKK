@@ -9,8 +9,10 @@ import java.util.List;
  *
  * @param crew 소속 크루, 없으면 null
  * @param pendingRequests 대기 중인 본인 가입 신청(신청 일시순)
+ * @param rejoinAvailableAt 24시간 가입·생성 제한 중이면 풀리는 시각, 아니면 null(피그마 F-02c, S15P31A207-295)
  */
-public record MyCrewView(CrewDetailView crew, List<PendingJoin> pendingRequests) {
+public record MyCrewView(
+        CrewDetailView crew, List<PendingJoin> pendingRequests, LocalDateTime rejoinAvailableAt) {
 
     public MyCrewView {
         pendingRequests = List.copyOf(pendingRequests);

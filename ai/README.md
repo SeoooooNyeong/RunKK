@@ -6,7 +6,7 @@
 |---|---|
 | `GET /health` | 상태 확인(토큰 검사 없음) |
 | `POST /comments` | 체력 요약 집계값 → AI 코멘트. 200 `{"text"}` / 503·504·422 `{"reason"}` |
-| `POST /users/{userId}/faces/jobs` | 셀카(`application/octet-stream`) → 아바타 머리 생성 작업 접수. 202 `{"jobId","status","headId","error"}` / 413·415·422·503·504 `{"reason"}` |
+| `POST /users/{userId}/faces/jobs[?attempt=n]` | 셀카(`application/octet-stream`) → 아바타 머리 생성 작업 접수. `attempt`(1~20, 기본 1)는 같은 사진의 명시적 재시도 번호로 Node 멱등 키를 바꾼다(1이면 예전 키, DV-성-9). 202 `{"jobId","status","headId","error"}` / 413·415·422·503·504 `{"reason"}` |
 | `GET /users/{userId}/faces/jobs/{jobId}` | 작업 상태 `QUEUED`·`RUNNING`·`SUCCEEDED`·`FAILED`(실패도 200 + `error.code`). 404 `JOB_NOT_FOUND` |
 | `GET /users/{userId}/faces/jobs/{jobId}/result` | 완성된 머리: `faceImage`·`eyesImage`·`hairImage`(1024×1024 PNG Data URL)와 `traits`·`alignment`·`mobile`. 404 / 409 `JOB_NOT_READY` |
 | `GET /users/{userId}/faces/latest` | 사용자의 가장 최근 머리. 404 `HEAD_NOT_FOUND` |
@@ -15,7 +15,7 @@
 | `GET /sessions/{sessionId}/status` | 분석 상태 `pending`·`done`·`failed`. 200 / 404 `{"reason"}` |
 | `GET /sessions/{sessionId}` | RUN바디 1회 결과(5각 점수·판정 라벨·코칭 플래그·km 랩·피드백 문장). 200 / 404·409 `{"reason"}` |
 | `GET /users/{userId}/months/{yearMonth}` | 월간 RUN바디(월 요약·5각 평균·최고 기록·주간 거리·최근 부하·개인 기준값·아바타 입력값). 200 / 422 `{"reason"}` |
-| `DELETE /users/{userId}` | 탈퇴 회원 파기(-219). 그 사용자의 분석 결과·코치 대화를 지우고 `{"sessionResults": n, "coachMessages": m}`. 멱등(없어도 200에 0) / 503 `STORAGE_UNAVAILABLE` · 504 `STORAGE_TIMEOUT` |
+| `DELETE /users/{userId}` | 탈퇴 회원 파기(-219·-257). 분석 결과·코치 대화·아바타 서버 폴더를 지우고 `{"sessionResults": n, "coachMessages": m, "avatarImages": 0\|1}`(아바타는 켠 환경에서만). 멱등(없어도 200에 0) / 503 `STORAGE_UNAVAILABLE` · 504 `STORAGE_TIMEOUT` |
 | `POST /coach/chat` | AI 코치 대화(F5). `{"userId","conversationId"?,"message"}` → 200 `text/event-stream`(meta·tool·delta·done·error) / 404·413·422·429·503 `{"reason"}` |
 
 `/health` 말고는 모두 `X-Internal-Token` 헤더가 필요하다. 미들웨어가 본문을 읽기 전에 검사해 틀리면 401 `{"reason": "UNAUTHORIZED"}`
@@ -262,7 +262,17 @@ api  GET  /avatar/bodies/{bodyId}                → ai → Node GET /bodies/{id
   (한 저장소라도 실패하면 503이고, 이미 지운 저장소는 다음 호출에 0을 돌려준다).
 - 응답의 숫자는 지운 행 수다. 로그에는 결과와 행 수만 남고 회원 식별자는 남지 않는다.
 - 백업 덤프(infra `backup`, 7일 보존)에는 파기 전 행이 남을 수 있다. 처리방침의 "백업본 7일 보존" 문구가 이걸 가리킨다.
+- **아바타 서버(-257)**: `RUNKK_FACE_API_URL`을 켠 환경이면 Node `DELETE /api/v1/users/{userId}`도 부른다. Node는 사용자 폴더
+  (`data/users/{sha256(userId)}`: 셀카 작업·머리 레이어·우측 얼굴·latest)를 통째로 지운다. 그 사용자의 생성이 진행 중이면 409 `USER_BUSY`라
+  ai는 503을 돌려주고, api가 파기 배치에서 다시 부르면 지워진다. 대기 중인 작업은 큐에서 빠져 생성되지 않는다.
 - 새 회원별 테이블을 만들면 `main.py`의 `WithdrawalService` 등록에 저장소를 더한다(`purge_user(user_id)`를 구현하면 된다).
+
+## 코치 대화 보관 기한 (S15P31A207-258)
+
+처리방침(D-436)대로 코치 대화 본문(`analytics.coach_message`)은 **90일**이 지나면 지운다. ai가 기동할 때 한 번, 그 뒤 6시간마다
+`created_at < 지금 - 90일`인 메시지를 지운다(`coach/retention.py`, 로그 `coach_retention result=ok deleted=n`).
+기한은 처리방침에 묶인 값이라 환경 변수로 열지 않는다. 지우다 실패하면 경고 로그만 남기고 다음 주기에 다시 지운다.
+대화의 모든 메시지가 지워지면 그 `conversationId`는 없는 대화(404)가 된다.
 
 ## 컨테이너
 

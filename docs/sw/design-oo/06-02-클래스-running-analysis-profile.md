@@ -89,6 +89,7 @@ PENDING(V28이 배포 때 무효 기록에 세움), VALID(재판정으로 유효
 | `Distance countedLength(List<PauseInterval> stops)` | 집계 거리를 경로로 다시 셈 | 불안정 구간 끝 쌍과 stops(정지·제외 구간)에 걸친 쌍을 뺀 이웃 포인트 거리의 합. 앱 RunSession이 달리는 중에 세는 거리와 같은 쌍을 더한다 (v0.12 구현 반영, D-190) |
 | `Distance pathLength(List<PauseInterval> pauses)` | 경로 길이 | 이웃 포인트 사이 거리 합. 정지 구간에 걸친 쌍은 뺀다. 유효 판정 다섯째 조건(isBackedBy)의 경로 길이다. 인자 없는 `pathLength()`는 빈 목록으로 위임한다 (v0.11, CR34-08, D-94) |
 | `Optional<Duration> timeToReach(Distance d, List<PauseInterval> pauses)` | 누적 거리 d 도달 시간 | 두 포인트 사이는 직선 보간. 정지 구간을 가로지르는 쌍은 거리를 더하지 않고, 도달 시각까지의 정지 시간을 뺀다(D-122, D-163) (v0.11, test.md v0.6 TF-BE-33) |
+| `Optional<Duration> timeToArrive(Distance d, List<PauseInterval> pauses)` | 대결·크루런 도착 판정 | 부족한 거리가 0.5m 이하면 마지막으로 거리가 늘어난 포인트의 운동 시각으로 인정한다. 신기록·구간 계산은 엄격한 `timeToReach`를 쓴다(D-559, CR-151). |
 | `List<CurvePoint> curve(Duration step, Duration end, List<PauseInterval> pauses)`(패키지 전용, 정지 없는 `curve(step, end)`는 빈 목록을 넘긴다) | 운동 시간 축의 (경과, 누적 거리) 표본 | 정지 구간을 잘라 내고 이후 포인트의 경과 시간을 정지 합만큼 당긴다. 정지에 걸친 쌍은 거리를 더하지 않는다. 정지가 없으면 벽시계 축과 같다 (v0.11 구현 반영, I-1, D-168) |
 | `Distance cumulativeDistanceAt(Duration t)` | t 시점 누적 거리 | 고스트 상대 트랙 생성용 |
 | `Optional<GeoPoint> firstPoint()` | 첫 포인트 | 파기 뒤 비어 있음 |
@@ -186,12 +187,15 @@ PENDING(V28이 배포 때 무효 기록에 세움), VALID(재판정으로 유효
 | 시그니처 | 설명 |
 |---------|------|
 | `RunSummary summary(String recordId)` | 기록 요약. 없으면 BusinessRuleException(RECORD_NOT_FOUND). crew의 크루런 도착·결과, analysis의 카드 값용. battle은 쓰지 않는다(D-51) |
+| `Optional<RunSummary> findSummary(String recordId)` | 요약이 없어도 정상인 호출에서 쓴다. 배치고사 판 읽기와 셈 수신자가 유효 여부를 조회한다(D-524). |
 | `List<RunSummary> recentSummaries(long memberId, int limit)` | 최근 유효 기록 limit개, 최신순. analysis.ReportService(20)가 쓴다 |
 | `List<RunSampleRow> runSamples(long memberId, int limit)`, `List<RunSampleRow> runSamples(long memberId, DateRange r)` | 최근 유효 기록 limit개 또는 기간 안 유효 기록, 최신순. RunSampleRow(recordId, startedAt, distance). runimal의 판정 표본·코스 비교 대상용(design-review.md R4) |
 | `List<LocalDateTime> recentStartTimes(long memberId, int limit)` | 최근 유효 기록 limit개의 시작 일시, 최신순. avatar.AppearanceService의 피부색·마지막 유효 러닝 일시용(R6) |
 | `List<RunSummary> summariesBetween(long memberId, DateRange r)` | 기간 안 기록 전부(무효 포함), 최신순. 기록 목록·주간 거리 재합산용 |
 | `RunDetail detail(String recordId, OptionalInt maxHeartRate)` | 1km 구간 페이스, 가장 빠른 1km, 심박 구간(최대 심박이 있을 때), 불안정 구간, 날씨, 신기록. analysis의 기록 상세용 |
 | `RunComparison comparisonOf(String recordId)` | RunComparison(elapsed, averagePace, fastestKm). battle의 결과 비교표용(R5). 없으면 BusinessRuleException(RECORD_NOT_FOUND) |
+| `Optional<RunComparison> findComparison(String recordId)` | 기록을 못 읽은 상태도 허용하는 대결 결과 비교표에 쓴다(D-524). |
+| `Optional<RunListRow> latestListRow(long memberId)` | 저장소의 같은 연산으로 시작 시각이 가장 늦은 기록 한 건을 읽는다. 유효·무효를 모두 대상으로 하며 기록이 없으면 비어 있다(D-491·D-523·D-524). |
 | `Map<LocalDate, DayStats> dailyStats(long memberId, DateRange r)` | 날짜별 거리·시간·횟수(유효만). 대시보드 오늘 요약·잔디·스트릭·달력 |
 | `Map<LocalDate, Distance> dailyDistances(Collection<Long> memberIds, DateRange r)` | 여러 회원의 날짜별 유효 거리 합. 크루 스트릭·잔디(FR-054, FR-055) |
 | `TotalStats totals(long memberId)` | 누적 유효 거리·시간·횟수. 무효(집계 제외) 기록은 세지 않는다(홈 누적, FR-050) (v0.12 구현 반영, CR-12, D-192) |
@@ -204,7 +208,9 @@ PENDING(V28이 배포 때 무효 기록에 세움), VALID(재판정으로 유효
 | ~~`List<ValidRunScore> validRunsAfter(long memberId, int ordinal)`~~ | 삭제. 티어 보정이 순번 비교 대신 기록별 반영 표시(tier_applied)로 대상을 고르게 되어(D-169) 운영 코드가 부르지 않는다. 코드 정리는 BE5-A-9가 따른다 (v0.11 구현 반영, U5-A-1, D-169) |
 | `List<OwnedRun> validRunsReaching(StandardDistance d, Collection<Long> ownerIds)` | ownerIds 회원의 유효 기록 중 거리 ≥ d이고 경로가 남은 것. OwnedRun(recordId, memberId)만 돌려준다. battle.GhostMatcher가 쓴다(A-07, D-51) |
 | `RunCurve curve(String recordId, Distance cut)` | 1초 간격 (경과 시간, 누적 거리) 표본을 cut 거리까지. 좌표가 없다(FR-089). 경로가 파기되었으면 BusinessRuleException(ROUTE_PURGED). 경과 시간은 운동 시간이다: 기록의 pauses를 넘겨 RunTrack.curve(step, end, pauses)로 정지를 잘라 내고 end는 timeToReach(cut, pauses)다. 고스트·나와의 싸움 상대 진행도가 정지 없는 러닝처럼 보인다 (v0.11 구현 반영, I-1, D-168) |
-| `Optional<Duration> timeToReach(String recordId, Distance d)` | d에 처음 닿은 경과 시간. 크루런 도착 시각, 대결 검증 |
+| `Optional<Duration> timeToReach(String recordId, Distance d)` | 크루런 도착 시각과 대결 검증용. `RunRecord.timeToArrive(d)`가 `stops()`를 넘겨 `RunTrack.timeToArrive`의 0.5m 허용 규칙을 적용한다(D-559, CR-151). |
+
+기록이 없을 수 있는 호출에서는 Optional 조회를 쓴다. 참여 트랜잭션에서 예외를 잡는 방식은 커밋 때 롤백을 일으킬 수 있다(D-524).
 | `List<GeoPoint> routePoints(String recordId)` | 경로 좌표(파기 뒤 빈 목록). runimal 코스 동일성, 기록 상세 지도, 카드 뒷면 |
 | `Optional<BestEntry> best(long memberId, StandardDistance d)` | 거리별 최고 기록 |
 | `Optional<BestEntry> longest(long memberId)` | 최장 거리 기록. analysis의 성장 분석용 |
@@ -274,6 +280,8 @@ recordId(String), memberId(long), distance(Distance, 초과 구간을 뺀 집계
 `void onMemberWithdrawn(MemberWithdrawn e)`: 그 회원의 RunRecord(경로·심박 포함), PersonalRecordBook, DisposalOrder를 지운다(FR-021 D2).
 
 ##### 포트 인터페이스 (running이 정의)
+
+`RunRecordRepository.findSummary(String): Optional<RunSummary>`와 `latestListRow(long): Optional<RunListRow>`는 요약과 최신 목록 행을 직접 읽는 투영이다(D-524).
 | 인터페이스 | 시그니처 |
 |-----------|---------|
 | RunRecordRepository | `boolean exists(String recordId)`, `Optional<RunRecord> findById(String)`, `RunRecord save(RunRecord)`, `List<RunRecord> findByMember(long memberId)`, `List<RunRecord> recentValid(long memberId, int limit)`, `List<RunRecord> findByMemberBetween(long memberId, DateRange range)`, `int countValid(long memberId)`, `List<SavedRun> savedBetween(LocalDateTime from, LocalDateTime to)`(v0.11 CR34-03), `List<SavedRun> tierPendingBetween(LocalDateTime from, LocalDateTime to)`(저장 일시 [from, to)이고 tier_applied 거짓인 유효 기록, 저장 일시·기록 ID 순, 색인 idx_run_record_tier_pending), `Optional<ValidRunScore> validRunScoreOf(String recordId)`(유효 기록 하나의 점수·거리·순번, 무효거나 없으면 비어 있음), `boolean markTierApplied(String recordId)`(조건부 UPDATE, 이번에 세웠으면 참) (v0.11 구현 반영, U5-A-1, D-169), `Distance validDistanceSavedBefore(long memberId, LocalDateTime cutoff)`(저장 일시 < cutoff인 유효 기록 거리 합, RunQueryService.validDistanceBefore용, D-176) (v0.12, U6-5), 일회성 재판정 연산 넷 `List<String> rejudgeCandidates(RejudgeState state, int limit)`(저장 일시·기록 ID 순, 색인 idx_run_record_rejudge)·`Optional<RunRecord> findForUpdate(String recordId)`(행 잠금)·`boolean storeRejudgement(RunRecord record, RejudgeState from, RejudgeState to)`(거리·시간·페이스·유효·점수·제외 값과 표시를 조건부 UPDATE. 거리·시간 열은 updatable = false라 이 연산만 쓴다)·`boolean moveRejudgeState(String recordId, RejudgeState from, RejudgeState to)`(표시만 조건부 UPDATE) (v0.12 구현 반영, D-191), 통계 조회(RunQueryService용), `void deleteByMember(long memberId)`. running 밖에서 쓰지 않는다(ArchUnit 규칙, 13.1) (v0.11, CR34-03, D-108) |
@@ -387,6 +395,8 @@ CommentContext(record): llmAgreed(boolean), aiEnabled(boolean), memberId(long �
 |---------|------|
 | `DashboardView dashboard(long memberId, LocalDate baseDate)` | srs.md 6.3 3.1. 오늘·누적 요약(RunQueryService.dailyStats, totals), LandmarkTable.personalProgressOf(누적 유효 거리), Streak.countBack, Grass.of, 크루가 있으면(CrewMembershipReader.activeCrewOf → CrewSummary의 crewId, 크루 영역 제목에 name) CrewMembershipReader.activeMemberIds → RunQueryService.dailyDistances로 크루 스트릭·잔디, distancesByMember(현재 크루원, 전체 기간) 합으로 LandmarkTable.crewProgressOf(크루 합), WeeklyGoal.achievement, 달력. 거리 표시는 MemberQueryService.preferenceOf(memberId).unit. WeeklyRace 테이블을 읽지 않는다(v0.1의 외부 결합 제거, D-32) |
 
+`DashboardView.latestRun`은 `RunQueryService.latestListRow`로 조회한 본인 최신 기록을 목록과 같은 행 형식으로 담고, 없으면 null이다. 대결 결과는 `DashboardController`가 대결 ID로 읽어서 응답에 붙인다(D-491·D-523). 이 필드는 홈 「내 기록 요약」의 최신 기록에 쓰인다(FR-287).
+
 ##### RecordQueryService
 | 항목 | 내용 |
 |------|------|
@@ -419,8 +429,8 @@ CommentContext(record): llmAgreed(boolean), aiEnabled(boolean), memberId(long �
 |---------|------|
 | `void rebuild(LocalDateTime now)` | 0시. 개인·크루 × 주간·월간 4개 스냅숏. 대상 회원 = MemberQueryService.rankedMemberIds()(나만 보기 제외), 크루 = CrewMembershipReader.activeMembersByCrew(). 두 목록의 회원 합집합으로 RunQueryService.distancesByMember(range)를 한 번 부른다. 개인은 회원별 거리, 크루는 크루원 거리 합 ÷ 크루원 수(비공개 포함). 회원 표시명은 MemberQueryService.summaries, 크루 이름은 CrewMembershipReader.crewNames로 붙인다(design-review.md M6). 운영자 재계산(recompute)이 돌고 있으면 끝날 때까지 기다렸다 이어서 집계한다(0시 집계를 건너뛰지 않는다) (v0.11, CR2-U1) |
 | `RankingRecomputeResult recompute()` | POST /admin/rankings/recompute(web.admin.ranking RankingAdminController, v0.11 검증 D-136). 0시를 기다리지 않고 지금 시각으로 rebuild와 같은 경로(종류·기간마다 한 트랜잭션, 커밋 뒤 캐시 판 교체)를 같은 잠금 안에서 탄다. 다른 집계가 돌고 있으면 기다리지 않고 IllegalStateException(web.error가 409로 바꾼다). 감사 AuditAction.RANKING_RECOMPUTED(V18)는 web.admin.ranking이 남긴다 (v0.11, CR2-U1) |
-| `RankingView personalRanking(long memberId, AggregationPeriod period)` | 개인 최근 스냅숏 + entryOf + gapToNext + 집계 기준 시각. 나만 보기면 안내 문구 |
-| `RankingView crewRanking(long memberId, AggregationPeriod period)` | 크루 최근 스냅숏 + 본인 크루의 entryOf + gapToNext + 집계 기준 시각. 크루 없음이면 본인 크루 순위 비움 |
+| `RankingView personalRanking(long memberId, AggregationPeriod period)` | 개인 최근 스냅숏 + entryOf + gapToNext + 집계 기준 시각. 나만 보기면 안내 문구. 페이지와 본인 행의 회원을 `MemberQueryService.summaries`로 읽어 `RankingView.publicTiers`에 현재 공개 티어를 붙인다. `publicTierOf(entry)`는 회원 ID로 읽는다. UNRANKED는 「배치 중」으로 표시한다(D-486, FR-282). |
+| `RankingView crewRanking(long memberId, AggregationPeriod period)` | 크루 최근 스냅숏 + 본인 크루의 entryOf + gapToNext + 집계 기준 시각. 크루 없음이면 본인 크루 순위 비움. 크루 랭킹의 `publicTiers`는 빈 맵이다(D-486). |
 
 v0.1의 `ranking(memberId, RankingKind, period)`은 kind가 개인·크루 처리 경로를 골라 제어 결합이었다. 두 연산으로 나눴다(D-36). RankingKind는 RankingSnapshot 안의 구분으로만 남는다.
 

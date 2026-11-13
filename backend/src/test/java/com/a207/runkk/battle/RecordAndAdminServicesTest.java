@@ -107,6 +107,22 @@ class RecordAndAdminServicesTest {
                         NOW));
     }
 
+    /** 셀럽런 목록에 보이는 코치 기록(그림 키 "joo", [임시:D-성-219]). */
+    private CelebrityRecord coach(List<TrackSample> splits) {
+        return celebrities.save(
+                CelebrityRecord.register(
+                        new CelebrityInput(
+                                "주코치",
+                                FIVE_K,
+                                Duration.ofMinutes(15),
+                                splits,
+                                "대회 공식 기록",
+                                null,
+                                null,
+                                "joo"),
+                        NOW));
+    }
+
     @Test
     @org.junit.jupiter.api.DisplayName("나와의 싸움 후보: 3·5·10km·하프, 기록이 없으면 \"아직 기록이 없어요\"")
     void selfCandidates() {
@@ -173,9 +189,10 @@ class RecordAndAdminServicesTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "유명인 대결: 목록·출처·추정 여부, 지워진 기록은 CELEBRITY_REMOVED, 대결 거리 = 기록 거리")
+            "유명인 대결: 목록은 코치만(다른 셀럽은 숨김)·출처·추정 여부, 지워진 기록은 CELEBRITY_REMOVED, 대결 거리 = 기록 거리")
     void celebrityBattle() {
-        CelebrityRecord estimated = celebrity(List.of());
+        CelebrityRecord estimated = coach(List.of());
+        celebrity(List.of()); // 코치가 아닌 셀럽은 목록에 보이지 않는다
         RecordBattleCandidates list =
                 records.celebrityCandidates(ALICE, Optional.of(StandardDistance.KM5));
         assertThat(list.candidates())
@@ -255,9 +272,11 @@ class RecordAndAdminServicesTest {
                 .extracting(e -> ((BusinessRuleException) e).reason())
                 .isEqualTo(ReasonCode.VALUE_INVALID);
 
+        // 목록은 코치만: 코치가 아닌 "lee"·키 없음은 숨기고, 숨긴 기록도 ID로 대결은 시작할 수 있다(지난 대결 이력 유지)
+        coach(List.of());
         assertThat(records.celebrityCandidates(ALICE, Optional.empty()).candidates())
                 .extracting(RecordBattleCandidates.Candidate::figureKey)
-                .containsExactlyInAnyOrder("lee", null);
+                .containsExactly("joo");
         RecordBattleStart start = records.startCelebrityBattle(ALICE, lee.getId());
         assertThat(start.figureKey()).isEqualTo("lee");
         assertThat(battles.findById(start.battleId()).orElseThrow().getOpponentFigure())

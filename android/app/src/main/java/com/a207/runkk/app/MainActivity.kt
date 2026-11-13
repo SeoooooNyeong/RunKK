@@ -62,9 +62,23 @@ class MainActivity : ComponentActivity() {
      */
     private var pendingInvite by mutableStateOf<PendingInvite?>(null)
 
+    /**
+     * 대결 진행 알림을 눌러 열었을 때 돌아갈 대결 ID(S15P31A207-278). 인텐트에서 한 번 읽고 비운다. 대결 기능(앱 위 안내)이 그 대결 진행
+     * 화면을 열거나 버리면 비운다.
+     */
+    private var pendingBattleReturn by mutableStateOf<Long?>(null)
+
+    /**
+     * 셀카 결과 알림을 눌러 열어 얼굴 만들기 화면으로 가야 하는가([임시:D-성-146], [임시:D-성-160]). 인텐트에서 한 번 읽고 비운다.
+     * 로그인 뒤 홈이 맨 위가 되면 얼굴 만들기를 열고 비운다.
+     */
+    private var pendingSelfieResult by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         pendingInvite = if (savedInstanceState == null) takeInvite(intent) else restoreInvite(savedInstanceState)
+        if (savedInstanceState == null) pendingBattleReturn = takeBattleReturn(intent)
+        if (savedInstanceState == null) pendingSelfieResult = takeSelfieResult(intent)
         enableEdgeToEdge()
         setContent {
             // 저장된 화면 테마를 읽기 전(null)에는 아무것도 그리지 않고 창 배경을 둔다(A4: 첫 프레임에 SYSTEM 벌을 그렸다가 저장된
@@ -102,6 +116,10 @@ class MainActivity : ComponentActivity() {
                         onExit = ::finish,
                         pendingInvite = pendingInvite,
                         onInviteDone = { pendingInvite = null },
+                        pendingBattleReturn = pendingBattleReturn,
+                        onBattleReturnDone = { pendingBattleReturn = null },
+                        pendingSelfieResult = pendingSelfieResult,
+                        onSelfieResultDone = { pendingSelfieResult = false },
                         // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
                         // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
                         modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }
@@ -111,11 +129,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** singleTask라 앱이 떠 있는 동안 온 초대 링크는 여기로 온다. */
+    /** singleTask라 앱이 떠 있는 동안 온 초대 링크·대결 진행 알림·셀카 결과 알림 실행은 여기로 온다. */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         takeInvite(intent)?.let { pendingInvite = it }
+        takeBattleReturn(intent)?.let { pendingBattleReturn = it }
+        if (takeSelfieResult(intent)) pendingSelfieResult = true
+    }
+
+    /** 셀카 결과 알림 실행이면 참이고 인텐트의 동작을 비운다. */
+    private fun takeSelfieResult(intent: Intent): Boolean {
+        if (!SelfieNoticeReader.read(intent)) return false
+        setIntent(SelfieNoticeReader.consumed(intent))
+        return true
+    }
+
+    /** 대결 진행 알림 실행이면 대결 ID를 읽고 인텐트에서 비운다(S15P31A207-278). */
+    private fun takeBattleReturn(intent: Intent): Long? {
+        val battleId = BattleNoticeReader.read(intent) ?: return null
+        setIntent(BattleNoticeReader.consumed(getIntent()))
+        return battleId
     }
 
     /** 새로 받은 초대 링크를 읽고(최근 앱에서 다시 연 실행은 빼고) 인텐트에서 링크를 비운다(AN8-7). */

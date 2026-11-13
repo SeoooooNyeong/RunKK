@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; connect-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'">
+  <title>RunKK — AI 2D 아바타 스튜디오</title>
+  <link rel="stylesheet" href="studio.css">
+  <script src="assets.bundle.js" defer></script>
+  <script src="bodypacks.bundle.js" defer></script>
+  <script src="body-mesh.js" defer></script>
+  <script src="neck-join.js" defer></script>
+  <script src="selfie-quality-ui.js" defer></script>
+  <script src="avatar-views.js?v=20261105-right-layers" defer></script>
+  <script src="eye-blink.js?v=20261106-face-fill2" defer></script>
+  <script src="studio.js?v=20261106-face-fill2" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#">Run<span>KK</span><i></i></a>
+  <span class="top-divider"></span><span class="top-title">AVATAR WARDROBE v5.1</span>
+  <div class="local-pill"><span></span> LOCAL + AI</div>
+  <button class="text-button" id="helpButton" type="button">사용 방법 ↗</button>
+</header>
+<main class="app">
+  <div class="hero"><div><div class="eyebrow">YOUR FACE. YOUR PACE.</div><h1>내 얼굴로, 나답게 달려.</h1><p>머리는 그대로. 옷은 새롭게. 움직이는 RunKK 아바타를 만들어 보세요.</p></div><div class="hero-note"><span>LOCAL SERVER</span><small>내 PC에서 실행하고<br>셀카로 AI 머리를 만들어요.</small></div></div>
+  <div class="workspace">
+    <section class="panel head-panel">
+      <div class="panel-title"><span class="step">01</span><h2>셀카로 나의 얼굴</h2><span class="mini-label">AI HEAD</span></div>
+      <div class="api-state" id="apiState">로컬 서버 설정을 확인하고 있어요.</div>
+      <label class="selfie-upload ai-selfie" for="selfieFile"><img id="selfiePreview" alt="AI 생성에 사용할 셀카" hidden><span id="selfieLabel">＋ 셀카 선택<small>JPG · PNG · WEBP / 8MB 이하</small></span></label>
+      <input id="selfieFile" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+      <button type="button" id="removeSelfie" class="small-link" hidden>셀카 지우기</button>
+      <section class="selfie-quality-card" id="selfieQuality" aria-label="셀카 품질 검사 결과" aria-live="polite" aria-atomic="true"></section>
+      <div class="select-row"><label for="hairLength">헤어 길이</label><select id="hairLength"><option value="auto">사진에서 자동 감지</option value="short">짧은 머리</option><option value="medium">단발 / 어깨</option><option value="long">긴머리</option><option value="extra_long">아주 긴머리</option></select></div>
+      <div class="slider-row"><label for="similarity">특징 반영</label><input id="similarity" type="range" min="10" max="100" value="60"><output id="similarityValue">60</output></div>
+      <div class="ai-actions"><button id="analyzeButton" type="button" disabled>특징 분석</button><button id="generateButton" type="button" disabled>AI 머리 생성 ↗</button></div>
+      <p class="hint" id="aiMessage">셀카 선택 후 AI 머리 생성을 눌러 주세요. 특징 분석은 생성 시 자동으로 진행할 수 있어요.</p>
+      <div class="api-actions"><button id="refreshApi" type="button">서버 상태 새로고침</button><button id="loadLatestHead" type="button">최근 생성 불러오기</button></div>
+      <details class="traits-editor"><summary>추출한 특징 확인 / 수정</summary><div id="traitsFields"></div></details>
+      <div class="head-preview checker ai-head-preview"><img id="headPreview" alt="현재 연결된 머리 이미지"><span class="image-badge" id="headBadge">기본 머리</span></div>
+      <div class="inline-actions"><button type="button" id="defaultHead">기본 머리로</button><button type="button" id="exportHead">목 포함 머리 PNG 저장 ↓</button></div>
+      <div id="layerPreviewBlock" hidden><p class="hint layer-preview-title">AI 추출 파츠 · 공통 1024×1024 기준</p><div class="head-layer-previews" id="layerPreviews" hidden><figure><img id="faceLayerPreview" alt="얼굴형과 코, 입, 귀, 목, 쌍꺼풀 선 레이어"><figcaption>얼굴형 · 코·입·귀·목·쌍꺼풀 선</figcaption><button type="button" id="exportFace">얼굴 PNG ↓</button></figure><figure><img id="eyesLayerPreview" alt="눈과 속눈썹 레이어"><figcaption>눈 · 속눈썹</figcaption><button type="button" id="exportEyes">눈 PNG ↓</button></figure><figure><img id="hairLayerPreview" alt="머리카락과 눈썹 레이어"><figcaption id="hairLayerCaption">헤어 · 눈썹</figcaption><button type="button" id="exportHair">헤어 PNG ↓</button></figure></div></div>
+      <section id="eyeFramePreviews" hidden aria-label="정면 눈 3종">
+        <p class="hint">정면 눈 3종 · 같은 위치의 투명 PNG</p>
+        <div class="head-layer-previews">
+          <figure><img id="eyeFrame-open" alt="정면 원래 눈"><figcaption>원래 눈</figcaption><button type="button" id="saveEyeFrame-open">뜬 눈 PNG ↓</button></figure>
+          <figure><img id="eyeFrame-half" alt="정면 반쯤 감긴 눈"><figcaption>반쯤 감긴 눈</figcaption><button type="button" id="saveEyeFrame-half">반쯤 감긴 눈 PNG ↓</button></figure>
+          <figure><img id="eyeFrame-closed" alt="정면 완전히 감은 눈"><figcaption>완전히 감은 눈</figcaption><button type="button" id="saveEyeFrame-closed">감은 눈 PNG ↓</button></figure>
+        </div>
+      </section>
+      <details><summary>준비한 머리 PNG 직접 연결</summary><label class="upload-button" for="headFile">＋ 머리 PNG 불러오기</label><input id="headFile" type="file" accept="image/png,image/webp,image/jpeg" hidden></details>
+      <div class="neck-connection"><label class="toggle-line"><span>목 자연스럽게 연결</span><input id="neckJoin" type="checkbox" checked></label><div class="slider-row"><label for="neckGap">추가 목 길이</label><input id="neckGap" type="range" min="0" max="26" value="10"><output id="neckGapValue">10px</output></div><p class="hint" id="neckJoinHint">실제 목과 옷깃을 기준으로 자동 연결해요.</p></div>
+      <details class="alignment"><summary>머리 크기 / 위치 맞추기 <span id="alignLabel">기본값</span></summary><div class="slider-row"><label for="headScale">크기</label><input id="headScale" type="range" min="65" max="135" step="1" value="100"><output id="headScaleValue">100%</output></div><div class="slider-row"><label for="headX">좌우</label><input id="headX" type="range" min="-100" max="100" value="0"><output id="headXValue">0</output></div><div class="slider-row"><label for="headY">위아래</label><input id="headY" type="range" min="-100" max="100" value="0"><output id="headYValue">0</output></div><div class="slider-row"><label for="headPivotX">목 기준 X</label><input id="headPivotX" type="range" min="20" max="80" step="0.1" value="50"><output id="headPivotXValue">50.0%</output></div><div class="slider-row"><label for="headPivotY">목 기준 Y</label><input id="headPivotY" type="range" min="30" max="99.5" step="0.1" value="98.5"><output id="headPivotYValue">98.5%</output></div><p class="hint">긴머리가 목 아래로 내려오면 목 기준 Y로 실제 목 위치를 맞춰 주세요. 자동 정렬은 생성 결과에 따라 조정이 필요할 수 있어요.</p><button id="resetAlignment" class="small-link" type="button">위치 초기화</button></details>
+    </section>
+    <section class="panel stage-panel">
+      <div class="panel-title"><span class="step">02</span><h2>살아 움직이는 나</h2><span class="stage-live"><i></i><span id="poseLabel">대기 중</span></span></div>
+      <div class="stage" id="stage"><div class="stage-orbit orbit-one"></div><div class="stage-orbit orbit-two"></div><div class="stage-watermark">RunKK</div><canvas id="avatarCanvas" width="1024" height="1024" aria-label="조립된 2D 아바타 미리보기"></canvas><div class="stage-tag"><span id="outfitTag">데일리 러너</span><small id="headTag">같은 머리 · 공통 동작</small></div><div class="loading" id="loading">아바타를 준비하고 있어요…</div></div>
+      <section class="avatar-view-panel" aria-label="정면 얼굴과 우측 얼굴"><div class="avatar-view-tabs" role="group" aria-label="얼굴 보기 방향"><button type="button" data-avatar-view="front" aria-pressed="true">정면 얼굴만</button><button type="button" data-avatar-view="right" disabled aria-pressed="false">우측 얼굴만</button></div><div class="avatar-view-actions"><button type="button" id="generateViewRight">우측 얼굴·헤어 AI 생성</button></div><div class="avatar-view-actions"><button type="button" id="saveFrontFace">정면 얼굴 PNG 저장 · 목 포함</button><button type="button" id="saveRightFace" disabled>우측 얼굴 PNG 저장</button></div><button type="button" class="small-link" id="restoreViews">저장된 우측 얼굴 불러오기</button><p id="avatarViewMessage" class="hint" role="status">정면과 우측 얼굴을 각각 PNG로 저장할 수 있어요. 정면 PNG에는 목 연결을 포함해요.</p><p class="hint">우측 얼굴은 정적 PNG로 저장돼요. 생성 버튼을 누르면 GMS API 사용량이 발생해요.</p></section>
+      <div id="rightLayerPreviews" class="head-layer-previews" hidden><figure><img id="rightFacePreview" alt="우측 얼굴 · 코·입·목 포함"><figcaption>우측 얼굴 · 코·입·목 포함</figcaption><button type="button" id="saveRightFaceLayer" disabled>우측 얼굴 · 코·입·목 포함 PNG ↓</button></figure><figure><img id="rightEyesPreview" alt="우측 눈 · 속눈썹"><figcaption>우측 눈 · 속눈썹</figcaption><button type="button" id="saveRightEyesLayer" disabled>우측 눈 · 속눈썹 PNG ↓</button></figure><figure><img id="rightHairPreview" alt="우측 헤어 · 눈썹"><figcaption id="rightHairLayerCaption">우측 헤어 · 눈썹</figcaption><button type="button" id="saveRightHairLayer" disabled>우측 헤어 · 눈썹 PNG ↓</button></figure></div>
+      <div class="motion-tabs" role="group" aria-label="애니메이션 선택"><button type="button" data-motion="idle" class="active"><span>◌</span> 대기</button><button type="button" data-motion="run"><span>↗</span> 달리기</button><button type="button" data-motion="wave"><span>✋</span> 인사</button></div>
+      <label class="toggle-label">눈 상태 <select id="eyePose"><option value="auto">자동 깜빡임</option><option value="open">원래 눈</option><option value="half">반쯤 감긴 눈</option><option value="closed">완전히 감은 눈</option></select></label>
+      <label class="toggle-label"><input id="blinkEnabled" type="checkbox" checked> 정면 눈 깜빡임</label>
+      <div class="playback"><button id="playPause" type="button" aria-label="애니메이션 일시정지">Ⅱ</button><span class="playback-label" id="playState">재생 중</span><input id="speed" type="range" min="50" max="180" value="100" aria-label="재생 속도"><output id="speedValue">1.0×</output><label class="toggle-label"><input id="showRig" type="checkbox"> 기준점</label><label class="toggle-label"><input id="transparentExport" type="checkbox" checked> 투명 PNG</label></div>
+      <div class="stage-actions"><button class="button secondary" id="saveProject" type="button">설정 저장 ↓</button><button class="button primary" id="savePng" type="button">현재 모습 PNG 저장 <span>↗</span></button></div>
+      <div id="status" class="status" role="status">기본 머리와 몸을 연결하고 있어요.</div>
+    </section>
+    <section class="panel outfit-panel">
+      <div class="panel-title"><span class="step">03</span><h2>오늘의 러닝 룩</h2><span class="mini-label">OUTFIT</span></div>
+      <div class="outfit-list" id="outfitList"></div>
+      <p class="hint" id="paletteHint">기본 러닝복은 색상도 바꿀 수 있어요.</p>
+      <details class="body-generator" open><summary>상의·하의·신발을 고르고 AI로 자연스럽게 입히기</summary><p class="hint">세 파츠를 선택하면 첨부한 완성형 몸체처럼 AI가 하나의 연결된 몸 이미지로 다시 만들어요. 기존 몸 위에 따로 겹쳐 붙이지 않아요.</p><div class="ai-part-grid"><label>상의 <select id="topPart"><option value="generated-top">민트 후드티</option></select></label><label>하의 <select id="bottomPart"><option value="generated-bottom">네이비 조거팬츠</option></select></label><label>신발 <select id="shoesPart"><option value="generated-shoes">크림·민트 운동화</option></select></label></div><textarea id="bodyPrompt" maxlength="500" hidden>선택한 상의·하의·신발을 자연스럽게 착용한 완성형 러닝 룩</textarea><button id="generateBody" class="button primary" type="button" disabled>이 코디로 AI 입히기 ↗</button><p class="hint" id="bodyAiMessage">얼굴은 유지하고 선택한 파츠를 하나의 몸 이미지로 연결해요. 생성 버튼을 누를 때 API를 사용해요.</p></details>
+      <div class="body-tools"><button id="saveBodyPng" type="button">몸만 PNG 저장 ↓</button><button id="saveBodyPack" type="button">몸 세트 저장 ↓</button><button id="loadBodyPack" type="button">몸 PNG / 세트 불러오기 ↑</button><input id="bodyPackFile" type="file" accept="application/json,.json,image/png,image/webp" hidden></div>
+      <button class="small-link" id="removeBodyPack" type="button" hidden>불러온 몸 세트 지우기</button>
+      <div class="divider"></div><div class="subheading">나만의 컬러 <span>CUSTOM COLOR</span></div>
+      <div class="color-controls"><label>상의<input id="shirtColor" type="color" value="#f5f3f1"></label><label>하의<input id="shortColor" type="color" value="#7198da"></label><label>신발<input id="shoeColor" type="color" value="#7198da"></label></div>
+      <label class="toggle-line"><span>RunKK 크루 마크</span><input id="crewMark" type="checkbox"></label>
+      <div class="skin-control"><span>몸 피부 톤</span><div id="skinPalette" class="skin-palette" role="group" aria-label="몸 피부 톤"></div></div>
+      <p class="hint">의상을 바꿔도 얼굴과 머리 위치는 유지돼요.</p>
+      <p class="hint">새 ZIP의 body-packs 폴더에 있는 JSON이나 투명한 머리 없는 몸 PNG를 불러올 수 있어요.</p>
+      <div class="local-save"><i></i><div><strong id="autoSaveLabel">이 브라우저에 자동 저장</strong><p>다음에 열어도 내 설정을 이어서 써요.</p></div></div>
+      <div class="project-tools"><button type="button" id="loadProject">설정 불러오기</button><button type="button" id="resetAll">전체 초기화</button><input id="projectFile" type="file" accept="application/json,.json,image/png,image/webp" hidden></div>
+    </section>
+  </div>
+  <footer><span><b>RunKK</b> 2D Avatar Lab <em>AI EDITION</em></span><span>고정 얼굴 + 연결된 몸 이미지 + 2D 메시 애니메이션</span><span>AI 생성: OpenAI API · 키는 로컬 서버에서 관리</span></footer>
+</main>
+<dialog id="helpDialog"><button class="dialog-close" id="closeHelp" type="button" aria-label="닫기">×</button><div class="eyebrow">QUICK START</div><h2>세 단계면 준비 끝.</h2><ol><li><b>머리를 골라요.</b><br>셀카를 선택하고 AI 머리 생성을 눌러요. 생성된 머리는 자동으로 몸에 연결돼요.</li><li><b>옷과 동작을 바꿔요.</b><br>얼굴을 유지한 채 러닝복과 애니메이션을 바꿔 보세요.</li><li><b>로컬 파일로 저장해요.</b><br>PNG는 현재 모습, JSON은 머리와 설정을 저장해요.</li></ol><p class="hint">AI 생성 시 셀카가 OpenAI API로 전송되고 API 사용료가 발생해요. 생성한 머리는 저장해 재사용하고 옷·동작 변경에는 AI를 호출하지 않아요. 긴머리는 한 장의 머리 이미지로 움직여요.</p><button class="button primary" id="helpDone" type="button">시작하기</button></dialog>
+<div class="toast" id="toast" role="status"></div>
+</body></html>

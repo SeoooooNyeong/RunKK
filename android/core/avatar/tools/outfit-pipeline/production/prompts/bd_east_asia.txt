@@ -1,0 +1,8 @@
+Use your image generation tool. Save the result as bd_east_asia.png in the current folder: exactly 1080x1200 pixels, opaque PNG.
+
+Make a mobile game avatar BACKGROUND in the same painterly anime-background style, lighting and composition as the attached reference background: EAST ASIA stage at dusk: plum to deep maroon sky gradient (#5B2A3C at the top to #180C14) with a large soft orange setting sun (#F2B06A) low on the horizon, silhouettes of an East Asian pagoda, a temple roof and a red torii gate far away on the horizon line, dark plum hills (#3A1D2B), warm paper lanterns, and a softly lit red-clay running track ground in the foreground (dusk tone).
+Composition rules (strict):
+- The ground line (where the far grass/track edge meets the scenery) is exactly 216 px above the bottom edge (y = 984). Below it is only the flat running-track/ground surface, seen slightly from above, with no objects and no strong horizontal line within 8 px of y=984.
+- The central 40% of the width (x 324..756) of the ground below the ground line stays completely empty (the avatar stands there).
+- Landmarks and important objects only between 20% and 80% of the height and between 15% and 85% of the width; the top 20% is only sky, the left and right 15% only soft trees/bushes or sky.
+- No people, no text, no letters, no logos.

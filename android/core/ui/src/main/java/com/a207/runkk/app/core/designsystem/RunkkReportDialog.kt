@@ -17,6 +17,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,7 +43,15 @@ fun RunkkReportDialog(
     onSubmit: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = MaterialTheme.colorScheme.surface) {
+    // 피그마 바텀시트: 손잡이 없음, 위 모서리 28, 딤 0.45(S15P31A207-292).
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = RunkkShapes.Sheet,
+        containerColor = RunkkColors.Surface,
+        scrimColor = RunkkColors.Scrim,
+        dragHandle = null
+    ) {
         RunkkReportSheetContent(texts, state, ReportSheetCallbacks(onSelect, onDetail, onSubmit, onDismiss))
     }
 }
@@ -62,7 +71,7 @@ fun RunkkReportSheetContent(
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
             .imePadding()
-            .padding(start = 20.dp, end = 20.dp, bottom = 24.dp),
+            .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

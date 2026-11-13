@@ -27,13 +27,10 @@ export GRAFANA_DB_READONLY_PASSWORD
 if [ "$TARGET" = app ]; then
   load_app_env
   SPRING_PROFILE="$(env_value "$APP_ENV_FILE" SPRING_PROFILES_ACTIVE prod)"
-  # prod(베타)는 prod 프로필만, Swagger는 켜지 않는다(sqa.md 8.1 필수 4). 셀카는 서버 스위치로 꺼 둔다(2026-10-23 결정)
+  # prod(베타)는 prod 프로필만, Swagger는 켜지 않는다(sqa.md 8.1 필수 4). 셀카는 2차 배포(11/13)부터 연다(2026-11-09 결정, INFRA_ENV_PROD SELFIE_ENABLED=true)
   if [ "$RUNKK_ENV" = prod ]; then
     [ "$SPRING_PROFILE" = prod ] || die "RUNKK_ENV=prod needs SPRING_PROFILES_ACTIVE=prod (got $SPRING_PROFILE)"
     [ "$(env_value "$APP_ENV_FILE" SWAGGER_ENABLED false)" = false ] || die "RUNKK_ENV=prod must not set SWAGGER_ENABLED=true"
-    if [ "$(env_value "$APP_ENV_FILE" SELFIE_ENABLED false)" != false ]; then
-      echo "warning: SELFIE_ENABLED is on for prod. The beta decision (2026-10-23) keeps selfie conversion off." >&2
-    fi
   fi
 fi
 
@@ -197,11 +194,11 @@ if [ "$TARGET" = app ]; then
   # 아바타(Node)는 avatar 프로필을 켠 환경에서만 빌드한다. 폴더가 없으면 프로필을 켰어도 멈춰서 옛 이미지로 조용히 뜨지 않게 한다
   case ",$(env_value "$APP_ENV_FILE" COMPOSE_PROFILES "")," in
     *,avatar,*)
-      [ -f ../avatar/Dockerfile ] || die "COMPOSE_PROFILES has avatar but ../avatar/Dockerfile is missing"
+      [ -f ../avatar-ai/Dockerfile ] || die "COMPOSE_PROFILES has avatar but ../avatar-ai/Dockerfile is missing"
       if docker image inspect "runkk-avatar:$RUNKK_ENV" >/dev/null 2>&1; then
         docker tag "runkk-avatar:$RUNKK_ENV" "runkk-avatar:$RUNKK_ENV-prev"
       fi
-      docker build -t "runkk-avatar:$RUNKK_ENV" ../avatar
+      docker build -t "runkk-avatar:$RUNKK_ENV" ../avatar-ai
       ;;
   esac
 fi

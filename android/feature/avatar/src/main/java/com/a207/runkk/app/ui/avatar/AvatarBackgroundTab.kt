@@ -15,23 +15,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.AvatarStageBackdrop
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkIcons
@@ -39,6 +39,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 
 /**
@@ -59,7 +60,7 @@ internal fun AvatarBackgroundTab(state: AvatarBackgroundUiState, actions: Avatar
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     stringResource(R.string.avatar_background_landmarks),
-                    style = RunkkTextStyles.text(13, FontWeight.Bold),
+                    style = RunkkTextStyles.Label,
                     color = RunkkColors.TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
@@ -104,7 +105,7 @@ private fun BackgroundGrid(
                     stage = item.stage,
                     name = item.name,
                     isSelected = backgrounds.selectedKey == item.key,
-                    lockedDistance = item.distance.takeUnless { item.isUnlocked },
+                    lockedDistance = item.remaining.takeUnless { item.isUnlocked },
                     isChoosing = state.choosingKey == item.key
                 ) to { actions.onChooseBackground(item) }
             )
@@ -123,7 +124,7 @@ private fun BackgroundGrid(
 }
 
 /**
- * 배경 한 칸: 그림과 "이름" 또는 "이름, 사용 중". 잠긴 배경은 "이름, 누적 n km에 해금".
+ * 배경 한 칸: 그림과 "이름" 또는 "이름, 사용 중". 잠긴 배경은 "이름, n km 더 달리면 해금"(남은 거리, W8).
  * 보조 기술에는 라디오 단추로 알리고 상태(사용 중·잠김)를 읽어 준다.
  */
 @Composable
@@ -133,21 +134,22 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
     val label = when {
         isSelected -> stringResource(R.string.avatar_background_selected, name)
 
-        lockedDistance != null -> stringResource(
-            R.string.avatar_background_locked,
-            name,
-            lockedDistance.meters / METERS_PER_KM
+        lockedDistance != null && lockedDistance.meters <= 0 -> stringResource(
+            R.string.avatar_background_locked_soon,
+            name
         )
+
+        lockedDistance != null -> stringResource(R.string.avatar_background_locked, name, remainingKm(lockedDistance))
 
         else -> name
     }
     Column(
         modifier = modifier
             .clip(RunkkShapes.Medium)
-            .background(if (isLocked) RunkkColors.Background else RunkkColors.Surface)
+            .background(if (isLocked) RunkkColors.SurfaceHigh else RunkkColors.Surface)
             .border(
                 width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) RunkkColors.Lime else RunkkColors.Border,
+                color = if (isSelected) RunkkColors.LimeFill else RunkkColors.Border,
                 shape = RunkkShapes.Medium
             )
             .selectable(selected = isSelected, enabled = !isChoosing, role = Role.RadioButton, onClick = onClick)
@@ -157,26 +159,37 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
             }
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // 피그마 H-3: 세로 그림 95x126(모서리 12). 잠긴 배경도 그림을 불투명하게 그대로 보이고 가운데에 자물쇠 배지를 얹는다
+        // (2026-11-12 PM 요구: 무엇이 열릴지 보이게).
         Box(
-            modifier = Modifier.fillMaxWidth().aspectRatio(BACKDROP_RATIO).clip(RunkkShapes.Small),
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(BACKDROP_RATIO)
+                .clip(RunkkShapes.Small)
+                .background(RunkkColors.SurfaceHigh),
             contentAlignment = Alignment.Center
         ) {
-            AvatarBackdrop(key, modifier = Modifier.matchParentSize().alpha(if (isLocked) LOCKED_ALPHA else 1f), stage)
+            AvatarStageBackdrop(key, modifier = Modifier.matchParentSize(), stage)
             if (isLocked) {
-                Icon(
-                    RunkkIcons.Lock,
-                    contentDescription = null,
-                    tint = RunkkColors.TextPrimary,
-                    modifier = Modifier.size(16.dp)
-                )
+                Box(
+                    modifier = Modifier.size(28.dp).clip(CircleShape).background(RunkkColors.Scrim),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        RunkkIcons.Lock,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
         Text(
             label,
             style = RunkkTextStyles.Caption,
-            color = if (isSelected) RunkkColors.Lime else RunkkColors.TextSecondary,
+            color = RunkkColors.TextSecondary,
             textAlign = TextAlign.Center,
             // 칸의 이름·상태로 읽으므로 보이는 글자는 두 번 읽지 않는다.
             modifier = Modifier.clearAndSetSemantics {}
@@ -185,6 +198,9 @@ private fun BackgroundTile(tile: BackgroundTileState, onClick: () -> Unit, modif
 }
 
 private const val COLUMNS = 3
-private const val BACKDROP_RATIO = 1.4f
-private const val LOCKED_ALPHA = 0.35f
+
+private const val BACKDROP_RATIO = 95f / 126f
 private const val METERS_PER_KM = 1_000L
+
+/** 남은 거리를 km로 올림한다(0.2km 남아도 "1km 더"). */
+internal fun remainingKm(distance: Distance): Long = (distance.meters + METERS_PER_KM - 1) / METERS_PER_KM

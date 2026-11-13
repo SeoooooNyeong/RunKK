@@ -1,7 +1,6 @@
 package com.a207.runkk.app.api.crew
 
 import okhttp3.MultipartBody
-import okhttp3.RequestBody
 import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -13,12 +12,11 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
-import retrofit2.http.Streaming
 
 /**
  * 크루·게시판·크루런 대기실 REST(5.7.1 CrewController·CrewAdminController·CrewPostController·CrewRunController).
- * v0.11: 운영진 지정·해제, 공지 고정, 투표 결과·응답, 게시판 글(multipart), 앨범, 공동 목표, 참석 응답(/vote → /attendance)을 더하고
- * 크루 추천 조회를 지웠다(F.2.4, D-91, D-99).
+ * v0.11: 운영진 지정·해제, 공동 목표, 참석 응답(/vote → /attendance)을 더하고 크루 추천 조회를 지웠다(F.2.4, D-91, D-99).
+ * 공지 고정·투표·게시판 글·사진·앨범 경로는 앱에서 쓰지 않아 지웠다(S15P31A207-236, 서버 API는 남아 있다).
  */
 internal interface CrewApi {
     @POST("crews")
@@ -46,6 +44,19 @@ internal interface CrewApi {
 
     @GET("crews/me")
     suspend fun myCrew(): MyCrewResponse
+
+    /** 초대 코드 미리보기(contract-W4 4절). 가입시키지 않는다. */
+    @POST("crews/invite-preview")
+    suspend fun invitePreview(@Body body: InvitePreviewRequest): InvitePreviewResponse
+
+    /** 크루 로고 올리기(multipart 파트 logo, JPEG 1MB 이하, contract-W4 6절). */
+    @Multipart
+    @POST("crew-logos")
+    suspend fun uploadLogo(@Part logo: MultipartBody.Part): CrewLogoResponse
+
+    /** 크루 로고 바이트(image/jpeg, contract-W4 7절). */
+    @GET("crew-logos/{id}")
+    suspend fun logo(@Path("id") logoId: Long): ResponseBody
 
     @GET("crews/{id}")
     suspend fun detail(@Path("id") crewId: Long): CrewDetailResponse
@@ -77,6 +88,22 @@ internal interface CrewApi {
     @GET("crews/{id}/join-requests")
     suspend fun pendingRequests(@Path("id") crewId: Long): PendingRequestsResponse
 
+    /** 지난 공동 목표(contract-W7 4장). */
+    @GET("crews/{id}/goals/history")
+    suspend fun goalHistory(
+        @Path("id") crewId: Long,
+        @Query("before") before: String?,
+        @Query("size") size: Int
+    ): GoalHistoryResponse
+
+    /** 지난 크루런 한 달(contract-W6). */
+    @GET("crews/{id}/crew-runs/past")
+    suspend fun pastCrewRuns(
+        @Path("id") crewId: Long,
+        @Query("month") month: String,
+        @Query("date") date: String?
+    ): PastCrewRunsResponse
+
     @GET("crews/{id}/ranking")
     suspend fun crewRanking(@Path("id") crewId: Long, @Query("period") period: String): CrewRankingResponse
 
@@ -100,37 +127,23 @@ internal interface CrewApi {
     @PUT("posts/{id}/attendance")
     suspend fun answerAttendance(@Path("id") postId: Long, @Body body: AttendanceRequest): AttendanceResponse
 
+    /** 참석 취소(W6): 크루런 참석 응답을 거둔다. */
+    @DELETE("posts/{id}/attendance")
+    suspend fun withdrawAttendance(@Path("id") postId: Long): AttendanceResponse
+
+    /** 크루런 일정 상세(W6, 피그마 F-13). */
+    @GET("crew-runs/{id}")
+    suspend fun crewRun(@Path("id") postId: Long): CrewRunDetailResponse
+
+    /** 모집글 수정(W6, 피그마 F-13d). */
+    @PATCH("crew-runs/{id}")
+    suspend fun editCrewRun(@Path("id") postId: Long, @Body body: CrewRunEditRequest): CrewRunDetailResponse
+
     @PUT("crews/{id}/managers/{memberId}")
     suspend fun appointManager(@Path("id") crewId: Long, @Path("memberId") memberId: Long): ManagerResponse
 
     @DELETE("crews/{id}/managers/{memberId}")
     suspend fun dismissManager(@Path("id") crewId: Long, @Path("memberId") memberId: Long): ManagerResponse
-
-    @PUT("posts/{id}/pin")
-    suspend fun pin(@Path("id") postId: Long, @Body body: PinRequest): PinResponse
-
-    @GET("posts/{id}/poll")
-    suspend fun pollResult(@Path("id") postId: Long): PollResultResponse
-
-    @PUT("posts/{id}/poll-response")
-    suspend fun respondPoll(@Path("id") postId: Long, @Body body: PollAnswerRequest): PollResultResponse
-
-    /** 게시판 글: 본문 파트 body와 사진 파트 photos(0~5장, 장당 1MB 이하 JPEG, 요청 전체 6MB 이하, D-100). */
-    @Multipart
-    @POST("crews/{id}/board-posts")
-    suspend fun writeBoard(
-        @Path("id") crewId: Long,
-        @Part("body") body: RequestBody,
-        @Part photos: List<MultipartBody.Part>
-    ): CreatedResponse
-
-    /** 게시판 사진 한 장(인증 필요, D-100). 본문을 한꺼번에 읽지 않게 스트리밍으로 받는다. */
-    @Streaming
-    @GET("crew-photos/{id}")
-    suspend fun photo(@Path("id") photoId: Long): ResponseBody
-
-    @GET("crews/{id}/album")
-    suspend fun album(@Path("id") crewId: Long, @Query("cursor") cursor: Long?, @Query("size") size: Int): AlbumResponse
 
     @PUT("crews/{id}/goal")
     suspend fun setGoal(@Path("id") crewId: Long, @Body body: GoalRequest): RaceStatusResponse
@@ -144,8 +157,11 @@ internal interface CrewApi {
     @POST("crew-runs/{id}/lobby/leave")
     suspend fun leaveLobby(@Path("id") postId: Long): LobbyResponse
 
+    @POST("crew-runs/{id}/pause")
+    suspend fun pause(@Path("id") postId: Long, @Body body: CrewRunPauseRequest)
+
     @POST("crew-runs/{id}/quit")
-    suspend fun quit(@Path("id") postId: Long)
+    suspend fun quit(@Path("id") postId: Long, @Body body: CrewRunQuitRequest)
 
     @GET("crew-runs/{id}/result")
     suspend fun result(@Path("id") postId: Long): CrewRunResultResponse

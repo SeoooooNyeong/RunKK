@@ -11,8 +11,10 @@ import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.notification.Screen;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Component;
@@ -24,8 +26,8 @@ import org.springframework.stereotype.Component;
 @Component
 class CrewRunAnnouncer {
 
-    /** 준비 완료 2명 미만 취소 문구(srs.md 6.3 5.7.2). */
-    static final String CANCELLED_REASON = "함께 달릴 크루원이 없어 취소됨";
+    /** 준비 완료 인원이 최소 준비 인원(운영 기준 CrewRunRule.minReady)보다 적을 때 취소 문구(srs.md 6.3 5.7.2, 피그마 F-14c). */
+    static final String CANCELLED_REASON = "준비 완료한 참가자가 %d명보다 적어 시작하지 않았어요";
 
     /** 대기실에서 모집글·크루가 지워졌을 때 문구(D-66). */
     static final String DELETED_REASON = "크루런이 삭제되었어요";
@@ -75,15 +77,20 @@ class CrewRunAnnouncer {
                         outcome.startAt(),
                         outcome.memberIds().stream().map(names::get).toList());
         CrewRunLiveSession session =
-                CrewRunLiveSession.open(post.getId(), post.distance(), names, outcome.startAt());
+                CrewRunLiveSession.open(post.getId(), names, outcome.startAt());
         AfterCommit.run(() -> crewLiveSessionStore.save(session));
         AfterCommit.run(() -> crewRunMessenger.sendAll(outcome.memberIds(), start));
     }
 
-    /** 취소: 갈래요 참가자에게 CrewRunCancelled(커밋 뒤). */
-    void cancelled(CrewRunPost post, List<Long> recipients) {
-        CrewRunCancelled cancelled = new CrewRunCancelled(post.getId(), CANCELLED_REASON);
+    /** 취소: 갈래요 참가자에게 CrewRunCancelled(커밋 뒤). 문구의 인원은 [minReady](운영 기준값)로 채운다. */
+    void cancelled(CrewRunPost post, List<Long> recipients, int minReady) {
+        CrewRunCancelled cancelled = new CrewRunCancelled(post.getId(), cancelledReason(minReady));
         AfterCommit.run(() -> crewRunMessenger.sendAll(recipients, cancelled));
+    }
+
+    /** 준비 인원 부족 취소 문구. */
+    static String cancelledReason(int minReady) {
+        return CANCELLED_REASON.formatted(minReady);
     }
 
     /** 종료: 진행 참가자에게 CrewRunEnded, 세션 삭제(커밋 뒤). */
@@ -129,19 +136,32 @@ class CrewRunAnnouncer {
         AfterCommit.run(() -> crewRunMessenger.sendAll(recipients, message));
     }
 
-    /** 진행 중인데 세션이 없으면(출발 커밋 뒤 Redis 저장 실패, Redis 재시작) 진행 참가자로 다시 연다. 1초 시계가 RUNNING 크루런마다 부른다. */
+    /**
+     * 진행 중인데 세션이 없으면(출발 커밋 뒤 Redis 저장 실패, Redis 재시작) 진행 참가자로 다시 연다. 이미 끝낸 참가자는 참여에 남은 마감 거리·경과로
+     * "끝냄"을 되살려 중계 합산과 상태가 DB와 같게 한다(MR !91 BR-2). 1초 시계가 RUNNING 크루런마다 부른다.
+     */
     void ensureSession(CrewRunPost post) {
         if (post.status() != CrewRunStatus.RUNNING
                 || crewLiveSessionStore.load(post.getId()).isPresent()) {
             return;
         }
         List<Long> runners = post.runners();
-        crewLiveSessionStore.save(
-                CrewRunLiveSession.open(
-                        post.getId(),
-                        post.distance(),
-                        namesOf(runners),
-                        post.departedAt().orElseThrow()));
+        LocalDateTime departedAt = post.departedAt().orElseThrow();
+        CrewRunLiveSession session =
+                CrewRunLiveSession.open(post.getId(), namesOf(runners), departedAt);
+        for (long memberId : runners) {
+            post.participationOf(memberId)
+                    .filter(CrewRunParticipation::hasEnded)
+                    .ifPresent(p -> session.markEnded(memberId, finalProgressOf(p, departedAt)));
+        }
+        crewLiveSessionStore.save(session);
+    }
+
+    /** 참여에 남은 마감 값(거리가 없으면 null, 경과가 없으면 0). */
+    private static LiveProgress finalProgressOf(CrewRunParticipation p, LocalDateTime seenAt) {
+        return p.finalDistance()
+                .map(d -> new LiveProgress(d, p.finalElapsed().orElse(Duration.ZERO), seenAt))
+                .orElse(null);
     }
 
     /** 시계가 보는 크루런이 아닌데 남은 세션(삭제된 글·크루)을 지운다. */
@@ -155,14 +175,25 @@ class CrewRunAnnouncer {
                         });
     }
 
-    /** 그만둠: 세션 표시 → 다른 참가자에게 중계(커밋 뒤). */
-    void quitter(long postId, long memberId) {
-        AfterCommit.run(() -> crewRunLiveService.markQuit(memberId, postId));
+    /** 일시정지: 세션 표시 → 모든 참가자에게 중계(커밋 뒤, 합산 방식). */
+    void paused(long postId, long memberId, Duration elapsedAt) {
+        AfterCommit.run(() -> crewRunLiveService.markPaused(memberId, postId, elapsedAt));
+    }
+
+    /** 끝냄: 세션 표시(마지막 값) → 모든 참가자에게 중계(커밋 뒤, 합산 방식). */
+    void ender(long postId, long memberId, LiveProgress last) {
+        AfterCommit.run(() -> crewRunLiveService.markEnded(memberId, postId, last));
+    }
+
+    /** 참가자별 최신 진행값(종료 때 아직 끝내지 않은 참가자를 마감할 값, 1초 시계가 종료 직전에 읽는다). */
+    Map<Long, LiveProgress> lastProgress(long postId) {
+        return crewRunLiveService.latest(postId);
     }
 
     private Map<Long, DisplayName> namesOf(List<Long> memberIds) {
         Map<Long, MemberSummary> summaries = memberQueryService.summaries(memberIds);
-        Map<Long, DisplayName> names = new HashMap<>();
+        // 세션 줄 순서(대기실 입장 순)를 지키려고 넘긴 순서대로 담는다.
+        Map<Long, DisplayName> names = new LinkedHashMap<>();
         memberIds.forEach(
                 id ->
                         names.put(

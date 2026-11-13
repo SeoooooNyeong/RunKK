@@ -10,10 +10,7 @@ import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Query
 
-/**
- * 서버 web.avatar.AvatarResponse. equipped·rejected 키는 착용 부위(ItemSlot) 이름이다. 셀카 요청이면 변환이 실패해도 200으로 오고
- * created=false와 failureReason(NO_FACE·MULTIPLE_FACES·UNSUPPORTED_IMAGE·TOO_LARGE·UPSTREAM_FAILED·TIMEOUT)이 함께 온다.
- */
+/** 서버 web.avatar.AvatarResponse. equipped·rejected 키는 착용 부위(ItemSlot) 이름이다. */
 @Serializable
 internal data class AvatarResponse(
     val faceKey: String? = null,
@@ -24,7 +21,5 @@ internal data class AvatarResponse(
     val balance: Int = 0,
     val canCreateSelfieToday: Boolean = false,
     val rejected: Map<String, String> = emptyMap(),
-    val created: Boolean? = null,
-    val failureReason: String? = null,
     val backgroundKey: String? = null
 )

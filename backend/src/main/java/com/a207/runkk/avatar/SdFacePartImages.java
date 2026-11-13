@@ -4,7 +4,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * FaceTransformGateway가 돌려주는 부위별 PNG(설계 6.1.8). 원본 셀카가 아니라 변환 결과다.
+ * 이전 5파츠 얼굴을 읽고 보존하기 위한 PNG 묶음(설계 6.1.8). 원본 셀카가 아니라 변환 결과다.
  *
  * @param images 부위별 PNG 바이트, 5개 모두
  */

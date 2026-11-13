@@ -19,6 +19,7 @@ import com.a207.runkk.app.domain.account.PlacementStatus
 import com.a207.runkk.app.domain.battle.BattleResult
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
+import com.a207.runkk.app.domain.battle.InMemoryPendingForfeitStore
 import com.a207.runkk.app.domain.battle.MatchAcceptance
 import com.a207.runkk.app.domain.battle.OfflineRecordBattle
 import com.a207.runkk.app.domain.battle.OpponentTrack
@@ -180,7 +181,16 @@ class WatchFlowViewModelTest {
         val runs = shared?.tracker ?: tracker
             ?: runTracker(LocalWatchGateway(alertPlayer(), settings, clock), host, settings, pendingRuns)
         val coordinator = shared?.coordinator
-            ?: BattleRunCoordinator(runs, live, battles, FakeGuidanceOutput(), clock, backgroundScope, NoPhoneWarmUp)
+            ?: BattleRunCoordinator(
+                runs,
+                live,
+                battles,
+                FakeGuidanceOutput(),
+                clock,
+                backgroundScope,
+                NoPhoneWarmUp,
+                InMemoryPendingForfeitStore()
+            )
         val cache = OpponentRecordCache(
             File(createTempDirectory("flow-cache").toFile(), "opponent-records.json"),
             battles,
@@ -749,25 +759,71 @@ class WatchFlowViewModelTest {
     }
 
     @Test
-    fun `셀럽 구간 기록이 없으면(404) 고를 수 없는 기록이고 받다가 끊기면 연결 안내다(W31)`() = flowTest {
+    fun `첫 셀럽이 404면 즉시 빼고 다음 셀럽을 고른다(TC-5665)`() = flowTest {
+        assertCelebrityRemoved(0, listOf(2L, 3L), 2L)
+    }
+
+    @Test
+    fun `중간 셀럽이 404면 즉시 빼고 다음 셀럽을 고른다(CR-134)`() = flowTest {
+        assertCelebrityRemoved(1, listOf(1L, 3L), 3L)
+    }
+
+    @Test
+    fun `마지막 셀럽이 404면 즉시 빼고 이전 셀럽을 고른다(CR-134)`() = flowTest {
+        assertCelebrityRemoved(2, listOf(1L, 2L), 2L)
+    }
+
+    private fun TestScope.assertCelebrityRemoved(index: Int, remainingIds: List<Long>, selectedId: Long) {
+        battles.tracks[RecordBattleKind.CELEBRITY] = (1L..3L).map {
+            celebrityListItem(id = it, distanceMeters = 5_000, finishSeconds = 1_500)
+        }
+        battles.celebrityTracks[index + 1L] = Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED"))
+        val h = open()
+        val celebrity = openCelebList(h).celebrities[index]
+        if (index != 0) h.vm.onCelebritySelected(celebrity)
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+
+        val list = assertIs<WatchFlow.CelebList>(h.flow)
+        assertEquals(remainingIds, list.celebrities.map { it.cached.record.celebrityId })
+        assertEquals(selectedId, list.celebrities[list.selected].cached.record.celebrityId)
+        assertEquals(WatchFlow.Notice.CELEBRITY_REMOVED, list.notice)
+        assertNull(list.fetching)
+        assertFalse(h.tracker.isMeasuring)
+        h.vm.onCelebritySelected(celebrity)
+        runCurrent()
+        assertEquals(listOf(index + 1L), battles.celebrityTrackCalls)
+    }
+
+    @Test
+    fun `마지막 한 셀럽이 404면 같은 거리 선택으로 돌아가 안내한다(CR-134)`() = flowTest {
         battles.celebrityTracks[1] = Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED"))
         val h = open()
         val celebrity = openCelebList(h).celebrities.single()
-
         h.vm.onCelebritySelected(celebrity)
         runCurrent()
-        assertEquals(WatchFlow.Notice.CELEBRITY_REMOVED, (h.flow as WatchFlow.CelebList).notice)
-        assertEquals(null, (h.flow as WatchFlow.CelebList).fetching)
+
+        val picker = assertIs<WatchFlow.CelebDistance>(h.flow)
+        assertEquals(Distance(5_000), picker.current.distance)
+        assertEquals(WatchFlow.Notice.CELEBRITY_REMOVED, picker.notice)
+        assertFalse(h.tracker.isMeasuring)
+    }
+
+    @Test
+    fun `셀럽 구간 기록 받기의 연결과 서버 실패는 목록에 남기고 다시 시도한다(W31)`() = flowTest {
+        val h = open()
+        val original = openCelebList(h)
+        val celebrity = original.celebrities.single()
 
         battles.celebrityTracks.remove(1)
         h.vm.onCelebritySelected(celebrity)
         runCurrent()
-        assertEquals(WatchFlow.Notice.CELEB_OFFLINE, (h.flow as WatchFlow.CelebList).notice)
+        assertEquals(original.copy(notice = WatchFlow.Notice.CELEB_OFFLINE), h.flow)
 
         battles.celebrityTracks[1] = Outcome.Failure(AppError.Server(503))
         h.vm.onCelebritySelected(celebrity)
         runCurrent()
-        assertEquals(WatchFlow.Notice.RETRY_LATER, (h.flow as WatchFlow.CelebList).notice)
+        assertEquals(original.copy(notice = WatchFlow.Notice.RETRY_LATER), h.flow)
     }
 
     @Test
@@ -1964,6 +2020,34 @@ class WatchFlowViewModelTest {
         assertTrue(pendingRuns.saved.isEmpty())
         assertEquals(WatchResultHeadline.Stop, h.headline)
     }
+
+    @Test
+    fun `S15P31A207-278 화면이 다시 보이면(onResume) 폰에 지금 표시를 요청하고 가려질 때는 보내지 않는다`() = flowTest {
+        val h = open()
+        assertEquals(1, displayRequests(), "앱이 시작될 때(PhoneLink.start) 한 번")
+        advanceTimeBy(PhoneLink.DISPLAY_REQUEST_GAP_MILLIS + 1)
+
+        h.vm.onScreenShown(false)
+        runCurrent()
+        assertEquals(1, displayRequests())
+
+        h.vm.onScreenShown(true)
+        runCurrent()
+        assertEquals(2, displayRequests())
+    }
+
+    @Test
+    fun `S15P31A207-278 폰 러닝 뒤 워치 앱을 열면 표시 요청에 폰이 답한 진행 표시로 동행 화면에 간다`() = flowTest {
+        val h = open()
+        assertIs<WatchFlow.Main>(h.flow)
+        assertEquals(1, displayRequests())
+
+        phoneRunning(true)
+
+        assertEquals(WatchFlow.Companion, h.flow)
+    }
+
+    private fun displayRequests(): Int = dataLayer.sentMessages.count { it.second == WearPaths.DISPLAY_REQUEST }
 
     private fun sessionRequests(): Int = dataLayer.sentMessages.count { it.second == WearPaths.SESSION_REQUEST }
 

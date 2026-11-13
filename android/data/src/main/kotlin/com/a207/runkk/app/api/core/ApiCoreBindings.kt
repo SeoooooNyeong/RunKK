@@ -8,6 +8,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import java.io.File
+import java.io.IOException
 import java.time.Clock
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -80,12 +81,19 @@ object ApiCoreBindings {
     ): OkHttpClient = base
         .newBuilder()
         .addInterceptor(AuthInterceptor(tokens))
+        .addNetworkInterceptor { chain ->
+            val request = chain.request()
+            if (request.tag(BoundSession::class.java)?.isCurrent(tokens) == false) {
+                throw IOException("Request session changed")
+            }
+            chain.proceed(request)
+        }
         .authenticator(TokenAuthenticator(tokens, refresher))
         .build()
 
     /**
      * 아바타 얼굴 부위 그림. 인증된 클라이언트에 디스크 캐시(10MiB, 서버 Cache-Control을 따른다)를 얹는다.
-     * 같은 연결 풀을 쓰고 인증 헤더·토큰 갱신은 그대로다.
+     * 같은 연결 풀을 쓰고 인증 헤더·토큰 갱신은 그대로다. 내 얼굴의 마지막 모습은 앱 전용 저장소(files/my-face)에 남긴다.
      */
     @Provides
     @Singleton
@@ -96,10 +104,12 @@ object ApiCoreBindings {
     ): FaceImageSource = FaceImageSource(
         client.newBuilder().cache(Cache(File(context.cacheDir, FACE_CACHE_DIR), FACE_CACHE_BYTES)).build(),
         BuildConfig.API_BASE_URL.toHttpUrl(),
-        selfId = self::memberId
+        selfId = self::memberId,
+        selfStore = SelfFaceStore(File(context.filesDir, SELF_FACE_DIR))
     )
 
     private const val FACE_CACHE_DIR = "avatar-face"
+    private const val SELF_FACE_DIR = "my-face"
     private const val FACE_CACHE_BYTES = 10L * 1024 * 1024
 
     @Provides

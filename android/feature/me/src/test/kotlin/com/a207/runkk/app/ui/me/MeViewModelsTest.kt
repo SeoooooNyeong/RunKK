@@ -147,6 +147,26 @@ class MeViewModelsTest {
     }
 
     @Test
+    fun `프로필 편집은 셀카 얼굴 층을 받는 동안 받는 중이고, 받거나 받지 못하면 끝난다(임시 D-성-190)`() = runTest {
+        account.profile = sampleProfile.copy(faceKey = "head:1:job-1")
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        account.faceGate = gate
+        val vm = ProfileEditViewModel(account, settingsCopy)
+        assertTrue(vm.state.value.isFaceLoading, "층을 받는 동안 기본 머리를 보이지 않는다")
+        assertEquals("head:1:job-1", vm.state.value.faceKey)
+
+        account.faceResult = Outcome.Failure(AppError.Network)
+        gate.complete(Unit)
+        assertFalse(vm.state.value.isFaceLoading, "받지 못하면 끝나서 기본 머리다")
+    }
+
+    @Test
+    fun `프로필 편집은 처음(프로필을 읽기 전)부터 얼굴을 받는 중으로 둔다`() {
+        assertTrue(ProfileEditUiState().isFacePending, "프로필을 읽는 동안에도 기본 머리를 보이지 않는다")
+        assertFalse(ProfileEditUiState(isLoading = false).isFacePending)
+    }
+
+    @Test
     fun `닉네임 2~20자는 코드 포인트로 센다 - 이모지 1자는 저장하지 않고 20자는 자르지 않는다(D-143)`() = runTest {
         val vm = ProfileEditViewModel(account, settingsCopy)
         val emoji = "\uD83C\uDFC3"
@@ -285,6 +305,22 @@ class MeViewModelsTest {
         assertTrue("withdrawConsent:LOCATION" in account.calls)
         assertEquals(true, vm.state.value.consent("HEART_RATE"))
         assertEquals(false, vm.state.value.consent("LOCATION"))
+    }
+
+    @Test
+    fun `최신 동의 저장 성공만 코치 복귀 이벤트를 낸다`() = runTest {
+        val vm = settingsViewModel()
+        val key = "giveConsent:LLM_TRANSFER"
+        account.failures[key] = AppError.Network
+        vm.events.test {
+            vm.setConsent(ConsentKeys.LLM_TRANSFER, true)
+            assertEquals(RunkkErrorText.of(AppError.Network), vm.state.value.message)
+            expectNoEvents()
+            account.failures.remove(key)
+            vm.setConsent(ConsentKeys.LLM_TRANSFER, true)
+            assertEquals(SettingsEvent.LlmConsentSaved, awaitItem())
+            assertTrue(vm.state.value.consent(ConsentKeys.LLM_TRANSFER))
+        }
     }
 
     @Test

@@ -78,7 +78,7 @@
 | 패키지 | common |
 | 책임 | 고른 크루 성향 태그 묶음이 개수 규칙을 지키게 한다 (v0.11, D-91) |
 
-속성: tags(Set<PersonalityTag>, 불변), owner(TagOwner). TagOwner는 CREW 하나만 남는다. 러너 성향 태그(Member.tags, CrewMembership.crewTags, CrewProfileEdit.tags)를 지워 TagOwner.RUNNER를 쓰는 곳이 0이 되므로 RUNNER 상수를 지운다 (v0.11, FR-119, D-91).
+속성: tags(Set<PersonalityTag>, 불변), owner(TagOwner). **(v0.37 변경, D-569)** tags는 Set<CrewTag>(common.CrewTag 8개: 평일·주말 × 아침·점심·저녁·새벽)이고 개수 규칙은 1~3개(분류 규칙 없음, 같은 요일 묶음 여러 시간대 허용). PersonalityTag는 Runimal 축 이름에만 남는다 ([05-25](05-25-설계-2차배포-성.md)). TagOwner는 CREW 하나만 남는다. 러너 성향 태그(Member.tags, CrewMembership.crewTags, CrewProfileEdit.tags)를 지워 TagOwner.RUNNER를 쓰는 곳이 0이 되므로 RUNNER 상수를 지운다 (v0.11, FR-119, D-91).
 
 | 시그니처 | 설명 | 사전 조건 | 사후 조건 / 예외 |
 |---------|------|----------|-----------------|
@@ -425,6 +425,7 @@ member는 running의 RunRecordSaved를 받지 않는다. 받으면 member → ru
 | `Set<Long> rankedMemberIds()` | 상태 ACTIVE이고 recordVisibility.includedInPersonalRanking()인 회원. analysis.RankingService가 개인 랭킹 대상으로 쓴다(FR-070) |
 | `Map<Long, DisclosureLevel> disclosureOf(long viewerId, Collection<Long> targetIds)` | 열람자에게 대상 회원의 프로필을 어디까지 보이는가. DisclosureLevel.of(viewerId, targetId, status, profileVisibility)로 정한다: 본인 SELF, 탈퇴 WITHDRAWN, 개인정보공개 공개 PUBLIC, 비공개 PRIVATE. 한 번의 조회. profile.ProfileQueryService(항목 거르기)와 crew.CrewQueryService.members(크루원 목록의 공개 대상)가 같은 판정을 쓴다(D-52, design-review.md H-18) |
 | `Map<Long, Gender> shownGendersOf(Collection<Long> memberIds)` | 다른 사람에게 보이는 캐릭터 성별(v0.17, D-336, D-327 구현). 넘긴 ID마다 값이 있다(없는 회원도 대체값). 성별이 남·여이고 성별 공개(PUBLIC)면 그 값, 아니면 ShownGender.fallbackOf(memberId). battle(BattleStartService·GhostMatcher), analysis(RankingService.viewOf), profile(ProfileQueryService.view)이 쓴다. 지운 publicGendersOf를 대체한다 |
+| `Map<Long, String> activeNicknames(Collection<Long> memberIds)` | 넘긴 회원 가운데 상태 ACTIVE인 회원의 닉네임(탈퇴, 없는 회원은 맵에 없음). 한 번의 조회(MemberRepository.activeNicknames). event.EventEntrantService가 응모자 명단에 닉네임을 붙일 때 쓴다(데이터 결합, 12.2 EV5) (v0.38, [05-26](05-26-설계-이벤트-성.md) D-620) |
 
 v0.11에서 지운 연산: `TagSet tagsOf(long memberId)`. runimal이 태그 없이 판정하고(FR-152) 크루 추천(FR-118)을 지워 쓰는 곳이 없다. 12.2 D5(runimal → member)는 MemberWithdrawn 수신만 남는다 (v0.11, FR-119, FR-152, D-91).
 
@@ -438,7 +439,7 @@ ShownGender(member 패키지, `public final class`, v0.17 D-336): 회원 표시 
 ##### 포트 인터페이스 (member가 정의)
 | 인터페이스 | 시그니처 | 구현 |
 |-----------|---------|------|
-| MemberRepository | `Optional<Member> findById(long)`, `Optional<Member> findByAccount(SocialAccount)`, `boolean existsByNickname(String)`, `List<Member> findWithdrawnBefore(LocalDateTime)`, `List<Member> findIdleGuests(LocalDateTime before)`(ACTIVE 게스트 중 lastAccessAt ≤ before(정각 포함, D-156 (v0.11, test.md v0.6 TF-IT-25)), 부분 색인 idx_member_idle_guest, v0.11 FR-200), `Member save(Member)`, `Map<Long, MemberSummary> summaries(Collection<Long>)`, `List<GhostOwner> ghostOwners(Set<Tier>, long)` (v0.11, FR-200) | infra.member.JpaMemberRepository. member 밖에서 쓰지 않는다(ArchUnit 규칙, 13.1) |
+| MemberRepository | `Optional<Member> findById(long)`, `Optional<Member> findByAccount(SocialAccount)`, `boolean existsByNickname(String)`, `List<Member> findWithdrawnBefore(LocalDateTime)`, `List<Member> findIdleGuests(LocalDateTime before)`(ACTIVE 게스트 중 lastAccessAt ≤ before(정각 포함, D-156 (v0.11, test.md v0.6 TF-IT-25)), 부분 색인 idx_member_idle_guest, v0.11 FR-200), `Member save(Member)`, `Map<Long, MemberSummary> summaries(Collection<Long>)`, `List<GhostOwner> ghostOwners(Set<Tier>, long)` (v0.11, FR-200), `Map<Long, String> activeNicknames(Collection<Long> memberIds)`(ACTIVE만, v0.38, D-620) | infra.member.JpaMemberRepository. member 밖에서 쓰지 않는다(ArchUnit 규칙, 13.1) |
 | SocialLoginGateway | `SocialAccount authenticate(String providerToken)` (실패 AuthFailureException, 무응답 ProviderUnavailableException), `ProviderType provider()` | infra.integration.auth.KakaoLoginGateway, GoogleLoginGateway |
 | TokenIssuer | `TokenPair issue(long memberId)`, `String issueSignUpTicket(SocialAccount)`, `SocialAccount redeemSignUpTicket(String)`, `long verify(String accessToken)`, `AccessGrant verifyGrant(String accessToken)`(회원 ID + 만료 시각, 실패 AuthFailureException, v0.11 D-110), `void revoke(String refreshToken)`(이미 폐기됐거나 읽을 수 없으면 아무것도 하지 않음, 폐기 목록에 쓸 수 없으면 ProviderUnavailableException), `long redeemRefreshToken(String refreshToken)`(검증 뒤 폐기하고 회원 ID, 위조·만료·폐기 AuthFailureException, 폐기 목록을 확인할 수 없으면 ProviderUnavailableException), `int purgeExpiredRevocations(LocalDateTime now)`. 회원 토큰 전용이다. web.auth.AuthFilter가 verify를, realtime(TokenHandshakeInterceptor, 웹소켓 연결)이 verifyGrant를 부른다(12.2 D54). 관리툴 토큰은 operator.OperatorTokenIssuer(D-42) (v0.11, CR34-05, D-110) | infra.integration.auth.JwtTokenIssuer. 갱신 토큰 폐기 목록은 infra.integration.auth의 RefreshTokenRevocations(구현 JdbcRefreshTokenRevocations, PostgreSQL refresh_token_revocation, V14)에 둔다: `boolean claim(String jti, Instant expiresAt)`(처음 쓰면 true, 회전), `void revoke(String jti, Instant expiresAt)`, `int purgeExpired(Instant now)`. 보안 기록이라 Redis 장애·재시작과 무관하게 남고(5.5 "Redis 장애는 매칭·실시간만"과 같은 원칙), 저장소를 쓸 수 없으면 갱신·로그아웃을 거부한다(fail-closed, 503 TEMPORARILY_UNAVAILABLE). 토큰 원문은 저장하지 않는다 (v0.11, CR34-05) |
 | WithdrawalGuard | `Optional<String> check(long memberId)` (거부 사유) | battle.ActiveBattleGuard, crew.CrewLeaderGuard |
@@ -459,3 +460,11 @@ MemberProfile(record: level(int), photoUrl(String?), intro(String?), ageBand(Str
 
 `static DisclosureLevel of(long viewerId, long targetId, MemberStatus status, ProfileVisibility visibility)`는 위 표 순서로 처음 맞는 상수를 고른다. 공개 범위 규칙은 이 enum 한 곳에만 있다. 수준마다 화면에 남길 항목은 profile.ProfileDisclosure가, 크루원 목록에서 프로필(Runimal 유형 등)을 보일지는 showsProfile()이 정한다(D-52).
 
+##### 배치고사 진행 (v0.30~v0.32, FR-274~FR-278, D-475~D-490, D-514·D-516~D-518, D-529·D-536)
+
+전체 명세는 [05-21 2.1](05-21-설계-배치고사-화면개편-성.md)과 v0.32 고친 명세 [05-22](05-22-설계-배치고사-리뷰반영-성.md) 2.1이다. 요약:
+
+- `PlacementProgress`(엔티티, 표 placement_progress, 키 member_id): 한 회원의 배치고사 진행(센 판, 임시 티어, 확정 시점)을 보관한다. `ROUNDS = 3`, `start`, `nextRound`, `basis`, `provisionalTier`, `isCompleted`, `hasCounted`, `count(PlacementRoundInput, TierBoundary): PlacementCount`(A-37), `correctVerdict`, `confirmedRunOrdinal`, `rounds`.
+- `PlacementRound`(@Embeddable, 표 placement_round), `PlacementRoundInput`·`PlacementBasis`·`PlacementView`(record), `PlacementCount`(sealed: Provisional·Confirmed·Ignored), `PlacementStatus`(IN_PROGRESS·COMPLETED·EXEMPT), `PlacementVerdict`(WIN·LOSE·DRAW).
+- `PlacementProgressRepository`(포트, infra.member 구현: findById, lockOrCreate, findByIdForUpdate, save, deleteByMemberId, existsRound), `PlacementService`(view, lockForMatch → `Optional<PlacementBasis>`, countRound(행 잠금 뒤 판단, 행을 만들지 않음), correctVerdict, isCounted, isCompleted) (v0.31 변경, D-516·D-518). v0.32(D-536): `lockForMatch`는 잠근 뒤 `MemberRepository.refresh(Member)`(새 포트 연산)로 회원을 다시 읽어 ACTIVE가 아니면 `MATCH_FAILED`, 랭크 티어이거나 완료면 empty. `WithdrawalService` 두 탈퇴 경로는 탈퇴 가드 앞에서 `lockOrCreate`로 진행 행을 잠가 커밋 전 매칭과 직렬화하고 같은 트랜잭션에서 지운다(D-516 "행은 lockForMatch만 만든다"의 유일한 예외). `PlacementProgress`의 공개 멤버 `DUPLICATE`·`completedAt()`·`countedRounds()`·`getMemberId()`도 명세에 있다(D-529).
+- 바뀐 것: `Member.confirmPlacement(Tier)` 신규, `Member.recordValidRun(RunScoreInput, TierBoundary, int placementOrdinal)`(재평가는 랭크 티어이고 10의 배수 p > placementOrdinal일 때만), `TierProgress`의 3회 창(PLACEMENT)과 FIRST_PLACEMENT 생성 제거(`reevaluationPointBetween`), `TierLevelService`가 Member를 먼저 읽고 진행 행을 그다음 읽어 placementOrdinal을 넘김(v0.31 D-517), `WithdrawalService` 두 탈퇴 경로가 같은 트랜잭션에서 배치 진행을 지움(D-489). 위 TierProgress·TierLevelService·Member 명세의 "3회째 첫 배치" 문장은 이 문단이 대신한다 (v0.30, D-484).

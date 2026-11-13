@@ -10,8 +10,9 @@ import java.util.List;
  *
  * @param selectedKey 고른 배경 키, null이면 기본 배경
  * @param backgrounds 배경
+ * @param total 내 누적 유효 거리(W8, 잠긴 배경 "n km 더 달리면 해금")
  */
-public record BackgroundsView(String selectedKey, List<Item> backgrounds) {
+public record BackgroundsView(String selectedKey, List<Item> backgrounds, Distance total) {
 
     public BackgroundsView {
         backgrounds = List.copyOf(backgrounds);
@@ -26,6 +27,7 @@ public record BackgroundsView(String selectedKey, List<Item> backgrounds) {
      * @param distance 해금 누적 거리
      * @param unlocked 해금됨
      * @param unlockedAt 해금 일시, 잠겼으면 null
+     * @param remaining 해금까지 남은 거리 = max(0, 해금 거리 − 내 누적 거리), 해금했으면 0(W8)
      */
     public record Item(
             String key,
@@ -33,5 +35,6 @@ public record BackgroundsView(String selectedKey, List<Item> backgrounds) {
             String stage,
             Distance distance,
             boolean unlocked,
-            LocalDateTime unlockedAt) {}
+            LocalDateTime unlockedAt,
+            Distance remaining) {}
 }

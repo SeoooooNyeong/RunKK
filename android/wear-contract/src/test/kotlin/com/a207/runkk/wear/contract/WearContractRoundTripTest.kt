@@ -2,6 +2,7 @@ package com.a207.runkk.wear.contract
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -148,7 +149,7 @@ class WearContractRoundTripTest {
     }
 
     @Test
-    fun `TC-6547 D-371 W40 W43 경로 13개는 서로 겹치지 않고 값이 설계와 같다`() {
+    fun `TC-6547 D-371 W40 W43 경로 14개는 서로 겹치지 않고 값이 설계와 같다`() {
         val paths =
             listOf(
                 WearPaths.START_REQUEST,
@@ -163,10 +164,11 @@ class WearContractRoundTripTest {
                 WearPaths.SESSION_REVOKED,
                 WearPaths.WATCH_MEASURING,
                 WearPaths.RESEND_REJECTED,
-                WearPaths.REJECTED_COUNT
+                WearPaths.REJECTED_COUNT,
+                WearPaths.DISPLAY_REQUEST
             )
 
-        assertEquals(13, paths.toSet().size)
+        assertEquals(14, paths.toSet().size)
         assertEquals(
             listOf(
                 "/runkk/start-request",
@@ -181,7 +183,8 @@ class WearContractRoundTripTest {
                 "/runkk/session-revoked",
                 "/runkk/watch-measuring",
                 "/runkk/resend-rejected",
-                "/runkk/rejected-count"
+                "/runkk/rejected-count",
+                "/runkk/display-request"
             ),
             paths
         )
@@ -206,6 +209,12 @@ class WearContractRoundTripTest {
         assertEquals(message, RejectedCountMessage.decode(message.encode()))
         assertEquals(setOf("count", "atEpochMillis"), jsonKeys(message.encode()))
         assertTrue(WearPaths.REJECTED_COUNT in WearPaths.DATA_ITEM_PATHS, "DataClient 항목이다")
+    }
+
+    @Test
+    fun `S15P31A207-278 표시 요청은 본문 없는 MessageClient 경로다(DataClient 항목이 아니다)`() {
+        assertEquals("/runkk/display-request", WearPaths.DISPLAY_REQUEST)
+        assertFalse(WearPaths.DISPLAY_REQUEST in WearPaths.DATA_ITEM_PATHS, "일회성 요청이라 Data Layer에 남기지 않는다")
     }
 
     @Test

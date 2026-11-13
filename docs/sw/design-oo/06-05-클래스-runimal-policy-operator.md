@@ -104,7 +104,9 @@ Judged(record): type(RunimalType), ratios(AxisRatios). v0.11에서 두 연산의
 |---------|------|-----------------|
 | `boolean canCreateSelfie(LocalDate today, SelfieLimit limit)` | 셀카 생성 가능 | 오늘 만든 횟수 < limit.perDay(기본 1회, FR-157) |
 | `void applySelfieFace(SdFaceParts parts, LocalDate today)` | 셀카 얼굴 적용 | face = SelfieFace, creationCount + 1, lastCreatedOn = today. 오늘 이미 만들었으면 BusinessRuleException(SELFIE_LIMIT) |
-| `void chooseDefault(DefaultCharacter c)` | 기본 캐릭터 | face = DefaultFace(c). 셀카 얼굴이 있어도 바꿀 수 있다(FR-158) |
+| `void chooseDefault(DefaultCharacter c)` | 기본 캐릭터 | face = DefaultFace(c). 셀카 얼굴이 있어도 바꿀 수 있다(FR-158). (v0.34, CR-154) 진행 중 얼굴 작업의 자동 얼굴 교체를 취소한다(이미 성공한 생성 횟수는 반영) |
+| (v0.34) `void beginFaceJob(String requestId)` | 얼굴 작업 예약 | 패키지 전용. Avatar 행 잠금 안에서 진행 중 요청 ID를 둔다(회원별 접수 직렬화, FR-297) |
+| (v0.34) `void applyGeneratedHead(String requestId, String jobId, LocalDate today, SelfieLimit limit)` | 생성 얼굴 반영 | 패키지 전용. 생성 횟수를 한 번만 더하고, 진행 중 요청과 같을 때만 face를 head:{회원ID}:{작업ID} 키로 바꾼다(FR-296·FR-297). 옛 selfie: 키·기본 얼굴 키는 그대로 읽힌다(FR-298) |
 | `void equip(long itemId, ItemSlot slot)` | 착용 | 같은 부위 기존 아이템 교체. 보유 확인은 AvatarService가 먼저 하고 Avatar는 보유 여부 플래그를 받지 않는다(design-review.md 9.2.1 패키지 안 제어 플래그) |
 | `void unequip(ItemSlot slot)` | 해제 | |
 | `boolean updateAppearance(BodyShape shape, SkinTone tone)` | 외형 갱신 | 체형이 바뀌면 true(알림 대상) |
@@ -136,7 +138,7 @@ SdFaceParts 속성: parts(EnumMap<FacePart, String 이미지 저장 키>), FaceP
 ##### AvatarService
 | 항목 | 내용 |
 |------|------|
-| 의존 | AvatarRepository, FaceTransformGateway, RewardService(reward), MemberQueryService(member), OperationPolicy, Clock. 셀카 변환 단계는 SelfieConversion에, 트랜잭션 나누기는 AvatarTransactions에 맡긴다 (v0.11, CR2-U7) |
+| 의존 | AvatarRepository, FaceTransformGateway, RewardService(reward), MemberQueryService(member), OperationPolicy, Clock. 셀카 변환 단계는 SelfieConversion에, 트랜잭션 나누기는 AvatarTransactions에 맡긴다 (v0.11, CR2-U7). (v0.34, CR-154) 셀카 접수·조회는 SelfieJobService로 옮겨 AvatarService에는 chooseDefault·equip·view만 남았고 FaceTransformGateway 의존이 없다(코드 1d1e5d44). 아래 createFromSelfie 행은 동기 변환 때의 기록이다 |
 
 | 시그니처 | 설명 |
 |---------|------|
@@ -189,7 +191,20 @@ SdFaceParts 속성: parts(EnumMap<FacePart, String 이미지 저장 키>), FaceP
 selectedKey(String, null = 기본 배경), backgrounds(List<항목(key, name, stage, distance, unlocked, unlockedAt?)>). web.avatar BackgroundsResponse(F.2.2)로 바꾼다.
 
 ##### AvatarWithdrawalListener
-`void onMemberWithdrawn(MemberWithdrawn e)`: Avatar 삭제와 FacePartImageStore.deleteByMember(부위 이미지)(D11의 외형 부분). 해금 배경 행(avatar_background)은 avatar 행 삭제의 FK CASCADE로 함께 지워진다 (v0.11, D-107).
+`void onMemberWithdrawn(MemberWithdrawn e)`: Avatar 삭제와 FacePartImageStore.deleteByMember(부위 이미지)(D11의 외형 부분). 해금 배경 행(avatar_background)은 avatar 행 삭제의 FK CASCADE로 함께 지워진다 (v0.11, D-107). (v0.34, CR-154) selfie_job 행은 SelfieJobService.onMemberWithdrawn이 SelfieJobRepository.deleteByMember로 지운다. ai(Node) 쪽 얼굴 자료 삭제는 #244·#257 후속 확인이다.
+
+##### SelfieJob (엔티티), SelfieJobService, FaceJobGateway (포트) (v0.34, CR-154, FR-293~FR-298)
+얼굴 생성을 ai 비동기 작업으로 바꿨다. 책임·상태도·동시성은 [얼굴비동기-박](얼굴비동기-박.md)이 원본이고 여기에는 기존 명세와 잇는 요점만 적는다.
+
+| 클래스 | 종류 | 책임 | 속성·연산 |
+|--------|------|------|-----------|
+| SelfieJob | 엔티티(selfie_job, V36) | 사진 요청 하나의 작업 진행과 반영 여부를 기록한다 | requestId(사진 해시 기반, 응답에 내지 않음), memberId, jobId, 접수 날짜, 상태, finished. `accepted(FaceJob)`, `retryAt(now)`, `submissionInProgress(now)`(접수 여부를 모르는 예약은 30초 뒤 다시 낼 수 있다), `finish()`, `missing()`, `view()`. 사진 원본·Data URL은 저장하지 않는다(FR-156) |
+| SelfieJobService | 응용 서비스 | 접수·조회와 아바타 반영을 조정한다 | 의존 FaceJobGateway, SelfieJobRepository, AvatarRepository, MemberQueryService(member), OperationPolicy, SelfieFailureStore, AvatarTransactions, Clock. `FaceJob submit(memberId, byte[] image)`(202, FR-293) · `FaceJob status(memberId, jobId)`(상태만, FR-294·FR-295) · `GeneratedHead result(memberId, jobId)`(검증 뒤 짧은 트랜잭션에서 Avatar.applyGeneratedHead, FR-296·FR-297) · `GeneratedHead latest(memberId)` · `GeneratedHead head(viewerId, ownerId, jobId)` · `AvatarBody body(bodyId)`. 외부 호출은 트랜잭션 밖, 회원 상태는 Avatar 행 잠금을 얻은 뒤 읽는다 |
+| SelfieJobRepository | 포트 | selfie_job을 읽고 쓴다 | `find(requestId)`, `byJob(memberId, jobId)`, `pending(memberId)`, `save`, `deleteByMember`. 구현 infra.avatar.JpaSelfieJobRepository |
+| FaceJobGateway | 포트 | 인증 회원의 ai 얼굴 작업을 부른다 | `submit(memberId, image)`, `status(memberId, jobId)`, `result(memberId, jobId)`, `latest(memberId)`, `body(bodyId)`. 구현 infra.integration.ai.AiServerFaceJobGateway(응답을 얼굴 계약으로 검증) |
+| FaceJob, GeneratedHead, AvatarBody | 값(record) | 작업 상태(QUEUED·RUNNING·SUCCEEDED·FAILED)와 오류, 생성 머리(faceImage·eyesImage·hairImage·합성 정보), 몸 묶음 | |
+
+SelfieConversion·SelfieLockStore·FaceTransformGateway·FaceTransformOutcome은 코드에서 빠졌다. SelfieFailureStore는 SelfieJobService가 그대로 쓴다. 5파츠 얼굴(SdFaceParts·FacePartImageStore·FaceImageService)은 기존 자료 조회용으로 남는다(FR-298).
 
 ##### FaceImageService (v0.11, CR2-U1, CR2-U7)
 | 항목 | 내용 |
@@ -218,7 +233,7 @@ selectedKey(String, null = 기본 배경), backgrounds(List<항목(key, name, st
 
 | 시그니처 | 설명 | 사후 조건 / 예외 |
 |---------|------|-----------------|
-| `Optional<RewardAccrual> accrue(AccrualRequest req, RewardRule rule, int alreadyOnThatDay)` | 적립 | req = (reason, sourceId, baseAmount, at). 적립량 = min(base, dailyCap − alreadyOnThatDay). 0 이하면 비어 있음(기록하지 않는다). 아니면 잔액을 늘리고, req.at의 날짜가 lastAccrualDate 이상이면 집계 칼럼을 고친 뒤(같은 날 더하기, 더 새 날 바꾸기) 저장할 RewardAccrual을 돌려준다(FR-159). 중복 (reason, sourceId) 확인은 호출자가 RewardAccrualRepository.amountFor로 먼저 한다 (v0.11, D-109) |
+| `Optional<RewardAccrual> accrue(AccrualRequest req, RewardRule rule, int alreadyOnThatDay)` | 적립 | req = (reason, sourceId, baseAmount, at). 적립량 = min(base, dailyCap − alreadyOnThatDay). 0 이하면 비어 있음(기록하지 않는다). 아니면 잔액을 늘리고, req.at의 날짜가 lastAccrualDate 이상이면 집계 칼럼을 고친 뒤(같은 날 더하기, 더 새 날 바꾸기) 저장할 RewardAccrual을 돌려준다(FR-159). 중복 (reason, sourceId) 확인은 호출자가 RewardAccrualRepository.amountFor로 먼저 한다 (v0.11, D-109) (v0.38, [05-26](05-26-설계-이벤트-성.md) D-610) req.reason이 EVENT면 상한과 alreadyOnThatDay를 보지 않는다: baseAmount ≤ 0이면 비어 있음, 아니면 잔액만 늘리고 집계 칼럼(lastAccrualDate, lastAccrualDateAmount)을 그대로 둔 채 RewardAccrual(baseAmount)을 돌려준다 |
 | `OptionalInt accruedOn(LocalDate day)` | 그날 적립 합계 | day가 lastAccrualDate와 같으면 lastAccrualDateAmount, 더 새 날이면 0, 더 옛날(보정 작업의 지난 날짜)이면 비어 있음 → RewardService가 RewardAccrualRepository.sumOn으로 읽는다 (v0.11, D-109) |
 | `void purchase(ShopItem item, LocalDateTime now)` | 구매 | 보유면 ALREADY_OWNED, 잔액 < 가격이면 INSUFFICIENT_REWARD. 잔액 차감, 보유 추가 |
 | `boolean owns(long itemId)` | | |
@@ -236,6 +251,7 @@ v0.11에서 지운 연산: `int accruedFor(AccrualReason reason, String sourceId
 |---------|------|
 | `void onRunSaved(RunRecordSaved e)` | 유효만. accrueWithRetry(AccrualSource(memberId, VALID_RUN, recordId, 저장 일시), rule → rule.amountForRun(distance)) (v0.11, CR34-03) |
 | `void onBattleJudged(BattleJudged e)` | 승자마다 accrueWithRetry(AccrualSource(winnerId, BATTLE_WIN, battleId, 판정 시각), RewardRule::battleWin). 운영자가 RewardRule을 바꾸면 다음 판정부터 바뀐 값으로 적립한다(design-review.md M13). 정정으로 패가 되어도 회수하지 않는다(제안) (v0.11, CR34-03) |
+| `int accrueEvent(long memberId, String sourceId, int amount, LocalDateTime at)` | (v0.38, D-610) 이벤트 포인트. event.CoachWinPointListener가 부른다. accrueWithRetry(AccrualSource(memberId, EVENT, sourceId, at), rule → amount). sourceId는 「이벤트ID:대상」(예 「1:celebrity-11」). 하루 상한 없이 새 트랜잭션에서 적립하고 실제 적립량을 돌려준다. 같은 근거가 있거나 실패하면 0(실패는 reward_accrual_failed 로그) |
 | `int accrueWithRetry(AccrualSource source, ToIntFunction<RewardRule> amountOf)` (패키지 전용) | 새 트랜잭션에서 지갑 행 잠금(findOrCreateForUpdate) → RewardAccrualRepository.amountFor(memberId, reason, sourceId) > 0이면 0 → 그날 합계 = wallet.accruedOn(day), 비면 RewardAccrualRepository.sumOn(memberId, day) → RewardWallet.accrue(source.request(amountOf(현재 rule)), rule, 그날 합계) → 적립 행 저장 → 지갑 저장. 일시 오류(TransientDataAccessException)면 최대 3회 다시 하고, 그래도 실패하면 로그만 남기고 0. 수신자와 RewardReconcileService가 함께 쓴다(M4 결정). 실제 적립량을 돌려준다 (v0.11, CR34-03, D-109) |
 | `int accruedFor(AccrualReason reason, String sourceId, long memberId)` | 조회. RewardAccrualRepository.amountFor로 답한다. analysis.RecordQueryService(기록 상세)와 web.battle(대결 결과 화면), RewardReconcileService가 부른다 (v0.11, D-109, CR34-03) |
 | `boolean owns(long memberId, long itemId)` | 보유 확인. avatar.AvatarService가 착용 전에 부른다 |
@@ -246,6 +262,9 @@ v0.11에서 지운 연산: `int accruedFor(AccrualReason reason, String sourceId
 
 ##### AccrualSource (값, record, 패키지 전용) (v0.11, CR34-03, CR2-U7)
 속성: memberId(long), reason(AccrualReason), sourceId(String, 기록 ID 또는 대결 ID), at(LocalDateTime, 사건 발생 시각 = 하루 상한의 "그날"). 적립량은 그때의 RewardRule로 정하므로 담지 않는다. `AccrualRequest request(int baseAmount)`: 상한 적용 전 적립량으로 지갑에 넘길 요청을 만든다. 수신자와 보정 작업이 같은 근거를 accrueWithRetry에 넘긴다.
+
+##### AccrualReason (열거) (v0.38, D-610)
+VALID_RUN, BATTLE_WIN, EVENT. EVENT는 이벤트 포인트이고 하루 상한을 받지 않으며 그날 합계에도 넣지 않는다. RewardAccrualRepository.sumOn(memberId, day)은 reason <> EVENT만 더한다(JpaRewardAccrualRepository). V35_2가 reward_accrual.ck_reward_accrual_reason에 EVENT를 더한다. RewardReconcileService(보정)는 VALID_RUN, BATTLE_WIN만 다시 적립하고 EVENT는 다루지 않는다.
 
 ##### RewardReconcileService (v0.11, CR34-03, CR2-U7)
 | 항목 | 내용 |
@@ -266,9 +285,10 @@ v0.11에서 지운 연산: `int accruedFor(AccrualReason reason, String sourceId
 | CourseVerdictRepository (runimal) | `void save(CourseVerdict)`, `Map<String, Boolean> findByRecords(Collection<String>)`, `void deleteByMember(long)` |
 | CrewRunParticipationQuery (runimal) | `Set<String> linkedRecordIds(long memberId, DateRange range)` — 구현 crew.CrewRunParticipationReader |
 | AvatarRepository (avatar) | `Avatar findOrCreate(long)`, `Optional<Avatar> findForUpdate(long)`, `void save(Avatar)`, `Stream<Avatar> streamAll()`, `void deleteByMember(long)` |
-| FaceTransformGateway (avatar) | `FaceTransformOutcome transform(byte[] image)` (성공 SdFacePartImages 또는 실패 사유 FailureReason ∈ {NO_FACE, MULTIPLE_FACES, UNSUPPORTED_IMAGE, TOO_LARGE, UPSTREAM_FAILED, TIMEOUT} — ai 서버 FaceRouter의 reason과 같은 이름. 회원 식별자 매개변수 없음) — 구현 infra.integration.ai.AiServerFaceGateway |
+| FaceTransformGateway (avatar) | `FaceTransformOutcome transform(byte[] image)` (성공 SdFacePartImages 또는 실패 사유 FailureReason ∈ {NO_FACE, MULTIPLE_FACES, UNSUPPORTED_IMAGE, TOO_LARGE, UPSTREAM_FAILED, TIMEOUT} — ai 서버 FaceRouter의 reason과 같은 이름. 회원 식별자 매개변수 없음) — 구현 infra.integration.ai.AiServerFaceGateway. (v0.34, CR-154) 코드에서 빠지고 아래 FaceJobGateway로 바뀌었다(FR-155의 동기 변환·회원 ID 미전송 대신 회원별 ai 작업 경로) |
+| (v0.34) FaceJobGateway, SelfieJobRepository (avatar) | 위 "SelfieJob, SelfieJobService, FaceJobGateway" 표 — 구현 infra.integration.ai.AiServerFaceJobGateway, infra.avatar.JpaSelfieJobRepository (CR-154) |
 | FacePartImageStore (avatar) | `SdFaceParts save(long memberId, SdFacePartImages images)`, `void deleteByMember(long memberId)` — 구현 infra.avatar(D-59). `Optional<byte[]> find(String imageKey)`(FaceImageService가 부위 PNG를 읽는다) (v0.11, CR2-U1) |
-| SelfieLockStore, SelfieFailureStore (avatar) | 위 avatar 구현 보조 클래스 표 — 구현 infra.avatar.RedisSelfieLockStore, RedisSelfieFailureStore (v0.11, CR2-U7) |
+| SelfieLockStore, SelfieFailureStore (avatar) | 위 avatar 구현 보조 클래스 표 — 구현 infra.avatar.RedisSelfieLockStore, RedisSelfieFailureStore (v0.11, CR2-U7). (v0.34) SelfieLockStore·RedisSelfieLockStore는 코드에서 빠졌다(접수 직렬화는 Avatar 행 잠금) |
 | RewardWalletRepository (reward) | `RewardWallet findOrCreateForUpdate(long)`, `void save(RewardWallet)`, `void deleteByMember(long)` |
 | RewardAccrualRepository (reward) | `int amountFor(long memberId, AccrualReason reason, String sourceId)`(유일 색인, 없으면 0), `int sumOn(long memberId, LocalDate day)`(색인 idx_reward_accrual_member_accrued, 과거 날짜 합계), `void save(RewardAccrual a)` — 구현 infra.reward.JpaRewardAccrualRepository (v0.11, D-109) |
 
@@ -444,6 +464,9 @@ v0.11에서 9개를 더해 21개다(괄호는 defaultScreen) (v0.11, FR-175, FR-
 
 ##### PushGateway (인터페이스)
 `PushResult send(List<String> deviceTokens, NotificationType type, String content)`, `PushResult sendCollapsing(List<String> deviceTokens, NotificationType type, String content, String collapseKey)`(같은 키의 기기 알림을 하나로 묶는다, CREW_CHAT, v0.11 D-102). PushResult(record: sentCount, invalidTokens). 구현 infra.integration.push.FcmPushGateway는 받은 토큰으로 보내기만 하고 토큰 표를 갖지 않는다. 회원 ID를 받지 않는다(D-43).
+
+##### 운영자 공지 (v0.38, CR-177, 설계 [05-27](05-27-설계-공지알림-성.md))
+NotificationType에 `NOTICE(Screen.EXTERNAL_LINK)`를 더해 22개, Screen에 `EXTERNAL_LINK`를 더해 12개다. NOTICE는 MemberSettings.NOTIFICATION_TYPES 밖이라 끌 수 없다(D-623). Notification에 `title`(공지 제목, 60자, null 허용), targetId 길이 300(V35_3). NotificationRequest에 다섯째 구성요소 `title`(네 인자 생성자 유지). InboxView.Item에 `title`. NotificationService에 패키지 전용 `boolean deliver(NotificationRequest)`(notify의 본문, 저장했으면 참). PushGateway에 기본 메서드 `send(tokens, type, title, content)`(FcmPushGateway가 제목을 알림 제목으로). 새 `NoticeService.send(String actorId, NoticeInput): NoticeResult`(1~100명, 구글 폼 링크 검사, 회원마다 deliver, 감사 SETTING_CHANGE 「NOTICE:제목」), 값 `NoticeInput(memberIds, title, body, linkUrl)`, `NoticeResult(requested, stored, skippedMemberIds)`. 의존 notification → audit이 는다(D-622, D-625).
 
 ##### NotificationRepository, PushDeviceRepository, NotificationWithdrawalListener
 NotificationRepository: `save`, `List<Notification> findByRecipient(long, Optional<DateRange>, LocalDateTime occurredAfter)`(보관 기간 하한, v0.8 D-67), `Optional<Notification> findById(long)`, `void saveCollapsing(NotificationRequest req, LocalDateTime occurredAt)`(묶음 알림 저장: 읽지 않은 같은 수신자·종류·대상 행을 고쳐 쓰고, 없으면 INSERT … ON CONFLICT DO NOTHING, 넣지 못했으면(같은 순간 다른 요청이 넣음) 다시 고쳐 쓴다. 예외 없이 끝나 부르는 트랜잭션이 깨지지 않는다. V23 부분 유일 색인 uq_notification_unread_collapse (recipient_id, type, target_id) WHERE is_read = FALSE AND type = 'CREW_CHAT' AND target_id IS NOT NULL이 동시 중복을 막는다. 처음 설계한 findUnread는 두지 않는다) (v0.11 구현 반영, U5-A-2, D-172), `int deleteOlderThan(LocalDateTime)`, `void deleteByRecipient(long)`. PushDeviceRepository: `void save(PushDevice)`, `Optional<PushDevice> findByToken(String)`, `List<String> tokensOf(long memberId)`, `void deleteTokens(Collection<String>)`, `void deleteByMember(long)`. 구현은 infra.notification의 JpaNotificationRepository, JpaPushDeviceRepository이고 notification 밖에서 쓰지 않는다. NotificationWithdrawalListener.`onMemberWithdrawn(e)`: 그 회원 알림 삭제(D17)와 기기 토큰 삭제(PushDeviceRepository.deleteByMember, FR-021).

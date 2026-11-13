@@ -33,6 +33,7 @@ import java.time.LocalDate
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -181,8 +182,18 @@ class AccountRepositoryImplTest {
         assertEquals("""{"item":"WATCH_LINK","value":"true"}""", change.body!!.utf8())
         val give = api.take()
         assertEquals("PUT /api/v1/me/consents/HEART_RATE", "${give.method} ${give.url.encodedPath}")
+        assertNull(give.url.queryParameter("version"))
         val withdraw = api.take()
         assertEquals("DELETE /api/v1/me/consents/HEART_RATE", "${withdraw.method} ${withdraw.url.encodedPath}")
+    }
+
+    @Test
+    fun `설정의 최신 AI 전송 동의는 같은 항목에 2판으로 저장한다`() = runTest {
+        api.replyEmpty()
+        assertEquals(Outcome.Success(Unit), repository.giveConsent("LLM_TRANSFER"))
+        val give = api.take()
+        assertEquals("PUT /api/v1/me/consents/LLM_TRANSFER", "${give.method} ${give.url.encodedPath}")
+        assertEquals("2", give.url.queryParameter("version"))
     }
 
     @Test

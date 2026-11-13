@@ -4,8 +4,10 @@ import android.content.Context
 import android.net.Uri
 import androidx.annotation.StringRes
 import com.a207.runkk.app.data.phone.R
+import com.a207.runkk.app.domain.run.CadenceMeter
 import com.a207.runkk.app.domain.run.Guidance
 import com.a207.runkk.app.domain.run.HeartRateSample
+import com.a207.runkk.app.domain.run.MotionSample
 import com.a207.runkk.app.domain.run.ProximityAlert
 import com.a207.runkk.app.domain.run.WatchDisplay
 import com.a207.runkk.app.domain.run.WatchGateway
@@ -118,6 +120,12 @@ class WatchLink internal constructor(
 
         /** 이 경로의 DataClient 항목 내용(노드마다 하나, 워치 거부 기록 건수 W43). 없거나 읽지 못하면 빈 목록. */
         suspend fun readItems(path: String): List<ByteArray>
+
+        /**
+         * 이 워치 노드가 닿는다(워치가 보낸 메시지, 수신 서비스가 받은 표시 요청). 노드 목록에 없으면 더해 이후 메시지를 버리지 않는다
+         * (S15P31A207-278).
+         */
+        fun markReachable(nodeId: String)
     }
 
     /** 워치에서 온 메시지·데이터 항목 하나(경로, 내용, 보낸 워치 노드). */
@@ -136,6 +144,12 @@ class WatchLink internal constructor(
     /** 이미 넘긴 심박의 측정 시각(밀리초). 워치가 같은 묶음을 다시 넣어도(DataItem 재동기화) 한 번만 넘긴다. lock 안에서만 쓴다. */
     private val seenHeartRates = LinkedHashSet<Long>()
 
+    /** 이미 넘긴 손목 걸음의 측정 시각(밀리초). 심박과 같은 이유로 한 번만 넘긴다. lock 안에서만 쓴다. */
+    private val seenSteps = LinkedHashSet<Long>()
+
+    /** 누적 걸음 수(STEPS만 지원하는 워치)를 케이던스로 바꾼다. 누적 값이 줄면(새 운동 세션) 처음부터 센다. lock 안에서만 쓴다. */
+    private val wristCadence = CadenceMeter()
+
     override val startRequests: Flow<Unit> =
         transport.incoming
             .filter { it.path == WearPaths.START_REQUEST }
@@ -148,6 +162,18 @@ class WatchLink internal constructor(
             .mapNotNull { decodeOrNull { HeartRateBatchMessage.decode(it.payload) } }
             .filter { collectionAllowed() }
             .map { batch -> firstSeen(batch.samples.filter { it.status == HeartRateBatchMessage.Status.OK }) }
+            .filter { it.isNotEmpty() }
+
+    /**
+     * 동행 워치의 손목 케이던스(S15P31A207-242). 심박 묶음의 steps에서 꺼내고 심박과 같은 허용 규칙을 따른다. 분당 걸음 수는 그대로,
+     * 누적 걸음 수는 CadenceMeter로 바꾼다. 옛 워치의 묶음은 steps가 없어 아무것도 내지 않는다.
+     */
+    override val motions: Flow<List<MotionSample>> =
+        transport.incoming
+            .filter { it.path.startsWith(WearPaths.HEART_RATE_BATCH) }
+            .mapNotNull { decodeOrNull { HeartRateBatchMessage.decode(it.payload) } }
+            .filter { it.steps.isNotEmpty() && collectionAllowed() }
+            .map { batch -> wristCadences(batch.steps) }
             .filter { it.isNotEmpty() }
 
     override val endRequests: Flow<Unit> =
@@ -197,6 +223,17 @@ class WatchLink internal constructor(
     }
 
     override fun isConnected(): Boolean = transport.connected.value
+
+    /**
+     * 워치가 지금 표시를 요청했다(DISPLAY_REQUEST, S15P31A207-278). 워치 앱이 꺼져 있던 동안 보낸 일회성 표시를 잃었으므로
+     * 요청한 워치를 닿는 노드로 등록하고, 마지막 표시(측정 중 진행값·대기 화면 오늘 계획·종료 표시, 없으면 대기 화면)를 지금 허용 여부로
+     * 다시 보낸다. 폰 프로세스가 막 깨어났으면 측정 중이 아니므로 대기 화면이다. 요청이 몰려도 보낼 표시는 송신 줄에서 최신 1건만 남는다.
+     * 매니페스트 수신 서비스(PhoneWatchListenerService)만 부른다: 앱 안 리스너로 온 같은 요청은 받지 않는다(두 번 보내지 않게).
+     */
+    internal fun onDisplayRequested(nodeId: String) {
+        transport.markReachable(nodeId)
+        resend(collectionAllowed())
+    }
 
     /**
      * 짝지은 워치가 스스로 측정 중인가(FR-252, D-373 (2), 3.6). 마지막으로 받은 WATCH_MEASURING이 참이고, 받은 지 [MEASURING_TTL] 안이고,
@@ -281,9 +318,20 @@ class WatchLink internal constructor(
         fresh.map { it.toDomain() }
     }
 
+    /** 처음 보는 측정 시각의 걸음만 케이던스 표본으로 바꾼다. 기억은 최근 SEEN_LIMIT개까지. */
+    private fun wristCadences(steps: List<HeartRateBatchMessage.Step>): List<MotionSample> = synchronized(lock) {
+        val fresh = steps.sortedBy { it.measuredAtEpochMillis }.filter { seenSteps.add(it.measuredAtEpochMillis) }
+        while (seenSteps.size > SEEN_LIMIT) seenSteps.remove(seenSteps.first())
+        fresh.mapNotNull { step ->
+            val at = Instant.ofEpochMilli(step.measuredAtEpochMillis)
+            val cadence = step.perMinute?.toDouble() ?: step.total?.let { wristCadence.accept(at, it) }
+            cadence?.let { MotionSample(at, cadenceSpm = it) }
+        }
+    }
+
     private fun collectionAllowed(): Boolean = settings.heartRateConsented() && settings.watchLinked()
 
-    /** 허용 여부가 바뀌었다: 마지막 표시 정보(없으면 대기 화면)를 새 허용 여부로 다시 보낸다. */
+    /** 허용 여부가 바뀌었거나 워치가 요청했다: 마지막 표시 정보(없으면 대기 화면)를 [allowed]로 다시 보낸다. */
     private fun resend(allowed: Boolean) {
         val message =
             synchronized(lock) { lastDisplay }?.toMessage(allowed, noticeText)

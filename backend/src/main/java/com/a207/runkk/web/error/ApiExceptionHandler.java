@@ -49,12 +49,17 @@ public class ApiExceptionHandler {
                     ReasonCode.TEMPORARILY_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE,
                     ReasonCode.TOO_MANY_ATTEMPTS, HttpStatus.TOO_MANY_REQUESTS,
                     ReasonCode.TOO_LARGE, HttpStatus.PAYLOAD_TOO_LARGE,
-                    ReasonCode.UNSUPPORTED_IMAGE, HttpStatus.UNPROCESSABLE_ENTITY);
+                    ReasonCode.UNSUPPORTED_IMAGE, HttpStatus.UNPROCESSABLE_ENTITY,
+                    ReasonCode.FEATURE_CLOSED, HttpStatus.FORBIDDEN,
+                    ReasonCode.RUNBODY_UNAVAILABLE, HttpStatus.SERVICE_UNAVAILABLE,
+                    ReasonCode.INVALID_YEAR_MONTH, HttpStatus.BAD_REQUEST);
 
     /**
      * 업무 규칙 거부는 409가 기본이다. 로그인 실패(AUTH_FAILED 401, PROVIDER_UNAVAILABLE 503)와 서버 일시
      * 장애(TEMPORARILY_UNAVAILABLE 503), 시도 제한(429), 게시 사진 크기·형식(TOO_LARGE 413, UNSUPPORTED_IMAGE
-     * 422, 설계 06-06)만 그 뜻에 맞는 상태로 준다(앱–서버 대조 B 단계: 로그인 실패도 공통 오류 형식).
+     * 422, 설계 06-06), 닫힌 2차 배포 기능(FEATURE_CLOSED 403), 런바디 ai 읽기 실패(RUNBODY_UNAVAILABLE 503), 월 형식
+     * 오류(INVALID_YEAR_MONTH 400, 05-19 D-440·D-450)만 그 뜻에 맞는 상태로 준다(앱–서버 대조 B 단계: 로그인 실패도 공통 오류
+     * 형식).
      */
     @ExceptionHandler(BusinessRuleException.class)
     ResponseEntity<ErrorResponse> handleBusinessRule(BusinessRuleException e) {

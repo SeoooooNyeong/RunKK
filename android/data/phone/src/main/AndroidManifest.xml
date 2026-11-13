@@ -4,12 +4,13 @@
     <!-- data.device: 측정 위치(FR-032)와 포그라운드 측정 서비스(타입 location, FR-035) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <!-- data.device: 잠금 화면 진행 알림(FR-224). Android 16 이상은 승격 진행 알림(Live Updates, D-259) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
+    <!-- data.device: 측정 중 걸음 센서(TYPE_STEP_COUNTER)로 케이던스를 잰다(S15P31A207-242). 거부하면 케이던스 없이 측정한다 -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <!-- data.device: 진동 안내 -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
@@ -19,7 +20,7 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
-        <!-- data.watch: 워치의 로그인 정보 요청. 앱 프로세스가 죽어 있어도 받는다(FR-242, D-371, 코드 리뷰 AN12-1). -->
+        <!-- data.watch: 워치의 로그인 정보 요청과 표시 요청. 앱 프로세스가 죽어 있어도 받는다(FR-242, D-371, 코드 리뷰 AN12-1, S15P31A207-278). -->
         <service
             android:name="com.a207.runkk.app.data.watch.PhoneWatchListenerService"
             android:exported="true">
@@ -28,6 +29,10 @@
                 <data
                     android:host="*"
                     android:path="/runkk/session-request"
+                    android:scheme="wear" />
+                <data
+                    android:host="*"
+                    android:path="/runkk/display-request"
                     android:scheme="wear" />
             </intent-filter>
         </service>

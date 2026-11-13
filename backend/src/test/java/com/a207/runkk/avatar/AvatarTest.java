@@ -31,14 +31,14 @@ class AvatarTest {
     }
 
     @Test
-    @DisplayName("새 아바타: 얼굴 없음(기본 캐릭터 안내), 1단계 체형, 착용 없음")
+    @DisplayName("새 아바타: 얼굴 없음(기본 캐릭터 안내), 기본 몸(4단계), 착용 없음")
     void create_defaults() {
         Avatar avatar = Avatar.create(7);
         AvatarView view = avatar.view(0);
 
         assertThat(view.faceKey()).isNull();
         assertThat(view.guide()).isEqualTo(Avatar.CHOOSE_DEFAULT_GUIDE);
-        assertThat(view.bodyShape()).isEqualTo(BodyShape.STAGE1);
+        assertThat(view.bodyShape()).isEqualTo(BodyShape.STAGE4);
         assertThat(view.equipped()).isEmpty();
     }
 
@@ -106,13 +106,10 @@ class AvatarTest {
     }
 
     @Test
-    @DisplayName("policy 번호 → 체형·피부색(BodyShapeRule 1~4, SkinToneRule 0~4)")
+    @DisplayName("policy 번호 → 피부색(SkinToneRule 0~4)")
     void fromPolicyNumbers() {
-        assertThat(BodyShape.ofStage(1)).isEqualTo(BodyShape.STAGE1);
-        assertThat(BodyShape.ofStage(4)).isEqualTo(BodyShape.STAGE4);
         assertThat(SkinTone.ofBand(0)).isEqualTo(SkinTone.DAWN);
         assertThat(SkinTone.ofBand(4)).isEqualTo(SkinTone.NIGHT);
-        assertThatThrownBy(() -> BodyShape.ofStage(5)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> SkinTone.ofBand(5)).isInstanceOf(IllegalArgumentException.class);
     }
 }

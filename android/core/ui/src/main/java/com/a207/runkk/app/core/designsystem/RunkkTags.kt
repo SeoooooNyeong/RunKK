@@ -4,86 +4,53 @@ import android.content.res.Resources
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+/** 크루 태그 고정 목록(서버 common.CrewTag): 평일·주말 × 아침·점심·저녁·새벽 8개, 크루마다 최대 3개(피그마 F-01b·F-04). */
 object RunkkTags {
-    /** 러너가 고르는 상한(FR-007). */
-    const val MAX_SELECTED = 5
+    /** 크루가 고르는 상한(피그마 F-04 "태그 최대 3개"). 크루 찾기 조건도 같은 상한을 쓴다. */
+    const val MAX_SELECTED = 3
 
     val categories: List<RunkkTagCategory> = listOf(
         RunkkTagCategory(
-            R.string.core_tag_category_companion,
+            R.string.core_tag_category_weekday,
             listOf(
-                RunkkTag("SOLO_RUN", R.string.core_tag_solo_run),
-                RunkkTag("SOCIAL_RUN", R.string.core_tag_social_run)
+                RunkkTag("WEEKDAY_MORNING", R.string.core_tag_weekday_morning, R.string.core_tag_slot_morning),
+                RunkkTag("WEEKDAY_LUNCH", R.string.core_tag_weekday_lunch, R.string.core_tag_slot_lunch),
+                RunkkTag("WEEKDAY_EVENING", R.string.core_tag_weekday_evening, R.string.core_tag_slot_evening),
+                RunkkTag("WEEKDAY_DAWN", R.string.core_tag_weekday_dawn, R.string.core_tag_slot_dawn)
             )
         ),
         RunkkTagCategory(
-            R.string.core_tag_category_distance,
+            R.string.core_tag_category_weekend,
             listOf(
-                RunkkTag("SHORT_DISTANCE", R.string.core_tag_short_distance),
-                RunkkTag("LONG_DISTANCE", R.string.core_tag_long_distance)
+                RunkkTag("WEEKEND_MORNING", R.string.core_tag_weekend_morning, R.string.core_tag_slot_morning),
+                RunkkTag("WEEKEND_LUNCH", R.string.core_tag_weekend_lunch, R.string.core_tag_slot_lunch),
+                RunkkTag("WEEKEND_EVENING", R.string.core_tag_weekend_evening, R.string.core_tag_slot_evening),
+                RunkkTag("WEEKEND_DAWN", R.string.core_tag_weekend_dawn, R.string.core_tag_slot_dawn)
             )
-        ),
-        RunkkTagCategory(
-            R.string.core_tag_category_course,
-            listOf(
-                RunkkTag("FAMILIAR_ROUTE", R.string.core_tag_familiar_route),
-                RunkkTag("EXPLORER_ROUTE", R.string.core_tag_explorer_route)
-            )
-        ),
-        RunkkTagCategory(
-            R.string.core_tag_category_habit,
-            listOf(
-                RunkkTag("ROUTINE_RUN", R.string.core_tag_routine_run),
-                RunkkTag("IMPROMPTU_RUN", R.string.core_tag_impromptu_run)
-            )
-        ),
-        RunkkTagCategory(
-            R.string.core_tag_category_time,
-            listOf(
-                RunkkTag("DAWN", R.string.core_tag_dawn),
-                RunkkTag("MORNING", R.string.core_tag_morning),
-                RunkkTag("LUNCH", R.string.core_tag_lunch),
-                RunkkTag("EVENING", R.string.core_tag_evening),
-                RunkkTag("NIGHT", R.string.core_tag_night)
-            )
-        ),
-        RunkkTagCategory(
-            R.string.core_tag_category_goal,
-            listOf(
-                RunkkTag("PERSONAL_BEST", R.string.core_tag_personal_best),
-                RunkkTag("RACE_PREP", R.string.core_tag_race_prep),
-                RunkkTag("DIET", R.string.core_tag_diet),
-                RunkkTag("STRESS_RELIEF", R.string.core_tag_stress_relief),
-                RunkkTag("CONSISTENCY", R.string.core_tag_consistency)
-            )
-        ),
-        RunkkTagCategory(
-            R.string.core_tag_category_crew_mood,
-            listOf(RunkkTag("BEGINNER_WELCOME", R.string.core_tag_beginner_welcome)),
-            isCrewOnly = true
         )
     )
 
-    /** 러너용 6분류. */
-    val runnerCategories: List<RunkkTagCategory> = categories.filterNot { it.isCrewOnly }
+    private val all: List<RunkkTag> = categories.flatMap { it.tags }
+    private val byId: Map<String, RunkkTag> = all.associateBy { it.id }
 
-    private val byId: Map<String, RunkkTag> = categories.flatMap { it.tags }.associateBy { it.id }
+    /** id의 태그(모르는 id면 null). */
+    fun of(id: String): RunkkTag? = byId[id]
 
-    /** id → 화면 문구. 모르는 id는 그대로 보인다. */
+    /** 고정 목록 순서(평일 아침 … 주말 새벽)로 늘어놓는다. 모르는 id는 뒤에 둔다. */
+    fun sorted(ids: Collection<String>): List<String> =
+        ids.sortedBy { id -> all.indexOfFirst { it.id == id }.takeIf { it >= 0 } ?: Int.MAX_VALUE }
+
+    /** id → 화면 문구("평일 저녁"). 모르는 id는 그대로 보인다. */
     fun label(res: Resources, id: String): String = byId[id]?.let { res.getString(it.labelRes) } ?: id
 
     /** [label]을 화면에서 쓴다. */
     @Composable
     fun label(id: String): String = label(LocalContext.current.resources, id)
 
-    /**
-     * 태그 하나를 켜거나 끈다. 켤 때는 같은 분류의 다른 태그를 끈다(분류마다 1개). 상한을 넘기면 바꾸지 않는다.
-     */
-    fun toggle(selected: Set<String>, id: String, max: Int = MAX_SELECTED): Set<String> {
-        if (id in selected) return selected - id
-        val category = categories.firstOrNull { c -> c.tags.any { it.id == id } } ?: return selected
-        val withoutSameCategory = selected - category.tags.map { it.id }.toSet()
-        if (withoutSameCategory.size >= max) return selected
-        return withoutSameCategory + id
+    /** 태그 하나를 켜거나 끈다. 켜면 [max]개를 넘길 때 바꾸지 않는다. */
+    fun toggle(selected: Set<String>, id: String, max: Int = MAX_SELECTED): Set<String> = when {
+        id in selected -> selected - id
+        id !in byId || selected.size >= max -> selected
+        else -> selected + id
     }
 }

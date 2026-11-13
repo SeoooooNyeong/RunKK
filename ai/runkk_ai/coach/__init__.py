@@ -5,6 +5,7 @@ storage는 대화 저장소 규약(coach.store)만 구현한다. main이 끼운�
 """
 
 from runkk_ai.coach.model import ClaudeCoachModel, CoachModel, ModelTurn, TextDelta, ToolCall
+from runkk_ai.coach.retention import COACH_RETENTION_DAYS, CoachRetention
 from runkk_ai.coach.router import CHAT_BODY_MAX_BYTES, CoachRouter, get_coach_service
 from runkk_ai.coach.schemas import ChatIn
 from runkk_ai.coach.service import ChatEvent, ChatRejected, CoachService
@@ -13,6 +14,7 @@ from runkk_ai.coach.tools import TOOL_SPECS, CoachTools, monthly_digest, session
 
 __all__ = [
     "CHAT_BODY_MAX_BYTES",
+    "COACH_RETENTION_DAYS",
     "TOOL_SPECS",
     "ChatEvent",
     "ChatIn",
@@ -21,6 +23,7 @@ __all__ = [
     "CoachMessage",
     "CoachMessageStore",
     "CoachModel",
+    "CoachRetention",
     "CoachRouter",
     "CoachService",
     "CoachTools",

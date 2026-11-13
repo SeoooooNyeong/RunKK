@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClient;
  * ai 서버 연결을 만든다(설계 6.1.13, D-58). 모든 요청에 X-Internal-Token을 붙이고, 연결 시간 제한 0.3초, 읽기 시간 제한은
  * 요청별(comment 3초, face 15초)이다. /comments와 /faces는 HttpClient(연결 풀)를 나눠 얼굴 변환이 느려도 코멘트가 막히지 않는다.
  * 재시도하지 않는다. 코멘트 읽기 시간 제한은 ai 라우터 전체 제한 2.7초보다 커야 하므로 시작 때 확인하고 아니면 기동을 멈춘다(design-review.md H-22).
+ * 런바디(/sessions·/users/{id}/months)는 읽기 10초 전용 연결을 쓴다(05-19 D-449). 재시도는 runbody 작업이 한다.
  */
 @Component
 public class AiServerClient {
@@ -27,6 +28,12 @@ public class AiServerClient {
 
     private final RestClient comments;
     private final RestClient faces;
+    private final RestClient privacy;
+    private final RestClient runbody;
+    private final RestClient models;
+
+    /** 런바디 읽기 시간 제한(05-19 D-449). 하프 표본(약 1MB) 제출과 결과 읽기를 함께 덮는다. */
+    static final Duration RUNBODY_READ_TIMEOUT = Duration.ofSeconds(10);
 
     @Autowired
     AiServerClient(Server server) {
@@ -45,12 +52,18 @@ public class AiServerClient {
         }
         this.comments = client(serverUrl, internalToken, commentTimeout);
         this.faces = client(serverUrl, internalToken, faceTimeout);
+        this.privacy = client(serverUrl, internalToken, Duration.ofSeconds(15));
+        this.runbody = client(serverUrl, internalToken, RUNBODY_READ_TIMEOUT);
+        this.models = client(serverUrl, internalToken, Duration.ofSeconds(5));
     }
 
     /** 시험용: 이미 만든 클라이언트를 쓴다(MockRestServiceServer). */
     AiServerClient(RestClient comments, RestClient faces) {
         this.comments = comments;
         this.faces = faces;
+        this.privacy = comments;
+        this.runbody = comments;
+        this.models = comments;
     }
 
     private static RestClient client(String serverUrl, String token, Duration readTimeout) {
@@ -69,9 +82,23 @@ public class AiServerClient {
         return comments;
     }
 
-    /** /faces 전용 연결(AiServerFaceGateway). */
+    /** 비동기 얼굴 작업 접수·조회 전용 연결(AiServerFaceJobGateway). */
     RestClient faces() {
         return faces;
+    }
+
+    /** AI 파기 전체 제한 10초보다 긴 전용 읽기 제한 15초. */
+    RestClient privacy() {
+        return privacy;
+    }
+
+    /** 런바디 분석 제출·상태·결과·월간 집계 전용 연결(AiServerRunBodyGateway, 읽기 10초). */
+    RestClient runbody() {
+        return runbody;
+    }
+
+    RestClient models() {
+        return models;
     }
 
     /**

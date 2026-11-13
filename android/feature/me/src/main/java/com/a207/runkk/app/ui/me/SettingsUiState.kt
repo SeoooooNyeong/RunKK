@@ -20,6 +20,7 @@ data class SettingsUiState(
     /** 연동 거부·실패(소셜 계정 연동 화면 안 한 줄). */
     val linkError: UiText? = null,
     val isLoggingOut: Boolean = false,
+    val isSavingLlmConsent: Boolean = false,
     /** 서버가 거부해 자동 전송이 멈춘 폰 기록 수(W40). 0이면 기록 전송 묶음을 보이지 않는다. 워치 건수는 세지 않는다. */
     val rejectedRunCount: Int = 0,
     /** 다시 보내기를 처리하는 중(거듭 누름 막기). */

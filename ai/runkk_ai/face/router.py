@@ -1,6 +1,6 @@
 """아바타 중계 엔드포인트(Node 명세 v1.2를 api용 경로로 옮긴 것).
 
-POST /users/{userId}/faces/jobs            셀카(application/octet-stream) → 202 HeadJobOut
+POST /users/{userId}/faces/jobs[?attempt=n] 셀카(application/octet-stream) → 202 HeadJobOut (attempt 1~20, 기본 1)
 GET  /users/{userId}/faces/jobs/{jobId}         → 200 HeadJobOut / 404 JOB_NOT_FOUND
 GET  /users/{userId}/faces/jobs/{jobId}/result  → 200 HeadOut / 404 JOB_NOT_FOUND / 409 JOB_NOT_READY
 GET  /users/{userId}/faces/latest               → 200 HeadOut / 404 HEAD_NOT_FOUND
@@ -17,7 +17,7 @@ import asyncio
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path, Request, status
+from fastapi import APIRouter, Depends, Path, Query, Request, status
 from fastapi.responses import JSONResponse
 from starlette.requests import ClientDisconnect
 
@@ -51,6 +51,8 @@ _STATUS_BY_REASON: dict[FaceFailureReason, int] = {
 # Node userId 허용 문자(명세 2장). 벗어나면 Node를 부르지 않고 422 INVALID_REQUEST
 UserId = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
 BodyId = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
+# 명시적 재시도 번호(DV-성-9). 1이면 예전과 같은 멱등 키다. api SelfieJobService의 시도 상한과 맞춘다
+Attempt = Annotated[int, Query(ge=1, le=20)]
 _UPSTREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
     status.HTTP_503_SERVICE_UNAVAILABLE: {"description": "UPSTREAM_FAILED"},
     status.HTTP_504_GATEWAY_TIMEOUT: {"description": "TIMEOUT"},
@@ -85,6 +87,7 @@ async def submit(
     request: Request,
     user_id: UserId,
     service: Annotated[AvatarService, Depends(get_face_service)],
+    attempt: Attempt = 1,
 ) -> HeadJobOut | JSONResponse:
     media_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
     if media_type != "application/octet-stream":
@@ -106,7 +109,7 @@ async def submit(
     if rejection is not None:
         return rejection
     try:
-        return await service.submit(user_id, image)
+        return await service.submit(user_id, image, attempt)
     except AvatarError as error:
         return _failure_of(error)
 
