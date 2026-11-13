@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,8 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /** 상태 칩 색: 보라(새 소식), 라임(참여 중), 회색(곧 열림, 종료). */
@@ -68,13 +72,18 @@ fun RunkkDdayBadge(label: String, modifier: Modifier = Modifier) {
  * 밑줄 탭(피그마 RunKK / 이벤트 / 탭 62268:2840): 같은 너비 칸, 15sp, 고른 탭은 굵은 본문색 글자와 3dp 밑줄, 나머지는 보통 굵기 보조
  * 글자와 1dp 구분선. 칸 높이는 터치 영역 48이고 밑줄은 칸 바닥에 붙는다(피그마 44). 보조 기술에는 탭으로 보인다.
  * 채운 탭 전환은 [RunkkSegmentedTabs], 칸이 많으면 [RunkkTabRow]를 쓴다.
+ * 아바타 꾸미기 탭(40×2 밑줄, 구분선 없음)은 [indicatorWidth] 40, [indicatorHeight] 2, [hasBaseline] 거짓으로 부른다
+ * ([indicatorWidth]를 주지 않으면 칸 폭 가득).
  */
 @Composable
 fun RunkkUnderlineTabs(
     options: List<String>,
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    indicatorWidth: Dp = Dp.Unspecified,
+    indicatorHeight: Dp = 3.dp,
+    hasBaseline: Boolean = true
 ) {
     Row(modifier = modifier.fillMaxWidth().selectableGroup()) {
         options.forEachIndexed { index, label ->
@@ -93,16 +102,29 @@ fun RunkkUnderlineTabs(
                     color = if (isSelected) RunkkColors.TextPrimary else RunkkColors.TextSecondary
                 )
                 Spacer(Modifier.height(10.dp))
+                val lineWidth = if (isSelected && indicatorWidth != Dp.Unspecified) {
+                    Modifier.width(indicatorWidth)
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+                val lineColor = when {
+                    isSelected -> RunkkColors.TextPrimary
+                    hasBaseline -> RunkkColors.Border
+                    else -> Color.Transparent
+                }
                 Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(if (isSelected) 3.dp else 1.dp)
-                        .background(if (isSelected) RunkkColors.TextPrimary else RunkkColors.Border)
+                    lineWidth
+                        .testTag(UNDERLINE_TAB_LINE_TAG)
+                        .height(if (isSelected) indicatorHeight else 1.dp)
+                        .background(lineColor)
                 )
             }
         }
     }
 }
+
+/** 밑줄 탭 아래 선(고른 탭 밑줄·구분선)의 시험 표지. */
+internal const val UNDERLINE_TAB_LINE_TAG = "runkk-underline-tab-line"
 
 /** 보라 칩 바탕: 보라 글자색의 16%. */
 private const val VIOLET_CHIP_ALPHA = 0.16f

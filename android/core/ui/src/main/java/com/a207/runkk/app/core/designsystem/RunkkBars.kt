@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -62,6 +63,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -485,7 +487,12 @@ private val TAB_LABEL_GAP: Dp = 2.dp
 /** 고른 탭 아이콘을 원 가운데(표면 위 -9)로 올리는 거리. */
 private val SELECTED_ICON_LIFT: Dp = 23.dp
 
-/** 메뉴 한 줄(마이·설정): 아이콘(선택) + 제목 + 값(선택) + 오른쪽 화살표. 높이 56 이상. */
+/**
+ * 메뉴 한 줄: 앞 아이콘(선택) + 제목(15 Medium) + 값(선택) + 오른쪽 꺾쇠(16). 줄 전체가 눌린다. [isAccent]면 라벤더 글자.
+ * 크루 이동 줄(피그마 F-18 "지난 크루런 ›": 높이 52, 좌우 0, 15 Regular, 꺾쇠 18, 아래 divider)은 [minHeight]·[horizontalPadding]·
+ * [titleStyle]·[chevronSize]·[hasDivider]로 맞춘다. [minHeight]를 주면 위아래 여백 대신 그 높이로 가운데 둔다. [hasChevron]이 거짓이면
+ * 꺾쇠를 뺀다.
+ */
 @Composable
 fun RunkkMenuRow(
     title: String,
@@ -493,41 +500,58 @@ fun RunkkMenuRow(
     modifier: Modifier = Modifier,
     value: String? = null,
     icon: ImageVector? = null,
-    isAccent: Boolean = false
+    isAccent: Boolean = false,
+    minHeight: Dp = Dp.Unspecified,
+    horizontalPadding: Dp = MENU_ROW_PADDING,
+    titleStyle: TextStyle = MENU_ROW_TITLE,
+    chevronSize: Dp = MENU_ROW_CHEVRON,
+    hasChevron: Boolean = true,
+    hasDivider: Boolean = false
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (icon !=
-            null
+    val isFixedHeight = minHeight != Dp.Unspecified
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClick = onClick)
+                .then(if (isFixedHeight) Modifier.heightIn(min = minHeight) else Modifier)
+                .padding(horizontal = horizontalPadding, vertical = if (isFixedHeight) 0.dp else MENU_ROW_PADDING),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = if (isAccent) RunkkColors.Lavender else RunkkColors.TextSecondary,
-                modifier = Modifier.size(20.dp)
+            if (icon !=
+                null
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = if (isAccent) RunkkColors.Lavender else RunkkColors.TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Text(
+                text = title,
+                style = titleStyle,
+                color = if (isAccent) RunkkColors.Lavender else RunkkColors.TextPrimary,
+                modifier = Modifier.weight(1f)
             )
+            if (value != null) Text(text = value, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
+            if (hasChevron) {
+                Icon(
+                    RunkkIcons.ChevronRight,
+                    contentDescription = null,
+                    tint = RunkkColors.TextSecondary,
+                    modifier = Modifier.size(chevronSize)
+                )
+            }
         }
-        Text(
-            text = title,
-            style = RunkkTextStyles.text(15, FontWeight.Medium),
-            color = if (isAccent) RunkkColors.Lavender else RunkkColors.TextPrimary,
-            modifier = Modifier.weight(1f)
-        )
-        if (value != null) Text(text = value, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary)
-        Icon(
-            RunkkIcons.ChevronRight,
-            contentDescription = null,
-            tint = RunkkColors.TextSecondary,
-            modifier = Modifier.size(16.dp)
-        )
+        if (hasDivider) HorizontalDivider(color = RunkkColors.Border, thickness = 1.dp)
     }
 }
+
+private val MENU_ROW_PADDING: Dp = 16.dp
+private val MENU_ROW_CHEVRON: Dp = 16.dp
+private val MENU_ROW_TITLE: TextStyle = RunkkTextStyles.text(15, FontWeight.Medium)
 
 /**
  * 영문 오버라인(16, 넓은 자간: "LIVE BATTLE · 5km"). 보조 기술에는 [spoken](기본: 한글로 바꾼 라벨, "실시간 대결, 5킬로미터")으로

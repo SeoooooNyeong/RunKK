@@ -9,9 +9,15 @@ import com.a207.runkk.app.core.model.getOrNull
  */
 data class MyAvatar(val faceKey: String?, val faceLayers: List<FaceLayer>, val backgroundKey: String?)
 
-/** 본인 요약을 읽어 [MyAvatar]로 옮긴다. 요약을 읽지 못하면 null이고, 부위 그림을 받지 못하면 빈 목록이다(홈과 같다). */
+/**
+ * 본인 요약을 읽어 [MyAvatar]로 옮긴다. 요약을 읽지 못하면 null이고, 부위 그림을 받지 못하면 빈 목록이다(홈과 같다). 받아 둔 그림이
+ * 있으면 다시 받지 않는다([AccountRepository.cachedFaceLayers]).
+ */
 suspend fun AccountRepository.myAvatar(): MyAvatar? {
     val me = mySummary().getOrNull() ?: return null
-    val layers = me.faceKey?.let { faceLayers(it).getOrNull() }.orEmpty()
-    return MyAvatar(me.faceKey, layers, me.avatarBackgroundKey)
+    return MyAvatar(me.faceKey, faceLayersOf(me.faceKey), me.avatarBackgroundKey)
 }
+
+/** [faceKey]의 그림: 받아 둔 것이 있으면 바로, 없으면 받는다. 받지 못하면 빈 목록. */
+suspend fun AccountRepository.faceLayersOf(faceKey: String?): List<FaceLayer> =
+    cachedFaceLayers(faceKey) ?: faceKey?.let { faceLayers(it).getOrNull() }.orEmpty()

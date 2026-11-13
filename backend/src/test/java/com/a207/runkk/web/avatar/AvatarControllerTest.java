@@ -256,7 +256,7 @@ class AvatarControllerTest extends WebTestSupport {
         Session s = signUp();
         mvc.perform(as(s, get("/api/v1/avatar/runner")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.bodyShape").value("STAGE1"))
+                .andExpect(jsonPath("$.bodyShape").value("STAGE4"))
                 .andExpect(jsonPath("$.bodyVariant").value(0))
                 .andExpect(jsonPath("$.skinTone").value("DAYTIME"))
                 .andExpect(jsonPath("$.typicalStartHour").doesNotExist())
@@ -287,7 +287,7 @@ class AvatarControllerTest extends WebTestSupport {
                         jsonPath("$.backgrounds[0].unlockedAt").value("2026-11-09T07:40:00+09:00"))
                 .andExpect(jsonPath("$.backgrounds[0].remainingMeters").value(0))
                 .andExpect(jsonPath("$.backgrounds[1].unlocked").value(false))
-                .andExpect(jsonPath("$.backgrounds[1].remainingMeters").value(120_000));
+                .andExpect(jsonPath("$.backgrounds[1].remainingMeters").value(150_000));
     }
 
     @Test

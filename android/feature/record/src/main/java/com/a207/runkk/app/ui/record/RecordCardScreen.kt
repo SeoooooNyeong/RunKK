@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -40,6 +41,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
@@ -47,6 +49,7 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTheme
@@ -201,7 +204,7 @@ private fun RecordCardFace(card: RunCard, side: CardSide, modifier: Modifier) {
 
 /**
  * 지금 보이는 면을 알리는 점 두 개(K-1): 지금 면은 길쭉한 진한 점, 다른 면은 작은 표면색 점. 다크는 표면색이 어두워 밤 배경 장면에
- * 묻히므로 다른 면 점에 밝은 테두리를 두른다.
+ * 묻히므로 다른 면 점에 밝은 테두리를 두른다(디자인 시스템 RunkkPageDots에는 점 테두리가 없어 여기 둔다).
  */
 @Composable
 private fun SideDots(side: CardSide) {
@@ -297,27 +300,27 @@ private fun CourseSwitch(
     onCheckedChange: (Boolean) -> Unit,
     onLocked: () -> Unit
 ) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(COURSE_SWITCH_SHAPE)
-            .background(RunkkColors.Surface)
-            .graphicsLayer { alpha = if (isEnabled) 1f else LOCKED_ALPHA }
+    RunkkCard(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RunkkShapes.Medium,
+        contentPadding = PaddingValues(0.dp)
     ) {
-        RunkkSwitchRow(
-            title = stringResource(R.string.record_card_show_course),
-            isChecked = isChecked,
-            onCheckedChange = onCheckedChange,
-            isEnabled = isEnabled
-        )
-        // 잠긴 스위치는 누름을 받지 않으므로 위에 덮개를 얹어 누름을 안내로 돌린다.
-        if (!isEnabled) {
-            Box(Modifier.matchParentSize().clickable(onClick = onLocked).clearAndSetSemantics {})
+        // 바탕은 그대로 두고 줄만 흐리게 한다.
+        Box(Modifier.graphicsLayer { alpha = if (isEnabled) 1f else LOCKED_ALPHA }) {
+            RunkkSwitchRow(
+                title = stringResource(R.string.record_card_show_course),
+                isChecked = isChecked,
+                onCheckedChange = onCheckedChange,
+                isEnabled = isEnabled
+            )
+            // 잠긴 스위치는 누름을 받지 않으므로 위에 덮개를 얹어 누름을 안내로 돌린다.
+            if (!isEnabled) {
+                Box(Modifier.matchParentSize().clickable(onClick = onLocked).clearAndSetSemantics {})
+            }
         }
     }
 }
 
-private val COURSE_SWITCH_SHAPE = RoundedCornerShape(16.dp)
 private const val LOCKED_ALPHA = 0.45f
 private const val DOT_RING_ALPHA = 0.8f
 

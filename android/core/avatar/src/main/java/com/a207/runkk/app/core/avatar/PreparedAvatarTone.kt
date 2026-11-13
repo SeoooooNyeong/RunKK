@@ -5,7 +5,7 @@ internal class PreparedAvatarTone(
     val request: AvatarToneRequest,
     val face: AvatarToneCache.RenderedFace?,
     val hair: ByteArray?,
-    val skinBases: Map<String, BodySkinLayers.PreparedLayers>,
+    val skinBases: Map<String, ByteArray>,
     val skinRenders: Map<String, AvatarToneCache.RenderedSkin>,
     val frontOverlay: AvatarToneCache.RenderedOverlay?,
     val runOverlay: AvatarToneCache.RenderedOverlay?

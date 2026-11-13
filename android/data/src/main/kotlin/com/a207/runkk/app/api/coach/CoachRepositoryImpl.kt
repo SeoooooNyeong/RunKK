@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.coach.CoachConversation
 import com.a207.runkk.app.domain.coach.CoachEvent
 import com.a207.runkk.app.domain.coach.CoachFailure
+import com.a207.runkk.app.domain.coach.CoachMessage
 import com.a207.runkk.app.domain.coach.CoachRepository
 import java.io.IOException
 import java.time.LocalDateTime
@@ -18,6 +19,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
@@ -41,6 +43,23 @@ internal class CoachRepositoryImpl @Inject constructor(
             if (!session.isCurrent(tokens)) throw IOException("Coach session changed")
             verifiedGeneration = session.generation
             conversations
+        }
+    }
+
+    override suspend fun messages(conversationId: String): Outcome<List<CoachMessage>> {
+        val session = BoundSession.capture(tokens) ?: return Outcome.Failure(AppError.Unauthorized)
+        return ApiErrorMapper.call {
+            val messages = api.messages(session, conversationId).map {
+                val role = when (it.role) {
+                    "QUESTION" -> CoachMessage.Role.QUESTION
+                    "ANSWER" -> CoachMessage.Role.ANSWER
+                    else -> throw SerializationException("Invalid coach message role")
+                }
+                CoachMessage(role, it.text, LocalDateTime.parse(it.at))
+            }
+            // 읽는 사이 계정이 바뀌면 이전 계정의 문답을 보이지 않는다.
+            if (!session.isCurrent(tokens)) throw IOException("Coach session changed")
+            messages
         }
     }
 

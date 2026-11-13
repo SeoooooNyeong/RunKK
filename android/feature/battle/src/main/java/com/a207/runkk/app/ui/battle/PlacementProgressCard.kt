@@ -15,6 +15,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -22,6 +23,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkElevation
+import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.TierBadge
 import com.a207.runkk.app.core.designsystem.TierBadgeSize
@@ -81,7 +84,7 @@ private fun ProgressCard(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .shadow(4.dp, shape, ambientColor = BAR_SHADOW, spotColor = BAR_SHADOW)
+            .shadow(RunkkElevation.Low, shape, ambientColor = RunkkColors.Shadow, spotColor = RunkkColors.Shadow)
             .clip(shape)
             .background(RunkkColors.Surface)
             .padding(16.dp)
@@ -138,7 +141,7 @@ private fun Step(round: Int, isDone: Boolean, isCurrent: Boolean, modifier: Modi
     }
     val isMarked = isDone || isCurrent
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(color))
+        RunkkProgressBar(progress = 1f, height = 6.dp, color = color, trackColor = Color.Transparent)
         Text(
             label,
             style = RunkkTextStyles.text(11, if (isMarked) FontWeight.Medium else FontWeight.Normal),

@@ -164,7 +164,11 @@ class RunkkColors(
     /** 브랜드 잉크(color/brandDark). */
     val ink: Color,
     /** 어두운 벌인가(시스템 막대 아이콘 색 등). */
-    val isDark: Boolean
+    val isDark: Boolean,
+    /** 하단 고정 바·떠 있는 카드 그림자(피그마 rgba(23,26,18,0.16) 근사, 두 벌 같음). [RunkkElevation]과 함께 쓴다. */
+    val shadow: Color = BAR_SHADOW,
+    /** 옅은 그림자(홈 요약 패널, 피그마 rgba(23,26,18,0.12) 근사, 두 벌 같음). */
+    val shadowSoft: Color = SOFT_SHADOW
 ) {
     companion object {
         /** 다크 벌: 중립색은 원래 앱 무채색(zinc), 브랜드 색은 피그마 Runkk · Theme Dark. */
@@ -526,11 +530,25 @@ class RunkkColors(
         val Ink: Color
             @Composable @ReadOnlyComposable
             get() = LocalRunkkColors.current.ink
+
+        val Shadow: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.shadow
+
+        val ShadowSoft: Color
+            @Composable @ReadOnlyComposable
+            get() = LocalRunkkColors.current.shadowSoft
     }
 }
 
 /** 대화상자·시트 딤(검정 0.45). 피그마 rgba(23,27,18,0.45) 대신 무채색이다(D-성-93). */
 private val SCRIM = Color.Black.copy(alpha = 0.45f)
+
+/** 하단 바·카드 그림자(#171A12 16%). 결과 하단 바·대결 하단 바가 쓰던 값이다. */
+private val BAR_SHADOW = Color(0x29171A12)
+
+/** 옅은 그림자(#171A12 12%). 홈 요약 패널이 쓰던 값이다. */
+private val SOFT_SHADOW = Color(0x1F171A12)
 
 /** 지금 테마의 색 벌. RunkkTheme이 넣는다. 넣지 않으면 다크 벌이다. */
 val LocalRunkkColors = staticCompositionLocalOf { RunkkColors.dark }

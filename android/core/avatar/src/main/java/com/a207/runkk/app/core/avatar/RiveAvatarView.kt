@@ -1,8 +1,10 @@
 package com.a207.runkk.app.core.avatar
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.view.MotionEvent
 import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -22,15 +24,39 @@ import java.util.concurrent.Executors
  * - Rive 파일·내장 머리·앞 단계 몸 바이트는 [RiveAvatarAssets]가 IO에서 미리 읽은 것만 쓴다(주 스레드에서 자산을 읽지 않는다).
  * - 피부톤·의상·체형 텍스처는 단일 합성 스레드에서 만든다. 계산은 한 번에 하나, 대기는 가장 최근 요청 하나만 둔다.
  *   요청 버전([toneVersion])과 정체 버전([identity])이 지금과 다르면 결과를 버린다.
- * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다.
+ * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다. 보이게 된 때 [onReady].
+ * - 합성 결과는 프로세스 공용 캐시([SharedToneCache])에도 넣는다. 합성하기 전에 그 캐시를 먼저 보고, 같은 머리·모습이 있으면 합성
+ *   스레드를 거치지 않고 바로 넣는다(미리 준비 [prepareRiveAvatarLook], [임시:DR-성-10]). 같은 머리면 몸 분리 결과도 다시 쓴다.
+ * - 좌우 뒤집기는 달리기 플레이어만 `scaleX = -1`이다([RivePlayerRules.scaleX], [임시:D-성-130]).
  * - 화면이 RESUMED가 아니면 재생하지 않고 결과도 RESUMED 때 넣는다.
  */
 internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     var onError: (Throwable) -> Unit = {}
 
-    private val io: ExecutorService = Executors.newSingleThreadExecutor()
+    /**
+     * 아바타는 누르기에 반응하지 않는다. Rive 플레이어가 상태 기계 입력으로 누르기를 소비하면 칸을 감싼 Compose 클릭(홈 아바타 → 내 러너)이
+     * 받지 못한다(2026-11-11 실기기 3차). 누르기를 넘겨 부모가 받게 한다.
+     */
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean = false
+
+    /** 지금 동작의 플레이어가 첫 텍스처를 받아 보이게 된 때(주 스레드, 다음 메시지에서). 정체·동작이 바뀌면 다시 온다. */
+    var onReady: () -> Unit = {}
+
+    private val tones = SharedToneCache.shared
+
+    // 합성 스레드가 프로세스 종료를 막지 않도록 데몬으로 둔다.
+    private val io: ExecutorService = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "runkk-avatar-tone").apply { isDaemon = true }
+    }
     private val main = Handler(Looper.getMainLooper())
-    private val players = EnumMap<AvatarMotion, RiveAnimationView>(AvatarMotion::class.java)
+    private val players = EnumMap<AvatarMotion, PacedRiveAnimationView>(AvatarMotion::class.java)
+
+    /** 달리기 동작 재생 빠르기(1 = 원래, 러닝 중 페이스에 맞춘다). */
+    var runSpeed: Float = 1f
+        set(value) {
+            field = value
+            players[AvatarMotion.RUN]?.playbackSpeed = value
+        }
     private val applied = EnumSet.noneOf(AvatarMotion::class.java)
     private var frontLoader: FrontAvatarAssetLoader? = null
     private var runLoader: RunAvatarAssetLoader? = null
@@ -38,6 +64,9 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private var assets: PreparedRiveAssets? = null
     private var sources: AvatarVariantAssets? = null
     private var identity = 0
+
+    /** 지금 정체의 생성 머리(공용 캐시 키, 내장 머리면 null). */
+    private var head: GeneratedHeadLayers? = null
     private var toneVersion = 0
     private var isToneInFlight = false
     private var pendingTone: AvatarToneRequest? = null
@@ -95,6 +124,18 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         }
     }
 
+    /**
+     * 지금 동작 플레이어가 그린 판을 [width]×[height]로 읽는다(전신 정지 그림, [RiveAvatarStill]). 그 동작의 첫 텍스처가 아직 들어가지
+     * 않았거나 그릴 면이 아직 없으면 null이다. 주 스레드에서 부른다.
+     */
+    fun snapshot(width: Int, height: Int): Bitmap? {
+        if (isReleased || width <= 0 || height <= 0) return null
+        val motion = state?.motion ?: return null
+        if (motion !in applied) return null
+        val player = players[motion]?.takeIf { it.isAvailable } ?: return null
+        return player.getBitmap(width, height)
+    }
+
     fun release() {
         if (isReleased) return
         isReleased = true
@@ -137,7 +178,9 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         val nextSources = next.headLayers?.variants?.getValue(next.gender) ?: prepared.builtIn
         identity++
         invalidateTone()
-        cache = AvatarToneCache()
+        head = next.headLayers
+        // 같은 머리를 다른 뷰나 미리 준비가 합성해 두었으면 몸 분리·텍스처를 다시 쓴다.
+        cache = tones.seed(next.gender, next.headLayers)
         applied.clear()
         sources = nextSources
         players.forEach { (motion, view) ->
@@ -162,16 +205,18 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             AvatarMotion.STAND -> FrontAvatarAssetLoader(prepared.legacyStandingBody).also { frontLoader = it }
             AvatarMotion.RUN -> RunAvatarAssetLoader().also { runLoader = it }
         }
-        val view = RiveAnimationView.Builder(context)
-            .setResource(prepared.riv(motion))
-            .setArtboardName(RiveAvatarScene.artboard(motion))
-            .setStateMachineName(RiveAvatarScene.stateMachine(motion))
-            .setShouldLoadCDNAssets(false)
-            .setRendererType(RendererType.Rive)
-            .setFit(Fit.CONTAIN)
-            .setAutoplay(false)
-            .setAssetLoader(loader)
-            .build()
+        val view = PacedRiveAnimationView(
+            RiveAnimationView.Builder(context)
+                .setResource(prepared.riv(motion))
+                .setArtboardName(RiveAvatarScene.artboard(motion))
+                .setStateMachineName(RiveAvatarScene.stateMachine(motion))
+                .setShouldLoadCDNAssets(false)
+                .setRendererType(RendererType.Rive)
+                .setFit(Fit.CONTAIN)
+                .setAutoplay(false)
+                .setAssetLoader(loader)
+        )
+        if (motion == AvatarMotion.RUN) view.playbackSpeed = runSpeed
         view.visibility = INVISIBLE
         // Builder는 창에 붙을 때 읽는다. 지금 한 번 읽어 자산 자리와 상태 입력을 바로 쓸 수 있게 한다
         // (onAttachedToWindow는 이미 파일이 있으면 다시 읽지 않는다).
@@ -213,51 +258,46 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private fun requestTone() {
         val current = state ?: return
         val variant = sources ?: return
-        val legacyStandingBody = assets?.legacyStandingBody ?: return
+        if (assets == null) return
         val front = frontLoader?.takeIf { AvatarMotion.STAND in players }
         val run = runLoader?.takeIf { AvatarMotion.RUN in players }
         if (front == null && run == null) return
-        val stage = current.shape.stage
         pendingResult = null
-        pendingTone = AvatarToneRequest(
+        val request = AvatarToneRequests.build(
             version = ++toneVersion,
             identity = identity,
             gender = current.gender,
-            amount = current.runningAmount,
-            outfit = current.outfit,
-            shape = current.shape,
-            face = front?.originalFaceBytes(),
-            hair = front?.originalHairBytes(),
-            frontFullness = front?.let {
-                if (stage ==
-                    0
-                ) {
-                    it.originalFullnessBytes()
-                } else {
-                    variant.frontFullness.getValue(stage)
-                }
+            look = current.look,
+            variant = variant,
+            front = front?.let {
+                AvatarToneRequests.FrontOriginals(it.originalBodyBytes(), it.originalFullnessBytes())
             },
-            runFullness = run?.let {
-                if (stage ==
-                    0
-                ) {
-                    it.originalFullnessBytes()
-                } else {
-                    variant.sideFullness.getValue(stage)
-                }
-            },
-            sideLayers = run?.let { variant.sideLayers },
-            skinAssets = buildMap {
-                front?.let {
-                    put(BodySkinLayers.STANDING_BODY, it.originalBodyBytes())
-                    put(BodySkinLayers.STANDING_BODY_LEGACY, legacyStandingBody)
-                    it.originalSelectedBodyBytes()?.let { bytes -> put(MaleSelectedBody.ASSET, bytes) }
-                }
-                run?.let { putAll(it.originalSkinBytes()) }
-            },
+            run = run?.let { AvatarToneRequests.RunOriginals(it.originalSkinBytes(), it.originalFullnessBytes()) },
             generatedSkinColor = current.headLayers?.skinColor
         )
-        startNextTone()
+        val motions = buildSet {
+            if (front != null) add(AvatarMotion.STAND)
+            if (run != null) add(AvatarMotion.RUN)
+        }
+        val shared = tones.hit(current.gender, motions, head, current.look)
+        if (shared == null) {
+            pendingTone = request
+            startNextTone()
+            return
+        }
+        // 미리 준비했거나 다른 뷰가 같은 모습을 합성했다: 합성 스레드를 거치지 않고 바로 넣는다.
+        pendingTone = null
+        val prepared = PreparedAvatarTone(
+            request = request,
+            face = shared.face,
+            hair = shared.face?.hair ?: request.hair,
+            skinBases = shared.skinBases,
+            skinRenders = shared.skinRenders,
+            frontOverlay = shared.frontOverlay,
+            runOverlay = shared.runOverlay
+        )
+        cache = prepared.toCache(cache)
+        if (isResumed) apply(prepared) else pendingResult = prepared
     }
 
     private fun startNextTone() {
@@ -282,6 +322,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         isToneInFlight = false
         if (isReleased) return
         if (request.identity == identity) result.getOrNull()?.let { cache = it.toCache(cache) }
+        if (isCurrent(request)) result.getOrNull()?.let(::share)
         if (isCurrent(request)) {
             result.fold(
                 onSuccess = { prepared -> if (isResumed) apply(prepared) else pendingResult = prepared },
@@ -297,71 +338,77 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             request.gender == current.gender && request.shape == current.shape
     }
 
+    /** 지금 모습의 합성 결과를 공용 캐시에 넣는다(동작마다 그 요청에 든 것만). */
+    private fun share(prepared: PreparedAvatarTone) {
+        val request = prepared.request
+        val look = AvatarLookKey(request.outfit, request.shape, request.amount)
+        val result = prepared.toCache(AvatarToneCache())
+        if (request.face != null) tones.put(request.gender, AvatarMotion.STAND, head, look, result)
+        if (request.runFullness != null) tones.put(request.gender, AvatarMotion.RUN, head, look, result)
+    }
+
     /** 최신 요청의 텍스처와 body_shape를 함께 넣는다(몸과 볼 레이어가 같이 바뀐다). */
     private fun apply(prepared: PreparedAvatarTone) {
-        val request = prepared.request
-        if (!isCurrent(request)) return
+        if (!isCurrent(prepared.request)) return
         try {
-            val textures = prepared.textures
-            players[AvatarMotion.STAND]?.let { view ->
-                val loader = checkNotNull(frontLoader)
-                prepared.face?.let { loader.replaceFace(it.bytes, checkNotNull(prepared.hair)) }
-                textures[BodySkinLayers.STANDING_BODY]?.let(loader::replaceBody)
-                textures[MaleSelectedBody.ASSET]?.let(loader::replaceSelectedBody)
-                loader.replaceFullnessOverlay(prepared.frontOverlay?.bytes)
-                val machine = RiveAvatarScene.stateMachine(AvatarMotion.STAND)
-                view.setNumberState(
-                    machine,
-                    RiveAvatarScene.INPUT_BODY_SHAPE,
-                    RiveAvatarScene.bodyShapeValue(request.shape)
-                )
-                if (loader.hasSelectedBody()) {
-                    val outfit = request.outfit
-                    view.setNumberState(
-                        machine,
-                        RiveAvatarScene.INPUT_SELECTED_TOP,
-                        RiveAvatarScene.topSurface(request.gender, outfit.top)
-                    )
-                    view.setNumberState(
-                        machine,
-                        RiveAvatarScene.INPUT_SELECTED_BOTTOM,
-                        RiveAvatarScene.bottomSurface(outfit.bottom)
-                    )
-                    view.setNumberState(
-                        machine,
-                        RiveAvatarScene.INPUT_SELECTED_SHOES,
-                        RiveAvatarScene.shoesSurface(outfit.shoes)
-                    )
-                }
-                applied += AvatarMotion.STAND
-            }
-            players[AvatarMotion.RUN]?.let { view ->
-                val loader = checkNotNull(runLoader)
-                loader.applySkin(
-                    textures.filterKeys { it != BodySkinLayers.STANDING_BODY && it != MaleSelectedBody.ASSET }
-                )
-                loader.replaceFullnessOverlay(checkNotNull(prepared.runOverlay).bytes)
-                view.setNumberState(
-                    RiveAvatarScene.stateMachine(AvatarMotion.RUN),
-                    RiveAvatarScene.INPUT_BODY_SHAPE,
-                    RiveAvatarScene.bodyShapeValue(request.shape)
-                )
-                applied += AvatarMotion.RUN
-            }
+            players[AvatarMotion.STAND]?.let { applyStand(it, prepared) }
+            players[AvatarMotion.RUN]?.let { applyRun(it, prepared) }
             updateMotion()
         } catch (error: RuntimeException) {
             fail(error)
         }
     }
 
+    private fun applyStand(view: RiveAnimationView, prepared: PreparedAvatarTone) {
+        val request = prepared.request
+        val loader = checkNotNull(frontLoader)
+        prepared.face?.let { loader.replaceFace(it.bytes, checkNotNull(prepared.hair)) }
+        prepared.textures[BodySkinLayers.STANDING_BODY]?.let(loader::replaceBody)
+        loader.replaceFullnessOverlay(prepared.frontOverlay?.bytes)
+        val machine = RiveAvatarScene.stateMachine(AvatarMotion.STAND)
+        view.setNumberState(machine, RiveAvatarScene.INPUT_BODY_SHAPE, RiveAvatarScene.bodyShapeValue(request.shape))
+        if (loader.hasSelectedBody()) {
+            // 남자 서기 riv만 표면 입력이 있다. 표면은 합성이 실제로 그린 묶음 값이다(D-성-115).
+            val outfit = request.outfit
+            view.setNumberState(
+                machine,
+                RiveAvatarScene.INPUT_SELECTED_TOP,
+                RiveAvatarScene.topSurface(request.gender, outfit.top, request.shape)
+            )
+            view.setNumberState(
+                machine,
+                RiveAvatarScene.INPUT_SELECTED_BOTTOM,
+                RiveAvatarScene.bottomSurface(outfit.bottom)
+            )
+            view.setNumberState(
+                machine,
+                RiveAvatarScene.INPUT_SELECTED_SHOES,
+                RiveAvatarScene.shoesSurface(outfit.shoes)
+            )
+        }
+        applied += AvatarMotion.STAND
+    }
+
+    private fun applyRun(view: RiveAnimationView, prepared: PreparedAvatarTone) {
+        val loader = checkNotNull(runLoader)
+        loader.applySkin(prepared.textures.filterKeys { it != BodySkinLayers.STANDING_BODY })
+        loader.replaceFullnessOverlay(checkNotNull(prepared.runOverlay).bytes)
+        view.setNumberState(
+            RiveAvatarScene.stateMachine(AvatarMotion.RUN),
+            RiveAvatarScene.INPUT_BODY_SHAPE,
+            RiveAvatarScene.bodyShapeValue(prepared.request.shape)
+        )
+        applied += AvatarMotion.RUN
+    }
+
     private fun updateMotion() {
         val current = state ?: return
         players.forEach { (motion, view) ->
-            view.visibility = when {
-                motion != current.motion -> GONE
-                motion in applied -> VISIBLE
-                else -> INVISIBLE
-            }
+            val visibility = RivePlayerRules.visibility(motion, current.motion, applied)
+            val isShown = motion == current.motion && RivePlayerRules.becameVisible(view.visibility, visibility)
+            view.visibility = visibility
+            view.scaleX = RivePlayerRules.scaleX(motion, current.mirrored)
+            if (isShown) main.post { if (!isReleased) onReady() }
         }
         val wanted = current.motion.takeIf { isResumed && it in applied }
         if (wanted == playing) return

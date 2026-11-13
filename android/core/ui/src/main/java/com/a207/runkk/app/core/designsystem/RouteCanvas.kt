@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,7 +121,10 @@ fun RouteCanvas(
                 drawCircle(startBorder, radius = 7.dp.toPx(), center = o, style = Stroke(width = 2.dp.toPx()))
             }
         }
-        markers.forEach { marker -> MarkerAt(projection.project(marker.point), marker, markerSize) }
+        // 표지로 묶어 마커가 늘거나 줄어도(대결 상대가 나타남) 내 마커 내용(Rive 칸)을 새로 만들지 않는다([임시:DR-성-14])
+        markers.forEach { marker ->
+            key(marker.tag) { MarkerAt(projection.project(marker.point), marker, marker.size ?: markerSize) }
+        }
     }
 }
 

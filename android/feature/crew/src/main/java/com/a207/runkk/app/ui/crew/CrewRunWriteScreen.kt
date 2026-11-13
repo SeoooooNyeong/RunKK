@@ -31,7 +31,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +45,8 @@ import com.a207.runkk.app.core.designsystem.RunkkButtonSize
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigator
+import com.a207.runkk.app.core.designsystem.RunkkRadioRow
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.asString
@@ -295,44 +296,14 @@ private fun DateSheet(state: CrewRunWriteUiState, actions: CrewRunWriteActions) 
 
 @Composable
 private fun MonthBar(month: YearMonth, canPrev: Boolean, canNext: Boolean, onMonth: (YearMonth) -> Unit) {
-    val spokenMonth = stringResource(R.string.crew_run_calendar_month_spoken, month.year, month.monthValue)
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        MonthArrow("‹", stringResource(R.string.crew_run_calendar_prev), canPrev) { onMonth(month.minusMonths(1)) }
-        Text(
-            stringResource(R.string.crew_run_calendar_month, month.monthValue),
-            style = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 19),
-            color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.weight(1f).semantics {
-                heading()
-                contentDescription = spokenMonth
-            }
-        )
-        MonthArrow("›", stringResource(R.string.crew_run_calendar_next), canNext) { onMonth(month.plusMonths(1)) }
-    }
-}
-
-/** 달력 이동 화살표(피그마 RunKK/Calendar/이동 화살표 32, 글자 28). 범위 밖이면 흐리고 누를 수 없다. */
-@Composable
-private fun MonthArrow(glyph: String, label: String, isEnabled: Boolean, onClick: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable(enabled = isEnabled, role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = label },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            glyph,
-            style = RunkkTextStyles.text(28, lineHeight = 26),
-            color = if (isEnabled) {
-                RunkkColors.TextPrimary
-            } else {
-                RunkkColors.TextSecondary.copy(alpha = MONTH_ARROW_DISABLED_ALPHA)
-            }
-        )
-    }
+    RunkkPeriodNavigator(
+        label = stringResource(R.string.crew_run_calendar_month, month.monthValue),
+        onPrevious = { onMonth(month.minusMonths(1)) }.takeIf { canPrev },
+        onNext = { onMonth(month.plusMonths(1)) }.takeIf { canNext },
+        labelStyle = RunkkTextStyles.text(16, FontWeight.Bold, lineHeight = 19),
+        previousDescription = stringResource(R.string.crew_run_calendar_prev),
+        nextDescription = stringResource(R.string.crew_run_calendar_next)
+    )
 }
 
 @Composable
@@ -483,7 +454,7 @@ private fun RepeatSheet(initial: CrewRunRepeat, day: DayOfWeek?, actions: CrewRu
     ) {
         Column {
             CrewRunRepeat.entries.forEachIndexed { index, repeat ->
-                CrewRadioRow(
+                RunkkRadioRow(
                     repeatLabel(repeat, day),
                     isSelected = picked == repeat,
                     onClick = { picked = repeat },

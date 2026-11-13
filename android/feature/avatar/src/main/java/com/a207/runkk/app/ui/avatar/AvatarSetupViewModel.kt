@@ -8,15 +8,18 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.avatar.AvatarRepository
-import com.a207.runkk.app.domain.avatar.SelfieFailure
+import com.a207.runkk.app.domain.avatar.PendingSelfiePhoto
 import com.a207.runkk.app.domain.avatar.SelfieJob
+import com.a207.runkk.app.domain.avatar.SelfieJobFollower
+import com.a207.runkk.app.domain.avatar.SelfieProgress
+import com.a207.runkk.app.domain.avatar.SelfieScreenPresence
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,29 +30,35 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 아바타 만들기(FR-155~FR-158): 셀카(앱이 줄인 JPEG)로 얼굴을 만들거나 기본 캐릭터 4종 중 하나를 chooseDefault로 고른다.
- *
- * 셀카 얼굴은 서버가 비동기로 만든다(S15P31A207-276, 248): 접수(202, 작업 ID) → 만드는 중 → 상태 조회(간격을 늘려 가며) →
- * 완료면 결과를 받아 서버가 내 얼굴을 셀카 머리(head:)로 바꾸고 꾸미기로 돌아간다. 실패면 사유 문구를 보인다.
- * 화면을 떠나도 서버 작업은 계속되므로, 다시 들어오거나 앱을 다시 켜면 남긴 작업(AvatarRepository.pendingSelfieJobId)을 이어 조회한다.
- * 실패로 끝난 작업은 기기에 남겨(lastSelfieFailure) 다시 들어와도 셀카 카드에 실패와 「다시 시도」를 보이고, 서버에 한 번 다시 물어
- * 결과가 불명확했던 작업을 서버가 회수했으면 결과를 받는다(DV-성-9, DV-성-10).
- * 셀카는 얼굴 변환 전송 동의(셀카 카드의 체크, FACE_TRANSFER)가 있어야 보낸다. 체크하면 바로 동의를 저장한다.
- * 셀카 거부(동의 없음·하루 1회 초과·재시도 한도)는 사유와 함께 기본 캐릭터 선택을 안내한다.
+ * 얼굴 만들기(FR-155~FR-158, 피그마 AV-7 1안, design-oo 05-30 6절): 셀카·앨범 사진을 줄여(SelfieEncoder) 사진 확인 화면에 크게 보이고,
+ * 동의 뒤 「만들기 시작」으로 보낸다. 접수되면 보낸 사진을 기기에 남기고([PendingSelfiePhoto]) 따라가기를 워커에 맡긴다
+ * ([SelfieJobFollower], [임시:D-성-117]). 화면은 조회하지 않고 [AvatarRepository.selfieProgress]를 단계로 바꾼다: 만드는 중이면
+ * 「나중에 다시 확인해도 돼요」와 보낸 사진, 끝나면 새 얼굴, 실패면 사유. 화면을 떠나도 워커가 이어 가고 결과를 알림으로 알린다.
+ * 화면이 보이는 동안은 [SelfieScreenPresence]를 열어 둔다(알림 대신 화면이 바뀐다, [임시:D-성-120]).
+ * 「기본 얼굴」 칸 하나를 고르면 chooseDefault로 기본 캐릭터 RABBIT을 저장한다(만드는 중에도 된다, FR-158: 서버가 진행 중 요청을 지운다).
+ * 서버 기본 캐릭터 값은 어느 것이든 기본 얼굴로 본다([임시:D-성-187]).
  */
 @HiltViewModel
 class AvatarSetupViewModel internal constructor(
     private val avatars: AvatarRepository,
+    private val follower: SelfieJobFollower,
+    private val pendingPhoto: PendingSelfiePhoto,
+    private val presence: SelfieScreenPresence,
+    private val heads: SelfieHeads,
     /** 셀카 줄이기 디스패처(리뷰 N-10). */
     private val encodeDispatcher: CoroutineDispatcher = Dispatchers.Default,
-    /** 상태 조회 사이 대기(밀리초). 차례로 늘리고 마지막 값을 되풀이한다. */
-    private val pollDelays: List<Long> = POLL_DELAYS,
-    /** 얼굴 변환 전송 동의(셀카 카드의 체크). */
+    /** 얼굴 변환 전송 동의(사진 확인 화면의 체크). */
     private val faceConsent: FaceConsent = GIVEN
 ) : ViewModel() {
     @Inject
-    constructor(avatars: AvatarRepository, accounts: AccountRepository) :
-        this(avatars, Dispatchers.Default, POLL_DELAYS, FaceConsent.of(accounts))
+    constructor(
+        avatars: AvatarRepository,
+        accounts: AccountRepository,
+        follower: SelfieJobFollower,
+        pendingPhoto: PendingSelfiePhoto,
+        presence: SelfieScreenPresence,
+        heads: SelfieHeads
+    ) : this(avatars, follower, pendingPhoto, presence, heads, Dispatchers.Default, FaceConsent.of(accounts))
 
     private val _state = MutableStateFlow(AvatarSetupUiState())
     val state: StateFlow<AvatarSetupUiState> = _state.asStateFlow()
@@ -57,34 +66,114 @@ class AvatarSetupViewModel internal constructor(
     private val _events = Channel<AvatarSetupEvent>(Channel.BUFFERED)
     val events: Flow<AvatarSetupEvent> = _events.receiveAsFlow()
 
-    private var pollJob: Job? = null
-
     init {
-        viewModelScope.launch {
-            val avatar = avatars.avatar().getOrNull()
-            _state.update {
-                it.copy(
-                    isLoading = false,
-                    canCreateSelfie = avatar?.canCreateSelfieToday ?: true,
-                    faceKey = avatar?.renderKey,
-                    selected = it.selected ?: DefaultCharacter.of(avatar?.defaultCharacterId)
-                )
-            }
-        }
-        viewModelScope.launch {
-            val pendingJob = avatars.pendingSelfieJobId()
-            if (pendingJob != null) {
-                follow(pendingJob, isFirstCheckNow = true)
-            } else {
-                avatars.lastSelfieFailure()?.let { recheck(it) }
-            }
-        }
+        viewModelScope.launch { loadAvatar() }
         viewModelScope.launch {
             faceConsent.isGiven()?.let { given -> _state.update { it.copy(hasFaceConsent = given) } }
         }
+        viewModelScope.launch {
+            avatars.selfieProgress().collect(::onProgress)
+        }
+        viewModelScope.launch {
+            // 기기에 남긴 작업이 없으면 서버의 진행 중 작업을 찾아 이어 따라간다(앱 데이터를 지웠거나 앞 판에서 남긴 작업).
+            avatars.pendingSelfieJobId()?.let(follower::resume)
+        }
     }
 
-    /** 셀카 카드의 동의 체크. 바로 서버에 동의를 저장한다. 이미 동의했으면 그대로다(철회는 마이 > 동의 관리). */
+    private suspend fun loadAvatar() {
+        val avatar = avatars.avatar().getOrNull()
+        // 지금 얼굴이 셀카면 지금 얼굴 카드가 그 머리를 그리게 부위 그림을 읽는다(못 읽으면 기본 머리).
+        val layers = avatar?.takeIf { it.isSelfieFace }?.let { heads.look(it.faceKey).faceLayers }
+        _state.update {
+            it.copy(
+                isLoading = false,
+                canCreateSelfie = avatar?.canCreateSelfieToday ?: it.canCreateSelfie,
+                faceKey = avatar?.renderKey ?: it.faceKey,
+                faceLayers = layers ?: it.faceLayers,
+                isDefaultSelected = it.isDefaultSelected || avatar?.isDefaultFace == true
+            )
+        }
+    }
+
+    /** 새 얼굴 화면 무대: 바뀐 얼굴과 지금 착용·체형·러닝량으로 그린다. 못 읽으면 무대는 로딩 표시만 둔다. */
+    private suspend fun loadLook() {
+        val avatar = avatars.avatar().getOrNull() ?: return
+        val items = avatars.shop(null).getOrNull()?.items.orEmpty()
+        val runAmount = avatars.runner().getOrNull()?.runAmount ?: 0
+        val face = heads.look(avatar.faceKey)
+        _state.update {
+            it.copy(
+                backgroundKey = avatar.backgroundKey,
+                faceLayers = face.faceLayers,
+                look = AvatarLook().withAvatar(avatar, items, runAmount).copy(headLayers = face.headLayers)
+            )
+        }
+    }
+
+    /** 워커가 고친 진행을 화면 단계로 바꾼다(design-oo 05-30 6.2). 고르는 중(사진 확인·보내는 중)에는 단계를 바꾸지 않는다. */
+    private suspend fun onProgress(progress: SelfieProgress) {
+        val phase = _state.value.phase
+        if (phase == SetupPhase.CONFIRM) return
+        when (progress) {
+            is SelfieProgress.Working -> {
+                if (phase == SetupPhase.SENDING) return
+                val photo = _state.value.photo ?: pendingPhoto.load()
+                _state.update { it.copy(phase = SetupPhase.WORKING, photo = photo, error = null) }
+            }
+
+            is SelfieProgress.Succeeded -> {
+                // 새 셀카가 지금 얼굴이 됐으니 「기본 얼굴」 칸 고름을 푼다(그대로 두면 저장이 새 셀카를 덮는다).
+                _state.update {
+                    it.copy(
+                        phase = SetupPhase.DONE,
+                        faceKey = progress.faceKey ?: it.faceKey,
+                        isDefaultSelected = false,
+                        error = null
+                    )
+                }
+                loadAvatar()
+                loadLook()
+            }
+
+            is SelfieProgress.Failed -> _state.update {
+                it.copy(
+                    phase = SetupPhase.FAILED,
+                    failure = AvatarErrorText.ofSelfieFailure(progress.code),
+                    error = null
+                )
+            }
+
+            SelfieProgress.None -> if (phase == SetupPhase.WORKING) {
+                // 서버에 진행 중 작업이 없다고 확인돼 기기 작업을 지웠다(회수).
+                _state.update { it.copy(phase = SetupPhase.CHOOSE, photo = null) }
+            }
+        }
+    }
+
+    /**
+     * 화면이 보인다(ON_START, 앱이 다시 앞으로 온 때 포함). 보이는 동안 결과는 알림 대신 화면으로 알린다. 남은 작업을 워커와 따로 한 번
+     * 직접 확인한다(워커가 네트워크 제약으로 돌지 못해도 끝난 결과를 받는다, [임시:D-성-188]).
+     */
+    fun onScreenVisible() {
+        presence.opened()
+        viewModelScope.launch { quietly { follower.checkNow() } }
+    }
+
+    /** 직접 확인은 덤이라 실패해도 화면을 그대로 둔다(워커가 이어 간다). 취소는 그대로 넘긴다. */
+    private suspend fun quietly(block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 다음에 화면이 보일 때 다시 확인한다.
+        }
+    }
+
+    /** 화면이 안 보인다(ON_STOP). */
+    fun onScreenHidden() = presence.closed()
+
+    /** 사진 확인 화면의 동의 체크. 바로 서버에 동의를 저장한다. 이미 동의했으면 그대로다(철회는 마이 > 동의 관리). */
     fun onFaceConsent() {
         val s = _state.value
         if (s.hasFaceConsent || s.isSavingConsent) return
@@ -100,140 +189,85 @@ class AvatarSetupViewModel internal constructor(
         }
     }
 
-    /** 셀카 찍기·앨범을 눌렀다. 동의하지 않았으면 체크를 먼저 하라고 알리고 거짓을 돌려준다(카메라를 열지 않는다). */
+    /** 셀카 찍기·앨범을 눌렀다. 만드는 중이거나 오늘 이미 만들었으면 거짓을 돌려준다(카메라를 열지 않는다). */
     fun onSelfieRequested(): Boolean {
-        if (isBusy()) return false
-        if (!_state.value.hasFaceConsent) {
-            _state.update { it.copy(error = UiText.Res(R.string.avatar_setup_face_consent_needed)) }
+        val s = _state.value
+        if (s.isWorking || s.isMakingFace) return false
+        if (!s.canCreateSelfie) {
+            _state.update { it.copy(error = UiText.Res(R.string.avatar_error_selfie_limit)) }
             return false
         }
         return true
     }
 
-    fun onCharacterSelected(character: DefaultCharacter) = _state.update { it.copy(selected = character, error = null) }
+    /** 「기본 얼굴」 칸을 눌렀다([임시:D-성-187]). */
+    fun onDefaultFaceSelected() = _state.update { it.copy(isDefaultSelected = true, error = null) }
 
-    /** 셀카 촬영을 취소했거나 사진을 읽지 못했을 때. */
+    /** 찍거나 고른 사진을 읽지 못했을 때. */
     fun onSelfieUnavailable() = _state.update { it.copy(error = UiText.Res(R.string.avatar_setup_selfie_unavailable)) }
 
-    /** 찍은 셀카를 줄여(긴 변 1024px·JPEG·1MB) 보낸다. 줄이는 동안에도 다시 누르지 못하게 먼저 isWorking을 켠다. */
+    /** 카메라를 사용자가 취소했을 때: 문구 없이 고르기 단계에 남는다(앞 안내도 지운다, 리뷰 RC-3). */
+    fun onSelfieCancelled() = _state.update { it.copy(phase = SetupPhase.CHOOSE, error = null) }
+
+    /** 찍거나 고른 사진을 줄여(긴 변 1024px·JPEG·1MB) 사진 확인 화면에 보인다. 아직 보내지 않는다. */
     fun onSelfieCaptured(bitmap: android.graphics.Bitmap) {
-        if (isBusy()) return
-        _state.update { it.copy(isWorking = true, error = null, canRetrySelfie = false) }
+        if (_state.value.isWorking || _state.value.isMakingFace) return
+        _state.update { it.copy(isWorking = true, error = null) }
         viewModelScope.launch {
             val jpeg = withContext(encodeDispatcher) { SelfieEncoder.encode(bitmap) }
-            upload(jpeg)
+            onSelfie(jpeg)
         }
     }
 
+    /** 줄인 사진을 사진 확인 화면에 보인다. */
     fun onSelfie(jpeg: ByteArray) {
-        if (isBusy()) return
-        _state.update { it.copy(isWorking = true, error = null, canRetrySelfie = false) }
-        viewModelScope.launch { upload(jpeg) }
+        if (_state.value.isMakingFace) return
+        _state.update { it.copy(isWorking = false, phase = SetupPhase.CONFIRM, photo = jpeg, error = null) }
     }
 
-    private fun isBusy(): Boolean = _state.value.isWorking || _state.value.isMakingFace
+    /** 사진 확인의 뒤로·다시 고르기: 고르기로 돌아간다(사진은 버린다). */
+    fun onRepick() = _state.update { it.copy(phase = SetupPhase.CHOOSE, photo = null, error = null) }
 
-    /** 접수한 뒤에는 사진 바이트를 들고 있지 않는다(조회는 작업 ID로만 한다). */
-    private suspend fun upload(jpeg: ByteArray) {
-        val result = avatars.submitSelfie(jpeg)
-        _state.update { it.copy(isWorking = false) }
-        when (result) {
-            is Outcome.Success -> onJob(result.value)
-            is Outcome.Failure -> fail(result.error)
+    /** 「만들기 시작」: 동의가 있어야 보낸다. 접수되면 보낸 사진을 남기고 따라가기를 워커에 맡긴다. */
+    fun onStart() {
+        val s = _state.value
+        val jpeg = s.photo ?: return
+        if (s.phase != SetupPhase.CONFIRM) return
+        if (!s.hasFaceConsent) {
+            _state.update { it.copy(error = UiText.Res(R.string.avatar_setup_face_consent_needed)) }
+            return
         }
-    }
-
-    /** 작업 상태에 따라 끝내거나 이어 조회한다. */
-    private fun onJob(job: SelfieJob) {
-        when (job.status) {
-            SelfieJob.Status.SUCCEEDED -> finish(job.jobId)
-            SelfieJob.Status.FAILED -> failJob(job.failureCode)
-            SelfieJob.Status.QUEUED, SelfieJob.Status.RUNNING -> follow(job.jobId, isFirstCheckNow = false)
-        }
-    }
-
-    /**
-     * 만드는 중을 켜고 끝날 때까지 상태를 조회한다. 잠깐의 연결·서버 실패는 [MAX_FAILURES]번까지 이어 가고, 그보다 오래 끌면 멈추고
-     * 다시 들어올 때 이어 조회한다(작업 ID는 남아 있다).
-     */
-    private fun follow(jobId: String, isFirstCheckNow: Boolean) {
-        pollJob?.cancel()
-        _state.update { it.copy(isMakingFace = true, error = null) }
-        pollJob = viewModelScope.launch {
-            var failures = 0
-            for (attempt in 0 until MAX_POLLS) {
-                if (attempt > 0 || !isFirstCheckNow) delay(pollDelays[attempt.coerceAtMost(pollDelays.lastIndex)])
-                when (val result = avatars.selfieJob(jobId)) {
-                    is Outcome.Success -> {
-                        failures = 0
-                        if (result.value.isOver) {
-                            onJob(result.value)
-                            return@launch
-                        }
-                    }
-
-                    is Outcome.Failure -> {
-                        if (result.error is AppError.Rejected || ++failures >= MAX_FAILURES) {
-                            stopMaking(result.error)
-                            return@launch
-                        }
-                    }
-                }
-            }
-            _state.update {
-                it.copy(isMakingFace = false, error = UiText.Res(R.string.avatar_error_selfie_in_progress))
-            }
-        }
-    }
-
-    /** 남긴 실패를 보이고 서버에 한 번 다시 묻는다. 회수됐으면(SUCCEEDED) 결과를 받고, 그 밖에는 실패를 그대로 둔다. */
-    private suspend fun recheck(failure: SelfieFailure) {
-        failJob(failure.code)
-        val job = avatars.selfieJob(failure.jobId).getOrNull() ?: return
-        if (job.status != SelfieJob.Status.FAILED) {
-            _state.update { it.copy(canRetrySelfie = false, error = null) }
-            onJob(job)
-        }
-    }
-
-    private val SelfieJob.isOver: Boolean
-        get() = status == SelfieJob.Status.SUCCEEDED || status == SelfieJob.Status.FAILED
-
-    /** 결과를 받아 서버가 내 얼굴을 바꾸게 하고 꾸미기로 돌아간다. */
-    private fun finish(jobId: String) {
-        _state.update { it.copy(isMakingFace = true, error = null) }
+        _state.update { it.copy(phase = SetupPhase.SENDING, error = null) }
         viewModelScope.launch {
-            when (val result = avatars.finishSelfie(jobId)) {
-                is Outcome.Success -> {
-                    _state.update {
-                        it.copy(
-                            isMakingFace = false,
-                            faceKey = result.value.faceKey,
-                            canCreateSelfie = result.value.canCreateSelfieToday
-                        )
-                    }
-                    done()
-                }
-
-                is Outcome.Failure -> stopMaking(result.error)
+            when (val result = avatars.submitSelfie(jpeg)) {
+                is Outcome.Success -> onSubmitted(result.value, jpeg)
+                is Outcome.Failure -> fail(result.error)
             }
         }
     }
 
-    private fun stopMaking(error: AppError) {
-        _state.update { it.copy(isMakingFace = false) }
-        fail(error)
+    private suspend fun onSubmitted(job: SelfieJob, jpeg: ByteArray) {
+        if (job.status == SelfieJob.Status.FAILED) {
+            _state.update {
+                it.copy(phase = SetupPhase.FAILED, failure = AvatarErrorText.ofSelfieFailure(job.failureCode))
+            }
+            return
+        }
+        // 접수된 뒤에는 화면을 바로 떠나도(ViewModel 취소) 사진을 남기고 따라가기를 맡긴다(리뷰 R2-3).
+        withContext(NonCancellable) {
+            pendingPhoto.save(jpeg)
+            follower.follow(job.jobId)
+        }
+        _state.update { it.copy(phase = SetupPhase.WORKING) }
     }
 
-    /** 서버가 얼굴을 만들지 못했다(작업 FAILED). 모르는 사유는 공용 "얼굴을 만들지 못했어요"다. */
-    private fun failJob(code: String?) = _state.update {
-        it.copy(isMakingFace = false, error = AvatarErrorText.ofSelfieFailure(code), canRetrySelfie = true)
-    }
-
+    /** 보내지 못했다: 고르기로 돌아가 사유를 보인다(사진은 버린다, 6.2 Sending → Choose). */
     private fun fail(error: AppError) {
         val code = (error as? AppError.Rejected)?.code
         _state.update {
             it.copy(
+                phase = SetupPhase.CHOOSE,
+                photo = null,
                 canCreateSelfie = it.canCreateSelfie && code !in SELFIE_BLOCKED,
                 hasFaceConsent = it.hasFaceConsent && code != CONSENT_REQUIRED,
                 error = if (code == CONSENT_REQUIRED) {
@@ -245,19 +279,34 @@ class AvatarSetupViewModel internal constructor(
         }
     }
 
+    /** 새 얼굴 화면의 「확인」: 결과를 본 것으로 두고 돌아간다. */
+    fun onDoneConfirm() {
+        avatars.dismissSelfieResult()
+        done()
+    }
+
+    /** 실패 화면의 「다른 사진 고르기」: 실패를 지우고 고르기로(같은 날 다시 할 수 있다, 실패는 횟수에 세지 않는다). */
+    fun onRetry() {
+        avatars.dismissSelfieResult()
+        _state.update { it.copy(phase = SetupPhase.CHOOSE, photo = null, failure = null) }
+    }
+
+    /** 실패 화면의 「기본 얼굴 쓰기」: 실패를 지우고 고르기 화면의 기본 얼굴로. */
+    fun onUseDefault() = onRetry()
+
     /**
-     * 기본 캐릭터 저장. 셀카 얼굴을 만드는 중에도 저장할 수 있다(FR-158): 서버는 그 뒤 늦게 끝난 셀카 결과를 고른 기본 캐릭터 위에
-     * 반영하지 않는다(Avatar.chooseDefault가 진행 중 요청을 지운다). 남은 작업은 다음에 이어 조회해 끝낸다.
+     * 기본 얼굴 저장: 서버에 기본 캐릭터 [DefaultCharacter.DEFAULT](RABBIT)를 저장한다([임시:D-성-187]). 셀카 얼굴을 만드는 중에도 저장할 수
+     * 있다(FR-158): 서버는 그 뒤 늦게 끝난 셀카 결과를 기본 캐릭터 위에 반영하지 않으므로 따라가기를 멈추고 보낸 사진을 지운다.
      */
-    fun onConfirmCharacter() {
-        val character = _state.value.selected ?: return
-        if (_state.value.isWorking) return
+    fun onConfirmDefaultFace() {
+        if (!_state.value.isDefaultSelected || _state.value.isWorking) return
         _state.update { it.copy(isWorking = true, saveError = null) }
         viewModelScope.launch {
-            when (val result = avatars.chooseDefault(character.name)) {
+            when (val result = avatars.chooseDefault(DefaultCharacter.DEFAULT.name)) {
                 is Outcome.Success -> {
-                    pollJob?.cancel()
-                    _state.update { it.copy(isWorking = false, isMakingFace = false) }
+                    follower.cancel()
+                    pendingPhoto.clear()
+                    _state.update { it.copy(isWorking = false, phase = SetupPhase.CHOOSE, photo = null) }
                     done()
                 }
 
@@ -270,7 +319,7 @@ class AvatarSetupViewModel internal constructor(
 
     private var isDone = false
 
-    /** 꾸미기로 돌아간다. 셀카 완료와 기본 캐릭터 저장이 겹쳐도 한 번만. */
+    /** 이전 화면으로 돌아간다. 한 번만. */
     private fun done() {
         if (isDone) return
         isDone = true
@@ -286,21 +335,5 @@ class AvatarSetupViewModel internal constructor(
 
             override suspend fun give(): Outcome<Unit> = Outcome.Success(Unit)
         }
-
-        /** 얼굴 생성은 보통 1~6분 걸린다. 3초부터 늘려 15초마다 본다. */
-        val POLL_DELAYS = listOf(3_000L, 3_000L, 5_000L, 8_000L, 10_000L, 15_000L)
-
-        /** 아바타(Node) 서버의 생성 제한(head-jobs generationTimeoutMs). 조회는 이보다 오래 이어 간다(DV-성-9). */
-        const val AVATAR_GENERATION_LIMIT_MILLIS = 15 * 60_000L
-
-        /** 이만큼 보고도 끝나지 않으면(약 16분, 서버 생성 제한 15분 뒤) 멈추고 다시 들어올 때 이어 본다. */
-        const val MAX_POLLS = 68
-
-        /** [MAX_POLLS]번 보는 동안 기다리는 시간. */
-        fun pollWindowMillis(delays: List<Long> = POLL_DELAYS): Long =
-            (0 until MAX_POLLS).sumOf { delays[it.coerceAtMost(delays.lastIndex)] }
-
-        /** 연속 연결·서버 실패 허용 횟수. */
-        const val MAX_FAILURES = 3
     }
 }

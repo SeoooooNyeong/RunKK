@@ -121,7 +121,7 @@ private fun DropTriangle() {
 private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: ZoneId, actions: RunBodyActions) {
     when (session) {
         RunBodySessionState.Loading -> RunBodyCard(null) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 32.dp)) { RunkkLoading() }
+            RunkkLoading(height = SESSION_LOADING_HEIGHT)
         }
 
         RunBodySessionState.Pending -> RunBodyCard(
@@ -332,3 +332,6 @@ internal fun runTime(startedAt: Instant, zone: ZoneId): String {
 
 internal const val PROFILE_TITLE_SIZE = 20
 private val SELECTED_RUN_HEIGHT = 64.dp
+
+/** 세션 카드 안 불러오는 칸 높이(위아래 32 + 원 40). */
+private val SESSION_LOADING_HEIGHT = 104.dp

@@ -33,6 +33,7 @@ from runkk_ai.coach.tools import TOOL_SPECS, CoachTools
 logger = logging.getLogger(__name__)
 
 HISTORY_MESSAGES = 10  # 이전 대화는 최근 5번 주고받은 것까지만 다시 보낸다(토큰 절약)
+HISTORY_VIEW_MESSAGES = 200  # 지난 문답 조회는 최근 100번 주고받은 것까지만 돌려준다(응답 크기 상한)
 MAX_TOOL_ROUNDS = 3  # 도구를 고르는 turn 상한. 넘으면 도구 없이 답하게 한다
 _KST = timedelta(hours=9)
 
@@ -100,6 +101,19 @@ class CoachService:
         if not self._reserve(chat.userId):
             raise ChatRejected(429, "QUOTA_EXCEEDED")
         return conversation_id, self._run(self._model, chat, conversation_id)
+
+    async def history(self, user_id: str, conversation_id: str) -> list[CoachMessage]:
+        """대화의 지난 문답을 오래된 순으로 돌려준다(S15P31A207-300). 앱이 이전 대화를 열 때 화면에 다시 그린다.
+
+        다른 사용자의 대화면 ChatRejected(404)로 끊는다. 기록이 없는 대화(보관 기한으로 지워짐 등)는 빈 목록이다.
+        모델이 없어도(키 없음) 저장된 기록은 읽을 수 있다.
+        """
+        owner = await self._store.owner(conversation_id)
+        if owner is None:
+            return []
+        if owner != user_id:
+            raise ChatRejected(404, "CONVERSATION_NOT_FOUND")
+        return await self._store.recent(conversation_id, HISTORY_VIEW_MESSAGES)
 
     def _reserve(self, user_id: str) -> bool:
         today = _kst_today(self._clock())

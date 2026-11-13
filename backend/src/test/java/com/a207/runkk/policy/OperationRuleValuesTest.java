@@ -134,12 +134,10 @@ class OperationRuleValuesTest {
         assertThat(r.isExpired(occurred, occurred.plusDays(30).plusSeconds(1))).isTrue();
     }
 
-    // BodyShapeRule: 0 / 1~2 / 3~4 / 5+ → 1~4단계
-    @ParameterizedTest
-    @CsvSource({"0, 1", "1, 2", "2, 2", "3, 3", "4, 3", "5, 4", "7, 4"})
-    void bodyShapeRule_stageFor(int runsIn7Days, int stage) {
+    // BodyShapeRule: 4일 넘게 쉬면 한 단계씩 통통해진다
+    @Test
+    void bodyShapeRule_restDaysBeforeDecline() {
         BodyShapeRule rule = defaultOf(SettingKey.BODY_SHAPE_RULE, BodyShapeRule.class);
-        assertThat(rule.stageFor(runsIn7Days)).isEqualTo(stage);
         assertThat(rule.restDaysBeforeDecline()).isEqualTo(4);
     }
 

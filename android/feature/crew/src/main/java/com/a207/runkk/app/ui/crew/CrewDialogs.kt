@@ -38,10 +38,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
@@ -58,8 +58,9 @@ import com.a207.runkk.app.domain.crew.CrewRole
 import kotlinx.coroutines.launch
 
 /**
- * 오른쪽 위 닫기 ✕가 있는 카드 대화상자(피그마 F-18b 초대 코드·F-22b 크루원 정보): 흰 바탕, 모서리 [corner], 양옆 [side], 안쪽
- * [contentPadding]. ✕(36 터치, 20 아이콘)는 카드 기준 오른쪽 위다. 딤은 45%(RunkkDialog와 같다). 바깥 누름·뒤로가기는 닫는다.
+ * 오른쪽 위 닫기 ✕가 있고 제목 줄이 없는 카드 대화상자(피그마 F-22b 크루원 정보): 흰 바탕, 모서리 [corner], 양옆 [side], 위 [top].
+ * ✕(48 터치, 20 아이콘)는 카드 기준 오른쪽 위다. 딤은 45%(RunkkDialog와 같다). 바깥 누름·뒤로가기는 닫는다. 가운데 정렬 카드라
+ * 왼쪽 제목 줄이 있는 RunkkDialog 대신 같은 딤·닫기로 그린다(초대 코드는 RunkkDialog를 쓴다).
  */
 @Composable
 private fun CrewCloseableDialog(
@@ -125,23 +126,15 @@ internal fun InviteCodeDialog(code: String, actions: CrewHomeActions) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     val spoken = stringResource(R.string.crew_manage_invite_code_description, code.toList().joinToString(" "))
-    CrewCloseableDialog(
-        paneTitle = title,
+    RunkkDialog(
+        title = title,
+        onDismissRequest = actions.onInviteClose,
+        onClose = actions.onInviteClose,
         closeLabel = stringResource(R.string.crew_info_invite_close_description),
-        onDismiss = actions.onInviteClose,
-        side = 28.dp,
-        corner = 28.dp,
-        top = 24.dp
+        borderColor = RunkkColors.Border
     ) {
-        Text(
-            title,
-            style = RunkkTextStyles.DialogTitle,
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.semantics { heading() }
-        )
         Box(
             Modifier
-                .padding(top = 10.dp)
                 .fillMaxWidth()
                 .heightIn(min = 56.dp)
                 .clip(RoundedCornerShape(14.dp))
@@ -151,7 +144,7 @@ internal fun InviteCodeDialog(code: String, actions: CrewHomeActions) {
         ) {
             Text(
                 code,
-                style = RunkkTextStyles.text(24, FontWeight.Bold).copy(letterSpacing = 4.sp),
+                style = RunkkTextStyles.text(24, FontWeight.Bold, letterSpacingEm = CODE_LETTER_SPACING),
                 color = RunkkColors.TextPrimary,
                 textAlign = TextAlign.Center
             )
@@ -165,10 +158,13 @@ internal fun InviteCodeDialog(code: String, actions: CrewHomeActions) {
                 }
             },
             size = RunkkButtonSize.Medium,
-            modifier = Modifier.padding(top = 20.dp).fillMaxWidth()
+            modifier = Modifier.padding(top = 10.dp).fillMaxWidth()
         )
     }
 }
+
+/** 초대 코드 자간(피그마 4 / 글자 24). */
+private const val CODE_LETTER_SPACING = 4f / 24f
 
 /**
  * 크루원 정보 팝업(피그마 F-22b·F-29b): 폭 310 카드(양옆 40, 모서리 24, 위 28), 가운데 80 원 사진, 닉네임 18 Bold, 크루장이면 배지,
@@ -191,14 +187,14 @@ internal fun CrewMemberDialog(member: CrewMembers.Member, canManage: Boolean, ac
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            MemberAvatar(80.dp, isBordered = true)
+            RunkkAvatarCircle(80.dp, borderColor = RunkkColors.Border)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     name,
-                    style = RunkkTextStyles.text(18, FontWeight.Bold, lineHeight = 22),
+                    style = RunkkTextStyles.SheetTitle,
                     color = RunkkColors.TextPrimary,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.semantics { heading() }

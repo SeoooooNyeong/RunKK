@@ -93,12 +93,13 @@ public class RecordBattleService {
                 null, label, distance.distance(), time, on, null, false);
     }
 
-    /** 유명인 기록 목록과 출처, 거리 필터(FR-097, FR-100). */
+    /** 유명인 기록 목록과 출처, 거리 필터(FR-097, FR-100). 코치 기록만 보인다([임시:D-성-219]). */
     @Transactional(readOnly = true)
     public RecordBattleCandidates celebrityCandidates(
             long memberId, Optional<StandardDistance> filter) {
         List<RecordBattleCandidates.Candidate> candidates =
                 celebrityRecordRepository.findAll(filter).stream()
+                        .filter(CelebrityRecord::isCoach)
                         .map(
                                 c ->
                                         new RecordBattleCandidates.Candidate(
@@ -263,6 +264,7 @@ public class RecordBattleService {
         List<CelebrityRecord> celebrities = celebrityRecordRepository.findAll(Optional.empty());
         List<RecordTrack> tracks =
                 celebrities.stream()
+                        .filter(CelebrityRecord::isCoach)
                         .filter(CelebrityRecord::hasReachableTrack)
                         .map(c -> celebrityEntry(c, OpponentTrack.empty()))
                         .toList();

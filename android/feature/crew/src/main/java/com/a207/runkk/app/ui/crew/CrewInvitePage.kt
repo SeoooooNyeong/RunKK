@@ -217,7 +217,7 @@ internal fun CrewProfileRow(name: String, logoUrl: String?, createdAt: Instant?,
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 name,
-                style = RunkkTextStyles.text(19, FontWeight.Bold, lineHeight = 23),
+                style = RunkkTextStyles.TopBarTitle,
                 color = RunkkColors.TextPrimary
             )
             val created = createdAt?.let { createdDateLabel(it) }

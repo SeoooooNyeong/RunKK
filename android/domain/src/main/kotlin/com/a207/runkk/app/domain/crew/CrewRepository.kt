@@ -113,6 +113,9 @@ interface CrewRepository {
      */
     suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
 
+    /** 기다리지 않고 바로 그릴 수 있는 크루원 얼굴 그림(앞서 받아 둔 것, AccountRepository.cachedFaceLayers와 같다). 없으면 null. */
+    fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = null
+
     /**
      * 초대 코드로 크루 요약을 미리 본다(POST /crews/invite-preview, 피그마 F-03c). 가입시키지 않는다. 코드가 없거나 만료면
      * AppError.Rejected(INVALID_CODE), 틀린 코드가 10분에 5번이면 TOO_MANY_ATTEMPTS. 구현이 없으면 실패다.

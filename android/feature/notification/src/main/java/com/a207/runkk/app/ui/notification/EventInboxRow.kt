@@ -32,6 +32,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkNotificationDot
+import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 
 /**
@@ -44,7 +45,7 @@ internal fun EventInboxRow(summary: InboxEventSummary, onClick: () -> Unit, modi
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RunkkShapes.Large)
             .background(RunkkColors.Surface)
             .clickable(role = Role.Button, onClick = onClick)
             .semantics(mergeDescendants = true) { if (summary.hasUnseen) stateDescription = newEvent }
@@ -56,17 +57,22 @@ internal fun EventInboxRow(summary: InboxEventSummary, onClick: () -> Unit, modi
             Modifier.size(44.dp).clip(CircleShape).background(RunkkColors.Violet),
             contentAlignment = Alignment.Center
         ) {
-            Icon(RunkkIcons.Gift, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+            Icon(
+                RunkkIcons.Gift,
+                contentDescription = null,
+                tint = RunkkColors.OnSecondary,
+                modifier = Modifier.size(22.dp)
+            )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 stringResource(R.string.event_inbox_title),
-                style = RunkkTextStyles.text(16, FontWeight.Bold),
+                style = RunkkTextStyles.CardTitle,
                 color = RunkkColors.TextPrimary
             )
             Text(
                 stringResource(R.string.event_inbox_ongoing_count, summary.ongoingCount),
-                style = RunkkTextStyles.text(13),
+                style = RunkkTextStyles.Label,
                 color = RunkkColors.TextSecondary
             )
         }

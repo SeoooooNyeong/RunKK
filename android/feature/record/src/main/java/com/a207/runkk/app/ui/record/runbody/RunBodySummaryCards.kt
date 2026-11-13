@@ -6,11 +6,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -35,7 +37,12 @@ import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigator
+import com.a207.runkk.app.core.designsystem.RunkkPeriodNavigatorStyle
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkTagPill
+import com.a207.runkk.app.core.designsystem.RunkkTagSize
+import com.a207.runkk.app.core.designsystem.RunkkTagTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.Distance
@@ -72,50 +79,16 @@ private fun WeekHeader(state: RunBodyUiState, actions: RunBodyActions) {
             color = RunkkColors.TextPrimary,
             modifier = Modifier.weight(1f).semantics { heading() }
         )
-        WeekArrow(
-            RunkkIcons.ArrowBack,
-            stringResource(R.string.record_runbody_week_previous),
-            state.canGoPreviousWeek,
-            actions.onPreviousWeek
-        )
-        Text(
-            stringResource(R.string.record_runbody_week_label, month, week),
-            style = RunkkTextStyles.text(14, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            modifier = Modifier.padding(horizontal = 4.dp)
-        )
-        WeekArrow(
-            RunkkIcons.ArrowBack,
-            stringResource(R.string.record_runbody_week_next),
-            state.canGoNextWeek,
-            actions.onNextWeek,
-            isMirrored = true
-        )
-    }
-}
-
-/** 주 넘기기 화살표(피그마 arrow_back·arrow_forward 24, 누름 칸 48). arrow_forward는 앱 아이콘에 없어 [isMirrored]로 ←를 뒤집는다. */
-@Composable
-private fun WeekArrow(
-    icon: ImageVector,
-    label: String,
-    isEnabled: Boolean,
-    onClick: () -> Unit,
-    isMirrored: Boolean = false
-) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clip(CircleShape)
-            .clickable(enabled = isEnabled, onClickLabel = label, role = Role.Button, onClick = onClick)
-            .graphicsLayer { alpha = if (isEnabled) 1f else DISABLED_ALPHA },
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            icon,
-            contentDescription = label,
-            tint = RunkkColors.TextPrimary,
-            modifier = Modifier.size(24.dp).graphicsLayer { if (isMirrored) scaleX = -1f }
+        // 피그마 arrow_back·arrow_forward 24, 누름 칸 48
+        RunkkPeriodNavigator(
+            label = stringResource(R.string.record_runbody_week_label, month, week),
+            onPrevious = actions.onPreviousWeek.takeIf { state.canGoPreviousWeek },
+            onNext = actions.onNextWeek.takeIf { state.canGoNextWeek },
+            modifier = Modifier.width(IntrinsicSize.Max),
+            style = RunkkPeriodNavigatorStyle.Arrow,
+            labelStyle = RunkkTextStyles.BodyStrong,
+            previousDescription = stringResource(R.string.record_runbody_week_previous),
+            nextDescription = stringResource(R.string.record_runbody_week_next)
         )
     }
 }
@@ -156,17 +129,7 @@ private fun WeekBody(week: RunBodyWeek) {
 
 @Composable
 private fun WeekChip(icon: ImageVector, text: String) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(CHIP_RADIUS))
-            .background(RunkkColors.SurfaceHigh)
-            .padding(horizontal = 10.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = RunkkColors.TextPrimary, modifier = Modifier.size(16.dp))
-        Text(text, style = RunkkTextStyles.text(13, FontWeight.Bold), color = RunkkColors.TextPrimary)
-    }
+    RunkkTagPill(text, tone = RunkkTagTone.Neutral, size = RunkkTagSize.Small, leadingIcon = icon)
 }
 
 /** 요일 이름 + 원(달린 날은 라임 채움에 거리, 쉰 날은 빈 원). 보조 기술은 "월요일 4.2km"처럼 한 번에 읽는다. */
@@ -287,6 +250,4 @@ private fun SummaryTile(modifier: Modifier, spacing: Dp = 6.dp, content: @Compos
     )
 }
 
-private const val DISABLED_ALPHA = 0.3f
 private val DAY_SIZE = 40.dp
-private val CHIP_RADIUS = 999.dp
