@@ -1,7 +1,7 @@
 package com.a207.runkk.app.domain.run
 
 /** 폰의 가속도와 회전으로 정지·이동을 구분한다. 시각은 부팅 뒤 경과 밀리초다. */
-class InertialMotionDetector {
+class InertialMotionDetector(private val isGaitTrackingDuringRotationEnabled: Boolean = true) {
     private var state = InertialMotion.UNKNOWN
     private var startedAt = 0L
     private var lastAt: Long? = null
@@ -50,7 +50,7 @@ class InertialMotionDetector {
 
         // 회전 중 단발 가속은 버리되 일정 간격으로 반복되는 보행 충격은 출발 근거로 쓴다.
         if (isHandling(at)) {
-            trackGait(at, linearAccelerationMps2)
+            if (isGaitTrackingDuringRotationEnabled) trackGait(at, linearAccelerationMps2)
             return
         }
         lastGaitPeakAt = null

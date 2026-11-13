@@ -22,6 +22,7 @@ import androidx.wear.ongoing.Status
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.MeasurementHost
+import com.a207.runkk.app.domain.run.ProgressNotice
 import com.a207.runkk.app.domain.run.RunTracker
 import com.a207.runkk.watch.ui.R
 import dagger.hilt.android.AndroidEntryPoint
@@ -250,14 +251,14 @@ class WatchMeasurementService : LifecycleService() {
             clock: Clock
         ): Outcome.Failure = coroutineScope {
             launch(start = CoroutineStart.UNDISPATCHED) {
-                source.locations().collect { tracker.onLocationSample(it, stabilize = true) }
-            }
-            launch(start = CoroutineStart.UNDISPATCHED) {
                 source.heartRates().collect { gateway.offerHeartRates(listOf(it)) }
             }
             launch(start = CoroutineStart.UNDISPATCHED) { source.motions().collect(tracker::onMotionSample) }
             val ended = async(start = CoroutineStart.UNDISPATCHED) { source.ended.first() }
-            val started = source.start()
+            val started = source.start(
+                onLocations = { batch -> batch.forEach { tracker.onLocationSample(it, stabilize = true) } },
+                useGnssSpeed = tracker.notice.value is ProgressNotice.Free
+            )
             if (started is Outcome.Failure) {
                 coroutineContext.cancelChildren()
                 return@coroutineScope started

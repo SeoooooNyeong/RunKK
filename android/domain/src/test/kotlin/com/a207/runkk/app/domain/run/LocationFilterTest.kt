@@ -135,4 +135,94 @@ class LocationFilterTest {
         )
         assertEquals(SignalState.NORMAL, freeRun.accept(walking)?.state)
     }
+
+    @Test
+    fun `정지 뒤 첫 위치는 거리 없이 새 기준점으로 쓰고 다음 보행 위치부터 반영한다`() {
+        val filter = LocationFilter(isStabilizationEnabled = true, isStationaryGapSkipped = true)
+        filter.accept(sample(0, 0.0))
+        assertNull(filter.accept(sample(1, 3.0).copy(inertialMotion = InertialMotion.STILL)))
+        assertNull(filter.accept(sample(2, 4.0).copy(inertialMotion = InertialMotion.STILL)))
+
+        val restart = sample(3, 5.0).copy(inertialMotion = InertialMotion.MOVING)
+        assertEquals(SignalState.UNSTABLE, filter.accept(restart)?.state)
+        val walking = sample(4, 6.5).copy(inertialMotion = InertialMotion.MOVING)
+        assertEquals(SignalState.NORMAL, filter.accept(walking)?.state)
+    }
+
+    @Test
+    fun `정지 중 손목을 흔들어도 지그재그를 합산하지 않고 걷기 첫 구간을 되살린다`() {
+        val filter = LocationFilter(isStabilizationEnabled = true, isStationaryGapSkipped = true, isWatch = true)
+        filter.acceptBatch(sample(0, 0.0))
+        filter.acceptBatch(sample(1, 0.0).copy(inertialMotion = InertialMotion.STILL))
+        for (second in 2L..9L) {
+            val drift = if (second % 2 == 0L) 2.0 else -2.0
+            assertTrue(filter.acceptBatch(sample(second, drift).copy(inertialMotion = InertialMotion.MOVING)).isEmpty())
+        }
+        val points = (10L..16L).flatMap { second ->
+            filter.acceptBatch(
+                sample(second, (second - 10) * 1.1, accuracy = 20.0)
+                    .copy(inertialMotion = InertialMotion.MOVING)
+            )
+        }
+        assertEquals(SignalState.UNSTABLE, points.first().state)
+        assertTrue(points.first().at <= sample(12, 0.0).at)
+        assertTrue(points.zipWithNext().sumOf { (a, b) -> a.point.metersTo(b.point) } >= 4.0)
+    }
+
+    @Test
+    fun `36m 점프 뒤 손목 흔들기로 모인 느린 좌표 밀림은 출발로 확정하지 않는다`() {
+        val filter = LocationFilter(isStabilizationEnabled = true, isWatch = true)
+        filter.acceptBatch(sample(0, 0.0, accuracy = 11.0))
+        filter.acceptBatch(sample(1, 0.0, accuracy = 11.0).copy(inertialMotion = InertialMotion.STILL))
+
+        val shifted = listOf(36.3, 36.7, 37.3, 38.1, 39.0, 40.3)
+        val speeds = listOf(0.31, 0.48, 0.67, 0.91, 1.18, 1.43)
+        shifted.forEachIndexed { index, meters ->
+            assertTrue(
+                filter.acceptBatch(
+                    sample(2L + index, meters, accuracy = 11.0).copy(
+                        inertialMotion = InertialMotion.MOVING,
+                        speedMps = speeds[index],
+                        speedAccuracyMps = 1.25
+                    )
+                ).isEmpty()
+            )
+        }
+    }
+
+    @Test
+    fun `워치가 이동 중 낮은 GPS 속도로 바뀌면 손목 움직임이 남아도 누적을 보류한다`() {
+        val filter = LocationFilter(isStabilizationEnabled = true, isWatch = true)
+        fun fix(second: Long, meters: Double, speed: Double) = sample(second, meters, accuracy = 11.0).copy(
+            speedMps = speed,
+            speedAccuracyMps = 1.0,
+            inertialMotion = InertialMotion.MOVING
+        )
+        val walking = (0L..8L).flatMap { filter.acceptBatch(fix(it, it * 1.1, 1.1)) }
+        assertTrue(walking.size >= 6)
+        for (second in 9L..15L) {
+            assertTrue(filter.acceptBatch(fix(second, 8.8 + (second - 8) * 0.9, 0.3)).isEmpty())
+        }
+        val resumed = (16L..23L).flatMap { filter.acceptBatch(fix(it, 9.0 + (it - 16) * 0.85, 0.85)) }
+        assertEquals(SignalState.UNSTABLE, resumed.first().state)
+        assertTrue(resumed.first().at <= fix(17, 0.0, 0.0).at)
+        assertTrue(resumed.zipWithNext().sumOf { (a, b) -> a.point.metersTo(b.point) } >= 4.0)
+    }
+
+    @Test
+    fun `워치는 예열 중 11m 점프와 약한 속도로 시작한 밀림을 이동으로 확정하지 않는다`() {
+        val filter = LocationFilter(isStabilizationEnabled = true, isWatch = true)
+        val distances = listOf(0.0, 0.0, 11.55, 12.49, 14.87, 18.26, 20.01, 22.70)
+        val speeds = listOf(1.35, 0.54, 0.27, 1.09, 0.66, 0.38, 0.35, 0.0)
+        val points = distances.flatMapIndexed { index, meters ->
+            filter.acceptBatch(
+                sample(index.toLong(), meters, accuracy = 11.0).copy(
+                    speedMps = speeds[index],
+                    speedAccuracyMps = 1.1,
+                    inertialMotion = InertialMotion.WARMING_UP
+                )
+            )
+        }
+        assertEquals(1, points.size)
+    }
 }
