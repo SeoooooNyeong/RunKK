@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.chat
 
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.chat.ReactionKind
 import com.a207.runkk.app.domain.chat.Reactor
@@ -31,7 +32,9 @@ data class ChatUiState(
     /** 그 메시지의 반응한 사람 전체(먼저 단 순서). 탭은 [visibleReactors]가 거른다. */
     val reactors: List<Reactor> = emptyList(),
     val isLoadingReactors: Boolean = false,
-    val isReactorsFailed: Boolean = false
+    val isReactorsFailed: Boolean = false,
+    /** 작성자·반응자의 셀카 얼굴 부위 그림(faceKey → 층, [임시:D-성-236]). 없는 키는 기본 얼굴로 그린다. */
+    val faces: Map<String, List<FaceLayer>> = emptyMap()
 ) {
     /** 고른 탭의 반응한 사람. */
     val visibleReactors: List<Reactor> get() = reactorsTab?.let { tab -> reactors.filter { it.kind == tab } }

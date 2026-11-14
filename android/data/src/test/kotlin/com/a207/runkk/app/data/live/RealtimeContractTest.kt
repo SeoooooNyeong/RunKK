@@ -202,7 +202,9 @@ class RealtimeContractTest {
                 Instant.parse("2026-10-22T10:07:03Z"),
                 "0f8fad5b-d9cb-469f-a165-70867728950e",
                 messageKind = "TEXT",
-                authorRole = "LEADER"
+                authorRole = "LEADER",
+                authorFaceKey = "head:3:ab12",
+                authorShownGender = "MALE"
             ),
             decoder.decode(read("CrewChatPosted.json"))
         )
@@ -238,10 +240,11 @@ class RealtimeContractTest {
                 "9b2f4c3e-6a1d-3c5b-8e7f-0a1b2c3d4e5f",
                 messageKind = "RUN_FINISHED",
                 authorRole = "MEMBER",
-                runDistanceMeters = 5_021
+                runDistanceMeters = 5_021,
+                authorShownGender = "FEMALE"
             ),
             decoder.decode(read("CrewChatPosted-runFinished.json")),
-            "W5 러닝 완료 시스템 메시지는 종류·직책·거리를 싣는다"
+            "W5 러닝 완료 시스템 메시지는 종류·직책·거리를 싣고, 얼굴을 안 고른 작성자는 표시 성별만 온다"
         )
         assertEquals(
             CrewChatReactionChanged(7, 801, mapOf("LIKE" to 2, "HEART" to 1, "CHECK" to 3)),
@@ -251,6 +254,31 @@ class RealtimeContractTest {
             CrewChatReactionChanged(7, 801, mapOf("LIKE" to 2)),
             decoder.decode("""{"type":"CrewChatReactionChanged","crewId":7,"messageId":801,"reactions":{"LIKE":2}}"""),
             "0인 종류는 키가 없다"
+        )
+    }
+
+    @Test
+    fun `얼굴_필드가_없는_옛_알림도_읽는다`() {
+        val old = decoder.decode(
+            """{"type":"CrewChatPosted","crewId":7,"messageId":801,"authorId":3,"authorName":"새벽곰","content":"안녕",
+               |"sentAt":"2026-10-22T19:07:03+09:00","clientMessageId":null,"messageKind":"TEXT","authorRole":"LEADER",
+               |"runDistanceMeters":null}
+            """.trimMargin()
+        )
+
+        assertEquals(
+            CrewChatPosted(
+                7,
+                801,
+                3,
+                "새벽곰",
+                "안녕",
+                Instant.parse("2026-10-22T10:07:03Z"),
+                null,
+                messageKind = "TEXT",
+                authorRole = "LEADER"
+            ),
+            old
         )
     }
 

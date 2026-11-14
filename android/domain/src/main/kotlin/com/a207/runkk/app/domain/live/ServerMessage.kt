@@ -127,7 +127,11 @@ data class CrewChatPosted(
     /** 작성자의 지금 크루 역할 이름(LEADER·MANAGER·MEMBER), 없으면 null. */
     val authorRole: String? = null,
     /** 러닝 완료 메시지의 거리(미터), 보통 글이면 null. */
-    val runDistanceMeters: Long? = null
+    val runDistanceMeters: Long? = null,
+    /** 작성자의 아바타 얼굴 키. 탈퇴한 작성자·옛 서버면 null. */
+    val authorFaceKey: String? = null,
+    /** 작성자의 표시 성별 이름(MALE·FEMALE). 탈퇴한 작성자·옛 서버면 null. */
+    val authorShownGender: String? = null
 ) : ServerMessage
 
 /** 크루 채팅 메시지 삭제·숨김(FR-213, FR-215). 모르는 사유 상수의 메시지는 data.live가 버린다(D-85). */

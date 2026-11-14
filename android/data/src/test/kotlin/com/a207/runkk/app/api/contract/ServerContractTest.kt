@@ -41,6 +41,7 @@ import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
 import com.a207.runkk.app.api.chat.ChatPostRequest
 import com.a207.runkk.app.api.chat.ReactionResponse
+import com.a207.runkk.app.api.chat.ReactorListResponse
 import com.a207.runkk.app.api.crew.AttendanceRequest
 import com.a207.runkk.app.api.crew.AttendanceResponse
 import com.a207.runkk.app.api.crew.CreatedResponse
@@ -373,6 +374,8 @@ class ServerContractTest {
         response(ChatPageResponse.serializer(), "ChatController.ChatPageResponse")
         response(ChatMessageItem.serializer(), "ChatController.ChatMessageItem")
         response(ReactionResponse.serializer(), "ChatController.ReactionResponse")
+        // 반응자 행(얼굴 키·표시 성별, [임시:D-성-229])
+        response(ReactorListResponse.serializer(), "ChatController.ReactorListResponse")
         response(
             com.a207.runkk.app.api.report.ReportResponse.serializer(),
             "ReportController.ReportResponse"

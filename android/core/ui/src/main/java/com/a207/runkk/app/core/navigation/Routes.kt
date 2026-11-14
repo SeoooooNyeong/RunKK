@@ -176,6 +176,13 @@ object Routes {
     data class FriendInviteJoin(val token: String) : NavKey
 
     /**
+     * 크루 초대 링크로 연 가입 확인([임시:FR-성-38], [임시:D-성-243], ui.crew CrewInviteJoinScreen). [code]는 초대 코드(대문자·숫자 6자)다.
+     * 초대 링크나 카카오톡 메시지의 단추로 앱을 열면 홈 위에 연다.
+     */
+    @Serializable
+    data class CrewInviteJoin(val code: String) : NavKey
+
+    /**
      * 홈의 배틀런 시작(FR-080): 홈 배틀런 탭에서 고른 대결 거리(1·3·5·10km, 처음엔 기본 대결 거리 FR-109)로 바로 매칭을 요청한다.
      * 거리는 홈이 고르고 매칭 화면(ui.battle)은 이 인자로 받는다(화면 모듈끼리 직접 의존하지 않는다).
      */

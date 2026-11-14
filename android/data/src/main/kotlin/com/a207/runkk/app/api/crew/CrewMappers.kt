@@ -181,7 +181,9 @@ internal fun CrewMembersResponse.toDomain(): CrewMembers = CrewMembers(
             ageBand = it.ageBand,
             gender = it.gender?.let { g -> enumByName<Gender>(g) },
             isAgePublic = it.ageBandVisibility?.let { v -> v == VISIBILITY_PUBLIC },
-            isGenderPublic = it.genderVisibility?.let { v -> v == VISIBILITY_PUBLIC }
+            isGenderPublic = it.genderVisibility?.let { v -> v == VISIBILITY_PUBLIC },
+            faceKey = it.faceKey,
+            shownGender = enumByName<Gender>(it.shownGender)
         )
     }
 )
