@@ -1,5 +1,6 @@
 package com.a207.runkk.app.api.battle
 
+import com.a207.runkk.app.api.core.RunnerLookJson
 import kotlinx.serialization.Serializable
 
 /**
@@ -27,7 +28,9 @@ internal data class BattleResultResponse(
     val opponentGender: String? = null,
     val celebrityFigure: String? = null,
     val placementRound: Int? = null,
-    val placementState: String? = null
+    val placementState: String? = null,
+    /** 상대 모습([임시:D-성-252]). 배치고사·고스트·셀럽·옛 서버면 null이다. */
+    val opponentLook: RunnerLookJson? = null
 ) {
     @Serializable
     data class Row(val item: String, val mine: String, val theirs: String)

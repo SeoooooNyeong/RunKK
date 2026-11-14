@@ -189,4 +189,7 @@
     <string name="result_zone_no_watch">워치를 연결하면 심박 구간을 볼 수 있어요</string>
     <string name="result_zone_no_birth_year">출생연도를 입력하면 심박 구간을 볼 수 있어요</string>
     <string name="result_hero_spoken">%1$s, %2$s 킬로미터</string>
+    <string name="track_view_track">트랙</string>
+    <string name="track_view_map">지도</string>
+    <string name="map_recenter">내 위치로</string>
 </resources>

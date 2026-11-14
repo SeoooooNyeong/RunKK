@@ -3,6 +3,7 @@ package com.a207.runkk.app.domain.battle
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.MatchFound
@@ -27,6 +28,8 @@ data class RecordBattleCandidates(val candidates: List<Candidate>) {
         val sourceLabel: String?,
         val isEstimated: Boolean,
         val myBest: Duration? = null,
-        val celebrityFigure: String? = null
+        val celebrityFigure: String? = null,
+        /** 그 기록에 저장된 모습(그날의 나, [임시:D-성-272]). 유명인 후보·기록 없는 거리면 null이다. */
+        val look: RunnerLook? = null
     )
 }

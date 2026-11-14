@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.live
 
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.RunnerLook
 import java.time.Duration
 import java.time.Instant
 
@@ -25,7 +26,9 @@ data class MatchFound(
     val opponentBest: Duration?,
     val animationSeconds: Int,
     val opponentGender: Gender? = null,
-    val placementRound: Int? = null
+    val placementRound: Int? = null,
+    /** 상대 모습([임시:D-성-252]). 배치고사·고스트·가상 상대·옛 서버면 null이고 화면은 성별 기본 모습으로 그린다. */
+    val opponentLook: RunnerLook? = null
 ) : ServerMessage
 
 /**

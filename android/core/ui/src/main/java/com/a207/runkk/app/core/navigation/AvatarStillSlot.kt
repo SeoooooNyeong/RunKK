@@ -18,7 +18,9 @@ data class AvatarStillSubject(
     /** 다른 러너의 표시 성별이 여자면 참, 남자면 거짓, 모르면 null(남자 기본 모습). core.navigation은 core.model을 import하지 않는다(5.1.2). */
     val isFemale: Boolean? = null,
     /** 참이면 러닝량과 상관없이 가장 밝은 피부(러닝량 0)로 그린다(대결 고르기 카드, 2026-11-12 PM 요구). */
-    val isLightSkin: Boolean = false
+    val isLightSkin: Boolean = false,
+    /** 다른 러너의 받은 모습([임시:D-성-272]: 기록런 고르기의 그날의 나). 있으면 이 모습(의상·체형·러닝량·얼굴)으로 그린다. */
+    val look: SlotRunnerLook? = null
 ) {
     companion object {
         /** 내 아바타 모습 그대로(러닝 결과 무대, 기록 카드, [임시:D-성-303]). */

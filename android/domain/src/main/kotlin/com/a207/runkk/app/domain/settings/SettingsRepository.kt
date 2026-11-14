@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.settings
 
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunViewMode
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -45,6 +46,14 @@ interface SettingsRepository {
     suspend fun placementCompleteSeen(): Long? = null
 
     suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
+
+    /**
+     * 대결·크루런 진행 화면의 보기 선호 기기 사본([임시:D-성-264]). 화면은 AccountRepository.runViewMode로 읽고 api.account가 여기에
+     * 맡긴다. 같은 기기 파일에 두고 [clear](로그아웃·탈퇴) 때 함께 지운다. 기본 구현은 사본 없음(트랙)이다.
+     */
+    suspend fun runViewMode(): RunViewMode = RunViewMode.TRACK
+
+    suspend fun saveRunViewMode(mode: RunViewMode): Outcome<Unit> = Outcome.Success(Unit)
 
     /**
      * 이 기기에서 본 이벤트 ID 사본(알림함·홈의 새 이벤트 점). 화면은 EventRepository.seenEventIds로 읽고 api.notification이

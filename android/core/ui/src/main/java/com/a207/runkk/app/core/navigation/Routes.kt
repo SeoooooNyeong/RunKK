@@ -144,6 +144,7 @@ object Routes {
      * [opponentGender]는 상대 성별 이름(MALE·FEMALE, 지도 위 상대 그림을 고른다)이고 셀럽·과거의 나·모르면 null이다.
      * [celebrityFigure]는 셀럽런의 셀럽 그림 키(서버 celebrityFigure, 카운트다운·지도 위 셀럽 그림을 고른다)이고 없으면 공통 그림이다.
      * [placementRound]는 배치고사 판 번호(MatchFound.placementRound)이고 있으면 지도 위 상대를 점선 원 「?」로 그린다(FR-276).
+     * [opponentLook]은 상대 아바타 모습(트랙 보기의 상대, [임시:D-성-252])이고 배치고사·고스트·셀럽·옛 서버면 null이다.
      */
     @Serializable
     data class BattleRunning(
@@ -157,7 +158,8 @@ object Routes {
         val myBestSeconds: Long? = null,
         val opponentGender: String? = null,
         val celebrityFigure: String? = null,
-        val placementRound: Int? = null
+        val placementRound: Int? = null,
+        val opponentLook: SlotRunnerLook? = null
     ) : NavKey
 
     /** 친구 대결 초대 대기(C-10, D-269). 배틀런 화면 친구 분절에서 고른 거리로 초대를 만들고 기다린다. */

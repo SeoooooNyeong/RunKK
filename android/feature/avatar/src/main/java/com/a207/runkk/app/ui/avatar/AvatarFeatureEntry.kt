@@ -20,7 +20,10 @@ import javax.inject.Inject
  * (design-oo 05-30 [임시:D-성-100]), 랭킹 시상대·기록런 VS 칸의 전신 정지 그림을 넣고(S15P31A207-300), 로그인한 동안 내 아바타를
  * 미리 준비해 둔다([임시:D-성-104]).
  */
-class AvatarFeatureEntry @Inject constructor(private val store: MyAvatarStore) : FeatureEntry {
+class AvatarFeatureEntry @Inject constructor(
+    private val store: MyAvatarStore,
+    private val resolver: RunnerLookResolver
+) : FeatureEntry {
     override val route: String = Routes.AVATAR
 
     override fun register(builder: EntryProviderScope<NavKey>) {
@@ -34,8 +37,8 @@ class AvatarFeatureEntry @Inject constructor(private val store: MyAvatarStore) :
     /** 칸 내용은 한 번 만들어 둔다(다시 그릴 때마다 새 람다면 칸을 가진 화면이 칸 내용을 새로 만들 수 있다). */
     override val slots: Map<SlotKey, @Composable () -> Unit> = mapOf(
         SlotKey.HOME_AVATAR to { HomeAvatarSlotContent(store) },
-        SlotKey.RUN_AVATAR to { RunAvatarSlotContent(store) },
-        SlotKey.AVATAR_STILL to { AvatarStillSlotContent(store) }
+        SlotKey.RUN_AVATAR to { RunAvatarSlotContent(store, resolver) },
+        SlotKey.AVATAR_STILL to { AvatarStillSlotContent(store, resolver) }
     )
 
     /**

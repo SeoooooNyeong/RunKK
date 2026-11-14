@@ -1,5 +1,6 @@
 package com.a207.runkk.app.data.live
 
+import com.a207.runkk.app.api.core.RunnerLookJson
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
@@ -43,7 +44,9 @@ internal data class MatchFoundJson(
     val opponentBest: Long? = null,
     val animationSeconds: Int,
     val opponentGender: String? = null,
-    val placementRound: Int? = null
+    val placementRound: Int? = null,
+    /** 상대 모습([임시:D-성-252]). 배치고사·고스트·가상 상대·옛 서버면 null이다. */
+    val opponentLook: RunnerLookJson? = null
 ) {
     fun toDomain(): MatchFound = MatchFound(
         battleId = battleId,
@@ -54,6 +57,7 @@ internal data class MatchFoundJson(
         opponentBest = opponentBest?.let(Duration::ofSeconds),
         animationSeconds = animationSeconds,
         opponentGender = enumByName<Gender>(opponentGender),
-        placementRound = placementRound
+        placementRound = placementRound,
+        opponentLook = opponentLook?.toDomain()
     )
 }

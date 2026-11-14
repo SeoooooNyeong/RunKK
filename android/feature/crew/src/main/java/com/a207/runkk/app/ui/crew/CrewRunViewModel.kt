@@ -7,10 +7,16 @@ import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunViewMode
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.MyAvatar
+import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
+import com.a207.runkk.app.domain.crew.CrewRunStanding
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.Lobby
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,12 +44,36 @@ import kotlinx.coroutines.launch
  * 기기 시계(clock)로 센다.
  */
 @HiltViewModel
-class CrewRunViewModel @Inject constructor(
+class CrewRunViewModel internal constructor(
     private val crews: CrewRepository,
     private val coordinator: CrewRunCoordinator,
     private val clock: Clock,
-    private val serverClock: ServerClock
+    private val serverClock: ServerClock,
+    /** 보기 선호 기기 사본(대결과 같은 값, [임시:D-성-264]). */
+    private val readViewMode: suspend () -> RunViewMode = { RunViewMode.TRACK },
+    private val saveViewMode: suspend (RunViewMode) -> Unit = {},
+    /** 내 아바타(홈과 같은 출처, AccountRepository.myAvatar). 트랙 배경과 내 얼굴에 쓴다. */
+    private val myAvatar: suspend () -> MyAvatar? = { null },
+    private val lastAvatar: () -> MyAvatar? = { null }
 ) : ViewModel() {
+    @Inject
+    constructor(
+        crews: CrewRepository,
+        coordinator: CrewRunCoordinator,
+        clock: Clock,
+        serverClock: ServerClock,
+        account: AccountRepository
+    ) : this(
+        crews,
+        coordinator,
+        clock,
+        serverClock,
+        account::runViewMode,
+        { account.saveRunViewMode(it) },
+        { account.myAvatar() },
+        account::lastMyAvatar
+    )
+
     private val _state = MutableStateFlow(CrewRunUiState())
     val state: StateFlow<CrewRunUiState> = _state.asStateFlow()
 
@@ -65,7 +95,12 @@ class CrewRunViewModel @Inject constructor(
     fun bind(key: Routes.CrewRunLobby) {
         if (bound == key.postId) return
         bound = key.postId
-        _state.value = CrewRunUiState(postId = key.postId)
+        _state.value = CrewRunUiState(postId = key.postId, myAvatar = lastAvatar())
+        viewModelScope.launch {
+            val saved = readViewMode()
+            _state.update { it.copy(viewMode = saved) }
+        }
+        viewModelScope.launch { myAvatar()?.let { mine -> _state.update { it.copy(myAvatar = mine) } } }
         enter()
         // 들어올 때 이미 이 크루런의 Finished가 남아 있으면(지난 회의 잔재) 무시한다.
         val stale = (coordinator.state.value as? CrewRunState.Finished)?.takeIf { it.postId == key.postId }
@@ -87,6 +122,7 @@ class CrewRunViewModel @Inject constructor(
                         it.copy(
                             isBusy = false,
                             lobby = r.value,
+                            looks = it.looks + r.value.looks(),
                             distance = r.value.distance,
                             isReady = r.value.myReady() ?: it.isReady,
                             phase = if (it.phase == CrewRunPhase.ENTERING) CrewRunPhase.LOBBY else it.phase
@@ -132,7 +168,12 @@ class CrewRunViewModel @Inject constructor(
             when (val r = crews.toggleReady(s.postId)) {
                 is Outcome.Success -> {
                     _state.update {
-                        it.copy(isBusy = false, lobby = r.value, isReady = r.value.myReady() ?: !it.isReady)
+                        it.copy(
+                            isBusy = false,
+                            lobby = r.value,
+                            looks = it.looks + r.value.looks(),
+                            isReady = r.value.myReady() ?: !it.isReady
+                        )
                     }
                     readLobbyFaces(r.value)
                 }
@@ -156,6 +197,16 @@ class CrewRunViewModel @Inject constructor(
                 is Outcome.Failure -> _state.update { it.copy(isLeaving = false, error = CrewErrorText.of(r.error)) }
             }
         }
+    }
+
+    /**
+     * 「트랙 | 지도」 전환([임시:FR-성-28]): 고른 보기를 바로 보이고 기기에 저장해 다음 크루런과 대결에서도 쓴다. 지도 오류로 트랙만 보일
+     * 때는 화면이 이 함수를 부르지 않아 저장값이 그대로다.
+     */
+    fun onViewModeChange(mode: RunViewMode) {
+        if (_state.value.viewMode == mode) return
+        _state.update { it.copy(viewMode = mode) }
+        viewModelScope.launch { saveViewMode(mode) }
     }
 
     fun onQuitTapped() = showHint(uiText(R.string.crew_run_quit_hint))
@@ -210,11 +261,19 @@ class CrewRunViewModel @Inject constructor(
                                 e.distance,
                                 MateState.of(e.state.name),
                                 e.isMe,
-                                st.lobby.genderOf(e.memberId) ?: e.memberId?.let(rejoinGenders::get)
+                                st.lobby.genderOf(e.memberId) ?: e.memberId?.let(rejoinGenders::get),
+                                e.memberId
                             )
                         },
                         totalDistance = s.totalDistance,
-                        mine = s.mine
+                        mine = s.mine,
+                        // 순위와 가장 가까운 사람은 내 측정 거리(중계보다 새 값)와 크루원 중계 거리로 센다([임시:D-성-267]).
+                        standing = CrewRunStanding.of(
+                            s.mine.distance.meters.toInt(),
+                            s.entries.filter { e -> !e.isMe }.map { e ->
+                                CrewRunStanding.Mate(e.memberId, e.name, e.distance.meters.toInt(), e.state)
+                            }
+                        )
                     )
                 }
             }
@@ -330,6 +389,10 @@ class CrewRunViewModel @Inject constructor(
 
 /** 대기실 응답의 내 줄(me) 준비 여부. 내 줄이 없으면 null. */
 private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.isMe }?.isReady
+
+/** 대기실 참가자의 아바타 모습(memberId별, [임시:D-성-254]). 모습이나 회원 ID가 없는 줄은 뺀다. */
+private fun Lobby.looks(): Map<Long, RunnerLook> =
+    participants.mapNotNull { p -> p.memberId?.let { id -> p.look?.let { id to it } } }.toMap()
 
 /** 중계 줄 회원의 표시 성별(대기실 응답의 같은 memberId 줄, 크루원 아바타). 중계에는 아바타 값을 싣지 않는다(계약 crewrun-sum v1.2). */
 private fun Lobby?.genderOf(memberId: Long?): Gender? =

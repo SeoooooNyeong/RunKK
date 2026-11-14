@@ -2,6 +2,7 @@ package com.a207.runkk.app.data.live
 
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.BattleStart
@@ -64,7 +65,8 @@ class RealtimeContractTest {
                         myBest = Duration.ofSeconds(1_625),
                         opponentBest = Duration.ofSeconds(1_580),
                         animationSeconds = 3,
-                        opponentGender = Gender.MALE
+                        opponentGender = Gender.MALE,
+                        opponentLook = SAMPLE_LOOK
                     ),
                 "BattleStart" to
                     BattleStart(
@@ -362,6 +364,48 @@ class RealtimeContractTest {
     }
 
     @Test
+    fun `MatchFound에서 opponentLook을 읽는다`() {
+        val plain = decoder.decode(read("MatchFound.json")) as MatchFound
+        val placement = decoder.decode(read("MatchFound-placement.json")) as MatchFound
+        val old = decoder.decode(
+            """{"type":"MatchFound","battleId":1,"opponentName":"고스트","opponentTier":"SILVER","distance":3000,"animationSeconds":3}"""
+        ) as MatchFound
+        val bare = decoder.decode(
+            """{"type":"MatchFound","battleId":1,"opponentName":"a","opponentTier":"SILVER","distance":3000,"animationSeconds":3,
+              |"opponentLook":{"gender":"FEMALE","equipped":{},"bodyVariant":0,"runAmount":0,"faceKey":null}}
+            """.trimMargin()
+        ) as MatchFound
+
+        assertEquals(SAMPLE_LOOK, plain.opponentLook)
+        assertNull(placement.opponentLook, "배치고사 상대는 모습이 없다")
+        assertNull(old.opponentLook, "항목이 없는 옛 서버")
+        assertEquals(RunnerLook(Gender.FEMALE, null, null, null, 0, 0, null), bare.opponentLook, "안 입은 부위는 키가 없다")
+    }
+
+    @Test
+    fun `모르는 키가 있어도 읽는다`() {
+        val message = decoder.decode(
+            """{"type":"MatchFound","battleId":1,"opponentName":"a","opponentTier":"SILVER","distance":3000,"animationSeconds":3,
+              |"addedLater":1,"opponentLook":{"gender":"MALE","equipped":{"TOP":12,"HAT":99},"bodyVariant":2,"runAmount":7,
+              |"faceKey":"head:1:x","hairColor":"brown"}}
+            """.trimMargin()
+        ) as MatchFound
+
+        assertEquals(RunnerLook(Gender.MALE, 12, null, null, 2, 7, "head:1:x"), message.opponentLook)
+    }
+
+    @Test
+    fun `모르는 성별의 모습은 없는 것으로 읽는다`() {
+        val message = decoder.decode(
+            """{"type":"MatchFound","battleId":1,"opponentName":"a","opponentTier":"SILVER","distance":3000,"animationSeconds":3,
+              |"opponentLook":{"gender":"OTHER","equipped":{},"bodyVariant":0,"runAmount":0,"faceKey":null}}
+            """.trimMargin()
+        ) as MatchFound
+
+        assertNull(message.opponentLook)
+    }
+
+    @Test
     fun `오프셋이 붙은 시각도 읽는다`() {
         val message = decoder.decode(
             """{"type":"CountdownStarted","battleId":1,"arrivedName":"a","endsAt":"2026-10-20T10:27:13Z"}"""
@@ -382,6 +426,17 @@ class RealtimeContractTest {
     }
 
     private companion object {
+        val SAMPLE_LOOK =
+            RunnerLook(
+                Gender.MALE,
+                topItemId = 12,
+                bottomItemId = null,
+                shoesItemId = 31,
+                bodyVariant = 1,
+                runAmount = 42,
+                faceKey = "head:7:ab12"
+            )
+
         val SAMPLES =
             listOf(
                 "MatchFound.json",

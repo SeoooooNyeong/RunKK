@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GpsReadiness
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
+import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
@@ -400,6 +401,18 @@ class FakeAccounts : AccountRepository {
         return Outcome.Success(Unit)
     }
 
+    /** 보기 선호 기기 사본 가짜([임시:D-성-264]). [viewModeSaves]는 저장 호출 기록이다. */
+    var viewMode: RunViewMode = RunViewMode.TRACK
+    val viewModeSaves = mutableListOf<RunViewMode>()
+
+    override suspend fun runViewMode(): RunViewMode = viewMode
+
+    override suspend fun saveRunViewMode(mode: RunViewMode): Outcome<Unit> {
+        viewModeSaves += mode
+        viewMode = mode
+        return Outcome.Success(Unit)
+    }
+
     private fun <T> unused(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
 }
 
@@ -615,6 +628,9 @@ class BattleWorld(
     val gps = FakeGpsWarmUp()
     val forfeits = InMemoryPendingForfeitStore()
     val coordinator = BattleRunCoordinator(tracker, channels, battles, silent, clock, scope, gps, forfeits)
+
+    /** 본인 요약과 보기 선호 기기 사본(진행 화면이 읽는다). */
+    val accounts = FakeAccounts()
 
     /** 열린 회의 진행 화면 키(앱 범위). 진행 화면이 적고 앱 위 안내가 읽는다(S15P31A207-278). */
     val screens = OpenBattleScreen(coordinator)

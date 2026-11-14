@@ -22,10 +22,13 @@ import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarPose
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarRunSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillFallback
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillOnReady
+import com.a207.runkk.app.core.navigation.RunAvatarSubject
 import com.a207.runkk.app.core.navigation.SlotKey
+import com.a207.runkk.app.core.navigation.SlotRunnerLook
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlinx.coroutines.CoroutineScope
@@ -60,7 +63,8 @@ class AvatarSlotsTest {
         prepare = { _, _ -> },
         scope = scope
     )
-    private val entry = AvatarFeatureEntry(store)
+    private val resolver = RunnerLookResolver(repo, headsOf(repo))
+    private val entry = AvatarFeatureEntry(store, resolver)
 
     @After
     fun tearDown() = scope.cancel()
@@ -164,6 +168,43 @@ class AvatarSlotsTest {
     }
 
     @Test
+    fun `러닝 중 칸은 상대 대상이면 내 아바타 저장소를 쓰지 않고 상대를 그린다(D-성-259)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = false) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarPose provides AvatarSlotPose.RUN,
+                    LocalSlotAvatarRunSubject provides RunAvatarSubject.other(null, isFemale = true)
+                ) {
+                    Box(Modifier.size(76.dp)) { entry.slots.getValue(SlotKey.RUN_AVATAR)() }
+                }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(emptyList(), repo.calls.filter { it == "runner" }, "상대 칸은 내 아바타를 준비하지 않는다")
+        assertEquals(emptyList(), repo.calls.filter { it.startsWith("shop") }, "모습이 없으면 상점 목록을 받지 않는다")
+    }
+
+    @Test
+    fun `러닝 중 칸은 움직임 줄이기면 모습을 받지 못한 상대를 멈춘 그림으로 그린다(D-성-262)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarPose provides AvatarSlotPose.RUN,
+                    LocalSlotAvatarRunSubject provides RunAvatarSubject.other(null, isFemale = false)
+                ) {
+                    Box(Modifier.size(76.dp)) { entry.slots.getValue(SlotKey.RUN_AVATAR)() }
+                }
+            }
+        }
+        // 시험 환경은 Rive를 그리지 못하므로 멈춘 그림을 시도한 뒤 성별 기본 달리기 그림으로 바뀐다.
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(RUN_AVATAR_STILL_TAG).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodesWithTag(RUN_AVATAR_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onAllNodesWithTag(AVATAR_LOADING_TAG).assertCountEqualsTo(0, "움직임 줄이기에서는 Rive 무대를 돌리지 않는다")
+    }
+
+    @Test
     fun `러닝 중 칸은 실패한 준비를 한 번 다시 시도한다`() {
         repo.avatarResult = Outcome.Failure(AppError.Network)
         gender.value = Gender.MALE
@@ -208,6 +249,25 @@ class AvatarSlotsTest {
         compose.waitUntil(timeoutMillis = 5_000) {
             compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
         }
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 받은 모습이 있으면 그 모습의 재료(상점 목록)를 읽어 그린다(D-성-272)`() {
+        val look = SlotRunnerLook(isFemale = true, topItemId = 1, bodyVariant = 1, runAmount = 30)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject(isMine = false, isFemale = true, look = look)
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        // 시험 환경은 Rive를 그리지 못해 성별 기본 전신 그림으로 끝난다. 그 전에 받은 모습의 의상을 찾으려 상점 목록을 읽는다.
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(listOf("shop:null"), repo.calls.filter { it.startsWith("shop") })
     }
 
     @Test
