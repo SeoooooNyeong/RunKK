@@ -133,4 +133,16 @@ class RankingLookTest {
         assertNull(rankingFaceTone(me, isMine = true))
         assertNull(rankingFaceTone(ranking.entries[2], isMine = false))
     }
+
+    @Test
+    fun `얼굴 원 그을림 - 모습은 있지만 얼굴을 안 고른 다른 러너는 그을릴 얼굴이 없다(기초 경로 B4)`() {
+        val faceless = Ranking.Entry(
+            5,
+            "무얼굴",
+            Distance(40_000),
+            Gender.MALE,
+            look = RunnerLook(null, null, null, null, 0, 80)
+        )
+        assertNull(rankingFaceTone(faceless, isMine = false))
+    }
 }

@@ -171,6 +171,27 @@ class AvatarW8LogicTest {
         )
     }
 
+    @Test
+    fun `다른 러너 러닝량은 0~100 밖이면 끝값으로, 체형은 0~2 밖이면 기본으로 그린다(경곗값, S15P31A207-300)`() {
+        val look = AvatarStillSubject.Look(null, null, null, null, bodyVariant = 0, runAmount = 0)
+        fun runAmountOf(value: Int) =
+            runnerLookOf(AvatarStillSubject(isMine = false, look = look.copy(runAmount = value)), null).runningAmount
+        fun bodyOf(value: Int) =
+            runnerLookOf(AvatarStillSubject(isMine = false, look = look.copy(bodyVariant = value)), null).bodyShape
+
+        assertEquals(listOf(0, 0, 1, 99, 100, 100), listOf(-1, 0, 1, 99, 100, 101).map(::runAmountOf))
+        assertEquals(
+            listOf(
+                AvatarBodyShape.BASE,
+                AvatarBodyShape.BASE,
+                AvatarBodyShape.CHANGE_1,
+                AvatarBodyShape.CHANGE_2,
+                AvatarBodyShape.BASE
+            ),
+            listOf(-1, 0, 1, 2, 3).map(::bodyOf)
+        )
+    }
+
     /**
      * 실기기 2차 시험 관찰: 「라임 러닝화」가 파란 하이탑으로, 「조거 팬츠」가 레깅스로 그려졌다. 대응표는 그림 키를 실제로 그려지는 의상
      * (core/avatar 의상 번호 이름표 avatar_outfit_*_names)과 같은 모양에 둔다. 상점 이름은 서버 V62가 이 모양에 맞춘다.

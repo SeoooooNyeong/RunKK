@@ -251,6 +251,31 @@ class RunnerLookQueryTest {
     }
 
     @Test
+    @DisplayName("모습 값 경곗값: 체형 −1·3과 러닝량 −1·101은 거부, 체형 0·1·2와 러닝량 0·1·99·100은 받는다")
+    void lookBoundaries() {
+        assertThatThrownBy(() -> new RunnerLook(null, Map.of(), -1, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new RunnerLook(null, Map.of(), 0, -1))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(new RunnerLook(null, Map.of(), 0, 0).bodyVariant()).isZero();
+        assertThat(new RunnerLook(null, Map.of(), 1, 1).runAmount()).isEqualTo(1);
+        assertThat(new RunnerLook(null, Map.of(), 1, 99).bodyVariant()).isEqualTo(1);
+        assertThat(new RunnerLook(null, Map.of(), 2, 100).runAmount()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("null 회원 ID는 건너뛴다(넘긴 회원 중 null이 아닌 회원만 결과에 있다)")
+    void snapshotLooks_skipsNullMemberIds() {
+        avatars.save(Avatar.create(ALICE));
+
+        Map<Long, RunnerLook> looks =
+                query.snapshotLooksOf(SNAPSHOT, java.util.Arrays.asList(ALICE, null));
+
+        assertThat(looks).containsOnlyKeys(ALICE);
+        assertThat(snapshots.saved.get(SNAPSHOT)).containsOnlyKeys(ALICE);
+    }
+
+    @Test
     @DisplayName("스냅숏 단위 고정(PM 2026-11-14): 같은 스냅숏으로 두 번 읽으면 두 번째는 DB를 읽지 않고 같은 모습을 준다")
     void snapshotLooks_secondReadComesFromStore() {
         Avatar alice = Avatar.create(ALICE);

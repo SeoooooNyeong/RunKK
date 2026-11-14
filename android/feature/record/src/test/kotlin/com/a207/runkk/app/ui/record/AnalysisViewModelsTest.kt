@@ -230,6 +230,20 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `랭킹 얼굴은 셀카 부위 얼굴(selfie 키)도 받는다(기초 경로 B4, S15P31A207-300)`() {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EYES, byteArrayOf(2))
+        )
+        records.faceResults["selfie:9/set"] = Outcome.Success(layers)
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("selfie:9/set")
+
+        assertEquals(listOf("face:selfie:9/set"), records.calls.filter { it.startsWith("face:") })
+        assertEquals(layers, vm.state.value.faces["selfie:9/set"])
+    }
+
+    @Test
     fun `코치는 이번 주(월~일) 계획 현황을 읽고 오늘 계획·주간 목표를 정한다(FR-072~FR-075)`() {
         val vm = CoachViewModel(records, todayPlans, clock)
         assertEquals("progress:2026-10-19..2026-10-25", records.calls.first())

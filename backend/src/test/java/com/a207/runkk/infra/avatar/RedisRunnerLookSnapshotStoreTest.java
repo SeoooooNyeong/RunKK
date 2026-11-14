@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.a207.runkk.avatar.RunnerLook;
@@ -19,6 +20,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
@@ -82,6 +84,36 @@ class RedisRunnerLookSnapshotStoreTest extends WebTestSupport {
         redis.opsForHash().put("ranking:look:" + snapshot, "2", "{broken");
 
         assertThat(store.find(snapshot, List.of(1L, 2L))).containsOnlyKeys(1L);
+    }
+
+    @Test
+    @DisplayName("빈 입력(회원 없음·모습 없음)이면 Redis를 부르지 않는다")
+    void emptyInputSkipsRedis() {
+        StringRedisTemplate untouched = mock(StringRedisTemplate.class);
+        RedisRunnerLookSnapshotStore idle = new RedisRunnerLookSnapshotStore(untouched, json);
+
+        assertThat(idle.find("PERSONAL:WEEKLY:1", List.of())).isEmpty();
+        idle.save("PERSONAL:WEEKLY:1", Map.of());
+
+        verifyNoInteractions(untouched);
+    }
+
+    @Test
+    @DisplayName("응답이 회원 수보다 짧으면(비정상 응답) 받은 칸만 읽고 나머지 회원은 없는 것으로 본다")
+    @SuppressWarnings("unchecked")
+    void shortReplyReadsOnlyWhatCame() throws Exception {
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        HashOperations<String, Object, Object> hash = mock(HashOperations.class);
+        when(template.<Object, Object>opsForHash()).thenReturn(hash);
+        String saved =
+                json.writeValueAsString(
+                        new RedisRunnerLookSnapshotStore.Row(null, Map.of(), 1, 30));
+        when(hash.multiGet(any(), any())).thenReturn(List.of(saved));
+        RedisRunnerLookSnapshotStore shortReply = new RedisRunnerLookSnapshotStore(template, json);
+
+        assertThat(shortReply.find("PERSONAL:WEEKLY:1", List.of(1L, 2L)))
+                .containsOnlyKeys(1L)
+                .containsEntry(1L, new RunnerLook(null, Map.of(), 1, 30));
     }
 
     @Test
