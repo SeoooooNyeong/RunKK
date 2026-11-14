@@ -11,6 +11,7 @@
 - (2026-11-14) code-review/26-랭킹-다른러너-아바타-성.md: 새 조각(`/sw-code-review`). 합격(결함 0 / 0 / 6, 남은 0 / 0 / 4), [임시:AR-성-87]~[임시:AR-성-92], 순환 복잡도 10 초과 없음, 설계서 갱신 U26-1~U26-3
 - (2026-11-14) test/랭킹-다른러너-아바타-성.md: 새 조각(`/sw-test`). 계획 완성, 화이트박스 다섯(`find` V(G) 7, `snapshotLooksOf` 5, `onFaceShown` 4, `rankingFaceTone` 4, `looksOf` 조건 3), [임시:TC-성-274]~[임시:TC-성-334], 시험 10건 추가(backend 7, android 3 — 기능 코드를 잠시 틀리게 바꿔 실패 먼저 확인), 실행 결과 9.2
 - (2026-11-14) sqa/랭킹-다른러너-아바타-성.md: 새 조각(`/sw-sqa`). develop 병합 판정 **조건부**(1인 검토, 확인은 부분, NFR-001 미측정), [임시:DF-성-20]~[임시:DF-성-23], 새 위험 [임시:R-성-25]~[임시:R-성-30]
+- (2026-11-14 후속) [임시:DF-성-20]·[임시:AR-성-90] 해결: design-oo/05-30 [임시:D-성-226] 행(0시 재집계 뒤 사건으로 미리 채움, 첫 조회 채움은 안전망, 키 시각은 UTC 밀리초 U26-2, HSET·만료 Lua 한 번), code-review/26 결함 표·U26-2, sqa 2절·6절·7절·8절, test 3.1(TC-281 시험 추가, [임시:TC-성-335]~[임시:TC-성-340])·4절 T-RL-5([임시:TC-성-341])·8절
 
 ## 새 임시 번호
 | 임시 번호 | 종류 | 한 줄 설명 | 위치 |
@@ -18,6 +19,7 @@
 | [임시:D-성-226] | D | 개인 랭킹 줄·mine에 회원 모습 `look`을 붙인다(크루·탈퇴는 null), web.record가 avatar.RunnerLookQuery로 붙인다. look은 스냅숏 단위 Redis 캐시로 하루 고정(PM 2026-11-14, 키 `ranking:look:{종류}:{기간}:{집계 시각 ms}`, 만료 25시간, 지연 채움) | design-oo/05-30 12절 |
 | [임시:AR-성-87]~[임시:AR-성-92] | 코드 리뷰 결함(경 6) | 87 얼굴 키 판정 두 곳, 88 받기 실패 뒤 다시 받지 않음, 89 `SelfieHeads` 전역 잠금으로 시상대 머리 차례 받기, 90 `HSET`·`EXPIRE` 따로, 91 시험 공백(시험 추가로 해소), 92 병합 대기 파일 이름·머리말(머리말 고침) | code-review/26 2절 |
 | [임시:TC-성-274]~[임시:TC-성-334] | 시험 케이스 | 단위 274~321, 통합 322~326, 검증 327~330, 시스템 331~334 | test/랭킹-다른러너-아바타-성 |
+| [임시:TC-성-335]~[임시:TC-성-341] | 시험 케이스(2026-11-14 후속) | 단위 335~340(재집계 사건, 미리 채우기 키·건너뛰기·실패, 만료 다시 걸기), 통합 341(T-RL-5 재집계 → 미리 채움 → 조회) | test/랭킹-다른러너-아바타-성 3.1·4절 |
 | [임시:DF-성-20] | SQA 결함(경, 모호) | PM 결정 「0시 스냅숏에 같이 저장」과 구현 「스냅숏 뒤 첫 조회 때 그 시각 모습으로 고정」의 차이, PM 확인 | sqa/랭킹-다른러너-아바타-성 2절 |
 | [임시:DF-성-21] | SQA 결함(경, 누락) | srs FR-070 출력에 줄 모습 없음(박재영 승인 대기) | 같은 곳 |
 | [임시:DF-성-22] | SQA 결함(경, 누락) | 앱 쪽 설계 결정 없음(U26-1) | 같은 곳 |
@@ -30,7 +32,10 @@
 | design-oo 5.7.1 web.record API 표(`GET /rankings/personal`) | 응답 Entry에 `look`(객체 또는 null) {faceKey, outfit{ItemSlot 이름: assetKey}, bodyVariant 0~2, runAmount 0~100}. `GET /rankings/crew`는 늘 null. 필드 더하기만이라 옛 앱은 그대로 동작 |
 | design-oo 12.2 패키지 의존 행렬·12.3 허용 표 | web.record → avatar 한 줄(RunnerLookQuery.snapshotLooksOf, D-46 표현 계층이 붙임). `ArchitectureTest` 허용 표에 반영함 |
 | design-oo 6.1.8 avatar 클래스 목록 | `RunnerLook`(record), `RunnerLookQuery`(looksOf, snapshotLooksOf), `RunnerLookSnapshotStore`(포트), `AvatarRepository.findAllByMemberIds`(만들지 않음, fetch join) |
-| design-oo 6.1.13 infra 클래스 목록 | `infra.avatar.RedisRunnerLookSnapshotStore`(키 `ranking:look:{종류}:{기간}:{집계 시각 ms}` 해시, 만료 25시간, 장애면 비어 있다고 봄) |
+| design-oo 6.1.13 infra 클래스 목록 | `infra.avatar.RedisRunnerLookSnapshotStore`(키 `ranking:look:{종류}:{기간}:{집계 시각을 UTC로 본 밀리초}` 해시, 만료 25시간, HSET·만료는 Lua 한 번([임시:AR-성-90]), 장애면 비어 있다고 봄) |
+| design-oo 6.1.4 analysis 사건 표 | (2026-11-14 후속) `RankingSnapshotRebuilt`(kind, period, computedAt, topSubjectIds 최대 TOP) — `RankingService.save`가 스냅숏 저장 트랜잭션에서 발행, 수신 `web.record.RankingLookPrefill`(AFTER_COMMIT, 개인만, 실패는 경고 로그). 재집계 시각은 밀리초로 자름 |
+| design-oo 5.7.1 web.record 클래스 | (2026-11-14 후속) `RankingLookPrefill`(재집계 사건 수신자, [임시:DF-성-20]), `RankingSnapshotIds.of`(스냅숏 식별자, 조회와 미리 채우기가 함께 씀) |
+| design-oo 6.1.13 batch.analysis·web.admin.ranking | (2026-11-14 후속) 0시 `RankingRebuildJob`·운영자 `recompute`·시작 `rebuildIfMissing` 모두 재집계 뒤 개인 상위 줄 look을 미리 채운다(사건 경유, avatar를 import하지 않음) |
 | design-oo 5.5 장애: Redis | 랭킹 look 캐시를 못 쓰면 요청마다 DB에서 읽는다(랭킹 조회는 실패하지 않음). (2026-11-14 U26-3) 다른 러너 머리 받기가 머리마다 avatar-ai를 부르는 부하([임시:R-성-27]) |
 | design-oo 6.1.4 RankingView | `activeMemberIds()`(publicTiers 키 = 탈퇴하지 않은 개인 줄 회원) |
 | srs 자료사전 랭킹 줄 | `look` 항목 |
@@ -45,4 +50,5 @@
 - 박재영: (2026-11-14) backend `AiCoachControllerTest.revokingConsentClosesActiveAiStreamAndStopsDelivery`가 실행 순서에 따라 흔들린 이력이 있다([임시:R-성-29]). 원인 확인을 부탁한다(이 브랜치에서는 고치지 않음).
 
 ## 본인 담당 후속 (이성현)
+- (2026-11-14 후속 반영) U26-2는 05-30 [임시:D-성-226]에 반영함.
 - design-oo/05-30 12절: U26-1 앱 쪽 결정 한 줄(응답 look → 도메인 → 시상대 `AvatarStillSubject.Look`·`runnerLookOf` 범위 자르기, 4위부터 보이는 줄만 `onFaceShown`, 다른 러너 그을림 `rankingFaceTone`, `SelfieHeads` 6칸, 받기 실패 정책), U26-2 「집계 시각 epoch 밀리초」 → 「집계 시각을 UTC로 본 밀리초(RankingCache 판 번호와 같은 식)」

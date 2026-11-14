@@ -397,6 +397,42 @@ class RecordControllerTest extends WebTestSupport {
         assertThat(next.get("look").get("outfit").get("TOP").asText()).isEqualTo("top_crew_tee");
     }
 
+    @Test
+    @DisplayName(
+            "DF-성-20 재집계(0시·운영자 재계산)가 끝나면 상위 줄 모습을 조회와 같은 키로 미리 저장한다: 재집계 뒤 바꾼 모습이 아니라 재집계"
+                    + " 때 모습을 DB를 다시 읽지 않고 준다")
+    void ranking_lookPrefilledAtRebuild() throws Exception {
+        ensureLookItems();
+        Session me = signUp();
+        upload(me, 7_000, 2_100);
+        chooseFace(me, DefaultCharacter.BEAR);
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+        chooseFace(me, DefaultCharacter.FOX);
+
+        JsonNode first = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(first.get("look").get("faceKey").asText())
+                .as("첫 조회도 재집계 때 미리 저장한 모습(DB를 읽었다면 FOX)")
+                .isEqualTo("default:BEAR");
+
+        Thread.sleep(5);
+        rankingService.recompute();
+        chooseFace(me, DefaultCharacter.RABBIT);
+        JsonNode recomputed =
+                getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(recomputed.get("look").get("faceKey").asText())
+                .as("운영자 재계산도 미리 채운다")
+                .isEqualTo("default:FOX");
+    }
+
+    private void chooseFace(Session member, DefaultCharacter face) {
+        tx.executeWithoutResult(
+                status -> {
+                    Avatar avatar = avatars.findForUpdate(member.memberId()).orElseThrow();
+                    avatar.chooseDefault(face);
+                    avatars.save(avatar);
+                });
+    }
+
     /** 랭킹 응답 상위 줄에서 그 회원의 look. */
     private static JsonNode lookOf(JsonNode ranking, Session member) {
         for (JsonNode entry : ranking.get("entries")) {

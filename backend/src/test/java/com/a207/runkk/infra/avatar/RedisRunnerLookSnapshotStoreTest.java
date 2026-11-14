@@ -3,7 +3,12 @@ package com.a207.runkk.infra.avatar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -22,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.data.redis.core.HashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 
 /**
  * 스냅숏 단위 러너 모습 Redis 저장소(S15P31A207-300, PM 2026-11-14). 시험 프로필의 내장 Redis로 직렬화 왕복·키·만료를 확인하고(web
@@ -77,6 +83,46 @@ class RedisRunnerLookSnapshotStoreTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName("AR-성-90 저장은 HSET과 만료를 스크립트 한 번으로 보낸다: 따로 부르는 만료가 없어 만료만 실패해 만료 없는 키가 남는 일이 없다")
+    void saveSetsFieldsAndExpiryAtomically() {
+        StringRedisTemplate template = mock(StringRedisTemplate.class);
+        RedisRunnerLookSnapshotStore atomic = new RedisRunnerLookSnapshotStore(template, json);
+
+        atomic.save("PERSONAL:WEEKLY:1", Map.of(1L, new RunnerLook(null, Map.of(), 0, 0)));
+
+        verify(template, times(1))
+                .execute(
+                        any(RedisScript.class),
+                        eq(List.of("ranking:look:PERSONAL:WEEKLY:1")),
+                        any(Object[].class));
+        verify(template, never()).expire(any(), any(Duration.class));
+        verify(template, never()).opsForHash();
+    }
+
+    @Test
+    @DisplayName("AR-성-90 만료 없이 남아 있던 키도 저장하면 만료가 걸리고, 이미 있던 필드는 지우지 않는다")
+    void saveAddsFieldsAndRefreshesExpiryOnExistingKey() {
+        String snapshot = "PERSONAL:WEEKLY:" + UUID.randomUUID();
+        String key = "ranking:look:" + snapshot;
+        store.save(snapshot, Map.of(1L, new RunnerLook(null, Map.of(), 0, 0)));
+        redis.persist(key);
+        assertThat(redis.getExpire(key, TimeUnit.SECONDS)).isEqualTo(-1L);
+
+        store.save(
+                snapshot,
+                Map.of(
+                        2L,
+                        new RunnerLook(null, Map.of(), 1, 5),
+                        3L,
+                        new RunnerLook(null, Map.of(), 2, 9)));
+
+        assertThat(store.find(snapshot, List.of(1L, 2L, 3L))).containsOnlyKeys(1L, 2L, 3L);
+        assertThat(redis.getExpire(key, TimeUnit.SECONDS))
+                .isGreaterThan(Duration.ofHours(24).toSeconds())
+                .isLessThanOrEqualTo(Duration.ofHours(25).toSeconds());
+    }
+
+    @Test
     @DisplayName("깨진 값은 그 회원만 없는 것으로 본다(다시 읽어 덮는다)")
     void unreadableValueIsMissing() {
         String snapshot = "PERSONAL:WEEKLY:" + UUID.randomUUID();
@@ -121,7 +167,7 @@ class RedisRunnerLookSnapshotStoreTest extends WebTestSupport {
     void redisFailureIsSwallowed() {
         StringRedisTemplate broken = mock(StringRedisTemplate.class);
         when(broken.opsForHash()).thenThrow(new RedisConnectionFailureException("down"));
-        when(broken.expire(any(), any(Duration.class)))
+        when(broken.execute(any(RedisScript.class), anyList(), any(Object[].class)))
                 .thenThrow(new RedisConnectionFailureException("down"));
         RedisRunnerLookSnapshotStore down = new RedisRunnerLookSnapshotStore(broken, json);
 
