@@ -1,10 +1,12 @@
 package com.a207.runkk.app.api.record
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.AggregationPeriod
@@ -25,8 +27,11 @@ import retrofit2.HttpException
 /** 기록 분석 조회 포트를 REST로 구현한다(6.1.14 api.record). */
 internal class RecordRepositoryImpl
 @Inject
-constructor(private val api: RecordApi, private val self: SelfMember) :
-    RecordRepository {
+constructor(
+    private val api: RecordApi,
+    private val self: SelfMember,
+    private val faces: FaceImageSource
+) : RecordRepository {
     override suspend fun dashboard(baseDate: LocalDate): Outcome<Dashboard> =
         ApiErrorMapper.call { api.dashboard(ServerTime.formatDate(baseDate)).toDomain() }
 
@@ -56,6 +61,9 @@ constructor(private val api: RecordApi, private val self: SelfMember) :
 
     override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> =
         ApiErrorMapper.call { api.crewRanking(period.name).toDomain() }
+
+    /** 랭킹 줄 얼굴 그림(S15P31A207-300). 다른 러너 셀카 머리도 프로필 얼굴 공개 규칙으로 받는다. */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
     override suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit> =
         ApiErrorMapper.call { api.setWeeklyGoal(WeeklyGoalRequest(runs, distance.meters)) }

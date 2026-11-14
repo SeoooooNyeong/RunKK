@@ -2821,6 +2821,10 @@
     }, {
       "name" : "publicTier",
       "kind" : "leaf"
+    }, {
+      "name" : "look",
+      "kind" : "record",
+      "ref" : "RecordDtos.LookDto"
     } ],
     "file" : "web/record/RecordDtos.java"
   },
@@ -2871,6 +2875,22 @@
       "name" : "longest",
       "kind" : "record",
       "ref" : "RecordDtos.BestDto"
+    } ],
+    "file" : "web/record/RecordDtos.java"
+  },
+  "RecordDtos.LookDto" : {
+    "components" : [ {
+      "name" : "faceKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "outfit",
+      "kind" : "map"
+    }, {
+      "name" : "bodyVariant",
+      "kind" : "leaf"
+    }, {
+      "name" : "runAmount",
+      "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"
   },

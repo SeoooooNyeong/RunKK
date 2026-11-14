@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.record
 
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import java.time.LocalDate
@@ -29,6 +30,12 @@ interface RecordRepository {
     suspend fun personalRanking(period: AggregationPeriod): Outcome<Ranking>
 
     suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking>
+
+    /**
+     * 랭킹 줄 얼굴 그림(S15P31A207-300): 줄 모습의 얼굴 키([RunnerLook.faceKey])로 셀카 얼굴 층을 받는다(AccountRepository.faceLayers와
+     * 같은 그림, 다른 러너 얼굴도 받는다). 셀카가 아니면(기본 캐릭터·없음) 빈 목록이다. 구현이 없으면 빈 목록(기본 머리).
+     */
+    suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
 
     /** 주간 목표(FR-072). 횟수(1~7)와 거리(0 초과)를 함께 보낸다. 범위를 벗어나면 Rejected(GOAL_INVALID). */
     suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit>

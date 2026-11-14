@@ -14,8 +14,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.avatar.AvatarBodyShape
+import com.a207.runkk.app.core.avatar.AvatarGender
 import com.a207.runkk.app.core.avatar.AvatarOutfit
 import com.a207.runkk.app.core.avatar.R as AvatarAssetR
+import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
@@ -23,6 +25,7 @@ import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRunner
@@ -116,6 +119,77 @@ class AvatarW8LogicTest {
         )
         assertEquals(AvatarOutfit(top = 1), outfitOf(mapOf(ItemSlot.TOP to 1L), shop))
         assertEquals(AvatarOutfit(), outfitOf(emptyMap(), shop))
+    }
+
+    @Test
+    fun `다른 러너 의상은 그림 키로 바로 Rive 번호가 되고, 모르는 키·모자는 0이다(S15P31A207-300)`() {
+        assertEquals(
+            AvatarOutfit(top = 2, bottom = 2, shoes = 1),
+            riveOutfitOf(
+                mapOf(
+                    ItemSlot.TOP to "top_crew_tee",
+                    ItemSlot.BOTTOM to "bottom_leggings",
+                    ItemSlot.SHOES to "shoes_basic_runner",
+                    ItemSlot.HAT to "hat_running_cap"
+                )
+            )
+        )
+        assertEquals(
+            AvatarOutfit(shoes = 6),
+            riveOutfitOf(mapOf(ItemSlot.SHOES to "shoes_lime_runner", ItemSlot.TOP to "top_unknown"))
+        )
+        assertEquals(AvatarOutfit(), riveOutfitOf(emptyMap()))
+    }
+
+    @Test
+    fun `다른 러너 전신 정지 그림은 랭킹 모습(성별·의상·체형·러닝량)으로, 모습이 없으면 성별 기본 모습이다(S15P31A207-300)`() {
+        val subject = AvatarStillSubject(
+            isMine = false,
+            isFemale = true,
+            look = AvatarStillSubject.Look(
+                faceKey = "head:12:abc",
+                topKey = "top_crew_tee",
+                bottomKey = null,
+                shoesKey = "shoes_lime_runner",
+                bodyVariant = 2,
+                runAmount = 37
+            )
+        )
+        assertEquals(
+            RiveAvatarLook(AvatarGender.FEMALE, AvatarOutfit(top = 2, shoes = 6), AvatarBodyShape.CHANGE_2, 37, null),
+            runnerLookOf(subject, headLayers = null)
+        )
+        assertEquals(
+            RiveAvatarLook(AvatarGender.MALE, AvatarOutfit(), AvatarBodyShape.BASE, 0, null),
+            runnerLookOf(AvatarStillSubject(isMine = false), headLayers = null)
+        )
+        assertEquals(0, runnerLookOf(subject.copy(isLightSkin = true), null).runningAmount, "밝은 피부 요청은 러닝량 0")
+        assertEquals(
+            AvatarBodyShape.BASE,
+            runnerLookOf(subject.copy(look = subject.look?.copy(bodyVariant = 9)), null).bodyShape,
+            "모르는 체형은 기본"
+        )
+    }
+
+    @Test
+    fun `다른 러너 러닝량은 0~100 밖이면 끝값으로, 체형은 0~2 밖이면 기본으로 그린다(경곗값, S15P31A207-300)`() {
+        val look = AvatarStillSubject.Look(null, null, null, null, bodyVariant = 0, runAmount = 0)
+        fun runAmountOf(value: Int) =
+            runnerLookOf(AvatarStillSubject(isMine = false, look = look.copy(runAmount = value)), null).runningAmount
+        fun bodyOf(value: Int) =
+            runnerLookOf(AvatarStillSubject(isMine = false, look = look.copy(bodyVariant = value)), null).bodyShape
+
+        assertEquals(listOf(0, 0, 1, 99, 100, 100), listOf(-1, 0, 1, 99, 100, 101).map(::runAmountOf))
+        assertEquals(
+            listOf(
+                AvatarBodyShape.BASE,
+                AvatarBodyShape.BASE,
+                AvatarBodyShape.CHANGE_1,
+                AvatarBodyShape.CHANGE_2,
+                AvatarBodyShape.BASE
+            ),
+            listOf(-1, 0, 1, 2, 3).map(::bodyOf)
+        )
     }
 
     /**
