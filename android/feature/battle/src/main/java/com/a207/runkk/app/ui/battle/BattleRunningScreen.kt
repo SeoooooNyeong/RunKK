@@ -356,13 +356,13 @@ private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunn
             longPressLabel = stringResource(R.string.battle_running_hold_to_end),
             contentDescription = stringResource(R.string.battle_running_forfeit_desc),
             caption = stringResource(R.string.battle_running_hold_to_end),
-            size = 88.dp,
-            borderColor = RunkkColors.Surface,
+            size = 84.dp,
+            borderColor = RunkkColors.LimeFill,
             borderWidth = 0.dp,
-            background = RunkkColors.Surface,
+            background = RunkkColors.LimeFill,
             modifier = Modifier.align(Alignment.Center)
         ) {
-            RunkkStopSquare(size = 28.dp)
+            RunkkStopSquare(size = 28.dp, corner = 7.dp, color = RunkkColors.OnLimeFill)
         }
     }
 }
@@ -419,9 +419,9 @@ private fun BattleTrack(
     var isMapFailed by remember { mutableStateOf(false) }
     val isMapAvailable = canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)
     val mode = shownViewMode(state.viewMode, isMapAvailable)
-    Box(modifier.clip(RunkkShapes.ExtraLarge)) {
+    Box(modifier.clip(RoundedCornerShape(26.dp))) {
         when (mode) {
-            RunViewMode.TRACK -> TrackView(state, Modifier.fillMaxSize())
+            RunViewMode.TRACK -> TrackView(state, Modifier.fillMaxSize(), if (isMapAvailable) 91.dp else 55.dp)
 
             RunViewMode.MAP -> RunkkMeMap(
                 route = state.route,
@@ -431,7 +431,10 @@ private fun BattleTrack(
                 myLabel = stringResource(R.string.battle_me)
             ) { MyFace(state, MAP_FACE_SIZE) }
         }
-        Column(Modifier.align(Alignment.TopStart).padding(8.dp)) {
+        Column(
+            Modifier.align(Alignment.TopStart).padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             RunkkTrackProgressBar(
                 dots = progressDots(state),
                 modifier = Modifier.fillMaxWidth(),
@@ -476,7 +479,7 @@ private fun progressDots(state: BattleRunningUiState): List<ProgressDot> {
 
 /** 트랙 보기: 위치 계산은 매번 다시 한다(받은 거리값이 바로 다음 그림에 반영된다, [임시:D-성-273]). */
 @Composable
-private fun TrackView(state: BattleRunningUiState, modifier: Modifier = Modifier) {
+private fun TrackView(state: BattleRunningUiState, modifier: Modifier, overlayBottom: Dp) {
     val gap = state.gapMeters
     val layout = TrackLayout.of(
         aheadMeters = gap?.let { -it.toDouble() },
@@ -499,6 +502,9 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier = Modifier
         otherAvatar = { OpponentRunner(state) },
         modifier = modifier.testTag(BATTLE_TRACK_TAG),
         myPace = state.currentPace?.let { RunkkFormat.pace(it) },
+        isMoving = isMoving,
+        speedMetersPerSecond = state.currentPace?.let { 1_000f / it.secondsPerKm } ?: 0f,
+        overlayBottom = overlayBottom,
         aheadChip = edge?.takeIf { it.isAhead }?.let {
             stringResource(R.string.battle_track_edge_ahead, opponentName, it.meters)
         },
@@ -509,16 +515,18 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier = Modifier
         myFace = { MyFace(state, TAG_FACE_SIZE) },
         otherFace = opponentFace(state),
         backdrop = {
-            AvatarStageBackdrop(
-                if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
-                Modifier.fillMaxSize(),
-                alignment = Alignment.BottomCenter
-            )
+            if (isAvatarOpen) {
+                AvatarStageBackdrop(
+                    state.myAvatar?.backgroundKey,
+                    Modifier.fillMaxSize(),
+                    alignment = Alignment.TopCenter
+                )
+            }
         }
     )
 }
 
-/** 내 얼굴 원(이름표 20, 지도 위 내 위치 44): 홈과 같은 내 얼굴이다. */
+/** 내 얼굴 원(이름표 22, 지도 위 내 위치 44): 홈과 같은 내 얼굴이다. */
 @Composable
 private fun MyFace(state: BattleRunningUiState, size: Dp) {
     RunkkAvatarCircle(
@@ -671,14 +679,14 @@ internal fun gapMetersLabel(gap: Int): String = if (gap >= 0) "+$gap m" else "$g
 
 private const val PAST_SELF_ALPHA = 0.5f
 
-/** 트랙 카드 높이(시안 320×300). 화면이 낮으면 남는 높이만큼 줄어든다. */
-private val TRACK_CARD_HEIGHT = 300.dp
+/** 트랙 카드 높이(시안 350×328). 화면이 낮으면 남는 높이만큼 줄어든다. */
+private val TRACK_CARD_HEIGHT = 328.dp
 
-/** 배치고사 「?」 원을 그리는 칸(상대 레인 아바타 칸 76 안에 성사 화면과 같은 비율로 그린다). */
+/** 배치고사 「?」 원은 상대 아바타 칸 가운데에 성사 화면과 같은 모양으로 그린다. */
 private val UNKNOWN_SIZE = 72.dp
 
 /** 이름표 얼굴 원과 지도 위 내 얼굴 원. */
-private val TAG_FACE_SIZE = 20.dp
+private val TAG_FACE_SIZE = 22.dp
 private val MAP_FACE_SIZE = 44.dp
 private const val METERS_PER_KM = 1_000L
 

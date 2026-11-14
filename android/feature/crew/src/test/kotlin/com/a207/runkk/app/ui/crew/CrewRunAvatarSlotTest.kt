@@ -38,7 +38,7 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * 크루런 측정 화면의 내 아바타 칸(design-oo 05-30 7절, [임시:D-성-121], [임시:D-성-122]): RUNNING이고 내가 멈추지 않았으면 RUN, 진행
- * 내 칸은 88dp다. 트랙 보기([임시:FR-성-30])에서는 나와 크루원 모두 진행 방향(오른쪽)을 보므로 지도 위 진행 방향 원값을 넘기지 않는다.
+ * 내 칸은 카드 높이에 맞춰 최대 109dp다. 트랙 보기([임시:FR-성-30])에서는 나와 크루원 모두 진행 방향(오른쪽)을 보므로 지도 위 진행 방향 원값을 넘기지 않는다.
  * 가장 가까운 크루원은 같은 칸에 그 크루원 대상으로 그린다([임시:D-성-259]).
  */
 @RunWith(RobolectricTestRunner::class)
@@ -70,7 +70,7 @@ class CrewRunAvatarSlotTest {
                 RunkkTheme(reduceMotion = true) { CrewRunScreen(state, CrewRunActions()) }
             }
         }
-        compose.onNodeWithTag("crew-avatar-probe").assertWidthIsEqualTo(88.dp)
+        compose.onNodeWithTag("crew-avatar-probe").assertWidthIsEqualTo(109.dp)
         assertEquals(AvatarSlotPose.RUN, pose)
         assertEquals(false, left, "서쪽으로 달려도 트랙에서는 오른쪽을 본다")
 

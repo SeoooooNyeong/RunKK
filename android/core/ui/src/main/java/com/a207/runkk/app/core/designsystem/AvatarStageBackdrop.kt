@@ -24,7 +24,7 @@ fun avatarStageBackdropRes(backgroundKey: String?, stage: String? = null, isDark
 
 /**
  * 무대용 배경 그림을 칸에 맞춰 자른다(배경 고르기 칸·해금 미리보기처럼 무대와 같은 그림을 보여야 하는 곳). 장식 그림이라 보조 기술에 알리지 않는다.
- * [alignment]는 칸이 그림보다 낮을 때 남길 쪽이다: 트랙 보기는 바닥(트랙)이 보여야 하므로 아래를 남긴다.
+ * [alignment]는 칸이 그림보다 낮을 때 남길 쪽이다: 트랙 보기의 하늘 칸은 위쪽 풍경을 남긴다.
  */
 @Composable
 fun AvatarStageBackdrop(
