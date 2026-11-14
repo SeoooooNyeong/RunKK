@@ -109,7 +109,8 @@ public class CrewQueryService {
                                         levels.getOrDefault(id, DisclosureLevel.WITHDRAWN)
                                                 .showsProfile())
                         .collect(Collectors.toSet());
-        Map<Long, Gender> shownGenders = memberQueryService.shownGendersOf(ids);
+        // 내 줄은 내가 보는 내 모습이라 실제 성별로 그린다(S15P31A207-306 실기기 확인: 성별 비공개인 내 얼굴이 대체값으로 나왔다)
+        Map<Long, Gender> shownGenders = memberQueryService.gendersShownTo(viewerId, ids);
         List<CrewMembersView.Line> lines = new ArrayList<>();
         for (CrewMembership membership : active) {
             boolean shown = disclosed.contains(membership.memberId());
