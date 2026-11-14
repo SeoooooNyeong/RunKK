@@ -181,8 +181,12 @@ class FakeAvatars : AvatarRepository {
     /** 셀카 머리 응답(기본: 셀카 머리가 아님). */
     var headResult: Outcome<SelfieHead?> = Outcome.Success(null)
 
+    /** 얼굴 키별로 머리 응답을 붙잡아 두는 문([임시:AR-성-89] 동시 받기 시험). */
+    val headGates = mutableMapOf<String, kotlinx.coroutines.CompletableDeferred<Unit>>()
+
     override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> {
         calls += "head:$faceKey"
+        faceKey?.let { headGates[it]?.await() }
         return headResult
     }
 

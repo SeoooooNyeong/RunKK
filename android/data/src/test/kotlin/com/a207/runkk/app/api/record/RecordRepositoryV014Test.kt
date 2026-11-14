@@ -38,7 +38,7 @@ class RecordRepositoryV014Test {
 
             override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
         }
-    private val repository = RecordRepositoryImpl(api.retrofit.create(), SelfMember(tokens))
+    private val repository = RecordRepositoryImpl(api.retrofit.create(), SelfMember(tokens), api.faces)
 
     @AfterTest
     fun tearDown() = api.close()

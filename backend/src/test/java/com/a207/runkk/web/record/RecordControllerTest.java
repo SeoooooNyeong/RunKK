@@ -10,6 +10,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.analysis.RankingService;
+import com.a207.runkk.avatar.Avatar;
+import com.a207.runkk.avatar.AvatarRepository;
+import com.a207.runkk.avatar.BodyShape;
+import com.a207.runkk.avatar.DefaultCharacter;
+import com.a207.runkk.avatar.SkinTone;
+import com.a207.runkk.common.ItemSlot;
+import com.a207.runkk.policy.OperationPolicy;
+import com.a207.runkk.policy.OperationSettingService;
+import com.a207.runkk.policy.SettingKey;
 import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.web.WebTestSupport;
@@ -25,6 +34,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * web.record 5.7.1 엔드포인트 전부(대시보드·기록 목록·상세·카드·성장·리포트·랭킹·주간 목표·계획). 기록은 실제 POST /runs로 올리고, 리포트는 커밋 뒤
@@ -40,6 +50,10 @@ class RecordControllerTest extends WebTestSupport {
     private static final int POLL_TIMES = 100;
 
     @Autowired RankingService rankingService;
+    @Autowired AvatarRepository avatars;
+    @Autowired OperationSettingService settings;
+    @Autowired OperationPolicy policy;
+    @Autowired TransactionTemplate tx;
 
     private static String at(LocalDateTime t) {
         return t.atZone(SEOUL).toOffsetDateTime().toString();
@@ -248,6 +262,185 @@ class RecordControllerTest extends WebTestSupport {
         assertThat(after.has("provisionalTier")).isFalse();
         JsonNode crew = getJson(me, "/api/v1/rankings/crew", "period", "MONTHLY");
         assertThat(crew.get("mine").isNull()).isTrue();
+    }
+
+    /** 랭킹 look 시험 아이템(S15P31A207-300): 그림 키 있는 상의, 그림 키 없는 신발. */
+    private static final String TEE_961 =
+            "{\"id\":961,\"name\":\"크루 티\",\"slot\":\"TOP\",\"price\":10,\"onSale\":true,"
+                    + "\"assetKey\":\"top_crew_tee\"}";
+
+    private static final String SHOES_962 =
+            "{\"id\":962,\"name\":\"그림 없는 신발\",\"slot\":\"SHOES\",\"price\":10,\"onSale\":true}";
+
+    /** 시험 문맥을 함께 쓰는 다른 시험이 넣은 아이템은 지우지 못하므로(D-44) 지금 목록에 없는 시험 아이템만 덧붙인다. */
+    private void ensureLookItems() throws Exception {
+        List<String> items = new java.util.ArrayList<>();
+        java.util.Set<Long> have = new java.util.HashSet<>();
+        for (var item : policy.shopCatalog().items()) {
+            have.add(item.id());
+            items.add(write(item));
+        }
+        boolean added = false;
+        for (var e : Map.of(961L, TEE_961, 962L, SHOES_962).entrySet()) {
+            if (!have.contains(e.getKey())) {
+                items.add(e.getValue());
+                added = true;
+            }
+        }
+        if (added) {
+            settings.change(
+                    "ops@runkk",
+                    SettingKey.SHOP_ITEMS,
+                    "{\"items\":[" + String.join(",", items) + "]}");
+        }
+    }
+
+    @Test
+    @DisplayName(
+            "랭킹 줄 look(S15P31A207-300): 개인 랭킹 줄과 mine에 얼굴 키·착용 그림 키·3단계 체형·러닝량, 아바타 행이 없으면"
+                    + " 기본값, 크루 랭킹은 null")
+    void ranking_carriesRunnerLook() throws Exception {
+        ensureLookItems();
+        Session me = signUp();
+        Session other = signUp();
+        upload(me, 7_000, 2_100);
+        upload(other, 3_000, 900);
+        tx.executeWithoutResult(
+                status -> {
+                    Avatar avatar = avatars.findForUpdate(me.memberId()).orElseThrow();
+                    avatar.chooseDefault(DefaultCharacter.BEAR);
+                    avatar.equip(961, ItemSlot.TOP);
+                    avatar.equip(962, ItemSlot.SHOES);
+                    avatar.updateAppearance(BodyShape.STAGE1, SkinTone.NIGHT);
+                    avatars.save(avatar);
+                });
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+
+        JsonNode personal = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY");
+        JsonNode look = personal.get("mine").get("look");
+        assertThat(look.fieldNames())
+                .toIterable()
+                .containsExactly("faceKey", "outfit", "bodyVariant", "runAmount");
+        assertThat(look.get("faceKey").asText()).isEqualTo("default:BEAR");
+        assertThat(look.get("outfit").fieldNames())
+                .as("그림 키 없는 신발은 빠진다")
+                .toIterable()
+                .containsExactly("TOP");
+        assertThat(look.get("outfit").get("TOP").asText()).isEqualTo("top_crew_tee");
+        assertThat(look.get("bodyVariant").asInt()).isEqualTo(2);
+        assertThat(look.get("runAmount").asInt()).isEqualTo(23);
+        for (JsonNode entry : personal.get("entries")) {
+            assertThat(entry.get("look").isNull())
+                    .as("탈퇴(공개 티어 없음) 회원 줄만 look이 null이다: " + entry)
+                    .isEqualTo(entry.get("publicTier").isNull());
+        }
+
+        JsonNode fresh =
+                getJson(other, "/api/v1/rankings/personal", "period", "WEEKLY")
+                        .get("mine")
+                        .get("look");
+        assertThat(fresh.get("faceKey").isNull()).isTrue();
+        assertThat(fresh.get("outfit").isObject()).isTrue();
+        assertThat(fresh.get("outfit").isEmpty()).isTrue();
+        assertThat(fresh.get("bodyVariant").asInt()).isZero();
+        assertThat(fresh.get("runAmount").asInt()).isEqualTo(10);
+        assertThat(avatars.findAllByMemberIds(List.of(other.memberId())))
+                .as("조회 경로는 아바타 행을 만들지 않는다")
+                .isEmpty();
+
+        JsonNode crew = getJson(me, "/api/v1/rankings/crew", "period", "WEEKLY");
+        for (JsonNode entry : crew.get("entries")) {
+            assertThat(entry.get("look").isNull()).isTrue();
+        }
+    }
+
+    @Test
+    @DisplayName("랭킹 줄 look은 스냅숏 단위로 고정(PM 2026-11-14): 같은 스냅숏 동안 얼굴을 바꿔도 예전 모습, 재집계 뒤 새 모습")
+    void ranking_lookFixedPerSnapshot() throws Exception {
+        ensureLookItems();
+        Session me = signUp();
+        Session viewer = signUp();
+        upload(me, 7_000, 2_100);
+        tx.executeWithoutResult(
+                status -> {
+                    Avatar avatar = avatars.findForUpdate(me.memberId()).orElseThrow();
+                    avatar.chooseDefault(DefaultCharacter.BEAR);
+                    avatar.equip(961, ItemSlot.TOP);
+                    avatars.save(avatar);
+                });
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+        JsonNode first = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(first.get("look").get("faceKey").asText()).isEqualTo("default:BEAR");
+
+        tx.executeWithoutResult(
+                status -> {
+                    Avatar avatar = avatars.findForUpdate(me.memberId()).orElseThrow();
+                    avatar.chooseDefault(DefaultCharacter.FOX);
+                    avatars.save(avatar);
+                });
+        JsonNode same = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(same.get("look").get("faceKey").asText())
+                .as("같은 스냅숏 동안은 예전 모습")
+                .isEqualTo("default:BEAR");
+        JsonNode seenByOther =
+                lookOf(getJson(viewer, "/api/v1/rankings/personal", "period", "WEEKLY"), me);
+        assertThat(seenByOther.get("faceKey").asText())
+                .as("다른 사용자도 같은 스냅숏 모습을 본다")
+                .isEqualTo("default:BEAR");
+
+        Thread.sleep(5);
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+        JsonNode next = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(next.get("look").get("faceKey").asText())
+                .as("새 스냅숏은 새 모습")
+                .isEqualTo("default:FOX");
+        assertThat(next.get("look").get("outfit").get("TOP").asText()).isEqualTo("top_crew_tee");
+    }
+
+    @Test
+    @DisplayName(
+            "DF-성-20 재집계(0시·운영자 재계산)가 끝나면 상위 줄 모습을 조회와 같은 키로 미리 저장한다: 재집계 뒤 바꾼 모습이 아니라 재집계"
+                    + " 때 모습을 DB를 다시 읽지 않고 준다")
+    void ranking_lookPrefilledAtRebuild() throws Exception {
+        ensureLookItems();
+        Session me = signUp();
+        upload(me, 7_000, 2_100);
+        chooseFace(me, DefaultCharacter.BEAR);
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+        chooseFace(me, DefaultCharacter.FOX);
+
+        JsonNode first = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(first.get("look").get("faceKey").asText())
+                .as("첫 조회도 재집계 때 미리 저장한 모습(DB를 읽었다면 FOX)")
+                .isEqualTo("default:BEAR");
+
+        Thread.sleep(5);
+        rankingService.recompute();
+        chooseFace(me, DefaultCharacter.RABBIT);
+        JsonNode recomputed =
+                getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(recomputed.get("look").get("faceKey").asText())
+                .as("운영자 재계산도 미리 채운다")
+                .isEqualTo("default:FOX");
+    }
+
+    private void chooseFace(Session member, DefaultCharacter face) {
+        tx.executeWithoutResult(
+                status -> {
+                    Avatar avatar = avatars.findForUpdate(member.memberId()).orElseThrow();
+                    avatar.chooseDefault(face);
+                    avatars.save(avatar);
+                });
+    }
+
+    /** 랭킹 응답 상위 줄에서 그 회원의 look. */
+    private static JsonNode lookOf(JsonNode ranking, Session member) {
+        for (JsonNode entry : ranking.get("entries")) {
+            if (entry.get("subjectId").asLong() == member.memberId()) {
+                return entry.get("look");
+            }
+        }
+        throw new AssertionError("랭킹 상위 줄에 회원이 없다: " + member.memberId());
     }
 
     @Test
