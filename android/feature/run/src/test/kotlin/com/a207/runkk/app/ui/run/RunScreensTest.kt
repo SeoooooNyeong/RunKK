@@ -22,6 +22,7 @@ import com.a207.runkk.app.core.designsystem.AchievementIcon
 import com.a207.runkk.app.core.designsystem.AchievementRow
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
+import com.a207.runkk.app.core.designsystem.RESULT_STAGE_DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
@@ -187,8 +188,9 @@ class RunScreensTest {
             }
         }
         compose.onNodeWithText("러닝 결과").assertExists()
-        // 결과 상세는 뛰어오르는 아바타다(D84, 피그마 B-6)
-        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "JUMP", useUnmergedTree = true).assertExists()
+        // 히어로의 뛰어오르는 아바타 대신 위쪽 무대에 전신이 선다([임시:FR-성-33], 꾸미기가 닫힌 범위는 기본 서기 그림)
+        compose.onNodeWithTag(DEFAULT_AVATAR_TAG + "JUMP", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithTag(RESULT_STAGE_DEFAULT_AVATAR_TAG, useUnmergedTree = true).assertExists()
         compose.onNodeWithText("휴식 3분 5초", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("평균 페이스", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("평균 심박", useUnmergedTree = true).assertExists()

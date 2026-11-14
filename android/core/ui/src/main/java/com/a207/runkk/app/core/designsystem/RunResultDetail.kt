@@ -441,6 +441,7 @@ private val CARD_SECTION_TITLE = RunkkTextStyles.text(14, FontWeight.Bold, lineH
  * 결과 위쪽 거리 히어로(피그마 61326:1878): 종류 칩(없으면 생략) + 날짜 줄, 큰 거리 60 Bold + 「km」, 오른쪽 기뻐하는 아바타 84.
  * 큰 숫자는 Barlow Condensed 기울임이다(prod 글꼴, 2026-11-12). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
  * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(배치고사 판 결과는 내 전신 정지 그림, S15P31A207-300).
+ * [isAvatarShown]이 거짓이면 오른쪽 아바타를 그리지 않는다(자유런 결과는 위쪽 무대에 전신이 선다, [임시:D-성-285]).
  */
 @Composable
 fun ResultDistanceHero(
@@ -450,7 +451,8 @@ fun ResultDistanceHero(
     modifier: Modifier = Modifier,
     faceKey: String? = null,
     faceLayers: List<FaceLayer> = emptyList(),
-    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null,
+    isAvatarShown: Boolean = true
 ) {
     val km = RunkkFormat.km(distance)
     val spoken = stringResource(
@@ -497,7 +499,14 @@ fun ResultDistanceHero(
                 )
             }
         }
-        CheeringAvatar(Modifier.size(HERO_AVATAR), faceKey = faceKey, faceLayers = faceLayers, avatarSlot = avatarSlot)
+        if (isAvatarShown) {
+            CheeringAvatar(
+                Modifier.size(HERO_AVATAR),
+                faceKey = faceKey,
+                faceLayers = faceLayers,
+                avatarSlot = avatarSlot
+            )
+        }
     }
 }
 
