@@ -164,6 +164,13 @@ object Routes {
     @Serializable
     data class FriendInviteWait(val distanceMeters: Long) : NavKey
 
+    /**
+     * 가이드 다시 보기 신호([임시:FR-성-36], [임시:D-성-312]). 화면이 아니라 값이다: 설정이 `selectTab(HOME)` 뒤에 이 경로를 올리면
+     * 홈 기능(ui.home)이 첫 사용 가이드를 1단계부터 다시 열고 이 경로를 뺀다.
+     */
+    @Serializable
+    data object GuideReplay : NavKey
+
     /** 받은 친구 대결 초대의 참가 확인(C-12, D-272·D-273). 초대 링크로 앱을 열면 홈 위에 연다. */
     @Serializable
     data class FriendInviteJoin(val token: String) : NavKey

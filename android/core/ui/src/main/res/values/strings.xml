@@ -133,14 +133,15 @@
     <string name="core_report_reason_spam">광고, 스팸</string>
     <string name="core_report_reason_privacy">개인정보 노출</string>
     <string name="core_report_reason_other">기타</string>
-    <string name="core_guide_free_run">혼자 달리고 싶을 때,\n자유런을 시작해 보세요</string>
-    <string name="core_guide_battle_run">다른 러너와 같은 거리를 달리며\n대결해 보세요</string>
-    <string name="core_guide_weekly_goal">이번 주 목표를 얼마나 달성했는지\n확인해 보세요</string>
-    <string name="core_guide_crew">크루를 찾아 가입하고,\n크루원과 함께 달려 보세요</string>
-    <string name="core_guide_record_run">내 이전 기록이나 셀럽의 기록에\n도전해 보세요</string>
-    <string name="core_guide_ranking">다른 러너와 비교해\n내 순위를 확인해 보세요</string>
-    <string name="core_guide_me">내 러닝 기록과 아바타를\n한곳에서 확인해 보세요</string>
-    <string name="core_guide_point">달리며 모은 포인트로\n아바타를 꾸며 보세요</string>
+    <!-- 첫 사용 가이드 4단계(FR-성-35, D-성-311): 말풍선 제목과 설명 -->
+    <string name="core_guide_free_run_title">자유런</string>
+    <string name="core_guide_free_run">혼자 달리고 싶을 때 눌러 주세요. 거리와 페이스가 자동으로 기록돼요.</string>
+    <string name="core_guide_battle_run_title">배틀런</string>
+    <string name="core_guide_battle_run">다른 러너와 같은 거리를 달리며 대결해요.</string>
+    <string name="core_guide_record_run_title">기록런</string>
+    <string name="core_guide_record_run">어제의 내 기록이나 셀럽의 기록과 대결해요. 거리를 고르면 그 기록을 세운 날의 내 모습이 보여요.</string>
+    <string name="core_guide_my_runner_title">내 러너</string>
+    <string name="core_guide_my_runner">달릴수록 바뀌는 내 러너를 확인하고 꾸며 보세요.</string>
     <string name="core_location_consent_title">위치 정보 동의가 필요해요</string>
     <string name="core_location_consent_message">러닝을 기록하려면 위치 정보 수집에 동의해 주세요.</string>
     <string name="core_location_consent_close">닫기</string>

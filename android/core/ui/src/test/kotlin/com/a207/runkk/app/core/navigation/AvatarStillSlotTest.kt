@@ -66,4 +66,35 @@ class AvatarStillSlotTest {
         }
         compose.onNodeWithTag("fallback").assertExists()
     }
+
+    @Test
+    fun `MINE은 isMine이다`() {
+        assertEquals(AvatarStillSubject(isMine = true), AvatarStillSubject.MINE)
+    }
+
+    @Test
+    fun `대체 경로(칸이 빔)에서도 onReady가 한 번 불린다`() {
+        var readies = 0
+        compose.setContent {
+            AvatarStillSlot(AvatarStillSubject.MINE, onReady = { readies++ }) { Box(Modifier.testTag("fallback")) }
+        }
+        compose.onNodeWithTag("fallback").assertExists()
+        assertEquals(1, readies)
+    }
+
+    @Test
+    fun `칸이 있으면 onReady를 칸 내용에 넘기고 스스로 부르지 않는다`() {
+        var readies = 0
+        var signal: (() -> Unit)? = null
+        val content: @Composable () -> Unit = { signal = LocalSlotAvatarStillOnReady.current }
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(content))) {
+                AvatarStillSlot(AvatarStillSubject.MINE, onReady = { readies++ }) { Box(Modifier.testTag("fallback")) }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(0, readies, "그림이 보일 때 칸 내용이 부른다")
+        signal?.invoke()
+        assertEquals(1, readies)
+    }
 }

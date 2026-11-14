@@ -24,6 +24,7 @@ import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarPose
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillFallback
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillOnReady
 import com.a207.runkk.app.core.navigation.SlotKey
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -224,6 +225,67 @@ class AvatarSlotsTest {
         }
         compose.onNodeWithTag("caller-fallback").assertExists()
         compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).assertCountEqualsTo(0, "기능 쪽 기본 그림은 그리지 않는다")
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 성별 기본 전신 그림(준비 실패)에서도 준비 신호를 보낸다(D-성-292)`() {
+        repo.avatarResult = Outcome.Failure(AppError.Network)
+        gender.value = Gender.FEMALE
+        var readies = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject.MINE,
+                    LocalSlotAvatarStillOnReady provides { readies++ }
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 2_000) { store.state.value is MyAvatarState.Failed }
+        compose.onNodeWithTag(AVATAR_STILL_FALLBACK_TAG).assertExists()
+        assertEquals(1, readies)
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 내 모습을 기다리는 동안에는 준비 신호를 보내지 않는다`() {
+        var readies = 0
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject.MINE,
+                    LocalSlotAvatarStillOnReady provides { readies++ }
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        assertEquals(0, readies, "성별을 기다리는 중")
+        // 준비가 끝나지 않으면 시간 초과 뒤 성별 기본 그림으로 끝낸다(신호는 반드시 온다).
+        compose.mainClock.advanceTimeBy(AVATAR_STILL_READY_TIMEOUT_MS)
+        compose.onNodeWithTag(AVATAR_STILL_FALLBACK_TAG).assertExists()
+        assertEquals(1, readies)
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 꾸미기가 닫혀 부르는 쪽 그림을 그릴 때도 준비 신호를 보낸다`() {
+        var readies = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalReleaseScope provides ReleaseScope.FIRST_RELEASE,
+                    LocalSlotAvatarStill provides AvatarStillSubject.MINE,
+                    LocalSlotAvatarStillFallback provides { Box(Modifier.testTag("caller-fallback")) },
+                    LocalSlotAvatarStillOnReady provides { readies++ }
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.onNodeWithTag("caller-fallback").assertExists()
+        assertEquals(1, readies)
     }
 
     @Test

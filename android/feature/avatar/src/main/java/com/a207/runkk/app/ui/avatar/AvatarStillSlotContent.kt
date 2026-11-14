@@ -28,6 +28,7 @@ import com.a207.runkk.app.core.designsystem.defaultAvatarOf
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillFallback
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillOnReady
 import kotlinx.coroutines.delay
 
 /** 전신 정지 그림을 만들지 못했을 때 세우는 성별 기본 전신 그림의 시험 표지. */
@@ -49,6 +50,9 @@ internal fun AvatarStillSlotContent(store: MyAvatarStore) {
     val subject = LocalSlotAvatarStill.current ?: return
     if (!LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
         LocalSlotAvatarStillFallback.current?.invoke()
+        // 부르는 쪽 그림은 바로 보인다([임시:D-성-292])
+        val onReady = LocalSlotAvatarStillOnReady.current
+        LaunchedEffect(Unit) { onReady() }
         return
     }
     if (subject.isMine) {
@@ -75,7 +79,12 @@ private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
         state is MyAvatarState.Failed || isFailed || (look == null && isTimedOut) ->
             StillFallback(LocalAvatarCharacter.current)
 
-        look != null -> RiveAvatarStill(look, Modifier.fillMaxSize(), onError = { isFailed = true })
+        look != null -> RiveAvatarStill(
+            look,
+            Modifier.fillMaxSize(),
+            onError = { isFailed = true },
+            onReady = LocalSlotAvatarStillOnReady.current
+        )
 
         else -> Unit
     }
@@ -91,13 +100,20 @@ private fun RunnerAvatarStill(gender: Gender?) {
     if (isFailed) {
         StillFallback(AvatarCharacter.of(gender))
     } else {
-        RiveAvatarStill(look, Modifier.fillMaxSize(), onError = { isFailed = true })
+        RiveAvatarStill(
+            look,
+            Modifier.fillMaxSize(),
+            onError = { isFailed = true },
+            onReady = LocalSlotAvatarStillOnReady.current
+        )
     }
 }
 
-/** 성별 기본 전신 그림(서기). 발을 칸 바닥에 붙인다. */
+/** 성별 기본 전신 그림(서기). 발을 칸 바닥에 붙인다. 바로 보이므로 준비 신호를 보낸다([임시:D-성-292]). */
 @Composable
 private fun StillFallback(character: AvatarCharacter) {
+    val onReady = LocalSlotAvatarStillOnReady.current
+    LaunchedEffect(Unit) { onReady() }
     Image(
         painterResource(defaultAvatarOf(AvatarExpression.STAND, character)),
         contentDescription = null,

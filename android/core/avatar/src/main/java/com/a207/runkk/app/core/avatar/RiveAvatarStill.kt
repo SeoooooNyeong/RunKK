@@ -42,9 +42,16 @@ const val AVATAR_STILL_TAG = "avatar_still"
  * - 그림은 칸 안에 비율을 지켜 맞추고 발을 칸 바닥에 붙인다(`ContentScale.Fit`, `Alignment.BottomCenter`).
  * - 읽는 동안(대개 1초 안) 칸은 비어 있다. Rive를 그리지 못하거나 [CAPTURE_TRIES]번 읽어도 몸이 없으면 [onError]다. 부르는 쪽이
  *   성별 기본 그림으로 바꾼다.
+ * - [onReady]: 정지 그림이 칸에 보이면 한 번 부른다([임시:D-성-292], 칸을 찍어 내보내는 화면이 기다린다).
  */
 @Composable
-fun RiveAvatarStill(look: RiveAvatarLook, modifier: Modifier = Modifier, onError: (Throwable) -> Unit = {}) {
+fun RiveAvatarStill(
+    look: RiveAvatarLook,
+    modifier: Modifier = Modifier,
+    onError: (Throwable) -> Unit = {},
+    onReady: () -> Unit = {}
+) {
+    val currentOnReady by rememberUpdatedState(onReady)
     BoxWithConstraints(modifier) {
         if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) return@BoxWithConstraints
         val width = constraints.maxWidth
@@ -62,6 +69,7 @@ fun RiveAvatarStill(look: RiveAvatarLook, modifier: Modifier = Modifier, onError
                 contentScale = ContentScale.Fit,
                 filterQuality = FilterQuality.Medium
             )
+            LaunchedEffect(key) { currentOnReady() }
         } else {
             StillCapture(
                 look = look,

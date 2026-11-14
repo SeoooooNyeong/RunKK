@@ -89,7 +89,7 @@ class ReleaseShellTest {
     }
 
     @Test
-    fun `하단 탭은 가이드 앵커를 적는다(D-277)`() {
+    fun `하단 탭 가운데 기록런 탭만 가이드 앵커를 적는다(D-277, D-성-301)`() {
         val anchors = GuideAnchors()
         compose.setContent {
             CompositionLocalProvider(LocalGuideAnchors provides anchors) {
@@ -97,9 +97,8 @@ class ReleaseShellTest {
             }
         }
         compose.waitForIdle()
-        listOf(GuideStep.CREW, GuideStep.RECORD_RUN, GuideStep.RANKING, GuideStep.ME).forEach {
-            assertNotNull(anchors[it], "$it 앵커")
-        }
+        assertNotNull(anchors[GuideStep.RECORD_RUN], "기록런 앵커")
+        assertEquals(null, anchors[GuideStep.MY_RUNNER], "내 러너 앵커는 홈 아바타가 적는다")
         assertEquals(null, anchors[GuideStep.FREE_RUN])
     }
 

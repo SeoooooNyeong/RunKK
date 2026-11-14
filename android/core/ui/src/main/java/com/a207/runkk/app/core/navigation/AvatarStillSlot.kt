@@ -3,6 +3,10 @@ package com.a207.runkk.app.core.navigation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 
 /**
@@ -15,25 +19,42 @@ data class AvatarStillSubject(
     val isFemale: Boolean? = null,
     /** 참이면 러닝량과 상관없이 가장 밝은 피부(러닝량 0)로 그린다(대결 고르기 카드, 2026-11-12 PM 요구). */
     val isLightSkin: Boolean = false
-)
+) {
+    companion object {
+        /** 내 아바타 모습 그대로(러닝 결과 무대, 기록 카드, [임시:D-성-303]). */
+        val MINE = AvatarStillSubject(isMine = true)
+    }
+}
 
 /**
  * 전신 정지 그림 한 칸(랭킹 TOP3 시상대, 기록런 VS 칸, S15P31A207-300). 아바타 꾸미기(AVATAR_CUSTOMIZE)가 열려 있고 칸을 채운 기능
  * (ui.avatar)이 있으면 [modifier] 칸 안에 [subject]의 서 있는 전신 그림(Rive를 한 번 그려 읽은 정지 그림, 발이 칸 바닥)을 그린다.
  * 아니면(꾸미기 닫힘, 미리보기·화면 시험) [fallback](지금 그림)을 그린다. 장식이므로 읽기 정보는 부르는 쪽이 붙인다.
+ * [onReady]는 칸에 그림이 보이면 한 번 불린다([임시:D-성-292]): 정지 그림을 읽은 뒤, 또는 대체 그림([fallback], 성별 기본 그림)을 그릴 때다.
+ * 그림을 읽는 동안에는 칸이 비어 있으므로, 칸을 찍어 내보내는 화면(기록 카드 공유)은 이 신호까지 기다린다.
  */
 @Composable
-fun AvatarStillSlot(subject: AvatarStillSubject, modifier: Modifier = Modifier, fallback: @Composable () -> Unit) {
+fun AvatarStillSlot(
+    subject: AvatarStillSubject,
+    modifier: Modifier = Modifier,
+    onReady: () -> Unit = {},
+    fallback: @Composable () -> Unit
+) {
+    val currentOnReady by rememberUpdatedState(onReady)
     val slot = LocalSlots.current[SlotKey.AVATAR_STILL]
     if (slot.isNullOrEmpty()) {
         fallback()
+        LaunchedEffect(Unit) { currentOnReady() }
         return
     }
+    // 칸 내용에는 바뀌지 않는 함수 하나를 넘긴다(부르는 쪽 람다가 다시 만들어져도 칸 내용을 다시 그리지 않게).
+    val signal = remember { { currentOnReady() } }
     Box(modifier) {
         // 꾸미기 공개 여부는 칸을 채운 기능이 본다. 닫혀 있으면 그 기능이 [fallback]을 그린다(5.1.2: 이 패키지는 designsystem을 import하지 않는다).
         CompositionLocalProvider(
             LocalSlotAvatarStill provides subject,
-            LocalSlotAvatarStillFallback provides fallback
+            LocalSlotAvatarStillFallback provides fallback,
+            LocalSlotAvatarStillOnReady provides signal
         ) {
             slot.forEach { it() }
         }
