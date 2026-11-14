@@ -9,6 +9,9 @@ import java.util.Optional;
  */
 public interface AvatarLookSource {
 
-    /** 회원의 지금 모습. 읽을 모습이 없으면 비어 있다. */
+    /**
+     * 회원의 지금 모습. 읽을 모습이 없거나 읽다가 실패하면 비어 있다. 구현은 예외를 던지지 않고, 부르는 쪽 트랜잭션을 rollback-only로 만들지 않아야
+     * 한다(모습 때문에 매칭·조회·저장이 실패하지 않는다, S15P31A207-306).
+     */
     Optional<AvatarLook> currentLookOf(long memberId);
 }

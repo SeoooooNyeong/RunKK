@@ -93,8 +93,18 @@ class BattleServicesTest {
     /** 회원별 지금 모습(AvatarLookSource 대역). 없는 회원은 모습이 비어 있다. */
     private final Map<Long, AvatarLook> currentLooks = new java.util.HashMap<>();
 
+    /** 켜면 지금 모습 읽기가 예외를 던진다(모습 저장소 장애 대역). */
+    private boolean lookReadFails;
+
     private final OpponentLooks opponentLooks =
-            new OpponentLooks(memberId -> Optional.ofNullable(currentLooks.get(memberId)), runs);
+            new OpponentLooks(
+                    memberId -> {
+                        if (lookReadFails) {
+                            throw new IllegalStateException("avatar down");
+                        }
+                        return Optional.ofNullable(currentLooks.get(memberId));
+                    },
+                    runs);
 
     /** nextBoolean이 늘 true인 생성기: 무작위 성별은 FEMALE(OpponentGenders.random). */
     private static final RandomGenerator FEMALE_PICK = () -> -1L;
@@ -464,6 +474,41 @@ class BattleServicesTest {
             MatchFound toAlice = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
             assertThat(toAlice.opponentLook()).isNull();
             assertThat(toAlice.opponentGender()).isNotNull();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "모습 읽기가 실패해도 매칭 성사 알림이 양쪽에 나가고 opponentLook은 null이다. 대결 조회와 결과도 정상"
+                        + " 응답한다(PM 결정: 기본 모습으로 대체)")
+        void 모습_읽기가_실패해도_성사_알림과_조회와_결과가_나간다() {
+            currentLooks.put(ALICE, new AvatarLook("FEMALE", Map.of(), 0, 0, null));
+            currentLooks.put(BOB, new AvatarLook("MALE", Map.of(), 0, 0, null));
+            lookReadFails = true;
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+
+            Battle battle = battles.all().get(0);
+            assertThat(battle.getStartAt()).as("출발 예약까지 끝난다").isPresent();
+            MatchFound toAlice = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
+            MatchFound toBob = (MatchFound) messenger.to(BOB, "MatchFound").get(0);
+            assertThat(toAlice.opponentLook()).isNull();
+            assertThat(toBob.opponentLook()).isNull();
+            assertThat(toAlice.opponentGender()).isNotNull();
+            assertThat(messenger.to(ALICE, "BattleStart")).hasSize(1);
+            BattleResultView result = resultService.result(ALICE, battle.getId());
+            assertThat(result.opponentLook()).isNull();
+            assertThat(result.opponentGender()).isEqualTo(toAlice.opponentGender());
+            ActiveBattleView active =
+                    new BattleHistoryService(
+                                    battles,
+                                    members,
+                                    new InMemoryBattleStores.Celebrities(),
+                                    opponentLooks)
+                            .active(BOB)
+                            .orElseThrow();
+            assertThat(active.battleId()).isEqualTo(battle.getId());
+            assertThat(active.opponentLook()).isNull();
         }
 
         @Test

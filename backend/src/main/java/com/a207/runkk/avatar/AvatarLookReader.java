@@ -16,6 +16,9 @@ import org.springframework.stereotype.Service;
  * 회원의 지금 모습을 읽어 common.AvatarLook으로 돌려준다(설계 5.31 B, [임시:D-성-248]). 성별은 다른 러너에게 보이는 표시
  * 성별(MemberQueryService.shownGendersOf), 옷은 Avatar의 착용 아이템(TOP·BOTTOM·SHOES), 체형과 러닝량은 내 러너
  * 조회(RunnerService)와 같은 값, 얼굴은 Face.renderKey다. 한 읽기 트랜잭션에서 읽는다.
+ *
+ * <p>모습은 꾸밈 값이라 못 읽어도 업무(매칭, 대결 조회·결과, 기록 대결, 대기실, 기록 저장)를 막지 않는다(S15P31A207-306, PM 결정: 못 읽으면 기본
+ * 모습). 그래서 부르는 쪽 트랜잭션과 떨어진 새 읽기 트랜잭션에서 읽고(AvatarTransactions.readApart), 실패하면 던지지 않고 비어 있다.
  */
 @Service
 class AvatarLookReader implements AvatarLookSource {
@@ -42,7 +45,7 @@ class AvatarLookReader implements AvatarLookSource {
 
     @Override
     public Optional<AvatarLook> currentLookOf(long memberId) {
-        return Optional.of(transactions.read(() -> read(memberId)));
+        return transactions.readApart("current_look", memberId, () -> read(memberId));
     }
 
     private AvatarLook read(long memberId) {

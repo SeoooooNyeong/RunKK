@@ -139,6 +139,26 @@ class AvatarLookReaderTest {
     }
 
     @Test
+    @DisplayName("읽다가 예외가 나면 던지지 않고 비어 있다(부르는 쪽 업무를 막지 않는다)")
+    void currentLook_isEmptyWhenReadFails() {
+        when(members.shownGendersOf(anyCollection()))
+                .thenThrow(new IllegalStateException("member down"));
+
+        assertThat(reader.currentLookOf(M)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("AvatarQuery.looksOf: 한 회원의 모습 읽기가 실패해도 나머지는 싣고, 실패한 회원만 빠진다(대기실 look null)")
+    void looksOf_skipsMemberWhoseReadFails() {
+        when(members.shownGendersOf(List.of(M)))
+                .thenThrow(new IllegalStateException("member down"));
+
+        Map<Long, AvatarLook> looks = new AvatarQuery(avatars, reader).looksOf(List.of(M, OTHER));
+
+        assertThat(looks).containsOnlyKeys(OTHER);
+    }
+
+    @Test
     @DisplayName("AvatarLook.withGender는 성별만 바꾼 사본이다")
     void withGender_copiesOtherValues() {
         AvatarLook look = new AvatarLook("MALE", Map.of(ItemSlot.TOP, 12L), 1, 42, "head:7:ab12");
