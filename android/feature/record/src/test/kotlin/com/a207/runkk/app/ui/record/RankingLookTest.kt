@@ -19,6 +19,7 @@ import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.record.Ranking
 import com.a207.runkk.app.domain.record.RunnerLook
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.Rule
@@ -153,9 +154,33 @@ class RankingLookTest {
     @Test
     fun `얼굴 원 그을림 - 다른 러너는 그 러너의 얼굴과 러닝량, 나와 모습 없는 줄은 앱 전체 내 톤 그대로다`() {
         val other = ranking.entries[3]
-        assertEquals(SelfFaceTone("head:4:a", 60), rankingFaceTone(other, isMine = false))
+        assertEquals(
+            SelfFaceTone("head:4:a", 60, includesDefaultFace = true),
+            rankingFaceTone(other, isMine = false)
+        )
         assertNull(rankingFaceTone(me, isMine = true))
         assertNull(rankingFaceTone(ranking.entries[2], isMine = false))
+    }
+
+    @Test
+    fun `얼굴 원 그을림 - 기본 캐릭터 얼굴인 다른 러너도 그 러너의 러닝량으로 피부를 그을린다(PM 2026-11-14)`() {
+        val bear = ranking.entries[3].copy(look = RunnerLook("default:BEAR", null, null, null, 0, 60))
+        val tone = assertNotNull(rankingFaceTone(bear, isMine = false))
+        assertEquals(SelfFaceTone("default:BEAR", 60, includesDefaultFace = true), tone)
+        assertNotNull(tone.skinFilterFor("default:BEAR"), "그 줄의 기본 얼굴 원을 그을린다")
+        assertNull(tone.skinFilterFor("default:FOX"), "다른 키 얼굴은 그대로")
+    }
+
+    @Test
+    fun `얼굴 원 그을림 - 내 줄이 기본 캐릭터 얼굴이면 앱 전체 내 러닝량으로 그 원만 그을린다`() {
+        val mineDefault = me.copy(look = windLook.copy(faceKey = "default:CAT"))
+        val myTone = SelfFaceTone("default:CAT", 42)
+        assertEquals(
+            SelfFaceTone("default:CAT", 42, includesDefaultFace = true),
+            rankingFaceTone(mineDefault, isMine = true, myTone = myTone)
+        )
+        // 셀카 얼굴인 나는 지금처럼 앱 전체 내 톤 그대로(감싸지 않는다).
+        assertNull(rankingFaceTone(me, isMine = true, myTone = SelfFaceTone("head:7:me", 42)))
     }
 
     @Test

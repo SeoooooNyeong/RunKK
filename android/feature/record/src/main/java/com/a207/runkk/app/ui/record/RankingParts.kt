@@ -61,6 +61,7 @@ import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.LocalRunkkTierColors
 import com.a207.runkk.app.core.designsystem.LocalSelfFaceTone
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
+import com.a207.runkk.app.core.designsystem.RunkkAvatarArt
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkChipTone
@@ -487,18 +488,27 @@ private fun RankingFaceCircle(
             background = RunkkColors.RunimalTile
         )
     }
-    val tone = rankingFaceTone(entry, isMine)
+    val tone = rankingFaceTone(entry, isMine, LocalSelfFaceTone.current)
     if (tone != null) CompositionLocalProvider(LocalSelfFaceTone provides tone, content = circle) else circle()
 }
 
 /**
- * 얼굴 원 그을림(S15P31A207-300): 다른 러너는 그 러너의 얼굴 키·러닝량으로 피부 층을 그을린다. 나는 앱 전체에 내려 준 내 톤을 그대로
- * 쓰고(null), 모습이나 얼굴이 없는 줄도 그을릴 얼굴이 없다(null).
+ * 얼굴 원 그을림(S15P31A207-300): 다른 러너는 그 러너의 얼굴 키·러닝량으로 피부 층을 그을린다. 이 톤은 그 줄의 얼굴 원 하나만 감싸므로
+ * 기본 캐릭터 얼굴에도 쓴다(PM 2026-11-14). 나는 앱 전체에 내려 준 내 톤([myTone])을 그대로 쓰되(null), 내 얼굴이 기본 캐릭터면 앱 전체 톤은
+ * 기본 얼굴을 그을리지 않으므로 내 러닝량으로 이 원만 감싼다. 모습이나 얼굴이 없는 줄은 그을릴 얼굴이 없다(null).
  */
-internal fun rankingFaceTone(entry: Ranking.Entry, isMine: Boolean): SelfFaceTone? {
-    if (isMine) return null
+internal fun rankingFaceTone(
+    entry: Ranking.Entry,
+    isMine: Boolean,
+    myTone: SelfFaceTone = SelfFaceTone()
+): SelfFaceTone? {
     val look = entry.look ?: return null
-    return look.faceKey?.let { SelfFaceTone(it, look.runAmount) }
+    val faceKey = look.faceKey ?: return null
+    return when {
+        !isMine -> SelfFaceTone(faceKey, look.runAmount, includesDefaultFace = true)
+        RunkkAvatarArt.isDefaultKey(faceKey) -> SelfFaceTone(faceKey, myTone.runningAmount, includesDefaultFace = true)
+        else -> null
+    }
 }
 
 /** 랭킹 줄 모습 → 전신 정지 그림 칸 모습(원시값, S15P31A207-300). */
