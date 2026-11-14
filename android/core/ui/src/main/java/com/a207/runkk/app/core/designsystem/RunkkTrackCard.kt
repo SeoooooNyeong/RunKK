@@ -86,7 +86,8 @@ fun RunkkTrackCard(
             .background(RunkkColors.Surface)
     ) {
         val width = maxWidth
-        Box(Modifier.fillMaxSize()) { backdrop() }
+        // 배경은 거리 자 위까지만 깐다: 무대 그림의 바닥(트랙)이 자에 가리지 않고 두 레인 밑에 놓인다.
+        Box(Modifier.fillMaxSize().padding(bottom = RULER_HEIGHT)) { backdrop() }
         Lanes(Modifier.align(Alignment.BottomCenter))
         layout.finish?.let { finish ->
             FinishLine(

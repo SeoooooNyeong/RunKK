@@ -720,7 +720,11 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier = Modifier) 
             }
         },
         backdrop = {
-            AvatarStageBackdrop(if (isAvatarOpen) state.myAvatar?.backgroundKey else null, Modifier.fillMaxSize())
+            AvatarStageBackdrop(
+                if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
+                Modifier.fillMaxSize(),
+                alignment = Alignment.BottomCenter
+            )
         }
     )
 }

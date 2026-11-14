@@ -845,7 +845,13 @@ private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier
                 .semantics { contentDescription = description }
         ) {
             slot.forEach { it() }
-            MyRunnerGuideAnchor(Modifier.align(Alignment.BottomCenter).fillMaxHeight(MY_RUNNER_ANCHOR_HEIGHT))
+            // 칸은 바닥선 아래로 하단 탭 뒤까지 내려가 있다. 강조 자리는 바닥선(발) 바로 아래에서 끝나야 탭과 겹치지 않는다.
+            MyRunnerGuideAnchor(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = HOME_AVATAR_FLOOR_FROM_BOTTOM - MY_RUNNER_ANCHOR_BELOW_FLOOR)
+                    .height(minOf(MY_RUNNER_ANCHOR_SLOT_HEIGHT, height - HOME_AVATAR_FLOOR_FROM_BOTTOM))
+            )
         }
     }
 }
@@ -868,6 +874,10 @@ internal fun compactKm(distance: Distance): String {
 /** 「내 러너」 가이드 강조 자리: 아바타 칸 너비의 절반, 높이의 70%(아래 가운데). */
 private const val MY_RUNNER_ANCHOR_WIDTH = 0.5f
 private const val MY_RUNNER_ANCHOR_HEIGHT = 0.7f
+
+/** 아바타 칸(SlotKey.HOME_AVATAR)의 「내 러너」 강조 자리: 바닥선 아래로 그림자만큼 내려가고, 머리 위까지 덮는 높이다. */
+private val MY_RUNNER_ANCHOR_BELOW_FLOOR = 8.dp
+private val MY_RUNNER_ANCHOR_SLOT_HEIGHT = 256.dp
 
 private val AVATAR_MIN_HEIGHT = 160.dp
 private val AVATAR_MAX_HEIGHT = 360.dp

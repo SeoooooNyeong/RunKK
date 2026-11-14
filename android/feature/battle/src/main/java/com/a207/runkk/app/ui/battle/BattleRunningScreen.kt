@@ -509,7 +509,11 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier = Modifier
         myFace = { MyFace(state, TAG_FACE_SIZE) },
         otherFace = opponentFace(state),
         backdrop = {
-            AvatarStageBackdrop(if (isAvatarOpen) state.myAvatar?.backgroundKey else null, Modifier.fillMaxSize())
+            AvatarStageBackdrop(
+                if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
+                Modifier.fillMaxSize(),
+                alignment = Alignment.BottomCenter
+            )
         }
     )
 }

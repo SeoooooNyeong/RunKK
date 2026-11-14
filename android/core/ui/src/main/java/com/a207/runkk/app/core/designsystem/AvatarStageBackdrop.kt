@@ -3,6 +3,7 @@ package com.a207.runkk.app.core.designsystem
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -21,13 +22,22 @@ fun avatarStageBackdropRes(backgroundKey: String?, stage: String? = null, isDark
     return if (isDark) nightBackdropRes(res) else res
 }
 
-/** 무대용 배경 그림을 칸에 맞춰 자른다(배경 고르기 칸·해금 미리보기처럼 무대와 같은 그림을 보여야 하는 곳). 장식 그림이라 보조 기술에 알리지 않는다. */
+/**
+ * 무대용 배경 그림을 칸에 맞춰 자른다(배경 고르기 칸·해금 미리보기처럼 무대와 같은 그림을 보여야 하는 곳). 장식 그림이라 보조 기술에 알리지 않는다.
+ * [alignment]는 칸이 그림보다 낮을 때 남길 쪽이다: 트랙 보기는 바닥(트랙)이 보여야 하므로 아래를 남긴다.
+ */
 @Composable
-fun AvatarStageBackdrop(backgroundKey: String?, modifier: Modifier = Modifier, stage: String? = null) {
+fun AvatarStageBackdrop(
+    backgroundKey: String?,
+    modifier: Modifier = Modifier,
+    stage: String? = null,
+    alignment: Alignment = Alignment.Center
+) {
     Image(
         painter = painterResource(avatarStageBackdropRes(backgroundKey, stage, LocalRunkkColors.current.isDark)),
         contentDescription = null,
         contentScale = ContentScale.Crop,
+        alignment = alignment,
         modifier = modifier
     )
 }
