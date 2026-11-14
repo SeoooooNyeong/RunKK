@@ -311,6 +311,7 @@ Repository 구현은 infra.runimal, infra.avatar, infra.reward에 있고 각 패
 | ITEM_PRICES | Map<Long, Integer>(아이템 ID → 가격) | 가격 > 0. 바꿀 때 기존 아이템 ID를 지우지 못한다(validateTransition, D-44). OperationPolicy.shopCatalog()가 SHOP_ITEMS 가격을 이 값으로 덮어 합친다 (v0.8, CR-U02) |
 | SHOP_ITEMS | ShopCatalog | 아이템 ID 겹침 없음, 부위가 ItemSlot. 바꿀 때 기존 아이템 ID를 지우거나 부위를 바꾸지 못한다. 판매 중지는 onSale = false(validateTransition, D-44) |
 | BODY_SHAPE_RULE | BodyShapeRule | 구간 하한 4개, 첫 하한 0(FR-163의 0회 구간), 엄격한 오름차순, 쉼 일수 ≥ 1 (v0.8, TF-BE-06) |
+| BODY_SHAPE_RELEASED | Boolean | true 또는 false, 기본 false. false이면 체형 계산과 체형 변화 알림을 멈추고 기본 몸(4단계)을 보인다 (v0.40, 05-30 D-850, 2차 배포 제외) |
 | SKIN_TONE_RULE | SkinToneRule | 시간대 5개가 24시간을 빈틈없이 나눔 |
 | COACHING_RULE | CoachingRule | ratio 0.5~1.0, 기본 bpm 100~220 |
 | TIER_BOUNDARY | TierBoundary | 경계 4개 오름차순 |
@@ -636,3 +637,18 @@ web.report·web.admin.report가 F.2.2의 ReportRequest·ReportResponse·ReportCa
 
 ##### ReportWithdrawalListener (v0.11, FR-021, D-104)
 `void onMemberWithdrawn(MemberWithdrawn e)`: 그 회원의 ContentReport.anonymizeReporter(신고자 익명화). 사례와 신고 건수는 남긴다(FR-021, 12.2 N9).
+
+#### v0.40 병합: 피그마 맞춤과 랭킹 다른 러너 아바타 (2026-11-14, 05-29 5.5, 05-30 D-858)
+
+| 패키지 | 클래스 | 바뀐 것 |
+|--------|--------|---------|
+| avatar | `RunnerService`(새), `AppearanceCalculator.bodyVariant` | 내 러너 화면 응답 `RunnerResponse`(체형 4 → 3단계 표시, runAmount 서버 계산, D-689~D-691) |
+| policy | `ShopUnlock`(새), `UnlockKind`(새 enum TOTAL_DISTANCE, LONGEST_RUN, RUN_COUNT) | 상점 아이템 해금 조건(D-693) |
+| reward | `ShopService` 잠김 계산 | 잠긴 아이템 구매 409 `ITEM_LOCKED` |
+| web.avatar | `RunnerResponse`(새) | `GET /avatar/runner` |
+| avatar | `RunnerLook`(새 record), `RunnerLookQuery`(looksOf, snapshotLooksOf), `RunnerLookSnapshotStore`(포트), `AvatarRepository`는 fetch join(새 메소드 없음) | 랭킹 줄 모습, 스냅숏 단위 하루 고정(D-858) |
+| infra.avatar | `RedisRunnerLookSnapshotStore`(새) | 키 `ranking:look:{종류}:{기간}:{집계 시각을 UTC로 본 밀리초}` 해시, 만료 25시간, HSET·만료는 Lua 한 번(AR-90), 장애면 비어 있다고 본다 |
+| policy | `SettingKey.BODY_SHAPE_RELEASED`(새, 기본 false) | 2차 배포에서 체형 변화를 닫아 둔다(05-30 D-850) |
+
+운영 기준값 표(SettingKey)에 `BODY_SHAPE_RELEASED` 행을 더한다: 값 boolean, 기본 false, 검사 없음(v0.40, D-850).
+

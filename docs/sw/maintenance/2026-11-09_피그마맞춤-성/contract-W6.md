@@ -1,6 +1,6 @@
 # W6 크루 일정 서버 계약(상세·작성·수정·반복·지난 일정) — S15P31A207-297
 
-- 범위: 피그마 F-11~F-13e(`diff-crew-a-schedule.md`)와 사용자 결정 C3·C4·C8(`decisions.md`), 설계 05-29 결정 D-성-26(반복 배치)·D-성-28(거리)의 서버 쪽. 앱(B단계)과 W7(지난 크루런 달력 F-20)은 이 문서만 보고 구현한다.
+- 범위: 피그마 F-11~F-13e(`diff-crew-a-schedule.md`)와 사용자 결정 C3·C4·C8(`decisions.md`), 설계 05-29 결정 D-658(반복 배치)·D-660(거리)의 서버 쪽. 앱(B단계)과 W7(지난 크루런 달력 F-20)은 이 문서만 보고 구현한다.
 - 공통 형식(기존과 같음): 경로 접두어 `/api/v1`, 인증 필수(Bearer). 거리는 미터, 시각은 오프셋 포함 ISO-8601(`2026-11-14T07:00:00+09:00`), 날짜는 `yyyy-MM-dd`, 월은 `yyyy-MM`. 서버 시간대는 Asia/Seoul이고 "오늘", "15일", "요일", "월"은 모두 한국 날짜로 센다.
 - 오류 본문은 기존 공통 형식 `{"code": "...", "message": "..."}`이다. 업무 규칙 거부(BusinessRuleException)는 아래 표에 따로 적지 않으면 409다.
 
@@ -9,7 +9,7 @@
 | # | 규칙 | 값 |
 |---|---|---|
 | R1 | 참석 응답 | 앱 화면은 참석하기·참석 취소하기 두 가지. 참석하기 = `PUT /posts/{id}/attendance {"answer":"GOING"}`, 참석 취소하기 = `DELETE /posts/{id}/attendance`(응답을 거둔다: 응답 행을 지워 `myAnswer`가 null이 된다). 서버 enum `AttendanceAnswer`의 `NOT_GOING`·`UNDECIDED`와 기존 행은 그대로 남긴다(옛 앱 호환). 새 앱은 `GOING`만 보낸다. |
-| R2 | 거리 선택지 | 제한 없음(`distanceMeters: null`), 3000, 5000, 10000, 21097(하프, `StandardDistance.HALF`). 1000(1km)은 새로 쓸 수 없다. 기존 1km 글은 그대로 읽히고, 수정 때 거리를 바꾸지 않으면 1km를 유지할 수 있다. 제한 없음 크루런의 종료 상한은 하프 거리 × km당 15분(CREW_RUN_END_RULE)이다(D-성-28). |
+| R2 | 거리 선택지 | 제한 없음(`distanceMeters: null`), 3000, 5000, 10000, 21097(하프, `StandardDistance.HALF`). 1000(1km)은 새로 쓸 수 없다. 기존 1km 글은 그대로 읽히고, 수정 때 거리를 바꾸지 않으면 1km를 유지할 수 있다. 제한 없음 크루런의 종료 상한은 하프 거리 × km당 15분(CREW_RUN_END_RULE)이다(D-660). |
 | R3 | 일시 | 작성 때만 검사: 한국 날짜 기준 오늘~오늘+14일(오늘 포함 15일), 분은 5의 배수, 초·나노초 0, 지금보다 뒤. 수정(PATCH)으로는 일시를 바꿀 수 없다. |
 | R4 | 제목·내용 | 크루런 모집글은 `title`(공백 제외 1~30자)과 `body`(내용, 0~200자, 비우면 `""`)를 따로 둔다. 글자 수는 코드 포인트(이모지 1자). 새 앱은 늘 `title`을 보낸다. `title`이 빠진 작성 요청(옛 앱)은 `body` 첫 줄(30자까지)을 제목, 나머지 줄을 내용으로 나눈다(V57과 같은 규칙). |
 | R5 | 반복 | `repeat`: `NONE` | `WEEKLY`. 매주 같은 요일·같은 시각에 다음 회차를 서버가 만든다(3절). |
@@ -109,7 +109,7 @@
 | me | boolean | 아니오 | 나("나" Bold) |
 | faceKey | String | 예 | 아바타 얼굴 키(대기실과 같은 값), 없으면 null |
 | shownGender | String | 예 | `MALE` \| `FEMALE`, 탈퇴·미공개면 null |
-| distanceMeters | Long | 예 | 마친(`FINISHED`) 크루런에서 그 참석자가 달린 거리(결과 화면과 같은 규칙: 연결 기록 → 끝낼 때 남긴 값). 마치지 않았거나 달리지 않았거나 값이 없으면 null(실기기 결함 [임시:DV-성-2], F-11d 참석자 줄 오른쪽, [임시:FR-성-8]) |
+| distanceMeters | Long | 예 | 마친(`FINISHED`) 크루런에서 그 참석자가 달린 거리(결과 화면과 같은 규칙: 연결 기록 → 끝낼 때 남긴 값). 마치지 않았거나 달리지 않았거나 값이 없으면 null(실기기 결함 DV-2, F-11d 참석자 줄 오른쪽, FR-329) |
 
 `CrewScheduleDtos.PastCrewRunsResponse`
 
@@ -152,7 +152,7 @@ enum
 | `CrewRunRepeat`(crew, 새로) | `NONE`, `WEEKLY` |
 | `StandardDistance`(common) | 크루런 쓰임새 `CREW_RUN`이 KM1에서 빠지고 HALF에 붙었다: KM3·KM5·KM10·HALF |
 
-## 3. 반복 규칙(D-성-26)
+## 3. 반복 규칙(D-658)
 
 | 항목 | 결정 |
 |---|---|
