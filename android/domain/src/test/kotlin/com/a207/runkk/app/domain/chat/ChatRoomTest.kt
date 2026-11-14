@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.chat
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.live.ChatPresence
 import com.a207.runkk.app.domain.live.CrewChatPosted
@@ -15,6 +16,7 @@ import com.a207.runkk.app.domain.testing.TestClock
 import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -54,6 +56,22 @@ class ChatRoomTest {
         assertEquals(listOf(5L), registry.opened)
         assertEquals((51L..100L).toList(), ids(room))
         assertTrue(room.messages.value.hasMore)
+    }
+
+    @Test
+    fun CrewChatPosted의_작성자_얼굴이_메시지로_옮겨진다() = runTest {
+        val room = opened(page(51L..100L))
+        live.channel.messages.emit(
+            posted(5, 101).copy(authorFaceKey = "head:9:ab12", authorShownGender = "FEMALE")
+        )
+        live.channel.messages.emit(posted(5, 102).copy(authorId = null))
+        runCurrent()
+
+        val (shown, withdrawn) = room.messages.value.messages.takeLast(2)
+        assertEquals("head:9:ab12", shown.authorFaceKey)
+        assertEquals(Gender.FEMALE, shown.authorShownGender)
+        assertNull(withdrawn.authorFaceKey, "탈퇴한 작성자는 둘 다 null")
+        assertNull(withdrawn.authorShownGender)
     }
 
     @Test

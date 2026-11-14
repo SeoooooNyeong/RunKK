@@ -33,6 +33,10 @@ data class CrewMembers(val members: List<Member>) {
         /** 본인 줄만: 나이대 공개. 남의 줄은 null. */
         val isAgePublic: Boolean? = null,
         /** 본인 줄만: 성별 공개. 남의 줄은 null. */
-        val isGenderPublic: Boolean? = null
+        val isGenderPublic: Boolean? = null,
+        /** 아바타 얼굴 키. 서버가 공개 판정을 해서 준다(프로필을 볼 수 없으면 null). 옛 서버·얼굴 없음도 null. */
+        val faceKey: String? = null,
+        /** 표시 성별([faceKey]가 없을 때 그릴 기본 얼굴). 옛 서버면 null. */
+        val shownGender: Gender? = null
     )
 }

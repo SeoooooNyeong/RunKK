@@ -23,7 +23,7 @@ import retrofit2.create
 /** api.chat(6.1.14, F.2.2 크루 채팅, FR-208~FR-213, D-101): MockWebServer 응답 → 도메인, 요청 경로·본문. S3b 구현 전이라 05-03·S0 DTO 기준. */
 class ChatRepositoryImplTest {
     private val api = ApiTestServer()
-    private val repository = ChatRepositoryImpl(api.retrofit.create())
+    private val repository = ChatRepositoryImpl(api.retrofit.create(), api.faces)
 
     @AfterTest
     fun tearDown() = api.close()
