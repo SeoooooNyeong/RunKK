@@ -7,6 +7,9 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
@@ -70,5 +73,55 @@ class SelfieHeadsTest {
         keys.forEach { heads.look(it) }
         keys.forEach { heads.look(it) }
         assertEquals(keys.map { "head:$it" }, repo.calls)
+    }
+
+    @Test
+    fun `서로 다른 얼굴은 한 머리를 받는 동안에도 함께 받는다(AR-성-89)`() = runTest {
+        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        val slow = CompletableDeferred<Unit>()
+        repo.headGates["head:1:a"] = slow
+
+        val first = async { heads.look("head:1:a") }
+        val second = async { heads.look("head:2:b") }
+        runCurrent()
+
+        assertEquals(listOf("head:head:1:a", "head:head:2:b"), repo.calls, "첫 머리가 막혀도 둘째를 받기 시작한다")
+        assertTrue(second.isCompleted, "둘째는 첫째를 기다리지 않는다")
+        assertTrue(!first.isCompleted)
+        slow.complete(Unit)
+        assertEquals(faceLayers, first.await().faceLayers)
+    }
+
+    @Test
+    fun `같은 얼굴을 동시에 찾으면 한 번만 받고 기다린 쪽도 같은 값을 쓴다(AR-성-89)`() = runTest {
+        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        val gate = CompletableDeferred<Unit>()
+        repo.headGates["head:1:a"] = gate
+
+        val runner = async { heads.look("head:1:a") }
+        val podium = async { heads.look("head:1:a") }
+        runCurrent()
+        gate.complete(Unit)
+
+        assertSame(runner.await(), podium.await())
+        assertEquals(listOf("head:head:1:a"), repo.calls)
+    }
+
+    @Test
+    fun `동시에 기다리던 받기가 실패하면 둘 다 기본 얼굴이고 다음에 다시 받는다(AR-성-89)`() = runTest {
+        repo.headResult = Outcome.Failure(AppError.Network)
+        val gate = CompletableDeferred<Unit>()
+        repo.headGates["head:1:a"] = gate
+
+        val one = async { heads.look("head:1:a") }
+        val two = async { heads.look("head:1:a") }
+        runCurrent()
+        gate.complete(Unit)
+
+        assertSame(FaceLook.NONE, one.await())
+        assertSame(FaceLook.NONE, two.await())
+        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        assertEquals(faceLayers, heads.look("head:1:a").faceLayers)
+        assertEquals(2, repo.calls.size)
     }
 }

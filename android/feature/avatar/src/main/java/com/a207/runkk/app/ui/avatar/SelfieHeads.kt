@@ -6,10 +6,9 @@ import com.a207.runkk.app.domain.avatar.AvatarRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -18,24 +17,45 @@ import kotlinx.coroutines.withContext
  * - 셀카 머리("head:…")는 GET /avatar/heads 본문을 한 번만 받아 대체 그림과 머리 레이어를 같은 본문에서 만든다. 머리 레이어는 그림을
  *   풀고 다시 묶어 무거우므로 [worker]에서 만든다.
  * - 받지 못하면(연결·서버 실패, 취소) 두지 않아 다음에 다시 받는다. 받았지만 형식이 틀려 만들지 못하면 기본 머리로 두고 다시 받지 않는다.
- * - 같은 키를 두 화면이 함께 찾으면 한쪽이 받는 동안 기다렸다가 같은 값을 쓴다.
+ * - 같은 키를 두 화면이 함께 찾으면 한쪽이 받는 동안 기다렸다가 같은 값을 쓴다(받지 못했으면 둘 다 기본 머리, 다음에 다시).
+ * - 서로 다른 키는 함께 받는다([임시:AR-성-89]): 잠금은 캐시와 받는 중 표를 고칠 때만 잡고 네트워크를 기다리는 동안은 잡지
+ *   않아, 랭킹 시상대 세 러너의 머리가 차례로 받아지지 않는다.
  */
 @Singleton
 class SelfieHeads internal constructor(private val avatars: AvatarRepository, private val worker: CoroutineDispatcher) {
     @Inject
     constructor(avatars: AvatarRepository) : this(avatars, Dispatchers.Default)
 
-    private val mutex = Mutex()
+    /** [cache]와 [inflight]를 지키는 잠금. 고칠 때만 잠깐 잡는다(받는 동안은 잡지 않는다). */
+    private val lock = Any()
     private val cache = object : LinkedHashMap<String, FaceLook>(ENTRIES, LOAD_FACTOR, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, FaceLook>?): Boolean = size > ENTRIES
     }
 
+    /** 받는 중인 키 → 그 받기의 결과(받지 못하면 null). 같은 키를 함께 찾은 쪽은 새로 받지 않고 이것을 기다린다. */
+    private val inflight = HashMap<String, CompletableDeferred<FaceLook?>>()
+
     /** [faceKey]의 얼굴. 얼굴이 없거나 받지 못하면 빈 얼굴(기본 캐릭터)이다. */
     suspend fun look(faceKey: String?): FaceLook {
         if (faceKey == null) return FaceLook.NONE
-        return mutex.withLock {
-            cache[faceKey] ?: load(faceKey)?.also { cache[faceKey] = it } ?: FaceLook.NONE
+        val mine = CompletableDeferred<FaceLook?>()
+        val other = synchronized(lock) {
+            cache[faceKey]?.let { return it }
+            inflight[faceKey] ?: null.also { inflight[faceKey] = mine }
         }
+        if (other != null) return other.await() ?: FaceLook.NONE
+        var loaded: FaceLook? = null
+        try {
+            loaded = load(faceKey)
+        } finally {
+            // 끝나면(실패·취소 포함) 표에서 빼고 기다리던 쪽을 깨운다. 받지 못한 것은 두지 않아 다음에 다시 받는다.
+            synchronized(lock) {
+                loaded?.let { cache[faceKey] = it }
+                inflight.remove(faceKey)
+            }
+            mine.complete(loaded)
+        }
+        return loaded ?: FaceLook.NONE
     }
 
     private suspend fun load(faceKey: String): FaceLook? {

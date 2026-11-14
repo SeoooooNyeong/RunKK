@@ -6,6 +6,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_LOADING_TAG
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.SelfFaceTone
 import com.a207.runkk.app.core.model.Distance
@@ -124,6 +126,28 @@ class RankingLookTest {
 
         assertTrue("head:4:x" in shown, "첫 줄은 보인다: $shown")
         assertTrue("head:60:x" !in shown, "맨 아래 줄은 화면 밖이라 받지 않는다")
+    }
+
+    @Test
+    fun `모르는 접두어 얼굴 키 줄은 받지 않고 빈 자리 대신 성별 기본 얼굴이다(AR-성-87)`() {
+        val future = ranking.entries[3].copy(look = RunnerLook("future:4:a", null, null, null, 0, 60))
+        val shown = mutableListOf<String>()
+        show(
+            RankingUiState(isLoading = false, ranking = ranking.copy(entries = ranking.entries.take(3) + future)),
+            onFaceShown = { shown += it }
+        )
+        compose.waitForIdle()
+
+        assertTrue(shown.isEmpty(), "받을 수 없는 키는 받게 하지 않는다: $shown")
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `얼굴 받기에 실패한 줄은 빈 자리 대신 성별 기본 얼굴이다(AR-성-88)`() {
+        show(RankingUiState(isLoading = false, ranking = ranking, faces = mapOf("head:4:a" to emptyList())))
+        compose.waitForIdle()
+
+        compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertDoesNotExist()
     }
 
     @Test

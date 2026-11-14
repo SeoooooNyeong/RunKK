@@ -474,7 +474,7 @@ private fun RankingFaceCircle(
         RunkkAvatarCircle(
             faceKey = faceKey,
             size = 40.dp,
-            modifier = if (faceKey != null) {
+            modifier = if (faceKey != null && isFetchableFace(faceKey)) {
                 Modifier.onVisibilityChanged(minFractionVisible = FACE_VISIBLE_FRACTION) {
                     if (it) onFaceShown(faceKey)
                 }
@@ -483,7 +483,7 @@ private fun RankingFaceCircle(
             },
             faceLayers = faceKey?.let(faces::get).orEmpty(),
             character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender),
-            isFaceLoading = faceKey != null && faceKey !in faces,
+            isFaceLoading = rankingFaceLoading(faceKey, faces),
             background = RunkkColors.RunimalTile
         )
     }

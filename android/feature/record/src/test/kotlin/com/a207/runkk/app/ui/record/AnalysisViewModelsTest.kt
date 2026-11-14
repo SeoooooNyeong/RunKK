@@ -244,6 +244,45 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `모르는 접두어 얼굴 키는 받지 않고 받는 중도 아니라 성별 기본 얼굴이다(AR-성-87)`() {
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("future:4:a")
+
+        assertTrue(records.calls.none { it.startsWith("face:") }, "받을 수 없는 키는 요청하지 않는다")
+        assertFalse(rankingFaceLoading("future:4:a", vm.state.value.faces), "빈 자리로 남지 않는다")
+        assertFalse(rankingFaceLoading("default:RABBIT", vm.state.value.faces))
+        assertFalse(rankingFaceLoading(null, vm.state.value.faces))
+        assertTrue(rankingFaceLoading("head:4:a", vm.state.value.faces), "받을 키인데 아직 없으면 받는 중")
+        assertTrue(rankingFaceLoading("selfie:9/set", vm.state.value.faces))
+    }
+
+    @Test
+    fun `얼굴 받기가 실패하면 기본 얼굴로 두고 다시 보일 때 다시 받는다, 받는 동안 같은 키는 거듭 받지 않는다(AR-성-88)`() {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EARS, byteArrayOf(1))
+        )
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("head:4:a")
+        assertEquals(emptyList(), vm.state.value.faces["head:4:a"], "실패한 동안은 기본 얼굴(빈 층)")
+        assertFalse(rankingFaceLoading("head:4:a", vm.state.value.faces), "실패는 받는 중이 아니다")
+
+        records.faceResults["head:4:a"] = Outcome.Success(layers)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        records.faceGates["head:4:a"] = gate
+        vm.onFaceShown("head:4:a")
+        vm.onFaceShown("head:4:a")
+        assertEquals(2, records.calls.count { it == "face:head:4:a" }, "다시 보이면 한 번 더, 받는 동안은 거듭 받지 않는다")
+        assertEquals(emptyList(), vm.state.value.faces["head:4:a"], "다시 받는 동안도 기본 얼굴")
+
+        gate.complete(Unit)
+        assertEquals(layers, vm.state.value.faces["head:4:a"])
+        vm.onFaceShown("head:4:a")
+        assertEquals(2, records.calls.count { it == "face:head:4:a" }, "받은 얼굴은 다시 받지 않는다")
+    }
+
+    @Test
     fun `코치는 이번 주(월~일) 계획 현황을 읽고 오늘 계획·주간 목표를 정한다(FR-072~FR-075)`() {
         val vm = CoachViewModel(records, todayPlans, clock)
         assertEquals("progress:2026-10-19..2026-10-25", records.calls.first())
