@@ -140,16 +140,9 @@ class ResultStageBackdropFilesTest {
         const val ROUNDING = 0.0001f
 
         /**
-         * 트랙 윗선이 18%−1.5%보다 낮게(아래에서 15.8~16.4%) 그려진 그림(2026-11-14 측정). 결과 무대에서 트랙 윗선이 232보다 6~9dp
-         * 아래에 보인다(발끝 266은 그대로 트랙 위다). 그림을 고치면 이 목록에서 뺀다. 단계 그림 `east_asia`(낮)와
-         * `intercontinental`(낮)은 16.5%로 허용 범위 끝에 걸려 있다.
+         * 트랙 윗선이 18%−1.5%보다 낮게 그려진 그림 목록. 2026-11-14에 낮은 그림 8장(국내, 지구 한 바퀴, 대륙 간의 낮과 밤, 동아시아 밤,
+         * 기본 무대 밤)을 18%로 다시 맞춰 지금은 비어 있다. 새 그림이 낮게 들어오면 그림을 고치고, 고치기 전까지만 여기에 적는다.
          */
-        val LOW_TRACK = setOf(
-            "avatar_backdrop_domestic",
-            "avatar_backdrop_domestic_night",
-            "avatar_backdrop_earth_lap",
-            "avatar_backdrop_earth_lap_night",
-            "avatar_backdrop_east_asia_night"
-        )
+        val LOW_TRACK = emptySet<String>()
     }
 }
