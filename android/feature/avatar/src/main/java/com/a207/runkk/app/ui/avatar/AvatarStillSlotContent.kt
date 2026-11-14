@@ -14,10 +14,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.avatar.AvatarBodyShape
-import com.a207.runkk.app.core.avatar.AvatarGender
-import com.a207.runkk.app.core.avatar.AvatarOutfit
-import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.RiveAvatarStill
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarExpression
@@ -29,6 +25,7 @@ import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillFallback
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillOnReady
+import com.a207.runkk.app.core.navigation.SlotRunnerLook
 import kotlinx.coroutines.delay
 
 /** 전신 정지 그림을 만들지 못했을 때 세우는 성별 기본 전신 그림의 시험 표지. */
@@ -43,10 +40,11 @@ internal const val AVATAR_STILL_READY_TIMEOUT_MS = RUN_AVATAR_READY_TIMEOUT_MS
  *
  * - 나: 내 아바타 저장소의 모습(의상·체형·러닝량·셀카 머리) 그대로다. 준비 중이면 비워 두고, 준비 실패·그림 읽기 실패·준비가
  *   [AVATAR_STILL_READY_TIMEOUT_MS] 넘게 끝나지 않으면 성별 기본 전신 그림이다.
- * - 다른 러너: 랭킹 응답에 의상·체형·러닝량·얼굴이 없어 표시 성별의 기본 모습(기본 의상·기본 체형·러닝량 0·기본 머리)이다.
+ * - 다른 러너: 랭킹 응답에 의상·체형·러닝량·얼굴이 없어 표시 성별의 기본 모습(기본 의상·기본 체형·러닝량 0·기본 머리)이다. 받은 모습
+ *   (AvatarStillSubject.look, 기록런 고르기의 그날의 나)이 있으면 그 모습이다([임시:D-성-272]).
  */
 @Composable
-internal fun AvatarStillSlotContent(store: MyAvatarStore) {
+internal fun AvatarStillSlotContent(store: MyAvatarStore, resolver: RunnerLookResolver) {
     val subject = LocalSlotAvatarStill.current ?: return
     if (!LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
         LocalSlotAvatarStillFallback.current?.invoke()
@@ -58,7 +56,7 @@ internal fun AvatarStillSlotContent(store: MyAvatarStore) {
     if (subject.isMine) {
         MyAvatarStill(store, subject.isLightSkin)
     } else {
-        RunnerAvatarStill(subject.isFemale?.let { if (it) Gender.FEMALE else Gender.MALE })
+        RunnerAvatarStill(subject.isFemale?.let { if (it) Gender.FEMALE else Gender.MALE }, subject.look, resolver)
     }
 }
 
@@ -90,22 +88,49 @@ private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
     }
 }
 
+/**
+ * 다른 러너의 전신 정지 그림. 받은 모습 [received]가 있으면 [RunnerLookResolver]로 만든 모습(의상·체형·러닝량·얼굴, [임시:D-성-272])이고,
+ * 없으면 표시 성별의 기본 모습이다. 만드는 동안에는 칸을 비워 두고, [AVATAR_STILL_READY_TIMEOUT_MS]를 넘거나 그림을 읽지 못하면 성별
+ * 기본 전신 그림이다.
+ */
 @Composable
-private fun RunnerAvatarStill(gender: Gender?) {
-    val avatarGender = if (gender == Gender.FEMALE) AvatarGender.FEMALE else AvatarGender.MALE
-    val look = remember(avatarGender) {
-        RiveAvatarLook(avatarGender, AvatarOutfit(), AvatarBodyShape.BASE, runningAmount = 0, headLayers = null)
+private fun RunnerAvatarStill(gender: Gender?, received: SlotRunnerLook?, resolver: RunnerLookResolver) {
+    val isFemale = received?.isFemale ?: (gender == Gender.FEMALE)
+    var look by remember(isFemale, received) {
+        mutableStateOf(
+            if (received ==
+                null
+            ) {
+                defaultRiveLook(isFemale)
+            } else {
+                null
+            }
+        )
     }
     var isFailed by remember(look) { mutableStateOf(false) }
-    if (isFailed) {
-        StillFallback(AvatarCharacter.of(gender))
-    } else {
-        RiveAvatarStill(
-            look,
+    var isTimedOut by remember(received) { mutableStateOf(false) }
+    LaunchedEffect(received) {
+        if (received != null) look = resolver.resolve(received)
+    }
+    LaunchedEffect(received, look == null) {
+        if (look == null) {
+            delay(AVATAR_STILL_READY_TIMEOUT_MS)
+            isTimedOut = true
+        }
+    }
+    val shown = look
+    when {
+        isFailed || (shown == null && isTimedOut) ->
+            StillFallback(if (isFemale) AvatarCharacter.FEMALE else AvatarCharacter.MALE)
+
+        shown != null -> RiveAvatarStill(
+            shown,
             Modifier.fillMaxSize(),
             onError = { isFailed = true },
             onReady = LocalSlotAvatarStillOnReady.current
         )
+
+        else -> Unit
     }
 }
 

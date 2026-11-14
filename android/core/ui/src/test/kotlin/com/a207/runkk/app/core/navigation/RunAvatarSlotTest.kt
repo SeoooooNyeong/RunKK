@@ -74,6 +74,41 @@ class RunAvatarSlotTest {
     }
 
     @Test
+    fun `상대 대상이면 상대 모습으로 그린다`() {
+        val look = SlotRunnerLook(isFemale = true, topItemId = 12, shoesItemId = 31, bodyVariant = 1, runAmount = 42)
+        var seen: RunAvatarSubject? = null
+        val subjectProbe: @Composable () -> Unit = { seen = LocalSlotAvatarRunSubject.current }
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(subjectProbe))) {
+                RunAvatarSlot(AvatarSlotPose.RUN, facingLeft = false, subject = RunAvatarSubject.other(look, null)) {}
+            }
+        }
+        assertEquals(RunAvatarSubject(isMine = false, look = look, isFemale = true), seen)
+    }
+
+    @Test
+    fun `모습을 받지 못한 상대는 표시 성별만 넘긴다`() {
+        assertEquals(RunAvatarSubject(isMine = false, look = null, isFemale = true), RunAvatarSubject.other(null, true))
+        assertEquals(RunAvatarSubject(isMine = false, look = null, isFemale = null), RunAvatarSubject.other(null, null))
+    }
+
+    @Test
+    fun `기본 대상은 지금처럼 내 아바타다`() {
+        var seen: RunAvatarSubject? = null
+        var outside: RunAvatarSubject? = null
+        val subjectProbe: @Composable () -> Unit = { seen = LocalSlotAvatarRunSubject.current }
+        compose.setContent {
+            outside = LocalSlotAvatarRunSubject.current
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(subjectProbe))) {
+                RunAvatarSlot(AvatarSlotPose.RUN, facingLeft = false) {}
+            }
+        }
+        assertEquals(RunAvatarSubject.Mine, seen)
+        assertEquals(RunAvatarSubject.Mine, outside, "칸 밖에서도 내 아바타다")
+        assertEquals(true, RunAvatarSubject.Mine.isMine)
+    }
+
+    @Test
     fun `칸 기여가 있는지 화면이 안다`() {
         var empty: Boolean? = null
         var filled: Boolean? = null
