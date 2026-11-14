@@ -22,6 +22,8 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,25 +43,74 @@ class RunnerLookQueryTest {
     private static final long BOB = 2;
     private static final long NEWBIE = 3;
 
+    private static final long OUTSIDER = 4;
+    private static final String SNAPSHOT = "PERSONAL:WEEKLY:1000";
+    private static final String NEXT_SNAPSHOT = "PERSONAL:WEEKLY:2000";
+
     private final CountingAvatars avatars = new CountingAvatars();
     private final RunQueryService runs = mock(RunQueryService.class);
     private final OperationPolicy policy = mock(OperationPolicy.class);
-    private final RunnerLookQuery query =
-            new RunnerLookQuery(
-                    avatars,
-                    runs,
-                    policy,
-                    AvatarFakes.transactions(),
-                    Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL));
+    private final MemoryLookSnapshots snapshots = new MemoryLookSnapshots();
+    private final RunnerLookQuery query = queryWith(snapshots);
 
-    /** 조회 횟수를 세는 인메모리 저장소. */
+    private RunnerLookQuery queryWith(RunnerLookSnapshotStore store) {
+        return new RunnerLookQuery(
+                avatars,
+                runs,
+                policy,
+                AvatarFakes.transactions(),
+                Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL),
+                store);
+    }
+
+    /** 조회 횟수와 마지막으로 읽은 회원 ID를 세는 인메모리 저장소. */
     static final class CountingAvatars extends AvatarFakes.Avatars {
         int batchReads;
+        Set<Long> lastRead = Set.of();
 
         @Override
         public synchronized List<Avatar> findAllByMemberIds(java.util.Collection<Long> memberIds) {
             batchReads++;
+            lastRead = Set.copyOf(memberIds);
             return super.findAllByMemberIds(memberIds);
+        }
+    }
+
+    /** 스냅숏별 모습을 메모리에 두는 저장소. */
+    static final class MemoryLookSnapshots implements RunnerLookSnapshotStore {
+        final Map<String, Map<Long, RunnerLook>> saved = new HashMap<>();
+
+        @Override
+        public Map<Long, RunnerLook> find(String snapshot, Collection<Long> memberIds) {
+            Map<Long, RunnerLook> stored = saved.getOrDefault(snapshot, Map.of());
+            Map<Long, RunnerLook> found = new HashMap<>();
+            memberIds.forEach(
+                    id -> {
+                        if (stored.containsKey(id)) {
+                            found.put(id, stored.get(id));
+                        }
+                    });
+            return found;
+        }
+
+        @Override
+        public void save(String snapshot, Map<Long, RunnerLook> looks) {
+            saved.computeIfAbsent(snapshot, k -> new HashMap<>()).putAll(looks);
+        }
+    }
+
+    /** Redis 장애처럼 늘 비어 있고 쓰기를 버리는 저장소(구현이 장애를 삼킨 결과). */
+    static final class UnavailableLookSnapshots implements RunnerLookSnapshotStore {
+        int saves;
+
+        @Override
+        public Map<Long, RunnerLook> find(String snapshot, Collection<Long> memberIds) {
+            return Map.of();
+        }
+
+        @Override
+        public void save(String snapshot, Map<Long, RunnerLook> looks) {
+            saves++;
         }
     }
 
@@ -197,5 +248,86 @@ class RunnerLookQueryTest {
         assertThat(look.outfit()).isEmpty();
         assertThatThrownBy(() -> look.outfit().put(ItemSlot.TOP, "x"))
                 .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    @DisplayName("스냅숏 단위 고정(PM 2026-11-14): 같은 스냅숏으로 두 번 읽으면 두 번째는 DB를 읽지 않고 같은 모습을 준다")
+    void snapshotLooks_secondReadComesFromStore() {
+        Avatar alice = Avatar.create(ALICE);
+        alice.chooseDefault(DefaultCharacter.FOX);
+        alice.equip(11, ItemSlot.TOP);
+        avatars.save(alice);
+
+        Map<Long, RunnerLook> first = query.snapshotLooksOf(SNAPSHOT, List.of(ALICE, BOB));
+        Avatar changed = Avatar.create(ALICE);
+        changed.equip(12, ItemSlot.BOTTOM);
+        avatars.save(changed);
+        Map<Long, RunnerLook> second = query.snapshotLooksOf(SNAPSHOT, List.of(ALICE, BOB));
+
+        assertThat(second).isEqualTo(first).containsOnlyKeys(ALICE, BOB);
+        assertThat(second.get(ALICE).faceKey()).as("스냅숏 동안 예전 모습").isEqualTo("default:FOX");
+        assertThat(avatars.batchReads).isEqualTo(1);
+        verify(runs, times(1)).distancesByMember(anyCollection(), any());
+        verify(policy, times(1)).shopCatalog();
+    }
+
+    @Test
+    @DisplayName("저장소에 없는 회원(상위 밖 mine)만 DB에서 읽어 더한다")
+    void snapshotLooks_readsOnlyMissingMembers() {
+        query.snapshotLooksOf(SNAPSHOT, List.of(ALICE, BOB));
+
+        Map<Long, RunnerLook> looks =
+                query.snapshotLooksOf(SNAPSHOT, List.of(ALICE, BOB, OUTSIDER));
+
+        assertThat(looks).containsOnlyKeys(ALICE, BOB, OUTSIDER);
+        assertThat(avatars.batchReads).isEqualTo(2);
+        assertThat(avatars.lastRead).containsExactly(OUTSIDER);
+        verify(runs).distancesByMember(Set.of(OUTSIDER), WEEK);
+        assertThat(snapshots.saved.get(SNAPSHOT)).containsOnlyKeys(ALICE, BOB, OUTSIDER);
+
+        query.snapshotLooksOf(SNAPSHOT, List.of(OUTSIDER));
+        assertThat(avatars.batchReads).as("한 번 읽은 뒤에는 그 회원도 저장소에서").isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("스냅숏이 바뀌면(새 집계 시각) 새로 읽어 바뀐 모습을 준다")
+    void snapshotLooks_newSnapshotReadsAgain() {
+        avatars.save(Avatar.create(ALICE));
+        assertThat(query.snapshotLooksOf(SNAPSHOT, List.of(ALICE)).get(ALICE).faceKey()).isNull();
+        Avatar changed = Avatar.create(ALICE);
+        changed.chooseDefault(DefaultCharacter.FOX);
+        avatars.save(changed);
+
+        RunnerLook next = query.snapshotLooksOf(NEXT_SNAPSHOT, List.of(ALICE)).get(ALICE);
+
+        assertThat(next.faceKey()).isEqualTo("default:FOX");
+        assertThat(avatars.batchReads).isEqualTo(2);
+        assertThat(query.snapshotLooksOf(SNAPSHOT, List.of(ALICE)).get(ALICE).faceKey())
+                .as("옛 스냅숏 값은 그대로(만료로 사라진다)")
+                .isNull();
+    }
+
+    @Test
+    @DisplayName("저장소를 쓸 수 없으면(Redis 장애) 요청마다 DB에서 읽어 모습을 그대로 준다")
+    void snapshotLooks_storeUnavailableFallsBackToDb() {
+        avatars.save(Avatar.create(ALICE));
+        UnavailableLookSnapshots down = new UnavailableLookSnapshots();
+        RunnerLookQuery degraded = queryWith(down);
+
+        Map<Long, RunnerLook> first = degraded.snapshotLooksOf(SNAPSHOT, List.of(ALICE, NEWBIE));
+        Map<Long, RunnerLook> second = degraded.snapshotLooksOf(SNAPSHOT, List.of(ALICE, NEWBIE));
+
+        assertThat(first).containsOnlyKeys(ALICE, NEWBIE);
+        assertThat(second).isEqualTo(first);
+        assertThat(avatars.batchReads).isEqualTo(2);
+        assertThat(down.saves).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("빈 목록이면 저장소도 DB도 읽지 않는다")
+    void snapshotLooks_emptyInput() {
+        assertThat(query.snapshotLooksOf(SNAPSHOT, List.of())).isEmpty();
+        assertThat(avatars.batchReads).isZero();
+        assertThat(snapshots.saved).isEmpty();
     }
 }

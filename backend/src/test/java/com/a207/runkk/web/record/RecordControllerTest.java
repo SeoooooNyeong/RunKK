@@ -355,6 +355,59 @@ class RecordControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName("랭킹 줄 look은 스냅숏 단위로 고정(PM 2026-11-14): 같은 스냅숏 동안 얼굴을 바꿔도 예전 모습, 재집계 뒤 새 모습")
+    void ranking_lookFixedPerSnapshot() throws Exception {
+        ensureLookItems();
+        Session me = signUp();
+        Session viewer = signUp();
+        upload(me, 7_000, 2_100);
+        tx.executeWithoutResult(
+                status -> {
+                    Avatar avatar = avatars.findForUpdate(me.memberId()).orElseThrow();
+                    avatar.chooseDefault(DefaultCharacter.BEAR);
+                    avatar.equip(961, ItemSlot.TOP);
+                    avatars.save(avatar);
+                });
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+        JsonNode first = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(first.get("look").get("faceKey").asText()).isEqualTo("default:BEAR");
+
+        tx.executeWithoutResult(
+                status -> {
+                    Avatar avatar = avatars.findForUpdate(me.memberId()).orElseThrow();
+                    avatar.chooseDefault(DefaultCharacter.FOX);
+                    avatars.save(avatar);
+                });
+        JsonNode same = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(same.get("look").get("faceKey").asText())
+                .as("같은 스냅숏 동안은 예전 모습")
+                .isEqualTo("default:BEAR");
+        JsonNode seenByOther =
+                lookOf(getJson(viewer, "/api/v1/rankings/personal", "period", "WEEKLY"), me);
+        assertThat(seenByOther.get("faceKey").asText())
+                .as("다른 사용자도 같은 스냅숏 모습을 본다")
+                .isEqualTo("default:BEAR");
+
+        Thread.sleep(5);
+        rankingService.rebuild(LocalDateTime.now(SEOUL));
+        JsonNode next = getJson(me, "/api/v1/rankings/personal", "period", "WEEKLY").get("mine");
+        assertThat(next.get("look").get("faceKey").asText())
+                .as("새 스냅숏은 새 모습")
+                .isEqualTo("default:FOX");
+        assertThat(next.get("look").get("outfit").get("TOP").asText()).isEqualTo("top_crew_tee");
+    }
+
+    /** 랭킹 응답 상위 줄에서 그 회원의 look. */
+    private static JsonNode lookOf(JsonNode ranking, Session member) {
+        for (JsonNode entry : ranking.get("entries")) {
+            if (entry.get("subjectId").asLong() == member.memberId()) {
+                return entry.get("look");
+            }
+        }
+        throw new AssertionError("랭킹 상위 줄에 회원이 없다: " + member.memberId());
+    }
+
+    @Test
     @DisplayName("주간 목표·계획: 저장, 범위 위반 409, 누락 400, 오늘 계획 없으면 204, 이행 현황")
     void goalsAndPlans() throws Exception {
         Session me = signUp();

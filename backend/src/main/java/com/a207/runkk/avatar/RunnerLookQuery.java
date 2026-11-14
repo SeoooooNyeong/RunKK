@@ -21,7 +21,8 @@ import org.springframework.stereotype.Service;
 /**
  * 여러 회원의 러너 모습(S15P31A207-300). web.record가 개인 랭킹 줄마다 붙인다. 다른 러너에게 아바타는 늘 보이므로(FR-006, D-241) 거르지
  * 않고, 탈퇴 회원 ID는 부르는 쪽이 넘기지 않는다. 회원 수와 관계없이 아바타 묶음 조회 하나, 최근 7일 거리 조회 하나, 상점 목록(운영 기준값) 한 번만 읽는다.
- * 아바타 행이 없는 회원은 새 아바타 기본값으로 주고 행을 만들지 않는다.
+ * 아바타 행이 없는 회원은 새 아바타 기본값으로 주고 행을 만들지 않는다. 랭킹 줄은 {@link #snapshotLooksOf}로 0시 스냅숏 단위에 고정한다(PM
+ * 2026-11-14, RunnerLookSnapshotStore).
  */
 @Service
 public class RunnerLookQuery {
@@ -31,18 +32,50 @@ public class RunnerLookQuery {
     private final OperationPolicy operationPolicy;
     private final AvatarTransactions transactions;
     private final Clock clock;
+    private final RunnerLookSnapshotStore snapshotStore;
 
     RunnerLookQuery(
             AvatarRepository avatarRepository,
             RunQueryService runQueryService,
             OperationPolicy operationPolicy,
             AvatarTransactions transactions,
-            Clock clock) {
+            Clock clock,
+            RunnerLookSnapshotStore snapshotStore) {
         this.avatarRepository = avatarRepository;
         this.runQueryService = runQueryService;
         this.operationPolicy = operationPolicy;
         this.transactions = transactions;
         this.clock = clock;
+        this.snapshotStore = snapshotStore;
+    }
+
+    /**
+     * 스냅숏 하나에 고정한 회원 모습(PM 2026-11-14). 저장소에 있는 회원은 그 값을 그대로 주고, 없는 회원만 {@link #looksOf}로 읽어 저장소에
+     * 더한다. 그래서 같은 스냅숏을 보는 동안 모든 사용자가 같은 모습을 읽고, 0시 스냅숏 뒤 첫 조회만 DB를 읽는다(상위 밖 본인 줄은 그 회원만 처음 한 번).
+     * 옷·셀카·러닝량이 바뀌어도 다음 스냅숏까지는 예전 모습이다. 저장소를 쓸 수 없으면 매번 DB에서 읽는다.
+     *
+     * @param snapshot 스냅숏 식별자(예: PERSONAL:WEEKLY:{집계 시각 epoch 밀리초}). 새 스냅숏은 새 식별자다
+     * @param memberIds 회원 ID(null은 건너뛴다)
+     * @return 넘긴 회원 모두의 모습
+     */
+    public Map<Long, RunnerLook> snapshotLooksOf(String snapshot, Collection<Long> memberIds) {
+        Set<Long> ids = new LinkedHashSet<>();
+        memberIds.stream().filter(Objects::nonNull).forEach(ids::add);
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, RunnerLook> stored = snapshotStore.find(snapshot, ids);
+        Set<Long> missing = new LinkedHashSet<>(ids);
+        missing.removeAll(stored.keySet());
+        Map<Long, RunnerLook> read = looksOf(missing);
+        if (!read.isEmpty()) {
+            snapshotStore.save(snapshot, read);
+        }
+        Map<Long, RunnerLook> looks = new LinkedHashMap<>();
+        for (Long id : ids) {
+            looks.put(id, stored.containsKey(id) ? stored.get(id) : read.get(id));
+        }
+        return looks;
     }
 
     /**

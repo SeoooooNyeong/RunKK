@@ -209,7 +209,7 @@ class ArchitectureTest {
         m.put("web.run", Set.of("running"));
         // v0.14 W1·W2: 기록 목록 대결 결과(BattleHistoryService.outcomesOf), 기록
         // 삭제(RunDeletionService.delete)
-        // + avatar: 개인 랭킹 줄 회원 모습(RunnerLookQuery.looksOf, S15P31A207-300).
+        // + avatar: 개인 랭킹 줄 회원 모습(RunnerLookQuery.snapshotLooksOf, S15P31A207-300).
         // web.crew처럼
         // 표현 계층이 붙여 analysis → avatar 화살표를 만들지 않는다(D-46)
         m.put("web.record", Set.of("analysis", "battle", "running", "avatar"));

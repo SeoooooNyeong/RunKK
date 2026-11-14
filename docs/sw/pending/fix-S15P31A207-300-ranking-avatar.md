@@ -2,7 +2,7 @@
 
 > 작성: 2026-11-13 | 작성자: 이성현 | 스킬: sw-design-oo(구현 반영)
 
-개인 랭킹 줄마다 그 회원의 모습(얼굴·의상·체형·러닝량)을 붙인다. 서버만 바꾼다(앱은 따로).
+개인 랭킹 줄마다 그 회원의 모습(얼굴·의상·체형·러닝량)을 붙인다. 서버만 바꾼다(앱은 따로). look은 스냅숏 단위 Redis 캐시로 하루 고정한다(PM 2026-11-14): 같은 스냅숏 동안 모두가 같은 모습을 읽고 요청마다 DB를 다시 읽지 않는다.
 
 ## 고친 조각
 - design-oo/05-30-설계-아바타요구-성.md: 12절 표 끝에 [임시:D-성-226](랭킹 줄 `look`, web.record → avatar)
@@ -10,14 +10,16 @@
 ## 새 임시 번호
 | 임시 번호 | 종류 | 한 줄 설명 | 위치 |
 |-----------|------|------------|------|
-| [임시:D-성-226] | D | 개인 랭킹 줄·mine에 회원 모습 `look`을 조회 때 붙인다(크루·탈퇴는 null), web.record가 avatar.RunnerLookQuery로 붙인다 | design-oo/05-30 12절 |
+| [임시:D-성-226] | D | 개인 랭킹 줄·mine에 회원 모습 `look`을 붙인다(크루·탈퇴는 null), web.record가 avatar.RunnerLookQuery로 붙인다. look은 스냅숏 단위 Redis 캐시로 하루 고정(PM 2026-11-14, 키 `ranking:look:{종류}:{기간}:{집계 시각 ms}`, 만료 25시간, 지연 채움) | design-oo/05-30 12절 |
 
 ## 공용 파일 반영
 | 파일 | 넣을 내용 |
 |------|-----------|
 | design-oo 5.7.1 web.record API 표(`GET /rankings/personal`) | 응답 Entry에 `look`(객체 또는 null) {faceKey, outfit{ItemSlot 이름: assetKey}, bodyVariant 0~2, runAmount 0~100}. `GET /rankings/crew`는 늘 null. 필드 더하기만이라 옛 앱은 그대로 동작 |
-| design-oo 12.2 패키지 의존 행렬·12.3 허용 표 | web.record → avatar 한 줄(RunnerLookQuery.looksOf, D-46 표현 계층이 붙임). `ArchitectureTest` 허용 표에 반영함 |
-| design-oo 6.1.8 avatar 클래스 목록 | `RunnerLook`(record), `RunnerLookQuery`(looksOf), `AvatarRepository.findAllByMemberIds`(만들지 않음, fetch join) |
+| design-oo 12.2 패키지 의존 행렬·12.3 허용 표 | web.record → avatar 한 줄(RunnerLookQuery.snapshotLooksOf, D-46 표현 계층이 붙임). `ArchitectureTest` 허용 표에 반영함 |
+| design-oo 6.1.8 avatar 클래스 목록 | `RunnerLook`(record), `RunnerLookQuery`(looksOf, snapshotLooksOf), `RunnerLookSnapshotStore`(포트), `AvatarRepository.findAllByMemberIds`(만들지 않음, fetch join) |
+| design-oo 6.1.13 infra 클래스 목록 | `infra.avatar.RedisRunnerLookSnapshotStore`(키 `ranking:look:{종류}:{기간}:{집계 시각 ms}` 해시, 만료 25시간, 장애면 비어 있다고 봄) |
+| design-oo 5.5 장애: Redis | 랭킹 look 캐시를 못 쓰면 요청마다 DB에서 읽는다(랭킹 조회는 실패하지 않음) |
 | design-oo 6.1.4 RankingView | `activeMemberIds()`(publicTiers 키 = 탈퇴하지 않은 개인 줄 회원) |
 | srs 자료사전 랭킹 줄 | `look` 항목 |
 
