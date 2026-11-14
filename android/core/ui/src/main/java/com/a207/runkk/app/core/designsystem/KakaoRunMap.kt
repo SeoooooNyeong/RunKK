@@ -69,6 +69,7 @@ data class RunMapMarker(
  * canShowKakaoMap(key, isMapFailed)에 넘겨 격자 바탕 RouteCanvas로 바꾼다(FR-034, D-322 (3), D-340).
  * 기록 상세 KakaoCourseMap과 같이 화면 수명에 맞춰 지도를 이어 그리고 멈추며, 화면을 떠나면 닫는다.
  * [isFramed]가 거짓이면 둥근 모서리·테두리 없이 칸 그대로 자른다(크루런 F-15는 가장자리 페이드를 부르는 쪽이 덮는다).
+ * [recenterRequest]가 바뀌면(「내 위치로」 단추, [RunkkMeMap]) 내 위치를 가운데에 두고 따라가기 확대 단계로 되돌린다.
  */
 @Composable
 fun KakaoRunMap(
@@ -80,6 +81,7 @@ fun KakaoRunMap(
     myLabel: String? = null,
     onMapError: () -> Unit = {},
     isFramed: Boolean = true,
+    recenterRequest: Int = 0,
     figure: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -182,6 +184,14 @@ fun KakaoRunMap(
             ready.moveCamera(update)
             isZoomSet = true
         }
+        place(ready)
+    }
+    // 「내 위치로」: 사용자가 바꾼 확대 단계를 버리고 내 위치를 따라가기 확대 단계로 다시 맞춘다
+    LaunchedEffect(map, recenterRequest) {
+        val ready = map ?: return@LaunchedEffect
+        if (recenterRequest == 0) return@LaunchedEffect
+        val me = latestRoute.points.lastOrNull() ?: return@LaunchedEffect
+        ready.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(me.latitude, me.longitude), FOLLOW_ZOOM))
         place(ready)
     }
     // 지도를 끄는 동안 아바타가 지도 위 제자리를 따라가게 매 프레임 다시 놓는다
