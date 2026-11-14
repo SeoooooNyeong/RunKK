@@ -18,6 +18,7 @@ import com.a207.runkk.crew.MembershipService;
 import com.a207.runkk.crew.WeeklyRaceService;
 import com.a207.runkk.member.MemberFixtures;
 import com.a207.runkk.member.MemberRepository;
+import com.a207.runkk.member.ShownGender;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -130,6 +131,11 @@ class CrewW7QueryIntegrationTest {
         assertThat(view.members().get(0).accumulated()).isEqualTo(Distance.ofMeters(7_500));
         assertThat(view.members().get(1).accumulated()).isEqualTo(Distance.ofMeters(1_000));
         assertThat(view.members().get(0).joinedAt()).isNotNull();
+        assertThat(view.members())
+                .as("표시 성별은 성별을 밝히지 않아도 회원 ID로 정한 대체값이 늘 있다(설계 5.31 [임시:D-성-226])")
+                .extracting(CrewMembersView.Line::shownGender)
+                .containsExactly(
+                        ShownGender.fallbackOf(a).name(), ShownGender.fallbackOf(leader).name());
 
         GoalHistoryView history = race.goalHistory(a, crewId, Optional.empty(), 20);
         assertThat(history.goals()).extracting(GoalHistoryView.Line::weekStart).containsExactly(w1);

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.a207.runkk.NoTransactions;
+import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.crew.CrewMembershipReader;
@@ -21,6 +22,8 @@ import com.a207.runkk.crew.chat.live.ChatRemovalReason;
 import com.a207.runkk.crew.chat.live.CrewChatPosted;
 import com.a207.runkk.crew.chat.live.CrewChatReactionChanged;
 import com.a207.runkk.crew.chat.live.CrewChatRemoved;
+import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.notification.NavigationTarget;
@@ -57,6 +60,7 @@ class ChatDeliveryListenerTest {
     private final CrewMembershipReader membership = mock(CrewMembershipReader.class);
     private final MemberQueryService memberQuery = mock(MemberQueryService.class);
     private final NotificationService notifications = mock(NotificationService.class);
+    private final AvatarQuery avatarQuery = mock(AvatarQuery.class);
     private final List<Sent> sent = new ArrayList<>();
     private Set<Long> present = Set.of(1L, 3L, 9L);
     private boolean messengerFails;
@@ -83,6 +87,7 @@ class ChatDeliveryListenerTest {
                         reactions,
                         membership,
                         memberQuery,
+                        new ChatAuthorFaces(memberQuery, avatarQuery),
                         crewId -> present,
                         messenger,
                         notifications,
@@ -120,6 +125,8 @@ class ChatDeliveryListenerTest {
                                 U1,
                                 ChatMessageKind.TEXT,
                                 "LEADER",
+                                null,
+                                null,
                                 null));
         assertThat(signal.type()).isEqualTo("CrewChatPosted");
 
@@ -153,6 +160,45 @@ class ChatDeliveryListenerTest {
         assertThat(signal.content()).isEqualTo("새벽곰님이 5.02km를 달렸어요");
         assertThat(signal.authorRole()).isEqualTo("LEADER");
         verify(notifications, never()).notifyCollapsing(any());
+    }
+
+    private void authorFace(long author, String faceKey, Gender gender) {
+        when(memberQuery.disclosureOf(author, Set.of(author)))
+                .thenReturn(Map.of(author, DisclosureLevel.SELF));
+        when(avatarQuery.faceKeysOf(Set.of(author)))
+                .thenReturn(faceKey == null ? Map.of() : Map.of(author, faceKey));
+        when(memberQuery.shownGendersOf(Set.of(author))).thenReturn(Map.of(author, gender));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("새 메시지 알림에 작성자 얼굴이 실린다(authorFaceKey, authorShownGender)")
+    void 새_메시지_알림에_작성자_얼굴이_실린다() {
+        authorFace(3, "head:3:ab12", Gender.FEMALE);
+        long id = posted(3, "내일 7시 출발");
+
+        listener.onPosted(new ChatMessagePosted(CREW, id, 3, NOW));
+
+        CrewChatPosted signal = (CrewChatPosted) sent.get(0).signal();
+        assertThat(signal.authorFaceKey()).isEqualTo("head:3:ab12");
+        assertThat(signal.authorShownGender()).isEqualTo("FEMALE");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("러닝 완료 메시지도 작성자 얼굴을 싣는다. 얼굴을 안 골랐으면 표시 성별만")
+    void 러닝완료_메시지도_작성자_얼굴() {
+        authorFace(3, null, Gender.MALE);
+        long id =
+                messages.save(
+                                CrewChatMessage.runFinished(
+                                        CREW, 3, "rec-2", "새벽곰", Distance.ofMeters(5_021), NOW))
+                        .id();
+
+        listener.onPosted(new ChatMessagePosted(CREW, id, 3, NOW));
+
+        CrewChatPosted signal = (CrewChatPosted) sent.get(0).signal();
+        assertThat(signal.messageKind()).isEqualTo(ChatMessageKind.RUN_FINISHED);
+        assertThat(signal.authorFaceKey()).isNull();
+        assertThat(signal.authorShownGender()).isEqualTo("MALE");
     }
 
     @Test

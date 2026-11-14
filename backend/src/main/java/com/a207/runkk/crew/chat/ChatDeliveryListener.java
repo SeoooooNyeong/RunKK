@@ -46,6 +46,7 @@ class ChatDeliveryListener {
     private final ChatReactionRepository reactions;
     private final CrewMembershipReader membership;
     private final MemberQueryService memberQuery;
+    private final ChatAuthorFaces authorFaces;
     private final ChatRoomPresence presence;
     private final CrewChatMessenger messenger;
     private final NotificationService notifications;
@@ -58,6 +59,7 @@ class ChatDeliveryListener {
             ChatReactionRepository reactions,
             CrewMembershipReader membership,
             MemberQueryService memberQuery,
+            ChatAuthorFaces authorFaces,
             ChatRoomPresence presence,
             CrewChatMessenger messenger,
             NotificationService notifications,
@@ -68,6 +70,7 @@ class ChatDeliveryListener {
         this.reactions = reactions;
         this.membership = membership;
         this.memberQuery = memberQuery;
+        this.authorFaces = authorFaces;
         this.presence = presence;
         this.messenger = messenger;
         this.notifications = notifications;
@@ -94,6 +97,7 @@ class ChatDeliveryListener {
                             message.authorId() == null
                                     ? Map.of()
                                     : memberQuery.summaries(List.of(message.authorId())));
+            ChatAuthorFaces.Face face = authorFace(message.authorId());
             send(
                     inRoom,
                     new CrewChatPosted(
@@ -106,7 +110,9 @@ class ChatDeliveryListener {
                             message.clientMessageId(),
                             message.kind(),
                             roleName(e.crewId(), message.authorId()),
-                            message.runDistanceMeters()));
+                            message.runDistanceMeters(),
+                            face.faceKey(),
+                            face.shownGender()));
             if (message.isSystem()) {
                 return; // 러닝 완료 시스템 메시지는 방 밖 푸시를 보내지 않는다(W5 결정)
             }
@@ -167,6 +173,19 @@ class ChatDeliveryListener {
         }
         CrewRole role = membership.rolesIn(crewId, List.of(authorId)).get(authorId);
         return role == null ? null : role.name();
+    }
+
+    /**
+     * 작성자 얼굴(설계 5.31 [임시:D-성-229]). 받는 사람마다 따로 만들지 않도록 작성자 본인 기준으로 한 번 읽는다(탈퇴가 아니면 누구에게나 같은 값이다).
+     * 탈퇴 작성자는 둘 다 null.
+     */
+    private ChatAuthorFaces.Face authorFace(Long authorId) {
+        if (authorId == null) {
+            return ChatAuthorFaces.Face.NONE;
+        }
+        return authorFaces
+                .of(authorId, List.of(authorId))
+                .getOrDefault(authorId, ChatAuthorFaces.Face.NONE);
     }
 
     private Set<Long> inRoom(long crewId, Set<Long> active) {
