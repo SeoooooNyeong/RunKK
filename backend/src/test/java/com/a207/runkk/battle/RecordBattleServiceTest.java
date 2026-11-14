@@ -54,6 +54,7 @@ class RecordBattleServiceTest {
     private final MemberQueryService members = mock(MemberQueryService.class);
     private final RunQueryService runs = mock(RunQueryService.class);
     private final List<Long> askedCurrent = new ArrayList<>();
+    private boolean currentLookFails;
     private RecordBattleService records;
 
     @BeforeEach
@@ -84,6 +85,9 @@ class RecordBattleServiceTest {
                 new OpponentLooks(
                         memberId -> {
                             askedCurrent.add(memberId);
+                            if (currentLookFails) {
+                                throw new IllegalStateException("avatar down");
+                            }
                             return Optional.of(TODAY);
                         },
                         runs);
@@ -159,5 +163,76 @@ class RecordBattleServiceTest {
 
         assertThat(records.startSelfBattle(ALICE, StandardDistance.KM5).opponentLook())
                 .isEqualTo(THAT_DAY);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("기록의 그날 모습을 읽다 실패하면 지금 모습으로 대신해 기록 대결을 시작한다")
+    void 그날_모습_읽기가_실패하면_지금_모습으로_시작한다() {
+        when(runs.lookOf("best")).thenThrow(new IllegalStateException("record look down"));
+
+        assertThat(records.startSelfBattle(ALICE, StandardDistance.KM5).opponentLook())
+                .isEqualTo(TODAY);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("그날 모습도 지금 모습도 읽지 못하면 모습 없이(null) 기록 대결을 시작한다")
+    void 모습_읽기가_실패해도_기록_대결을_시작한다() {
+        when(runs.lookOf("best")).thenThrow(new IllegalStateException("record look down"));
+        currentLookFails = true;
+
+        RecordBattleStart start = records.startSelfBattle(ALICE, StandardDistance.KM5);
+
+        assertThat(start.opponentLook()).isNull();
+        assertThat(start.battleId()).isPositive();
+        assertThat(start.track()).isNotNull();
+        assertThat(battles.all()).hasSize(1);
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("모습 읽기가 실패해도 셀프런 후보 조회는 정상 응답하고 그 후보의 모습만 null이다")
+    void 모습_읽기가_실패해도_후보를_돌려준다() {
+        when(runs.lookOf("best")).thenThrow(new IllegalStateException("record look down"));
+        currentLookFails = true;
+
+        assertThat(fiveK().finishTime()).isNotNull();
+        assertThat(fiveK().look()).isNull();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "모습 읽기 자리가 다 차면 기다리지 않고 모습 없이(null) 돌려준다: 연결을 쥔 채 두 번째 연결을 기다리며 멈추지 않는다")
+    void 모습_읽기_자리가_없으면_기다리지_않는다() throws Exception {
+        java.util.concurrent.CountDownLatch reading = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
+        OpponentLooks one =
+                new OpponentLooks(
+                        memberId -> {
+                            reading.countDown();
+                            try {
+                                release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                            return Optional.of(TODAY);
+                        },
+                        runs,
+                        5);
+        when(runs.lookOf("best")).thenReturn(Optional.empty());
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            java.util.concurrent.Future<AvatarLook> first =
+                    pool.submit(() -> one.selfLook(ALICE, "best"));
+            assertThat(reading.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+
+            assertThat(one.selfLook(ALICE, "best")).as("자리 1개가 차 있다").isNull();
+
+            release.countDown();
+            assertThat(first.get(5, java.util.concurrent.TimeUnit.SECONDS)).isEqualTo(TODAY);
+            assertThat(one.selfLook(ALICE, "best")).as("자리가 비면 다시 읽는다").isEqualTo(TODAY);
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
     }
 }

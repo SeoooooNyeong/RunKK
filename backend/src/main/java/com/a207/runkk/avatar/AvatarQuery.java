@@ -45,9 +45,9 @@ public class AvatarQuery {
 
     /**
      * 여러 회원의 지금 모습(설계 5.31 [임시:D-성-254]). web.crew가 크루런 대기실 참가자에 붙인다. 다른 러너에게 아바타는 늘 보이므로 거르지
-     * 않는다(faceKeysOf와 같다). null과 중복 ID는 건너뛰고, 크루 정원 10명이라 회원마다 읽는다.
+     * 않는다(faceKeysOf와 같다). null과 중복 ID는 건너뛰고, 크루 정원 10명이라 회원마다 읽는다. 모습을 못 읽은 회원은 빠진다(대기실 응답의 look이
+     * null). 회원마다 AvatarLookReader가 따로 떨어진 읽기 트랜잭션을 열므로 여기서는 트랜잭션을 열지 않는다(연결을 겹쳐 잡지 않는다).
      */
-    @Transactional(readOnly = true)
     public Map<Long, AvatarLook> looksOf(Collection<Long> memberIds) {
         Map<Long, AvatarLook> looks = new LinkedHashMap<>();
         for (Long id : memberIds) {
