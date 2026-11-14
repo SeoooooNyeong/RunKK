@@ -366,6 +366,7 @@ class BattleThreadIntegrationTest {
     void t3_ghostThread() {
         long owner = ranked("고스트주인");
         long runner = ranked("고스트도전");
+        warmUpGhostMatching();
         matching.requestMatch(runner, StandardDistance.KM5);
 
         long began = System.nanoTime();
@@ -380,6 +381,25 @@ class BattleThreadIntegrationTest {
                 .isEqualTo(DisplayName.of("고스트주인"));
         assertThat(ghost.isParticipant(owner)).isFalse();
         assertThat(took).isLessThan(GHOST_BUDGET);
+    }
+
+    /**
+     * 고스트 매칭을 한 번 먼저 돌려, 문맥을 띄운 뒤 첫 호출에만 드는 비용(클래스 적재·JIT·쿼리 계획 준비·연결 확보)을 TC-2147 측정에서 뺀다. 이 비용은
+     * 조합 시간이 아닌데 CI 러너가 느리면 이것만으로 예산을 넘길 수 있다. 예열 회원은 러닝 기록이 없어 뒤 매칭의 후보가 되지 않는다.
+     */
+    private void warmUpGhostMatching() {
+        long warm =
+                tx.execute(
+                        s -> {
+                            var member =
+                                    MemberFixtures.member(
+                                            "고스트예열", LocalDateTime.now().minusDays(30));
+                            member.confirmPlacement(Tier.GOLD);
+                            return members.save(member).getId();
+                        });
+        matching.requestMatch(warm, StandardDistance.KM5);
+        matchmaker.tick(LocalDateTime.now().plusSeconds(16));
+        assertThat(battleOf(warm).getType()).isEqualTo(BattleType.GHOST);
     }
 
     @Test
