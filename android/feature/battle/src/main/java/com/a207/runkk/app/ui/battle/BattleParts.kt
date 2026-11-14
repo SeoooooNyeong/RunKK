@@ -177,7 +177,7 @@ internal fun OpponentFigure(
  */
 @Composable
 internal fun StillOr(subject: AvatarStillSubject, size: Dp, fallback: @Composable () -> Unit) {
-    AvatarStillSlot(subject, Modifier.size(size), fallback)
+    AvatarStillSlot(subject, Modifier.size(size), fallback = fallback)
 }
 
 /** 내 전신 정지 그림(의상·체형·러닝량·셀카 머리 그대로). */
@@ -195,7 +195,7 @@ internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?) {
 
 /** 결과 상세·판 결과 히어로의 내 아바타 칸(디자인 시스템 avatarSlot): 내 전신 정지 그림, 칸이 비면 지금 그림(S15P31A207-300). */
 internal val MY_STILL_SLOT: @Composable (Modifier, @Composable () -> Unit) -> Unit = { modifier, fallback ->
-    AvatarStillSlot(MY_STILL, modifier, fallback)
+    AvatarStillSlot(MY_STILL, modifier, fallback = fallback)
 }
 
 /** 나 VS 상대 한 줄. */

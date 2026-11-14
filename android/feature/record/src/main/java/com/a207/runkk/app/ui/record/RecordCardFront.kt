@@ -65,7 +65,8 @@ fun RecordCardFront(
 ) {
     BoxWithConstraints(modifier.aspectRatio(RECORD_CARD_RATIO)) {
         val density = LocalDensity.current
-        val scale = maxWidth / CARD_DESIGN_WIDTH
+        // 너비를 아직 모르면(0) 밀도를 바꾸지 않는다(밀도 0은 안쪽 계산을 깨뜨린다).
+        val scale = (maxWidth / CARD_DESIGN_WIDTH).takeIf { it > 0f } ?: 1f
         CompositionLocalProvider(LocalDensity provides Density(density.density * scale, density.fontScale)) {
             RecordCardShell(card, Modifier.fillMaxSize(), FRONT_ROW_GAP, FRONT_VERTICAL_PADDING) {
                 ResultCardStage(

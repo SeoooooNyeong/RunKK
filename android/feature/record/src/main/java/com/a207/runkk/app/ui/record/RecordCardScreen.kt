@@ -270,7 +270,8 @@ private fun ShareStep(
     val isDark = LocalRunkkColors.current.isDark
     val scope = rememberCoroutineScope()
     val share: (CardShareKind) -> Unit = { kind -> scope.launch { onShare(kind, capture.capture(isDark)) } }
-    var isAvatarReady by remember { mutableStateOf(false) }
+    // 면을 바꾸면 앞면이 새로 그려지므로 준비 신호를 다시 기다린다(신호는 앞면이 그려질 때마다 온다).
+    var isAvatarReady by remember(side) { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize()) {
         RunkkTopBar(
             title = stringResource(R.string.record_card_share_title),
