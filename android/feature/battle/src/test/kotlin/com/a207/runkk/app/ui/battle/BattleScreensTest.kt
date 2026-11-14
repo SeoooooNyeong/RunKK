@@ -26,6 +26,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.CELEBRITY_FIGURE_TAG
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
@@ -246,6 +247,18 @@ class BattleScreensTest {
         compose.onAllNodesWithText("27:05", useUnmergedTree = true).assertCountEquals(2) // 메타 줄과 거리 카드
         compose.onNodeWithText("5:25 /km", useUnmergedTree = true).assertExists()
         compose.onAllNodesWithText("·", substring = true, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun `성사와 결과의 상대 전신은 받은 모습으로, 없으면 표시 성별의 기본 모습으로 그린다(FR-성-29)`() {
+        val look = RunnerLook(Gender.FEMALE, 12, null, 31, bodyVariant = 1, runAmount = 42, faceKey = "head:7:ab12")
+        assertEquals(
+            AvatarStillSubject(isMine = false, isFemale = true, look = look.toSlot()),
+            rivalStill(AvatarCharacter.MALE, look),
+            "받은 모습의 성별이 이긴다"
+        )
+        assertEquals(AvatarStillSubject(isMine = false, isFemale = false), rivalStill(AvatarCharacter.MALE, null))
+        assertEquals(AvatarStillSubject(isMine = false, isFemale = true), rivalStill(AvatarCharacter.FEMALE, null))
     }
 
     @Test

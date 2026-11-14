@@ -67,6 +67,7 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.CardKind
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.MyAvatar
@@ -216,7 +217,14 @@ private fun VerdictPage(state: BattleResultUiState, result: BattleResult, onDeta
                 liveRegion = LiveRegionMode.Polite
             }
         )
-        Figures(kind, verdict, AvatarCharacter.of(result.opponentGender), result.celebrityFigure, state.myAvatar)
+        Figures(
+            kind,
+            verdict,
+            AvatarCharacter.of(result.opponentGender),
+            result.celebrityFigure,
+            state.myAvatar,
+            result.opponentLook
+        )
         Text(
             message,
             style = RunkkTextStyles.text(17, FontWeight.Black),
@@ -245,7 +253,8 @@ private fun Figures(
     verdict: Verdict?,
     rival: AvatarCharacter,
     celebrity: String?,
-    myAvatar: MyAvatar?
+    myAvatar: MyAvatar?,
+    opponentLook: RunnerLook?
 ) {
     val expression = resultExpression(verdict)
     val opponent = when (kind) {
@@ -272,7 +281,8 @@ private fun Figures(
                     size = 110.dp,
                     colorFilter = sceneAvatarFilter(),
                     character = rival,
-                    celebrityFigure = celebrity
+                    celebrityFigure = celebrity,
+                    look = opponentLook
                 )
             }
         }

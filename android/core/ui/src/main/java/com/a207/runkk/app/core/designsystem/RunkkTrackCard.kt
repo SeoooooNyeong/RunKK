@@ -243,8 +243,8 @@ private fun EdgeChip(text: String, modifier: Modifier) {
 @Composable
 private fun Ruler(myX: Float, otherX: Float?, label: String?, modifier: Modifier) {
     val line = RunkkColors.TextSecondary
-    BoxWithConstraints(modifier.fillMaxWidth().height(RULER_HEIGHT).background(RunkkColors.Surface)) {
-        if (otherX == null) return@BoxWithConstraints
+    Box(modifier.fillMaxWidth().height(RULER_HEIGHT).background(RunkkColors.Surface)) {
+        if (otherX == null) return@Box
         val from = minOf(myX, otherX)
         val to = maxOf(myX, otherX)
         Canvas(Modifier.fillMaxSize()) {

@@ -315,7 +315,8 @@ class BattleRepositoryImplTest {
 
     @Test
     fun `후보와 대결 조회·결과·기록 대결 시작의 상대 모습을 읽고 없으면 null이다(D-성-252)`() = runTest {
-        val look = """{"gender":"MALE","equipped":{"TOP":12,"SHOES":31},"bodyVariant":1,"runAmount":42,"faceKey":"head:7:ab12"}"""
+        val look =
+            """{"gender":"MALE","equipped":{"TOP":12,"SHOES":31},"bodyVariant":1,"runAmount":42,"faceKey":"head:7:ab12"}"""
         api.reply(
             """{"candidates":[{"displayName":"나","distanceMeters":5000,"finishSeconds":1500,"recordedOn":"2026-10-02","look":$look},
                |{"displayName":"나","distanceMeters":10000,"look":null}]}

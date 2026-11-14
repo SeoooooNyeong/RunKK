@@ -398,7 +398,8 @@ private fun ColumnScope.Matched(match: MatchFound, state: MatchUiState, onForfei
                     figure = if (isHidden) Figure.UNKNOWN else Figure.RIVAL,
                     tier = opponentTier,
                     caption = bestLine(distance, match.opponentBest),
-                    character = AvatarCharacter.of(match.opponentGender)
+                    character = AvatarCharacter.of(match.opponentGender),
+                    look = match.opponentLook
                 )
             }
         )

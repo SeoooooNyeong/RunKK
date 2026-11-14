@@ -30,7 +30,17 @@ data class CrewRunStanding(
         fun of(myMeters: Int, mates: List<Mate>): CrewRunStanding {
             val nearest = mates
                 .filter { it.state == CrewRunRelay.State.RUNNING || it.state == CrewRunRelay.State.PAUSED }
-                .minWithOrNull(compareBy<Mate> { abs(it.meters - myMeters) }.thenBy { if (it.meters > myMeters) 0 else 1 })
+                .minWithOrNull(
+                    compareBy<Mate> { abs(it.meters - myMeters) }.thenBy {
+                        if (it.meters >
+                            myMeters
+                        ) {
+                            0
+                        } else {
+                            1
+                        }
+                    }
+                )
             val gap = nearest?.let { it.meters - myMeters }
             val aheadAll = mates.count { it.meters > myMeters }
             val behindAll = mates.count { it.meters < myMeters }
