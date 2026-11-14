@@ -52,6 +52,7 @@ public class BattleResultService {
     private final BattleMessenger battleMessenger;
     private final Clock clock;
     private final BattleTransactions transactions;
+    private final OpponentLooks opponentLooks;
 
     public BattleResultService(
             BattleRepository battleRepository,
@@ -61,7 +62,8 @@ public class BattleResultService {
             DomainEventPublisher eventPublisher,
             BattleMessenger battleMessenger,
             Clock clock,
-            BattleTransactions transactions) {
+            BattleTransactions transactions,
+            OpponentLooks opponentLooks) {
         this.battleRepository = battleRepository;
         this.runQueryService = runQueryService;
         this.memberQueryService = memberQueryService;
@@ -70,6 +72,7 @@ public class BattleResultService {
         this.battleMessenger = battleMessenger;
         this.clock = clock;
         this.transactions = transactions;
+        this.opponentLooks = opponentLooks;
     }
 
     /**
@@ -318,7 +321,8 @@ public class BattleResultService {
                 me.getRecordId().filter(id -> !runQueryService.isDeleted(id)).orElse(null),
                 OpponentGenders.nameFor(battle, memberId),
                 battle.getOpponentFigure().orElse(null),
-                placementRoundOf(battle));
+                placementRoundOf(battle),
+                opponentLooks.of(battle, memberId));
     }
 
     static Integer placementRoundOf(Battle battle) {

@@ -42,8 +42,9 @@ class PlacementContractTest {
                 "web.battle.BattleDtos$MatchAcceptanceResponse"
                         + "|waiting,distanceMeters,defaultDistanceMeters|placementRound,battleId",
                 "web.battle.BattleDtos$BattleResultResponse"
-                        + "|battleId,celebrityFigure|placementRound,placementState",
-                "web.battle.BattleDtos$ActiveBattleResponse|battleId,celebrityFigure|placementRound",
+                        + "|battleId,celebrityFigure,placementRound|placementState,opponentLook",
+                "web.battle.BattleDtos$ActiveBattleResponse"
+                        + "|battleId,celebrityFigure,placementRound|opponentLook",
                 "web.battle.BattleDtos$Entry"
                         + "|battleId,sourceLabel|placementRound,opponentMemberId",
                 "web.record.RecordDtos$Entry"

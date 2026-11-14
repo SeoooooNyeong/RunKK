@@ -291,6 +291,25 @@
     } ],
     "file" : "web/avatar/AvatarDtos.java"
   },
+  "AvatarLook" : {
+    "components" : [ {
+      "name" : "gender",
+      "kind" : "leaf"
+    }, {
+      "name" : "equipped",
+      "kind" : "map"
+    }, {
+      "name" : "bodyVariant",
+      "kind" : "leaf"
+    }, {
+      "name" : "runAmount",
+      "kind" : "leaf"
+    }, {
+      "name" : "faceKey",
+      "kind" : "leaf"
+    } ],
+    "file" : "common/AvatarLook.java"
+  },
   "BattleDtos.ActiveBattleResponse" : {
     "components" : [ {
       "name" : "battleId",
@@ -319,6 +338,10 @@
     }, {
       "name" : "placementRound",
       "kind" : "leaf"
+    }, {
+      "name" : "opponentLook",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -409,6 +432,10 @@
     }, {
       "name" : "placementState",
       "kind" : "leaf"
+    }, {
+      "name" : "opponentLook",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -440,6 +467,10 @@
     }, {
       "name" : "celebrityFigure",
       "kind" : "leaf"
+    }, {
+      "name" : "look",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -582,6 +613,10 @@
     }, {
       "name" : "celebrityFigure",
       "kind" : "leaf"
+    }, {
+      "name" : "opponentLook",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -765,6 +800,12 @@
     }, {
       "name" : "runDistanceMeters",
       "kind" : "leaf"
+    }, {
+      "name" : "authorFaceKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "authorShownGender",
+      "kind" : "leaf"
     } ],
     "file" : "web/chat/ChatController.java"
   },
@@ -819,6 +860,12 @@
       "kind" : "leaf"
     }, {
       "name" : "me",
+      "kind" : "leaf"
+    }, {
+      "name" : "faceKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
       "kind" : "leaf"
     } ],
     "file" : "web/chat/ChatController.java"
@@ -1360,6 +1407,10 @@
     }, {
       "name" : "shownGender",
       "kind" : "leaf"
+    }, {
+      "name" : "look",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -1882,6 +1933,12 @@
       "kind" : "leaf"
     }, {
       "name" : "genderVisibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "faceKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewMembersAssembler.java"

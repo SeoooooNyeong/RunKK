@@ -13,8 +13,10 @@ import com.a207.runkk.battle.live.MatchFailed;
 import com.a207.runkk.battle.live.MatchFound;
 import com.a207.runkk.battle.live.OpponentProgress;
 import com.a207.runkk.battle.live.TrackPoint;
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewRunMessage;
 import com.a207.runkk.crew.RelayEntry;
@@ -74,7 +76,15 @@ class RealtimeContractTest {
                         Distance.ofMeters(5_000),
                         Duration.ofSeconds(1_625),
                         Duration.ofSeconds(1_580),
-                        3),
+                        3,
+                        null,
+                        // 설계 5.31 B: 상대 모습(안 입은 부위 BOTTOM은 키가 없다)
+                        new AvatarLook(
+                                "MALE",
+                                Map.of(ItemSlot.SHOES, 31L, ItemSlot.TOP, 12L),
+                                1,
+                                42,
+                                "head:7:ab12")),
                 "BattleStart",
                 new BattleStart(
                         101,

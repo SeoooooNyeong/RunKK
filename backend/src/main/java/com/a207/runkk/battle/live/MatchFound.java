@@ -1,6 +1,7 @@
 package com.a207.runkk.battle.live;
 
 import com.a207.runkk.battle.BattleMessage;
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Tier;
@@ -19,6 +20,8 @@ import java.time.Duration;
  * @param animationSeconds 매칭 애니메이션 길이(D-17)
  * @param placementRound 배치고사 대결이면 판 번호(1~3), 아니면 null(05-03 5.7.3.4). 이때 opponentTier는
  *     UNRANKED(J24-3)
+ * @param opponentLook 상대 아바타 모습(랜덤·친구 대결만, 성별은 opponentGender와 같은 표시 성별). 배치고사·고스트·가상 상대이거나 읽지 못했으면
+ *     null(설계 5.31 [임시:D-성-252]·[임시:D-성-253])
  */
 public record MatchFound(
         long battleId,
@@ -29,8 +32,33 @@ public record MatchFound(
         Duration myBest,
         Duration opponentBest,
         int animationSeconds,
-        Integer placementRound)
+        Integer placementRound,
+        AvatarLook opponentLook)
         implements BattleMessage {
+
+    /** 상대 모습이 없는 성사(배치고사·고스트·가상 상대). */
+    public MatchFound(
+            long battleId,
+            DisplayName opponentName,
+            Tier opponentTier,
+            String opponentGender,
+            Distance distance,
+            Duration myBest,
+            Duration opponentBest,
+            int animationSeconds,
+            Integer placementRound) {
+        this(
+                battleId,
+                opponentName,
+                opponentTier,
+                opponentGender,
+                distance,
+                myBest,
+                opponentBest,
+                animationSeconds,
+                placementRound,
+                null);
+    }
 
     /** 배치고사가 아닌 성사(placementRound 없음). */
     public MatchFound(
@@ -51,7 +79,7 @@ public record MatchFound(
                 myBest,
                 opponentBest,
                 animationSeconds,
-                null);
+                (Integer) null);
     }
 
     @Override

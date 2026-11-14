@@ -377,6 +377,31 @@
   ],
   "file": "web/avatar/AvatarDtos.java"
  },
+ "AvatarLook": {
+  "components": [
+   {
+    "kind": "leaf",
+    "name": "gender"
+   },
+   {
+    "kind": "map",
+    "name": "equipped"
+   },
+   {
+    "kind": "leaf",
+    "name": "bodyVariant"
+   },
+   {
+    "kind": "leaf",
+    "name": "runAmount"
+   },
+   {
+    "kind": "leaf",
+    "name": "faceKey"
+   }
+  ],
+  "file": "common/AvatarLook.java"
+ },
  "BattleDtos.ActiveBattleResponse": {
   "components": [
    {
@@ -414,6 +439,11 @@
    {
     "kind": "leaf",
     "name": "placementRound"
+   },
+   {
+    "kind": "record",
+    "name": "opponentLook",
+    "ref": "AvatarLook"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -532,6 +562,11 @@
    {
     "kind": "leaf",
     "name": "placementState"
+   },
+   {
+    "kind": "record",
+    "name": "opponentLook",
+    "ref": "AvatarLook"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -573,6 +608,11 @@
    {
     "kind": "leaf",
     "name": "celebrityFigure"
+   },
+   {
+    "kind": "record",
+    "name": "look",
+    "ref": "AvatarLook"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -759,6 +799,11 @@
    {
     "kind": "leaf",
     "name": "celebrityFigure"
+   },
+   {
+    "kind": "record",
+    "name": "opponentLook",
+    "ref": "AvatarLook"
    }
   ],
   "file": "web/battle/BattleDtos.java"
@@ -998,6 +1043,14 @@
    {
     "kind": "leaf",
     "name": "runDistanceMeters"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorFaceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "authorShownGender"
    }
   ],
   "file": "web/chat/ChatController.java"
@@ -1069,6 +1122,14 @@
    {
     "kind": "leaf",
     "name": "me"
+   },
+   {
+    "kind": "leaf",
+    "name": "faceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "shownGender"
    }
   ],
   "file": "web/chat/ChatController.java"
@@ -1774,6 +1835,11 @@
    {
     "kind": "leaf",
     "name": "shownGender"
+   },
+   {
+    "kind": "record",
+    "name": "look",
+    "ref": "AvatarLook"
    }
   ],
   "file": "web/crew/CrewDtos.java"
@@ -2458,6 +2524,14 @@
    {
     "kind": "leaf",
     "name": "genderVisibility"
+   },
+   {
+    "kind": "leaf",
+    "name": "faceKey"
+   },
+   {
+    "kind": "leaf",
+    "name": "shownGender"
    }
   ],
   "file": "web/crew/CrewMembersAssembler.java"
