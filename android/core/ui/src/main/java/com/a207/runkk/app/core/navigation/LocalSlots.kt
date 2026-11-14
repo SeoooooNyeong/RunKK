@@ -37,3 +37,9 @@ val LocalSlotAvatarStill = compositionLocalOf<AvatarStillSubject?> { null }
 
 /** 전신 정지 그림 칸을 부른 쪽의 지금 그림. 칸 내용이 그릴 수 없을 때(꾸미기 닫힘) 대신 그린다. 칸 밖이면 null이다. */
 val LocalSlotAvatarStillFallback = compositionLocalOf<(@Composable () -> Unit)?> { null }
+
+/**
+ * 전신 정지 그림 칸에 넘기는 준비 신호([임시:D-성-292]). 칸 내용이 그림(정지 그림 또는 대체 그림)을 보이면 한 번 부른다. 칸 밖이면 아무것도
+ * 하지 않는다.
+ */
+val LocalSlotAvatarStillOnReady = compositionLocalOf<() -> Unit> { {} }
