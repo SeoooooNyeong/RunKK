@@ -3,6 +3,7 @@ package com.a207.runkk.app.domain.crew
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunnerLook
 import java.time.Instant
 import java.time.LocalDate
 
@@ -19,6 +20,8 @@ data class Lobby(val postId: Long, val participants: List<Participant>, val meet
         val isMe: Boolean = false,
         val isEntered: Boolean = true,
         val faceKey: String? = null,
-        val shownGender: Gender? = null
+        val shownGender: Gender? = null,
+        /** 아바타 모습(크루런 트랙의 가장 가까운 크루원, [임시:D-성-254]). 옛 서버면 null이다. */
+        val look: RunnerLook? = null
     )
 }

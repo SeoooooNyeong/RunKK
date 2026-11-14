@@ -3,6 +3,7 @@ package com.a207.runkk.app.domain.battle
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.MatchFound
@@ -21,5 +22,7 @@ data class RecordBattleStart(
     val distance: Distance,
     val track: OpponentTrack,
     val cardKind: CardKind,
-    val celebrityFigure: String? = null
+    val celebrityFigure: String? = null,
+    /** 상대 모습(셀프런은 그 기록의 나, [임시:D-성-252]). 셀럽·옛 서버면 null이다. */
+    val opponentLook: RunnerLook? = null
 )

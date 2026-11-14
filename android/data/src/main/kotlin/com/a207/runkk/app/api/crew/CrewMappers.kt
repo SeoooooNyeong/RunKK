@@ -331,7 +331,8 @@ internal fun LobbyResponse.toDomain(): Lobby = Lobby(
             it.me,
             isEntered = it.readiness?.let { r -> r != NOT_ENTERED } ?: true,
             faceKey = it.faceKey,
-            shownGender = enumByName<Gender>(it.shownGender)
+            shownGender = enumByName<Gender>(it.shownGender),
+            look = it.look?.toDomain()
         )
     },
     ServerTime.parse(scheduledAt),

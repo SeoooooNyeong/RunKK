@@ -41,6 +41,7 @@ import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
 import com.a207.runkk.app.api.chat.ChatPostRequest
 import com.a207.runkk.app.api.chat.ReactionResponse
+import com.a207.runkk.app.api.core.RunnerLookJson
 import com.a207.runkk.app.api.crew.AttendanceRequest
 import com.a207.runkk.app.api.crew.AttendanceResponse
 import com.a207.runkk.app.api.crew.CreatedResponse
@@ -428,9 +429,16 @@ class ServerContractTest {
         mapOf(
             MatchAcceptanceResponse.serializer() to
                 ("BattleDtos.MatchAcceptanceResponse" to setOf("placementRound", "battleId")),
+            // 다른 러너 모습([임시:D-성-252], [임시:D-성-277]): 대결 조회·결과·기록 대결 시작의 opponentLook, 후보와 대기실 참가자의 look
             BattleResultResponse.serializer() to
-                ("BattleDtos.BattleResultResponse" to setOf("placementRound", "placementState")),
-            ActiveBattleResponse.serializer() to ("BattleDtos.ActiveBattleResponse" to setOf("placementRound")),
+                ("BattleDtos.BattleResultResponse" to setOf("placementRound", "placementState", "opponentLook")),
+            ActiveBattleResponse.serializer() to
+                ("BattleDtos.ActiveBattleResponse" to setOf("placementRound", "opponentLook")),
+            RecordBattleStartResponse.serializer() to ("BattleDtos.RecordBattleStartResponse" to setOf("opponentLook")),
+            CandidatesResponse.Candidate.serializer() to ("BattleDtos.Candidate" to setOf("look")),
+            LobbyResponse.Participant.serializer() to ("CrewDtos.LobbyResponse.Participant" to setOf("look")),
+            RunnerLookJson.serializer() to
+                ("AvatarLook" to setOf("gender", "equipped", "bodyVariant", "runAmount", "faceKey")),
             BattleHistoryResponse.Entry.serializer() to
                 ("BattleDtos.Entry" to setOf("placementRound", "opponentMemberId"))
         ).forEach { (app, server) ->
@@ -438,8 +446,8 @@ class ServerContractTest {
             val appNames = (0 until app.descriptor.elementsCount).map { app.descriptor.getElementName(it) }.toSet()
             val serverNames = records.getValue(key).jsonObject.getValue("components").jsonArray
                 .map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
-            (fields - appNames).forEach { problems += "${app.descriptor.serialName}.$it: 앱 DTO에 없는 배치고사 항목" }
-            (fields - serverNames).forEach { problems += "$key.$it: 서버 record에 없는 배치고사 항목" }
+            (fields - appNames).forEach { problems += "${app.descriptor.serialName}.$it: 앱 DTO에 없는 선택 항목" }
+            (fields - serverNames).forEach { problems += "$key.$it: 서버 record에 없는 선택 항목" }
         }
         assertTrue(problems.isEmpty(), problems.joinToString("\n", prefix = "\n"))
     }
