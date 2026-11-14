@@ -44,6 +44,8 @@ QueueRemoval(enum, battle): REMOVED, ASSIGNED, ABSENT. MatchQueue.removeIfWaitin
 | judgement | Judgement | nullable |
 | version | long | 낙관적 잠금 |
 
+표 밖 소비자 (v0.40 반영, PM 지시로 대신 반영(2026-11-15)): battle의 `id`, `type`, `status`, `opponent_kind`, `opponent_record_id`, `judged_at`, `winner_member_id` 일곱 열과 celebrity_record의 `id`, `anonymous_name`은 Grafana 이벤트 현황 대시보드가 읽기 전용 계정(`runkk_grafana_ro`, 열 단위 GRANT)으로 직접 읽는다(design-oo 05-29 이벤트 현황 D-860~D-867, 9절). 대결 판정(judged_at, winner_member_id, opponent_record_id)이나 셀럽 대결 종류 값(BattleType.CELEBRITY, OpponentKind)을 바꾸는 변경은 `infra/monitoring/grafana/dashboards/runkk-event.json`의 공통 SQL과 `infra/monitoring/grafana/runkk-db/readonly-role.sql`의 battle 열 목록을 같은 MR에서 함께 고친다(13.1 「표 밖 소비자」).
+
 상수: `ABANDON_AFTER = 10분`. 출발하지 못한 대결을 버려진 것으로 보는 시간이다. 시작 보고 없는 기록 대결은 생성 뒤, 출발 예약 대결(WAITING_START)은 출발 시각(없으면 생성 시각) 뒤 이만큼 지나도 시작하지 않으면 CANCELLED다. 가장 짧은 기록 대결 최대 시간(3km × 15분 = 45분)보다 짧다. SRS에 값이 없어 코드 값을 옮겼다(SRS 보완 요청) (v0.11, CR34-01)
 
 활성 대결 1개 불변식: 한 회원은 활성 대결(WAITING_START, IN_PROGRESS, COUNTDOWN)을 많아야 하나 가진다. battle_participant.active_member_id(활성이면 회원 ID, 아니면 NULL)의 고유 색인(V15, 기존 자료 정리 V17)이 동시 생성 경합까지 지킨다 (v0.11, CR34-01)
@@ -122,6 +124,7 @@ ArrivalClaim: side, arrivedAt, verified(Boolean). Judgement: verdicts(Map<Side, 
 | `OpponentTrack track(Distance d)` | splits가 없으면 OpponentTrack.uniform(distance, finishTime) | |
 | `boolean isEstimated()` | splits 없음 → 화면에 "평균 페이스로 추정"(A-006) | |
 | `ComparisonValues comparisonValues(Distance d)` | 기록·평균 페이스만, 가장 빠른 1km는 splits가 있을 때만 | |
+| `boolean isCoach()` | SSAFY 코치 기록인가 | 그림 키(figureKey)가 있고 소문자로 바꾼 값이 `COACH_FIGURE_KEYS` = {"joo", "kim"}(주세빈·김선교 코치, D130)에 들면 참. 셀럽런 목록 거르기용(05-30 D-851) (v0.40 반영, PM 지시로 대신 반영(2026-11-15)) |
 
 ##### Source (값, record)
 속성: name(String, not blank), url(String, not blank, FR-170 v0.9 출처 주소 필수, v0.8, TF-BE-13). `String label()` = "공개 기록 기준 · {name}"(FR-100).
@@ -262,7 +265,7 @@ requestMatch는 이미 대기 중이거나 활성 대결이 있으면 ALREADY_IN
 | 시그니처 | 설명 |
 |---------|------|
 | `RecordBattleCandidates selfCandidates(long memberId)` | 3·5·10km·하프 최고 기록(RunQueryService.best, 없으면 "아직 기록이 없어요") |
-| `RecordBattleCandidates celebrityCandidates(long memberId, Optional<StandardDistance> filter)` | 유명인 기록 목록·출처, 거리 필터 |
+| `RecordBattleCandidates celebrityCandidates(long memberId, Optional<StandardDistance> filter)` | 유명인 기록 목록·출처, 거리 필터. `CelebrityRecord.isCoach`로 코치 기록만 남긴다. 기록런 셀럽 목록(패키지 내부 `celebrityTracks`, 워치 미리 받기 포함)도 같은 거르기를 먼저 하고 표를 만들 수 없는 기록을 뺀다. 다른 셀럽 행은 지우지 않아 지난 대결 이력과 ID로 여는 `startCelebrityBattle`은 그대로다. 운영 기준값이 아니라 코드 상수라 다른 셀럽을 다시 보이려면 배포한다(05-30 D-851, FR-097·FR-100) (v0.40 반영, PM 지시로 대신 반영(2026-11-15)) |
 | `RecordBattleStart startSelfBattle(long memberId, StandardDistance d)` | d.isSelfBattle(), 위치 동의 확인(MemberQueryService.hasConsent) → RunQueryService.best(memberId, d)(없으면 NO_RECORD) → comparisonOf(recordId), curve(recordId, d) → RunRecordOpponent("MM/DD의 나") → Battle.againstRecord(SELF) → 시작 정보(track, 표시명) |
 | `RecordBattleStart startCelebrityBattle(long memberId, long celebrityId)` | 위치 동의 확인 → CelebrityRecordRepository.findById(없으면 CELEBRITY_REMOVED) → Battle.againstRecord(CELEBRITY) → 시작 정보(track, 익명 닉네임, 출처, 추정 여부) |
 | `void markStarted(long memberId, long battleId)` | 3초 카운트다운 끝에 앱이 보고 → Battle.start(now) (SRS 보완 요청 R-02). 이미 시작했으면 무시(앱 재시도 멱등). 버려져 CANCELLED가 된 대결이면 BATTLE_NOT_FOUND (v0.11, CR34-01) |
