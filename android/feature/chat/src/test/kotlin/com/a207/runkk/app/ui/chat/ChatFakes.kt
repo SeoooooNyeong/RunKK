@@ -2,6 +2,9 @@ package com.a207.runkk.app.ui.chat
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.chat.ChatAuthorRole
 import com.a207.runkk.app.domain.chat.ChatMessage
@@ -56,7 +59,9 @@ fun chatMessage(
     sentAt: Instant = T0,
     kind: ChatMessageKind = ChatMessageKind.TEXT,
     authorRole: ChatAuthorRole? = null,
-    runDistance: Distance? = null
+    runDistance: Distance? = null,
+    authorFaceKey: String? = null,
+    authorShownGender: Gender? = null
 ) = ChatMessage(
     messageId = id,
     authorId = if (isMine) 1 else 2,
@@ -71,7 +76,9 @@ fun chatMessage(
     sendState = sendState,
     kind = kind,
     authorRole = authorRole,
-    runDistance = runDistance
+    runDistance = runDistance,
+    authorFaceKey = authorFaceKey,
+    authorShownGender = authorShownGender
 )
 
 class FakeChatRepository : ChatRepository {
@@ -119,6 +126,24 @@ class FakeChatRepository : ChatRepository {
     override suspend fun delete(messageId: Long): Outcome<Unit> {
         deleted += messageId
         return deleteFailure?.let { Outcome.Failure(it) } ?: Outcome.Success(Unit)
+    }
+
+    /** 받으려 한 얼굴 키(부른 순서). */
+    val faceCalls = mutableListOf<String?>()
+
+    /** 받아 둔 얼굴 그림(faceKey → 층). */
+    val cachedFaces = mutableMapOf<String, List<FaceLayer>>()
+    var faceFailure: AppError? = null
+
+    override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = cachedFaces[faceKey]
+
+    /** 셀카 얼굴 키면 부위 그림 한 장, 아니면 빈 목록(FaceImageSource와 같은 규칙). */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> {
+        faceCalls += faceKey
+        faceFailure?.let { return Outcome.Failure(it) }
+        return Outcome.Success(
+            if (faceKey?.startsWith("selfie:") == true) listOf(FaceLayer(FacePart.EYES, byteArrayOf(1))) else emptyList()
+        )
     }
 }
 

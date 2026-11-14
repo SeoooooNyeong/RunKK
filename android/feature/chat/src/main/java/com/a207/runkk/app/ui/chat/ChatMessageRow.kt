@@ -44,12 +44,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkTagPill
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.chat.ReactionKind
 import java.time.Instant
@@ -63,7 +65,7 @@ import java.util.Locale
  * ([임시:D-성-24]). 말풍선을 길게 누르면 메뉴(반응 세 가지, 삭제, 신고)가 말풍선 바로 위에 열린다. 러닝 완료 시스템 메시지는 가운데 두 줄이다.
  */
 @Composable
-internal fun ChatMessageRow(message: ChatMessage, actions: ChatActions) {
+internal fun ChatMessageRow(message: ChatMessage, actions: ChatActions, authorFace: List<FaceLayer> = emptyList()) {
     when {
         message.isSystem -> SystemMessage(message)
 
@@ -77,7 +79,7 @@ internal fun ChatMessageRow(message: ChatMessage, actions: ChatActions) {
         }
 
         else -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            AuthorAvatar()
+            AuthorAvatar(message, authorFace)
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 AuthorName(message)
                 MessageBody(message, actions)
@@ -87,10 +89,18 @@ internal fun ChatMessageRow(message: ChatMessage, actions: ChatActions) {
     }
 }
 
-/** 남의 메시지 앞 아바타 자리(피그마 32 원 surfaceHigh). 장식이라 보조 기술에는 숨긴다(말풍선이 작성자를 읽는다). */
+/**
+ * 남의 메시지 앞 작성자 얼굴(피그마 32 원, [임시:FR-성-24]): 얼굴 키가 있으면 그 얼굴, 없으면(탈퇴한 작성자 포함) 표시 성별의 기본
+ * 얼굴이다. 장식이라 보조 기술에는 숨긴다(말풍선이 작성자를 읽는다).
+ */
 @Composable
-private fun AuthorAvatar() {
-    RunkkAvatarCircle(32.dp)
+private fun AuthorAvatar(message: ChatMessage, layers: List<FaceLayer>) {
+    RunkkAvatarCircle(
+        faceKey = message.authorFaceKey,
+        size = 32.dp,
+        faceLayers = layers,
+        character = AvatarCharacter.of(message.authorShownGender)
+    )
 }
 
 /** 이름 12 Bold와 크루장 배지(테두리 꼬리표 11). 보조 기술에는 말풍선 설명이 함께 읽는다. */

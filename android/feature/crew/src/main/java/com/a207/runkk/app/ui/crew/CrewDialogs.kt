@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
@@ -53,6 +54,7 @@ import com.a207.runkk.app.core.designsystem.RunkkDialogMessage
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.tierName
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRole
 import kotlinx.coroutines.launch
@@ -172,7 +174,12 @@ private const val CODE_LETTER_SPACING = 4f / 24f
  * "내보내기"(보라)를 더 본다.
  */
 @Composable
-internal fun CrewMemberDialog(member: CrewMembers.Member, canManage: Boolean, actions: CrewHomeActions) {
+internal fun CrewMemberDialog(
+    member: CrewMembers.Member,
+    canManage: Boolean,
+    actions: CrewHomeActions,
+    faceLayers: List<FaceLayer> = emptyList()
+) {
     val name = member.displayName
     CrewCloseableDialog(
         paneTitle = name,
@@ -187,7 +194,13 @@ internal fun CrewMemberDialog(member: CrewMembers.Member, canManage: Boolean, ac
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            RunkkAvatarCircle(80.dp, borderColor = RunkkColors.Border)
+            RunkkAvatarCircle(
+                faceKey = member.faceKey,
+                size = 80.dp,
+                faceLayers = faceLayers,
+                character = AvatarCharacter.of(member.shownGender),
+                borderColor = RunkkColors.Border
+            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -313,7 +326,9 @@ internal fun CrewInfoDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
             )
         }
     }
-    state.openedMember?.let { CrewMemberDialog(it, state.canManage, actions) }
+    state.openedMember?.let {
+        CrewMemberDialog(it, state.canManage, actions, it.faceKey?.let(state.memberFaces::get).orEmpty())
+    }
     state.confirmTransfer?.let {
         RunkkConfirmDialog(
             title = stringResource(R.string.crew_manage_transfer_title, it.displayName),

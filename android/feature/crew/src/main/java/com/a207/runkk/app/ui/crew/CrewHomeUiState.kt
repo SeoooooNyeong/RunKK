@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.crew
 
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
@@ -31,6 +32,8 @@ data class CrewHomeUiState(
     /** 크루런 모집글별 대기실 단추 상태(postId → LobbyAvailability). 서버 시각 추정으로 1초마다 다시 판단한다. */
     val lobbyEntries: Map<Long, LobbyAvailability> = emptyMap(),
     val members: CrewMembers? = null,
+    /** 크루원 셀카 얼굴 부위 그림(faceKey → 층, [임시:D-성-236]). 없는 키는 기본 얼굴로 그린다. */
+    val memberFaces: Map<String, List<FaceLayer>> = emptyMap(),
     /** 크루런 다음 쪽을 읽는 중. */
     val isLoadingMore: Boolean = false,
     val isConfirmingLeave: Boolean = false,

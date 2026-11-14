@@ -7,10 +7,13 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
+import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunRepeat
@@ -475,6 +478,58 @@ class CrewHomeViewModelTest {
         assertTrue("ranking:MONTHLY" in repo.calls)
         assertEquals(22, shareLabel(0.22))
         assertEquals(22, shareLabel(22.7))
+    }
+
+    private fun withFaces(vararg faceKeys: String?) = CrewMembers(
+        members.members.zip(faceKeys.toList()) { member, key -> member.copy(faceKey = key) }
+    )
+
+    private fun faceCalls() = repo.calls.filter { it.startsWith("face:") }
+
+    @Test
+    fun 크루원_얼굴_그림을_캐시_먼저_받는다() {
+        val cachedLayers = listOf(FaceLayer(FacePart.HAIR, byteArrayOf(9)))
+        repo.memberList = withFaces("selfie:1/a", "selfie:2/b", null)
+        repo.cachedFaces["selfie:1/a"] = cachedLayers
+
+        val vm = vm()
+        vm.onPage(CrewHomePage.MEMBERS)
+
+        val faces = vm.state.value.memberFaces
+        assertEquals(cachedLayers, faces["selfie:1/a"], "받아 둔 그림은 그대로 쓴다")
+        assertEquals(1, faces["selfie:2/b"]?.size, "없는 것만 받는다")
+        assertEquals(listOf("face:selfie:2/b"), faceCalls())
+    }
+
+    @Test
+    fun 같은_얼굴_키는_한_번만_받는다() {
+        repo.memberList = withFaces("selfie:1/a", "selfie:1/a", "default:FOX")
+
+        val vm = vm()
+        vm.onPage(CrewHomePage.MEMBERS)
+        vm.refresh()
+
+        assertEquals(listOf("face:selfie:1/a", "face:default:FOX"), faceCalls())
+        assertNull(vm.state.value.memberFaces["default:FOX"], "기본 캐릭터 얼굴은 그림이 없다(기본 얼굴로 그린다)")
+    }
+
+    @Test
+    fun 실패하면_다음_갱신에_다시_받는다() {
+        repo.memberList = withFaces("selfie:1/a", null, null)
+        repo.fail["face"] = AppError.Network
+
+        val vm = vm()
+        vm.onPage(CrewHomePage.MEMBERS)
+
+        assertTrue(vm.state.value.memberFaces.isEmpty())
+        assertNull(vm.state.value.error, "얼굴 그림을 못 받아도 오류 문구를 띄우지 않는다")
+        assertNull(vm.state.value.message)
+
+        repo.fail.remove("face")
+        vm.refresh()
+
+        assertEquals(1, vm.state.value.memberFaces["selfie:1/a"]?.size)
+        assertEquals(2, faceCalls().size)
     }
 
     @Test
