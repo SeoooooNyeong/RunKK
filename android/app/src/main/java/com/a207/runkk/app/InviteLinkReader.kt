@@ -64,7 +64,8 @@ class InviteLinkReader(private val kakaoScheme: String) {
 
             else -> null
         }
-        return code?.uppercase(Locale.ROOT)?.takeIf { CREW_CODE.matches(it) }
+        // 모양을 먼저 보고 대문자로 바꾼다(대문자로 바꾸면 글자 수가 달라지는 문자를 받지 않게).
+        return code?.takeIf { CREW_CODE.matches(it) }?.uppercase(Locale.ROOT)
     }
 
     fun read(uri: Uri): String? {
@@ -94,8 +95,8 @@ class InviteLinkReader(private val kakaoScheme: String) {
 
         private val TOKEN = Regex("[A-Za-z0-9_-]{1,64}")
 
-        /** 크루 초대 코드 모양(서버 InviteCode: 대문자·숫자 6자). */
-        private val CREW_CODE = Regex("[A-Z0-9]{$CREW_INVITE_CODE_LENGTH}")
+        /** 크루 초대 코드 모양(서버 InviteCode: 대문자·숫자 6자). 소문자로 온 것은 대문자로 바꿔 읽는다. */
+        private val CREW_CODE = Regex("[A-Za-z0-9]{$CREW_INVITE_CODE_LENGTH}")
 
         /** 처리한 링크를 비운 인텐트(AN8-7). Activity.setIntent로 바꿔 두어 다시 읽어도 같은 초대가 다시 열리지 않게 한다. */
         fun consumed(intent: Intent): Intent = Intent(intent).setData(null)

@@ -103,6 +103,7 @@ class InviteLinkReaderTest {
         assertNull(reader.readLink(view("https://evil.example.com/invite/crew/AB12CD")))
         assertNull(reader.readLink(view("http://k15a207.p.ssafy.io/invite/crew/AB12CD")))
         assertNull(reader.readLink(view("kakaoabc123://kakaolink?crewInvite=AB12")))
+        assertNull(reader.readLink(view("kakaoabc123://kakaolink?crewInvite=ßßß")), "대문자로 바꾸면 6자가 되는 글자")
     }
 
     @Test

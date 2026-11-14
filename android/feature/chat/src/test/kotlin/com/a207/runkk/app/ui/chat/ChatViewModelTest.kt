@@ -98,6 +98,16 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `얼굴_받기가_계속_실패하면_세_번까지만_받는다`() = runTest(main.dispatcher) {
+        chats.faceFailure = AppError.Network
+        viewModel(ChatPage(listOf(chatMessage(101, authorFaceKey = "selfie:2/a")), hasMore = false)).shown()
+
+        (102L..110L).forEach { id -> live.channel.messages.emit(CrewChatPosted(CREW, id, 3, "새벽곰", "안녕", T0, null)) }
+
+        assertEquals(3, chats.faceCalls.size)
+    }
+
+    @Test
     fun `반응자_얼굴도_키마다_한_번_받는다`() = runTest(main.dispatcher) {
         chats.reactorsResult = Outcome.Success(
             listOf(

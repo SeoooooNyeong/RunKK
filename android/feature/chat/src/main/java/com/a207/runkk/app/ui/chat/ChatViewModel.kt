@@ -47,6 +47,9 @@ constructor(
     /** 이미 받았거나 받는 중인 얼굴 키(키마다 한 번 받는다). 실패한 키는 빼서 다음 목록 갱신에 다시 받는다. */
     private val requestedFaces = mutableSetOf<String>()
 
+    /** 얼굴 키별 받기 실패 횟수. [MAX_FACE_TRIES]번 실패한 키는 이 화면에서 다시 받지 않는다(기본 얼굴로 둔다). */
+    private val faceFailures = mutableMapOf<String, Int>()
+
     val state: StateFlow<ChatUiState> =
         combine(local, room.messages) { s, page -> s.copy(messages = page.messages, hasMore = page.hasMore) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, ChatUiState())
@@ -81,7 +84,12 @@ constructor(
                         local.update { it.copy(faces = it.faces + (key to layers)) }
                     }
 
-                    is Outcome.Failure -> requestedFaces.remove(key)
+                    // 목록은 메시지마다 바뀌므로 실패한 키를 끝없이 다시 받지 않게 횟수를 둔다(리뷰 반영).
+                    is Outcome.Failure -> {
+                        val failures = (faceFailures[key] ?: 0) + 1
+                        faceFailures[key] = failures
+                        if (failures < MAX_FACE_TRIES) requestedFaces.remove(key)
+                    }
                 }
             }
         }
@@ -227,6 +235,9 @@ constructor(
 
     private companion object {
         const val REPORT_MAX = ChatUiState.REPORT_DETAIL_MAX
+
+        /** 얼굴 그림 하나를 받아 보는 횟수 상한. */
+        const val MAX_FACE_TRIES = 3
     }
 }
 

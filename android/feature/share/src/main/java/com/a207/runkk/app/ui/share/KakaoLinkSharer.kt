@@ -43,6 +43,8 @@ class KakaoLinkSharer @Inject constructor() {
     private suspend fun shareToTalk(activity: Activity, template: FeedTemplate): KakaoShareOutcome =
         suspendCancellableCoroutine { continuation ->
             ShareClient.instance.shareDefault(activity, template) { result, _ ->
+                // 화면을 떠나 취소된 뒤 늦게 온 응답이면 카카오톡을 열지 않는다.
+                if (!continuation.isActive) return@shareDefault
                 val shared = if (result != null) {
                     try {
                         activity.startActivity(result.intent)
