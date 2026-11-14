@@ -317,7 +317,7 @@ private fun SplitRow(km: Int, pace: Pace, ratio: Float) {
                     .fillMaxHeight()
                     .fillMaxWidth(ratio.coerceIn(MIN_BAR, 1f))
                     .clip(CircleShape)
-                    .background(RunkkColors.BarCrew)
+                    .background(splitBarFill(LocalRunkkColors.current))
             )
         }
         Text(
@@ -329,6 +329,13 @@ private fun SplitRow(km: Int, pace: Pace, ratio: Float) {
         )
     }
 }
+
+/**
+ * 구간 페이스 막대 채움(WCAG 1.4.11, 리뷰 PL12-A2): 트랙(surfaceHigh)과 카드 바탕 대비 3:1 이상인 무채색 [RunkkColors.textSecondary]
+ * (라이트 #52525B 약 6.1:1, 다크 #A1A1AA로 이전 barCrew 다크 값과 같음). 크루 막대 토큰 barCrew는 라이트 #D4D4D8이 트랙 #E4E4E7과
+ * 약 1.16:1이라 여기서 쓰지 않는다. ColorContrastTest가 두 벌 모두 지킨다.
+ */
+internal fun splitBarFill(colors: RunkkColors): Color = colors.textSecondary
 
 /** 심박 구간: 제목, "워치" 표시, 구간 비율 막대. 구간별 시간은 보조 기술에 읽어 준다. */
 @Composable

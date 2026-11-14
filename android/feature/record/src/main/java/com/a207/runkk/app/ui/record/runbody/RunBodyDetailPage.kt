@@ -5,6 +5,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -89,19 +91,18 @@ private fun LapsCard(laps: List<RunBodyResult.Lap>) {
         RunBodyCaption(stringResource(R.string.record_runbody_lap_header))
         laps.forEach { lap ->
             val pace = stringResource(R.string.record_runbody_pace_per_km, runBodyPace(lap.pace))
+            // 페이스 기호(′ ″)는 화면 읽기에 "1킬로미터당 5분 42초"로 읽힌다(리뷰 PL12-A4)
+            val spokenPace = RunkkFormat.paceSpoken(lap.pace)
+            val heart = lap.averageHeartRate?.let { stringResource(R.string.record_runbody_bpm, it) }
             RunBodyValueRow(
                 if (lap.isPartial) {
                     stringResource(R.string.record_runbody_lap_last, runBodyKm(lap.km))
                 } else {
                     stringResource(R.string.record_runbody_lap_km, lap.km.toInt().toString())
                 },
-                lap.averageHeartRate?.let {
-                    stringResource(
-                        R.string.record_runbody_lap_value,
-                        pace,
-                        stringResource(R.string.record_runbody_bpm, it)
-                    )
-                } ?: pace
+                heart?.let { stringResource(R.string.record_runbody_lap_value, pace, it) } ?: pace,
+                spokenValue =
+                    heart?.let { stringResource(R.string.record_runbody_lap_value, spokenPace, it) } ?: spokenPace
             )
         }
     }
@@ -134,6 +135,11 @@ private fun CoachingCard(coaching: List<RunBodyResult.Coaching>, split: RunBodyR
                         R.string.record_runbody_coaching_split,
                         runBodyPace(split.firstHalf),
                         runBodyPace(split.secondHalf)
+                    ),
+                    spoken = stringResource(
+                        R.string.record_runbody_coaching_split_spoken,
+                        RunkkFormat.paceSpoken(split.firstHalf),
+                        RunkkFormat.paceSpoken(split.secondHalf)
                     )
                 )
             }
@@ -171,10 +177,12 @@ private fun CompareCard(summary: RunBodyResult.Summary, previous: RunBodyResult.
 
 /**
  * 라벨과 본문을 한 줄(문단)에: "좋았던 점 전반과 후반 페이스 차이가 작아요."(G-20). 피그마는 한 줄 전체가 14 Regular 보조색이고 라벨 뒤를
- * 가운뎃점으로 띄운다. 가운뎃점 대신 라벨만 Medium으로 구분한다([임시:D-성-10]).
+ * 가운뎃점으로 띄운다. 가운뎃점 대신 라벨만 Medium으로 구분한다([임시:D-성-10]). [spoken]이 있으면 화면 읽기는 본문 대신 그 문구를
+ * 라벨 뒤에 읽는다(페이스 기호 ′ ″ → "5분 44초", 리뷰 PL12-A4).
  */
 @Composable
-private fun LabeledText(label: String, text: String) {
+private fun LabeledText(label: String, text: String, spoken: String? = null) {
+    val semantics = if (spoken != null) Modifier.semantics { contentDescription = "$label $spoken" } else Modifier
     Text(
         buildAnnotatedString {
             withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(label) }
@@ -183,7 +191,7 @@ private fun LabeledText(label: String, text: String) {
         },
         style = DETAIL_LINE,
         color = RunkkColors.TextSecondary,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().then(semantics)
     )
 }
 

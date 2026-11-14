@@ -52,6 +52,18 @@ class ColorContrastTest {
     }
 
     @Test
+    fun `결과 상세 구간 막대 채움은 두 벌 모두 트랙(surfaceHigh)과 카드 바탕 대비 3 이상이다 (WCAG 1·4·11, PL12-A2)`() {
+        val low =
+            listOf("light" to RunkkColors.light, "dark" to RunkkColors.dark).flatMap { (name, colors) ->
+                listOf("surfaceHigh" to colors.surfaceHigh, "surface" to colors.surface).mapNotNull { (bg, color) ->
+                    val ratio = contrastRatio(splitBarFill(colors), color)
+                    if (ratio >= NON_TEXT_RATIO) null else "$name splitBarFill/$bg ${ratio.round2()}"
+                }
+            }
+        assertEquals(emptyList(), low)
+    }
+
+    @Test
     fun `TC-6534 짝 목록에 없는 글자 토큰이 있으면 누락으로 실패한다`() {
         val fixture = tokensOf(RunkkColors.light) + ("textTertiary" to Color(0xFF52525B))
         val violations = contrastViolations(fixture, TEXT_PAIRS)
