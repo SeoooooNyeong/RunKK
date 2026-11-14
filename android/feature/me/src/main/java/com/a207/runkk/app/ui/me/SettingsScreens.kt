@@ -41,6 +41,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
@@ -121,9 +122,20 @@ fun SettingsRoute(page: SettingsPage, viewModel: SettingsViewModel = hiltViewMod
             },
             onNavigate = navigator::navigate,
             onLogout = viewModel::onLogoutConfirmed,
-            onResendRejected = viewModel::onResendRejected
+            onResendRejected = viewModel::onResendRejected,
+            // 홈만 남기고 그 위에 다시 보기 신호를 올린다. 홈 기능이 가이드를 1단계부터 열고 신호를 뺀다([임시:D-성-312]).
+            onReplayGuide = { replayGuide(selectTab = navigator::selectTab, navigate = { navigator.navigate(it) }) }
         )
     )
+}
+
+/**
+ * 「가이드 다시 보기」([임시:FR-성-36], [임시:D-성-312]): 홈만 남기고([selectTab]) 그 위에 다시 보기 신호 경로를 올린다([navigate]).
+ * 홈 기능이 그 경로를 보고 가이드를 1단계부터 연 뒤 경로를 뺀다. 본 표시는 바꾸지 않는다.
+ */
+internal fun replayGuide(selectTab: (String) -> Unit, navigate: (NavKey) -> Unit) {
+    selectTab(Routes.HOME)
+    navigate(Routes.GuideReplay)
 }
 
 @Composable

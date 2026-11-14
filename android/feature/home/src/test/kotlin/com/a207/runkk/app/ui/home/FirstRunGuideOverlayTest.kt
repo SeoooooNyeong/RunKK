@@ -11,7 +11,6 @@ import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.designsystem.GuideStep
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
-import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.navigation.Routes
 import kotlin.test.assertEquals
@@ -22,14 +21,18 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** 첫 사용 가이드 막(J-1~J-8, D-277). 시험 설계 10-06 TC-9711~TC-9713, TC-9716. */
+/**
+ * 첫 사용 가이드 단계 막([임시:FR-성-35], [임시:D-성-310], [임시:D-성-311], D-277): 4단계(자유런, 배틀런, 기록런, 내 러너) 말풍선의
+ * 제목·설명·쪽수와 「건너뛰기」·「이전」·「다음」(마지막은 「시작하기」). 시험 설계 10-06 TC-9711~TC-9713, TC-9716.
+ */
 @RunWith(RobolectricTestRunner::class)
 class FirstRunGuideOverlayTest {
     @get:Rule
     val compose = createComposeRule()
 
     private var nexts = 0
-    private var skips = 0
+    private var previouses = 0
+    private var backs = 0
 
     private fun show(step: GuideStep, index: Int, count: Int, anchor: Rect = Rect(40f, 400f, 500f, 600f)) {
         compose.setContent {
@@ -40,85 +43,88 @@ class FirstRunGuideOverlayTest {
                     stepCount = count,
                     anchor = anchor,
                     onNext = { nexts++ },
-                    onSkip = { skips++ }
+                    onPrevious = { previouses++ },
+                    onBack = { backs++ }
                 )
             }
         }
     }
 
     @Test
-    fun `TC-9711 1차 배포는 크루·포인트를 뺀 6단계이고 열면 순서대로 늘어난다`() {
+    fun `TC-9711 열린 배포는 4단계이고 내 러너가 닫힌 1차 배포는 3단계다`() {
         assertEquals(
-            listOf(
-                GuideStep.FREE_RUN,
-                GuideStep.BATTLE_RUN,
-                GuideStep.WEEKLY_GOAL,
-                GuideStep.RECORD_RUN,
-                GuideStep.RANKING,
-                GuideStep.ME
-            ),
+            listOf(GuideStep.FREE_RUN, GuideStep.BATTLE_RUN, GuideStep.RECORD_RUN, GuideStep.MY_RUNNER),
+            GuideStep.visibleIn(ReleaseScope.ALL_OPEN)
+        )
+        assertEquals(
+            listOf(GuideStep.FREE_RUN, GuideStep.BATTLE_RUN, GuideStep.RECORD_RUN),
             GuideStep.visibleIn(ReleaseScope.FIRST_RELEASE)
         )
-        assertEquals(7, GuideStep.visibleIn(ReleaseScope.opened(setOf(UnreleasedFeature.CREW))).size)
-        assertEquals(7, GuideStep.visibleIn(ReleaseScope.opened(setOf(UnreleasedFeature.AVATAR_CUSTOMIZE))).size)
-        assertEquals(GuideStep.entries, GuideStep.visibleIn(ReleaseScope.ALL_OPEN))
     }
 
     @Test
-    fun `S15P31A207-249 운영 빌드 가이드는 크루를 넣어 8단계이고 크루는 넷째 단계(J-4)다`() {
-        val steps = GuideStep.visibleIn(ReleaseScope.of(isLockingUnreleased = true))
-        assertEquals(8, steps.size)
-        assertEquals(GuideStep.CREW, steps[3])
-        assertEquals(
-            listOf(GuideStep.FREE_RUN, GuideStep.BATTLE_RUN, GuideStep.WEEKLY_GOAL),
-            steps.take(3)
-        )
-    }
-
-    @Test
-    fun `S15P31A207-249 크루 단계(J-4)는 8쪽 중 넷째 쪽과 디자인 문구, 건너뛰기·다음을 보인다`() {
-        show(GuideStep.CREW, index = 3, count = 8)
-        compose.onNodeWithText("4/8").assertExists()
-        compose.onNodeWithText("크루를 찾아 가입하고,\n크루원과 함께 달려 보세요").assertExists()
-        compose.onNodeWithText("건너뛰기").assertExists()
-        compose.onNodeWithText("다음").assertExists()
-    }
-
-    @Test
-    fun `TC-9712 단계 문구는 디자인 그대로다`() {
+    fun `TC-9712 단계 제목과 설명은 시안 그대로다(D-성-311)`() {
         val res = RuntimeEnvironment.getApplication().resources
         assertEquals(
+            listOf("자유런", "배틀런", "기록런", "내 러너"),
+            GuideStep.entries.map { res.getString(it.titleRes) }
+        )
+        assertEquals(
             listOf(
-                "혼자 달리고 싶을 때,\n자유런을 시작해 보세요",
-                "다른 러너와 같은 거리를 달리며\n대결해 보세요",
-                "이번 주 목표를 얼마나 달성했는지\n확인해 보세요",
-                "내 이전 기록이나 셀럽의 기록에\n도전해 보세요",
-                "다른 러너와 비교해\n내 순위를 확인해 보세요",
-                "내 러닝 기록과 아바타를\n한곳에서 확인해 보세요"
+                "혼자 달리고 싶을 때 눌러 주세요. 거리와 페이스가 자동으로 기록돼요.",
+                "다른 러너와 같은 거리를 달리며 대결해요.",
+                "어제의 내 기록이나 셀럽의 기록과 대결해요. 거리를 고르면 그 기록을 세운 날의 내 모습이 보여요.",
+                "달릴수록 바뀌는 내 러너를 확인하고 꾸며 보세요."
             ),
-            GuideStep.visibleIn(ReleaseScope.FIRST_RELEASE).map { res.getString(it.textRes) }
+            GuideStep.entries.map { res.getString(it.textRes) }
         )
     }
 
     @Test
-    fun `TC-9713 중간 단계는 쪽수와 건너뛰기·다음을 보인다`() {
-        show(GuideStep.FREE_RUN, index = 0, count = 6)
-        compose.onNodeWithText("1/6").assertExists()
-        compose.onNodeWithText("혼자 달리고 싶을 때,\n자유런을 시작해 보세요").assertExists()
+    fun `TC-9713 1단계는 쪽수 1 ÷ 4와 건너뛰기·다음이 있고 이전이 없다`() {
+        show(GuideStep.FREE_RUN, index = 0, count = 4)
+        compose.onNodeWithText("1 / 4").assertExists()
+        compose.onNodeWithText("자유런").assertExists()
+        compose.onNodeWithText("혼자 달리고 싶을 때 눌러 주세요. 거리와 페이스가 자동으로 기록돼요.").assertExists()
+        compose.onNodeWithText("이전").assertDoesNotExist()
+        compose.onNodeWithText("시작하기").assertDoesNotExist()
         compose.onNodeWithText("다음").performClick()
         compose.onNodeWithText("건너뛰기").performClick()
-        compose.onNodeWithText("시작하기").assertDoesNotExist()
         assertEquals(1, nexts)
-        assertEquals(1, skips)
+        assertEquals(1, backs, "단계의 건너뛰기는 뒤로 가기와 같은 종료다(D-성-310)")
+        assertEquals(0, previouses)
     }
 
     @Test
-    fun `TC-9713 마지막 단계는 시작하기만 있고 건너뛰기가 없다(TF-V9-03 디자인 j8 기준)`() {
-        show(GuideStep.ME, index = 5, count = 6)
-        compose.onNodeWithText("6/6").assertExists()
+    fun `2단계부터 이전이 있다`() {
+        show(GuideStep.BATTLE_RUN, index = 1, count = 4)
+        compose.onNodeWithText("2 / 4").assertExists()
+        compose.onNodeWithText("배틀런").assertExists()
+        compose.onNodeWithText("건너뛰기").assertExists()
+        compose.onNodeWithText("다음").assertExists()
+        compose.onNodeWithText("이전").performClick()
+        assertEquals(1, previouses)
+        assertEquals(0, nexts)
+    }
+
+    @Test
+    fun `TC-9713 마지막 단추는 시작하기이고 건너뛰기가 없다`() {
+        show(GuideStep.MY_RUNNER, index = 3, count = 4)
+        compose.onNodeWithText("4 / 4").assertExists()
+        compose.onNodeWithText("내 러너").assertExists()
+        compose.onNodeWithText("다음").assertDoesNotExist()
         compose.onNodeWithText("건너뛰기").assertDoesNotExist()
+        compose.onNodeWithText("이전").assertExists()
         compose.onNodeWithText("시작하기").performClick()
         assertEquals(1, nexts)
+    }
+
+    @Test
+    fun `닫힌 기능이 있으면 쪽수는 n ÷ 3이고 기록런이 마지막이다`() {
+        show(GuideStep.RECORD_RUN, index = 2, count = 3)
+        compose.onNodeWithText("3 / 3").assertExists()
+        compose.onNodeWithText("기록런").assertExists()
+        compose.onNodeWithText("시작하기").assertExists()
     }
 
     @Test
@@ -167,13 +173,24 @@ class FirstRunGuideOverlayTest {
     @Test
     @Config(qualifiers = RUNKK_PHONE)
     fun `R2-16 말풍선은 너비 300dp이고 꼬리가 앵커 쪽에 붙는다`() {
-        show(GuideStep.FREE_RUN, index = 0, count = 6, anchor = Rect(20f, 40f, 160f, 120f))
+        show(GuideStep.FREE_RUN, index = 0, count = 4, anchor = Rect(20f, 40f, 160f, 120f))
         compose.onNodeWithTag(GUIDE_BUBBLE_TAG).assertWidthIsEqualTo(BUBBLE_WIDTH)
         compose.onNodeWithTag(GUIDE_TAIL_TAG).assertExists()
         val density = compose.density.density
         val bubbleTop = compose.onNodeWithTag(GUIDE_BUBBLE_TAG).getUnclippedBoundsInRoot().top.value * density
         // 강조 자리(앵커 + 6dp) 바로 아래 6dp에 붙는다.
         assertEquals(120f + 12f * density, bubbleTop, 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h640dp")
+    fun `좁은 화면(320)에서도 아래 줄 단추가 말풍선 안에 든다`() {
+        show(GuideStep.RECORD_RUN, index = 2, count = 4)
+        val bubble = compose.onNodeWithTag(GUIDE_BUBBLE_TAG).getUnclippedBoundsInRoot()
+        listOf("건너뛰기", "이전", "다음").forEach {
+            val button = compose.onNodeWithText(it).getUnclippedBoundsInRoot()
+            assertEquals(true, button.left >= bubble.left && button.right <= bubble.right, "$it 단추가 말풍선 밖이다")
+        }
     }
 
     @Test
@@ -186,5 +203,6 @@ class FirstRunGuideOverlayTest {
             }
         }
         compose.onNodeWithTag(GUIDE_OVERLAY_TAG).assertDoesNotExist()
+        compose.onNodeWithTag(GUIDE_START_CARD_TAG).assertDoesNotExist()
     }
 }
