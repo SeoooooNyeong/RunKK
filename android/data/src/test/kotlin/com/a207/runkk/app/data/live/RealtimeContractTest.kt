@@ -258,7 +258,7 @@ class RealtimeContractTest {
     }
 
     @Test
-    fun 얼굴_필드가_없는_옛_알림도_읽는다() {
+    fun `얼굴_필드가_없는_옛_알림도_읽는다`() {
         val old = decoder.decode(
             """{"type":"CrewChatPosted","crewId":7,"messageId":801,"authorId":3,"authorName":"새벽곰","content":"안녕",
                |"sentAt":"2026-10-22T19:07:03+09:00","clientMessageId":null,"messageKind":"TEXT","authorRole":"LEADER",

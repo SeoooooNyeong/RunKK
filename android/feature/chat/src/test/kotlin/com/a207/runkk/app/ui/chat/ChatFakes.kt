@@ -141,9 +141,8 @@ class FakeChatRepository : ChatRepository {
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> {
         faceCalls += faceKey
         faceFailure?.let { return Outcome.Failure(it) }
-        return Outcome.Success(
-            if (faceKey?.startsWith("selfie:") == true) listOf(FaceLayer(FacePart.EYES, byteArrayOf(1))) else emptyList()
-        )
+        val isSelfie = faceKey?.startsWith("selfie:") == true
+        return Outcome.Success(if (isSelfie) listOf(FaceLayer(FacePart.EYES, byteArrayOf(1))) else emptyList())
     }
 }
 

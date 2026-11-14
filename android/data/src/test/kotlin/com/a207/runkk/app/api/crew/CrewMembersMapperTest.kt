@@ -13,7 +13,7 @@ class CrewMembersMapperTest {
     private fun members(body: String) = json.decodeFromString<CrewMembersResponse>(body).toDomain().members
 
     @Test
-    fun members_응답의_faceKey와_shownGender를_옮긴다() {
+    fun `members_응답의_faceKey와_shownGender를_옮긴다`() {
         val (picked, plain) = members(
             """{"members":[
                |{"memberId":12,"displayName":"달리는곰","role":"LEADER","me":true,"genderVisibility":null,
@@ -30,7 +30,7 @@ class CrewMembersMapperTest {
     }
 
     @Test
-    fun 서버가_faceKey를_안_주면_null이다() {
+    fun `서버가_faceKey를_안_주면_null이다`() {
         val old = members("""{"members":[{"memberId":31,"displayName":"새벽러너","role":"MEMBER"}]}""").single()
 
         assertNull(old.faceKey)
@@ -38,7 +38,7 @@ class CrewMembersMapperTest {
     }
 
     @Test
-    fun 모르는_표시성별_이름은_null이다() {
+    fun `모르는_표시성별_이름은_null이다`() {
         val odd = members(
             """{"members":[{"memberId":31,"displayName":"a","role":"MEMBER","shownGender":"OTHER"}]}"""
         ).single()

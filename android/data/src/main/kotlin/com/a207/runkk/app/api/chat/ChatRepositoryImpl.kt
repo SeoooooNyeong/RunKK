@@ -18,7 +18,8 @@ import javax.inject.Inject
  */
 internal class ChatRepositoryImpl
 @Inject
-constructor(private val api: ChatApi, private val faces: FaceImageSource) : ChatRepository {
+constructor(private val api: ChatApi, private val faces: FaceImageSource) :
+    ChatRepository {
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
     override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)

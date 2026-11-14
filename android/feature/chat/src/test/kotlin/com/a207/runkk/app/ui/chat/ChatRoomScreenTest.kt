@@ -68,7 +68,7 @@ class ChatRoomScreenTest {
     }
 
     @Test
-    fun 얼굴_없으면_표시성별_기본_얼굴() {
+    fun `얼굴_없으면_표시성별_기본_얼굴`() {
         show(
             ChatUiState(
                 messages = listOf(
@@ -88,7 +88,7 @@ class ChatRoomScreenTest {
     }
 
     @Test
-    fun 작성자_얼굴_그림이_있으면_32_원에_그_얼굴을_그린다() {
+    fun `작성자_얼굴_그림이_있으면_32_원에_그_얼굴을_그린다`() {
         show(
             ChatUiState(
                 messages = listOf(chatMessage(101, authorFaceKey = "selfie:2/a", authorShownGender = Gender.MALE)),
@@ -100,7 +100,7 @@ class ChatRoomScreenTest {
     }
 
     @Test
-    fun 반응자_목록의_원에도_얼굴을_그린다() {
+    fun `반응자_목록의_원에도_얼굴을_그린다`() {
         val target = chatMessage(101, reactions = mapOf(ReactionKind.LIKE to 2))
         show(
             ChatUiState(

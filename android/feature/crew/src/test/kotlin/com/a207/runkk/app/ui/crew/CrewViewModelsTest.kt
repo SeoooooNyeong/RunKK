@@ -487,7 +487,7 @@ class CrewHomeViewModelTest {
     private fun faceCalls() = repo.calls.filter { it.startsWith("face:") }
 
     @Test
-    fun 크루원_얼굴_그림을_캐시_먼저_받는다() {
+    fun `크루원_얼굴_그림을_캐시_먼저_받는다`() {
         val cachedLayers = listOf(FaceLayer(FacePart.HAIR, byteArrayOf(9)))
         repo.memberList = withFaces("selfie:1/a", "selfie:2/b", null)
         repo.cachedFaces["selfie:1/a"] = cachedLayers
@@ -502,7 +502,7 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun 같은_얼굴_키는_한_번만_받는다() {
+    fun `같은_얼굴_키는_한_번만_받는다`() {
         repo.memberList = withFaces("selfie:1/a", "selfie:1/a", "default:FOX")
 
         val vm = vm()
@@ -514,7 +514,7 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun 실패하면_다음_갱신에_다시_받는다() {
+    fun `실패하면_다음_갱신에_다시_받는다`() {
         repo.memberList = withFaces("selfie:1/a", null, null)
         repo.fail["face"] = AppError.Network
 

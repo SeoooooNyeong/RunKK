@@ -59,7 +59,7 @@ class ChatRoomTest {
     }
 
     @Test
-    fun CrewChatPosted의_작성자_얼굴이_메시지로_옮겨진다() = runTest {
+    fun `CrewChatPosted의_작성자_얼굴이_메시지로_옮겨진다`() = runTest {
         val room = opened(page(51L..100L))
         live.channel.messages.emit(
             posted(5, 101).copy(authorFaceKey = "head:9:ab12", authorShownGender = "FEMALE")

@@ -11,7 +11,7 @@ class ChatMapperTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun 메시지_항목과_반응자_행의_얼굴을_옮긴다() {
+    fun `메시지_항목과_반응자_행의_얼굴을_옮긴다`() {
         val (shown, withdrawn) = json.decodeFromString<ChatPageResponse>(
             """{"messages":[
                |{"messageId":801,"authorId":3,"authorName":"새벽곰","content":"안녕","sentAt":"2026-10-22T19:07:03+09:00",
@@ -40,7 +40,7 @@ class ChatMapperTest {
     }
 
     @Test
-    fun 얼굴_항목이_없는_옛_응답도_읽는다() {
+    fun `얼굴_항목이_없는_옛_응답도_읽는다`() {
         val old = json.decodeFromString<ChatMessageItem>(
             """{"messageId":801,"authorId":3,"authorName":"새벽곰","content":"안녕","sentAt":"2026-10-22T19:07:03+09:00"}"""
         ).toDomain()

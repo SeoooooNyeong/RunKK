@@ -58,14 +58,14 @@ class CrewMembersTabTest {
     private fun count(tag: String) = compose.onAllNodesWithTag(tag, useUnmergedTree = true)
 
     @Test
-    fun 크루원_행은_faceKey가_있으면_얼굴을_그린다() {
+    fun `크루원_행은_faceKey가_있으면_얼굴을_그린다`() {
         show(state(member(1, "default:FOX", Gender.FEMALE)))
 
         count(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE)).assertCountEquals(1)
     }
 
     @Test
-    fun 셀카_얼굴_그림을_받은_크루원은_그_얼굴이고_못_받았으면_표시성별_기본_얼굴이다() {
+    fun `셀카_얼굴_그림을_받은_크루원은_그_얼굴이고_못_받았으면_표시성별_기본_얼굴이다`() {
         val layers = listOf(FaceLayer(FacePart.EYES, byteArrayOf(1)))
         show(
             state(member(1, "selfie:1/a", Gender.MALE), member(2, "selfie:2/b", Gender.FEMALE))
@@ -78,7 +78,7 @@ class CrewMembersTabTest {
     }
 
     @Test
-    fun faceKey가_없으면_표시성별의_기본_얼굴이다() {
+    fun `faceKey가_없으면_표시성별의_기본_얼굴이다`() {
         show(state(member(1, null, Gender.FEMALE), member(2, null, Gender.MALE), member(3, null, null)))
 
         count(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE)).assertCountEquals(1)
@@ -87,7 +87,7 @@ class CrewMembersTabTest {
     }
 
     @Test
-    fun 이름_아래_메타_줄은_가운뎃점_없이_아이콘_항목으로_러니멀_유형과_레벨을_보인다() {
+    fun `이름_아래_메타_줄은_가운뎃점_없이_아이콘_항목으로_러니멀_유형과_레벨을_보인다`() {
         show(state(member(1, null, Gender.MALE, runimalType = "MORNING_SPARROW", level = 26), member(2, null, null)))
 
         compose.onNodeWithContentDescription("아침 참새, Lv26", useUnmergedTree = true).assertExists()
@@ -95,7 +95,7 @@ class CrewMembersTabTest {
     }
 
     @Test
-    fun 크루원_정보_팝업의_80_원에도_그_크루원의_얼굴을_그린다() {
+    fun `크루원_정보_팝업의_80_원에도_그_크루원의_얼굴을_그린다`() {
         val opened = member(2, "default:FOX", Gender.FEMALE)
         compose.setContent {
             RunkkTheme(reduceMotion = true) {

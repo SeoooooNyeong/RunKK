@@ -58,7 +58,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun 작성자_얼굴을_키마다_한_번_받는다() = runTest(main.dispatcher) {
+    fun `작성자_얼굴을_키마다_한_번_받는다`() = runTest(main.dispatcher) {
         chats.cachedFaces["selfie:9/z"] = listOf(FaceLayer(FacePart.HAIR, byteArrayOf(9)))
         val vm = viewModel(
             ChatPage(
@@ -84,7 +84,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun 얼굴_받기_실패는_오류를_띄우지_않는다() = runTest(main.dispatcher) {
+    fun `얼굴_받기_실패는_오류를_띄우지_않는다`() = runTest(main.dispatcher) {
         chats.faceFailure = AppError.Network
         val vm = viewModel(ChatPage(listOf(chatMessage(101, authorFaceKey = "selfie:2/a")), hasMore = false)).shown()
 
@@ -98,7 +98,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun 반응자_얼굴도_키마다_한_번_받는다() = runTest(main.dispatcher) {
+    fun `반응자_얼굴도_키마다_한_번_받는다`() = runTest(main.dispatcher) {
         chats.reactorsResult = Outcome.Success(
             listOf(
                 Reactor(4, "느긋한고래", ReactionKind.CHECK, T0, isMe = false, faceKey = "selfie:4/d"),
