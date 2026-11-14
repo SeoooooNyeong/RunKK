@@ -63,6 +63,26 @@ object RunkkAvatarArt {
             R.drawable.avatar_default_head_female_free
         }
     }
+
+    /**
+     * [defaultHeadOf]와 같은 구도의 피부 층(얼굴 층에서 눈·헤어가 덮는 만큼 뺀 그림). 기본 캐릭터 얼굴 원을 그을릴 때 기본 머리 위에
+     * 이 층만 거르개로 덧그려 피부만 어둡게 한다(S15P31A207-300, 셀카 머리가 얼굴 층에만 거르개를 씌우는 것과 같다). 기본 머리 그림과
+     * 함께 core/ui/tools/default-head/make_default_heads.py가 만든다.
+     */
+    @DrawableRes
+    fun defaultHeadSkinOf(character: AvatarCharacter, isInCircle: Boolean = true): Int = when (character) {
+        AvatarCharacter.MALE -> if (isInCircle) {
+            R.drawable.avatar_default_head_male_skin
+        } else {
+            R.drawable.avatar_default_head_male_free_skin
+        }
+
+        AvatarCharacter.FEMALE -> if (isInCircle) {
+            R.drawable.avatar_default_head_female_skin
+        } else {
+            R.drawable.avatar_default_head_female_free_skin
+        }
+    }
 }
 
 /**
@@ -104,7 +124,12 @@ fun RunkkAvatarPortrait(
             // 받는 중: 빈 자리(부르는 쪽 원 바탕만 보인다).
             isFaceLoading && !isDefault -> Box(Modifier.fillMaxSize().testTag(RUNKK_AVATAR_FACE_LOADING_TAG))
 
-            else -> DefaultHead(character, isInCircle)
+            // 기본 캐릭터 얼굴도 그 얼굴 주인의 러닝량으로 피부만 그을린다(한 러너 얼굴 원만 감싼 톤일 때, S15P31A207-300).
+            else -> DefaultHead(
+                character,
+                isInCircle,
+                skinFilter = if (isDefault) LocalSelfFaceTone.current.skinFilterFor(faceKey) else null
+            )
         }
     }
 }
@@ -201,21 +226,28 @@ private fun DrawScope.drawLayer(image: ImageBitmap, x: Float, y: Float, scale: F
 
 /**
  * 기본 머리 그림(512×512)을 상자 가운데에 맞춰 그린다. 그릴 크기에 맞춰 줄여 읽은 비트맵을 함께 쓴다([DefaultHeadBitmaps]): 랭킹·크루
- * 목록처럼 같은 그림이 여러 줄에 나와도 줄마다 원본을 다시 읽지 않는다.
+ * 목록처럼 같은 그림이 여러 줄에 나와도 줄마다 원본을 다시 읽지 않는다. [skinFilter]가 있으면 같은 구도의 피부 층
+ * ([RunkkAvatarArt.defaultHeadSkinOf])만 그 거르개로 덧그려 피부만 그을린다(머리카락·눈은 그대로, S15P31A207-300).
  */
 @Composable
-private fun DefaultHead(character: AvatarCharacter, isInCircle: Boolean) {
+private fun DefaultHead(character: AvatarCharacter, isInCircle: Boolean, skinFilter: ColorFilter? = null) {
     val resources = LocalResources.current
     val id = RunkkAvatarArt.defaultHeadOf(character, isInCircle)
+    val skinId = RunkkAvatarArt.defaultHeadSkinOf(character, isInCircle)
     Canvas(Modifier.fillMaxSize().testTag(runkkAvatarDefaultHeadTag(character, isInCircle))) {
         val side = minOf(size.width, size.height)
         val image = DefaultHeadBitmaps.of(resources, id, side.roundToInt()) ?: return@Canvas
         val length = side.roundToInt()
+        val offset = IntOffset(((size.width - side) / 2).roundToInt(), ((size.height - side) / 2).roundToInt())
+        drawImage(image, dstOffset = offset, dstSize = IntSize(length, length), filterQuality = FilterQuality.Medium)
+        if (skinFilter == null) return@Canvas
+        val skin = DefaultHeadBitmaps.of(resources, skinId, side.roundToInt()) ?: return@Canvas
         drawImage(
-            image,
-            dstOffset = IntOffset(((size.width - side) / 2).roundToInt(), ((size.height - side) / 2).roundToInt()),
+            skin,
+            dstOffset = offset,
             dstSize = IntSize(length, length),
-            filterQuality = FilterQuality.Medium
+            filterQuality = FilterQuality.Medium,
+            colorFilter = skinFilter
         )
     }
 }

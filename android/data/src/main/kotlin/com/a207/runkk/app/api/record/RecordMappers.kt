@@ -22,6 +22,7 @@ import com.a207.runkk.app.domain.record.RecordVerdict
 import com.a207.runkk.app.domain.record.Report
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.record.RunSummary
+import com.a207.runkk.app.domain.record.RunnerLook
 import com.a207.runkk.app.domain.record.ShapePoint
 import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.record.WeeklyGoalProgress
@@ -150,7 +151,17 @@ internal fun GrowthResponse.toDomain(): Growth = Growth(
 internal fun ReportResponse.toDomain(): Report = Report(summary, comment, commentSource, message)
 
 internal fun RankingResponse.Entry.toDomain(): Ranking.Entry =
-    Ranking.Entry(rank, name, Distance(distanceMeters), enumByName<Gender>(shownGender), publicTier)
+    Ranking.Entry(rank, name, Distance(distanceMeters), enumByName<Gender>(shownGender), publicTier, look?.toDomain())
+
+/** 상의·하의·신발만 옮긴다(모자 등 다른 부위는 그리지 않아 버린다). */
+internal fun RankingResponse.Look.toDomain(): RunnerLook = RunnerLook(
+    faceKey = faceKey,
+    topKey = outfit["TOP"],
+    bottomKey = outfit["BOTTOM"],
+    shoesKey = outfit["SHOES"],
+    bodyVariant = bodyVariant,
+    runAmount = runAmount
+)
 
 internal fun RankingResponse.toDomain(): Ranking = Ranking(
     entries = entries.map { it.toDomain() },

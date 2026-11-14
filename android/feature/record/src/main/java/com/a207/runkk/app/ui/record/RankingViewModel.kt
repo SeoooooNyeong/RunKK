@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.record.AggregationPeriod
 import com.a207.runkk.app.domain.record.RecordRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +40,26 @@ class RankingViewModel @Inject constructor(private val records: RecordRepository
         if (period == _state.value.period) return
         _state.update { it.copy(period = period) }
         refresh()
+    }
+
+    /** 받는 중이거나 받은 얼굴 키(같은 얼굴을 거듭 받지 않는다). 받기에 실패한 키는 빼서 다시 보일 때 다시 받는다. */
+    private val requestedFaces = mutableSetOf<String>()
+
+    /**
+     * 얼굴 원이 화면에 보일 때(S15P31A207-300): 그 얼굴 키의 셀카 얼굴을 받는다. 목록이 최대 100줄이라 보이는 줄만 받는다.
+     * 받을 키가 아니면([isFetchableFace], 기본 캐릭터·모르는 접두어) 받을 것이 없다. 받는 동안 같은 키는 거듭 받지 않고, 받지 못하면
+     * 빈 층(기본 머리)으로 두되 「받음」에서 빼 다음에 보일 때(다시 시도·기간 바꾸기 포함) 한 번 더 받는다([임시:AR-성-88], 시상대
+     * SelfieHeads와 같은 정책). 보일 때마다 많아야 한 번이라 다시 받기가 몰리지 않는다.
+     */
+    fun onFaceShown(faceKey: String) {
+        if (!isFetchableFace(faceKey)) return
+        if (!requestedFaces.add(faceKey)) return
+        viewModelScope.launch {
+            val result = records.faceLayers(faceKey)
+            if (result is Outcome.Failure) requestedFaces.remove(faceKey)
+            val layers = result.getOrNull().orEmpty()
+            _state.update { it.copy(faces = it.faces + (faceKey to layers)) }
+        }
     }
 
     fun refresh() {

@@ -58,7 +58,8 @@ import kotlinx.coroutines.launch
 class MyAvatarStore internal constructor(
     private val avatars: AvatarRepository,
     private val myGender: Flow<Gender?>,
-    private val heads: SelfieHeads,
+    /** 셀카 머리 캐시. 전신 정지 그림 칸이 다른 러너 머리도 이것으로 받는다(S15P31A207-300). */
+    internal val heads: SelfieHeads,
     private val preload: suspend (AvatarGender) -> Unit,
     /** 모습 미리 합성(동작별, [prepareRiveAvatarLook]). */
     private val prepare: suspend (RiveAvatarLook, AvatarMotion) -> Unit,
