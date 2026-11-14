@@ -207,6 +207,82 @@ class AnalysisViewModelsTest {
     }
 
     @Test
+    fun `랭킹 얼굴은 보일 때 키마다 한 번만 받고, 받기 전에는 없고, 실패하면 기본 머리다(S15P31A207-300)`() {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EARS, byteArrayOf(1))
+        )
+        records.faceResults["head:4:a"] = Outcome.Success(layers)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        records.faceGates["head:4:a"] = gate
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("head:4:a")
+        vm.onFaceShown("head:4:a")
+        assertNull(vm.state.value.faces["head:4:a"], "받는 중")
+        gate.complete(Unit)
+        assertEquals(layers, vm.state.value.faces["head:4:a"])
+
+        vm.onFaceShown("head:5:b")
+        assertEquals(emptyList(), vm.state.value.faces["head:5:b"], "받지 못하면 빈 층(기본 머리)")
+        vm.onFaceShown("default:RABBIT")
+        assertEquals(listOf("face:head:4:a", "face:head:5:b"), records.calls.filter { it.startsWith("face:") })
+        assertNull(vm.state.value.faces["default:RABBIT"], "기본 캐릭터 키는 받을 것이 없다")
+    }
+
+    @Test
+    fun `랭킹 얼굴은 셀카 부위 얼굴(selfie 키)도 받는다(기초 경로 B4, S15P31A207-300)`() {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EYES, byteArrayOf(2))
+        )
+        records.faceResults["selfie:9/set"] = Outcome.Success(layers)
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("selfie:9/set")
+
+        assertEquals(listOf("face:selfie:9/set"), records.calls.filter { it.startsWith("face:") })
+        assertEquals(layers, vm.state.value.faces["selfie:9/set"])
+    }
+
+    @Test
+    fun `모르는 접두어 얼굴 키는 받지 않고 받는 중도 아니라 성별 기본 얼굴이다(AR-성-87)`() {
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("future:4:a")
+
+        assertTrue(records.calls.none { it.startsWith("face:") }, "받을 수 없는 키는 요청하지 않는다")
+        assertFalse(rankingFaceLoading("future:4:a", vm.state.value.faces), "빈 자리로 남지 않는다")
+        assertFalse(rankingFaceLoading("default:RABBIT", vm.state.value.faces))
+        assertFalse(rankingFaceLoading(null, vm.state.value.faces))
+        assertTrue(rankingFaceLoading("head:4:a", vm.state.value.faces), "받을 키인데 아직 없으면 받는 중")
+        assertTrue(rankingFaceLoading("selfie:9/set", vm.state.value.faces))
+    }
+
+    @Test
+    fun `얼굴 받기가 실패하면 기본 얼굴로 두고 다시 보일 때 다시 받는다, 받는 동안 같은 키는 거듭 받지 않는다(AR-성-88)`() {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EARS, byteArrayOf(1))
+        )
+        val vm = RankingViewModel(records, clock)
+
+        vm.onFaceShown("head:4:a")
+        assertEquals(emptyList(), vm.state.value.faces["head:4:a"], "실패한 동안은 기본 얼굴(빈 층)")
+        assertFalse(rankingFaceLoading("head:4:a", vm.state.value.faces), "실패는 받는 중이 아니다")
+
+        records.faceResults["head:4:a"] = Outcome.Success(layers)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        records.faceGates["head:4:a"] = gate
+        vm.onFaceShown("head:4:a")
+        vm.onFaceShown("head:4:a")
+        assertEquals(2, records.calls.count { it == "face:head:4:a" }, "다시 보이면 한 번 더, 받는 동안은 거듭 받지 않는다")
+        assertEquals(emptyList(), vm.state.value.faces["head:4:a"], "다시 받는 동안도 기본 얼굴")
+
+        gate.complete(Unit)
+        assertEquals(layers, vm.state.value.faces["head:4:a"])
+        vm.onFaceShown("head:4:a")
+        assertEquals(2, records.calls.count { it == "face:head:4:a" }, "받은 얼굴은 다시 받지 않는다")
+    }
+
+    @Test
     fun `코치는 이번 주(월~일) 계획 현황을 읽고 오늘 계획·주간 목표를 정한다(FR-072~FR-075)`() {
         val vm = CoachViewModel(records, todayPlans, clock)
         assertEquals("progress:2026-10-19..2026-10-25", records.calls.first())

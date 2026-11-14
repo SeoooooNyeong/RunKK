@@ -167,6 +167,16 @@ class FakeRecordRepository : RecordRepository {
         return rankingResult
     }
 
+    /** 얼굴 키별 얼굴 그림(없으면 받기 실패)과 붙잡아 두는 문. */
+    val faceResults = mutableMapOf<String, Outcome<List<com.a207.runkk.app.core.model.FaceLayer>>>()
+    val faceGates = mutableMapOf<String, kotlinx.coroutines.CompletableDeferred<Unit>>()
+
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> {
+        calls += "face:$faceKey"
+        faceKey?.let { faceGates[it]?.await() }
+        return faceResults[faceKey] ?: Outcome.Failure(AppError.Network)
+    }
+
     var goalResult: Outcome<Unit> = Outcome.Success(Unit)
     var planResult: Outcome<Unit> = Outcome.Success(Unit)
 
