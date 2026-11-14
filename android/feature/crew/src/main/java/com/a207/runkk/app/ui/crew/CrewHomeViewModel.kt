@@ -18,6 +18,7 @@ import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
+import com.a207.runkk.app.ui.share.KakaoShareOutcome
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -507,6 +508,24 @@ class CrewHomeViewModel @Inject constructor(
 
     fun onInviteCopied() = _state.update {
         it.copy(isInviteOpen = false, message = uiText(R.string.crew_manage_invite_copied))
+    }
+
+    /** 초대 링크를 복사했다: 창을 닫고 안내한다(코드 복사와 같다). */
+    fun onInviteLinkCopied() = _state.update {
+        it.copy(isInviteOpen = false, message = uiText(R.string.crew_invite_link_copied))
+    }
+
+    /**
+     * 「카카오톡으로 보내기」의 결과([임시:FR-성-37]). 열지 못했으면 안내 이벤트를 보내고 창은 그대로 둔다(다른 방법을 고를 수 있게).
+     * 카카오톡이나 웹 공유를 열었으면 창을 그대로 둔다(돌아와서 닫는다).
+     */
+    fun onInviteKakaoResult(outcome: KakaoShareOutcome) {
+        if (outcome == KakaoShareOutcome.FAILED) _events.trySend(CrewHomeEvent.InviteKakaoFailed)
+    }
+
+    /** 「다른 앱으로 공유」의 공유 화면을 열지 못했다(공유할 앱 없음): 창은 그대로 두고 이벤트로 알린다. */
+    fun onInviteShareFailed() {
+        _events.trySend(CrewHomeEvent.InviteShareFailed)
     }
 
     // ⋯ 메뉴(피그마 F-17·F-24)

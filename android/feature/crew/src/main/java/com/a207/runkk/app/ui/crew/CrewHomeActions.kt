@@ -75,10 +75,16 @@ data class CrewHomeActions(
     val onIntroDraft: (String) -> Unit = {},
     val onIntroDismiss: () -> Unit = {},
     val onIntroSave: () -> Unit = {},
-    /** 크루 정보의 초대 코드 팝업(피그마 F-18b·F-25b) 열기·닫기, 복사한 뒤 안내. */
+    /** 크루 정보의 초대 창([임시:FR-성-37]) 열기·닫기, 코드를 복사한 뒤 안내. */
     val onInviteOpen: () -> Unit = {},
     val onInviteClose: () -> Unit = {},
     val onInviteCopied: () -> Unit = {},
+    /** 초대 창의 「카카오톡으로 보내기」(Route가 카카오톡을 연다). */
+    val onInviteKakao: () -> Unit = {},
+    /** 초대 창의 「초대 링크 복사」: 창이 링크를 클립보드에 넣은 뒤 부른다. */
+    val onInviteLinkCopy: () -> Unit = {},
+    /** 초대 창의 「다른 앱으로 공유」(Route가 공유 화면을 연다). */
+    val onInviteSystemShare: () -> Unit = {},
     val onMessageShown: () -> Unit = {},
     val onLoadMore: () -> Unit = {}
 )

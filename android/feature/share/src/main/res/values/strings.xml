@@ -16,4 +16,8 @@
     <string name="share_card_crew_goal_goal">목표</string>
     <string name="share_card_crew_goal_participants">참여 인원</string>
     <string name="share_card_crew_goal_people">%1$d명</string>
+    <!-- 카카오톡 크루 초대 메시지([임시:FR-성-37]) -->
+    <string name="share_crew_invite_description">런크크 크루에 초대합니다.</string>
+    <string name="share_crew_invite_description_until">런크크 크루에 초대합니다. %1$s까지 가입할 수 있어요.</string>
+    <string name="share_crew_invite_button">크루 가입하기</string>
 </resources>

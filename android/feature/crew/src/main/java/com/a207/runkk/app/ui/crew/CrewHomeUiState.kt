@@ -43,7 +43,7 @@ data class CrewHomeUiState(
     val confirmDelete: PostList.Item? = null,
     val isEditingIntro: Boolean = false,
     val introDraft: String = "",
-    /** 초대 코드 팝업(피그마 F-18b·F-25b)을 연 상태. */
+    /** 초대 창([임시:FR-성-37], CrewInviteSheet)을 연 상태. 코드와 만료일은 [detail]에서 읽는다. */
     val isInviteOpen: Boolean = false,
     /** ⋯ 메뉴(피그마 F-17·F-24: 딤 + 카드)를 연 상태. */
     val isMenuOpen: Boolean = false,
