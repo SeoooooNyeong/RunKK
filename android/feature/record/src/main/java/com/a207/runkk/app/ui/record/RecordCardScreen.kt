@@ -21,8 +21,10 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarBackdrop
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkCard
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -55,6 +58,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -175,7 +179,8 @@ private fun CardPopup(
             Modifier
                 .weight(1f, fill = false)
                 .clickable(role = Role.Button, onClickLabel = flipLabel, onClick = onFlip)
-                .semantics { contentDescription = description }
+                .semantics { contentDescription = description },
+            backgroundKey = cardBackgroundKey(state)
         )
         SideDots(side)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -193,14 +198,25 @@ private fun CardPopup(
     }
 }
 
-/** 지금 면의 카드(앞면 기록 또는 뒷면 코스). */
+/** 지금 면의 카드(앞면 기록 또는 뒷면 코스). 앞면의 전신 아바타가 보이면 [onAvatarReady]가 불린다. */
 @Composable
-private fun RecordCardFace(card: RunCard, side: CardSide, modifier: Modifier) {
+private fun RecordCardFace(
+    card: RunCard,
+    side: CardSide,
+    modifier: Modifier,
+    backgroundKey: String?,
+    onAvatarReady: () -> Unit = {}
+) {
     when (side) {
-        CardSide.FRONT -> RecordCardFront(card, modifier)
+        CardSide.FRONT -> RecordCardFront(card, modifier, backgroundKey, onAvatarReady)
         CardSide.BACK -> RecordCardBack(card, modifier)
     }
 }
+
+/** 앞면 무대 배경 키([임시:D-성-283]과 같은 규칙): 아바타 꾸미기가 열렸으면 내가 고른 배경, 아니면 기본 무대. */
+@Composable
+private fun cardBackgroundKey(state: RecordCardUiState): String? =
+    if (LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) state.backgroundKey else null
 
 /**
  * 지금 보이는 면을 알리는 점 두 개(K-1): 지금 면은 길쭉한 진한 점, 다른 면은 작은 표면색 점. 다크는 표면색이 어두워 밤 배경 장면에
@@ -237,6 +253,7 @@ private fun SideDots(side: CardSide) {
  * 카드 공유(K-2): 미리보기 카드, "코스 지도 표시"(켜면 미리보기가 코스 면으로 바뀌고 그 면을 공유한다), 공유 대상 막대.
  * 코스 지도 공유가 꺼진 기록은 스위치를 끈 채 흐리게 잠그고, 누르면 기존 안내를 스낵바로 보인다(FR-011·FR-069).
  * 공유할 때 미리보기 카드를 그대로 찍어 넘기고, 워드마크는 ViewModel이 공유 이미지에만 붙인다(사용자 결정 2026-11-09).
+ * 앞면의 전신 아바타는 처음 한 번 읽는 동안 칸이 비어 있으므로, 아바타가 보일 때까지 공유 단추를 막는다([임시:D-성-292]).
  */
 @Composable
 private fun ShareStep(
@@ -253,6 +270,7 @@ private fun ShareStep(
     val isDark = LocalRunkkColors.current.isDark
     val scope = rememberCoroutineScope()
     val share: (CardShareKind) -> Unit = { kind -> scope.launch { onShare(kind, capture.capture(isDark)) } }
+    var isAvatarReady by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxSize()) {
         RunkkTopBar(
             title = stringResource(R.string.record_card_share_title),
@@ -271,7 +289,9 @@ private fun ShareStep(
                 Modifier
                     .weight(1f, fill = false)
                     .capturedBy(capture)
-                    .semantics { contentDescription = description }
+                    .semantics { contentDescription = description },
+                backgroundKey = cardBackgroundKey(state),
+                onAvatarReady = { isAvatarReady = true }
             )
             CourseSwitch(
                 isChecked = side == CardSide.BACK,
@@ -284,7 +304,8 @@ private fun ShareStep(
             saveLabel = stringResource(CardShareKind.SAVE.labelRes),
             storyLabel = stringResource(CardShareKind.STORY.labelRes),
             moreLabel = stringResource(CardShareKind.SYSTEM.labelRes),
-            isSharing = state.isSharing,
+            // 코스 면에는 아바타가 없다. 앞면은 아바타가 보인 뒤에만 찍는다.
+            isSharing = state.isSharing || (side == CardSide.FRONT && !isAvatarReady),
             onSave = { share(CardShareKind.SAVE) },
             onStory = { share(CardShareKind.STORY) },
             onMore = { share(CardShareKind.SYSTEM) }
