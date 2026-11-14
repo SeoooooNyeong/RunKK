@@ -123,6 +123,25 @@ class RecordBattleServiceTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "그날의 나는 본인만 보므로 내 실제 성별로 그린다: 기록에 남은 표시 성별(비공개면 임의 값)을 쓰지 않는다. 성별을 입력하지 않았으면 그대로 둔다")
+    void 그날의_나는_내_실제_성별로_그린다() {
+        when(runs.lookOf("best")).thenReturn(Optional.of(THAT_DAY));
+        OpponentLooks male =
+                new OpponentLooks(
+                        memberId -> Optional.of(TODAY),
+                        runs,
+                        memberId -> memberId == ALICE ? Optional.of("MALE") : Optional.empty());
+
+        assertThat(male.selfLook(ALICE, "best")).isEqualTo(THAT_DAY.withGender("MALE"));
+        assertThat(male.selfLook(ALICE + 1, "best")).as("성별 미입력").isEqualTo(THAT_DAY);
+        when(runs.lookOf("best")).thenReturn(Optional.empty());
+        assertThat(male.selfLook(ALICE, "best"))
+                .as("옛 기록이라 지금 모습으로 대신할 때도")
+                .isEqualTo(TODAY.withGender("MALE"));
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("옛 기록이면 현재 모습으로 대신한다")
     void 옛_기록이면_현재_모습으로_대신한다() {
         when(runs.lookOf("best")).thenReturn(Optional.empty());

@@ -294,5 +294,11 @@ class MemberAccountServicesTest {
                         Map.entry(c, ShownGender.fallbackOf(c)),
                         Map.entry(999L, ShownGender.fallbackOf(999L)));
         assertThat(query.shownGendersOf(List.of())).isEmpty();
+        // 본인이 보는 내 성별(S15P31A207-306 그날의 나): 공개 값과 무관하게 입력한 남·여, 성별 없음·없는 회원은 비어 있다
+        assertThat(query.ownGenderOf(b)).hasValue(Gender.FEMALE);
+        assertThat(query.ownGenderOf(a))
+                .isEqualTo(Optional.ofNullable(repository.findById(a).orElseThrow().gender()));
+        assertThat(query.ownGenderOf(c)).isEmpty();
+        assertThat(query.ownGenderOf(999L)).isEmpty();
     }
 }

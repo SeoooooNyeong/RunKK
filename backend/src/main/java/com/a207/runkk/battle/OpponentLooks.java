@@ -1,10 +1,12 @@
 package com.a207.runkk.battle;
 
 import com.a207.runkk.common.AvatarLook;
+import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.running.AvatarLookSource;
 import com.a207.runkk.running.RunQueryService;
 import java.util.Optional;
 import java.util.concurrent.Semaphore;
+import java.util.function.LongFunction;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,7 +20,8 @@ import org.springframework.stereotype.Component;
  *
  * <ul>
  *   <li>랜덤·친구 대결: 상대 회원의 지금 모습에, 대결에 저장된 표시 성별(OpponentGenders.nameFor)을 덮어쓴다.
- *   <li>나와의 싸움: 상대 기록을 달린 날의 내 모습, 모습이 없는 옛 기록이면 지금 내 모습.
+ *   <li>나와의 싸움: 상대 기록을 달린 날의 내 모습, 모습이 없는 옛 기록이면 지금 내 모습. 본인만 보므로 성별은 표시 성별이 아니라 내 실제 성별(입력한 남·여)로
+ *       덮어쓴다. 성별을 입력하지 않았으면 그대로 둔다.
  *   <li>고스트(러너 기록·가상 기록), 배치고사, 유명인: 모습이 없다(null).
  * </ul>
  *
@@ -40,6 +43,9 @@ class OpponentLooks {
     private final AvatarLookSource avatarLookSource;
     private final RunQueryService runQueryService;
 
+    /** 본인에게 보이는 내 성별 이름(MemberQueryService.ownGenderOf), 입력하지 않았으면 비어 있다. */
+    private final LongFunction<Optional<String>> ownGender;
+
     /**
      * 동시에 도는 모습 읽기 수의 상한. 대결 서비스는 자기 트랜잭션의 연결을 쥔 채 모습을 읽고, 그 읽기가 연결을 하나 더 쓴다. 모든 요청이 연결 하나씩을 쥐고 두
      * 번째를 기다리면 풀이 멈추므로(HikariCP 연결 대기 30초), 상한을 풀 크기보다 작게 두고 자리가 없으면 기다리지 않고 모습 없이(null) 보낸다.
@@ -50,11 +56,37 @@ class OpponentLooks {
     OpponentLooks(
             AvatarLookSource avatarLookSource,
             RunQueryService runQueryService,
+            MemberQueryService memberQueryService,
             @Value("${spring.datasource.hikari.maximum-pool-size:" + DEFAULT_POOL_SIZE + "}")
                     int poolSize) {
+        this(
+                avatarLookSource,
+                runQueryService,
+                memberId -> memberQueryService.ownGenderOf(memberId).map(Enum::name),
+                poolSize);
+    }
+
+    OpponentLooks(
+            AvatarLookSource avatarLookSource,
+            RunQueryService runQueryService,
+            LongFunction<Optional<String>> ownGender,
+            int poolSize) {
         this.avatarLookSource = avatarLookSource;
         this.runQueryService = runQueryService;
+        this.ownGender = ownGender;
         this.readSlots = new Semaphore(Math.max(1, poolSize / POOL_SHARE));
+    }
+
+    OpponentLooks(
+            AvatarLookSource avatarLookSource,
+            RunQueryService runQueryService,
+            LongFunction<Optional<String>> ownGender) {
+        this(avatarLookSource, runQueryService, ownGender, DEFAULT_POOL_SIZE);
+    }
+
+    OpponentLooks(
+            AvatarLookSource avatarLookSource, RunQueryService runQueryService, int poolSize) {
+        this(avatarLookSource, runQueryService, memberId -> Optional.empty(), poolSize);
     }
 
     OpponentLooks(AvatarLookSource avatarLookSource, RunQueryService runQueryService) {
@@ -78,7 +110,20 @@ class OpponentLooks {
 
     /** 나와의 싸움 상대(그 기록을 달린 날의 나). 기록에 모습이 없거나 못 읽으면 지금 모습으로 대신한다. 둘 다 없으면 null. */
     AvatarLook selfLook(long memberId, String recordId) {
-        return recordLook(recordId).or(() -> currentLook(memberId)).orElse(null);
+        return recordLook(recordId)
+                .or(() -> currentLook(memberId))
+                .map(look -> ownGenderOf(memberId).map(look::withGender).orElse(look))
+                .orElse(null);
+    }
+
+    /** 내 실제 성별. 읽다가 실패하면 경고 로그만 남기고 비어 있다(모습 때문에 대결이 실패하지 않는다). */
+    private Optional<String> ownGenderOf(long memberId) {
+        try {
+            return ownGender.apply(memberId);
+        } catch (RuntimeException e) {
+            log.warn("battle_look_own_gender_failed memberId={} reason={}", memberId, e.toString());
+            return Optional.empty();
+        }
     }
 
     private Optional<AvatarLook> recordLook(String recordId) {
