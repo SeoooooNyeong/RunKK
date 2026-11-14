@@ -45,6 +45,7 @@ import com.a207.runkk.app.core.designsystem.LocationConsentSheet
 import com.a207.runkk.app.core.designsystem.RunkkActionDialog
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
+import com.a207.runkk.app.core.designsystem.RunkkDialogMessage
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
@@ -106,8 +107,8 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
         val granted = LOCATION_PERMISSIONS.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
         if (granted) viewModel.onAccept() else permission.launch(LOCATION_PERMISSIONS)
     }
-    // 대기 중 뒤로가기는 취소, 성사 뒤에는 자동 출발이라 막는다(FR-087).
-    BackHandler { viewModel.onCancel() }
+    // 대기 중 뒤로가기는 나가기 확인을 띄우고([임시:FR-성-32]), 성사 뒤에는 자동 출발이라 막는다(FR-087).
+    BackHandler { viewModel.onBackPressed() }
     // 랜덤 매칭 대기 중이나 성사 뒤 출발 전에 앱이 뒤로 가면 대기를 접고 홈으로 간다(S15P31A207-278). 화면 상태가 저장되기 전에
     // 이동하도록 ON_STOP 안에서 바로 바꾼다(이벤트로 미루면 프로세스가 끝난 뒤 매칭 화면이 복원된다).
     OnAppBackgrounded { if (viewModel.onBackgrounded()) navigator.restart(Routes.HOME) }
@@ -122,7 +123,9 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
             onInviteEndedConfirmed = viewModel::onInviteEndedConfirmed,
             onNoticeConfirmed = viewModel::onNoticeConfirmed,
             onConsentAgree = viewModel::onConsentAgreed,
-            onConsentClose = viewModel::onConsentClosed
+            onConsentClose = viewModel::onConsentClosed,
+            onLeaveConfirm = viewModel::onLeaveConfirmed,
+            onLeaveDismiss = viewModel::onLeaveDismissed
         )
     )
 }
@@ -174,6 +177,7 @@ fun MatchScreen(state: MatchUiState, actions: MatchActions, modifier: Modifier =
             onDismissRequest = actions.onNoticeConfirmed
         )
     }
+    if (state.isLeaveConfirmVisible) LeaveConfirmDialog(state.isInviteWaiting, actions)
     if (state.isConsentSheetVisible) {
         LocationConsentSheet(
             onAgree = actions.onConsentAgree,
@@ -182,7 +186,27 @@ fun MatchScreen(state: MatchUiState, actions: MatchActions, modifier: Modifier =
     }
 }
 
-/** 랜덤 대기(C-2)와 초대 대기(C-10): 가운데 찾는 자세 아바타(D84), 안내, 경과, 아래 버튼. */
+/**
+ * 나가기 확인 창([임시:D-성-271], [임시:FR-성-32]): 왼쪽 「나가기」(취소하고 떠난다), 오른쪽 기본 버튼 「계속 기다리기」(창만 닫는다).
+ * 바깥을 누르거나 뒤로 가기를 한 번 더 누르면 계속 기다린다.
+ */
+@Composable
+private fun LeaveConfirmDialog(isInvite: Boolean, actions: MatchActions) {
+    RunkkActionDialog(
+        title = stringResource(R.string.battle_leave_title),
+        confirmLabel = stringResource(R.string.battle_leave_stay),
+        onConfirm = actions.onLeaveDismiss,
+        onDismissRequest = actions.onLeaveDismiss,
+        dismissLabel = stringResource(R.string.battle_leave_exit),
+        onDismiss = actions.onLeaveConfirm
+    ) {
+        RunkkDialogMessage(
+            stringResource(if (isInvite) R.string.battle_leave_message_invite else R.string.battle_leave_message)
+        )
+    }
+}
+
+/** 랜덤 대기(C-2)와 초대 대기(C-10): 가운데 찾는 자세 아바타(D84), 안내, 경과, 상시 안내, 아래 버튼. */
 @Composable
 private fun ColumnScope.Waiting(state: MatchUiState, actions: MatchActions) {
     val isInvite = state.opponentKind == OpponentKind.FRIEND
@@ -215,6 +239,14 @@ private fun ColumnScope.Waiting(state: MatchUiState, actions: MatchActions) {
         }
     }
     val isOpen = state.phase == MatchPhase.WAITING || state.phase == MatchPhase.INVITING
+    // 화면을 나가면 취소된다는 안내는 늘 보인다([임시:FR-성-32]).
+    Text(
+        stringResource(if (isInvite) R.string.battle_leave_hint_invite else R.string.battle_leave_hint),
+        style = RunkkTextStyles.Caption,
+        color = RunkkColors.TextSecondary,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+    )
     if (isInvite) {
         RunkkPrimaryButton(
             stringResource(R.string.battle_invite_resend),

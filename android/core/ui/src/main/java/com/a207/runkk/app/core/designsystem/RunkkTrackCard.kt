@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,12 +33,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 /**
  * 트랙 보기 카드([임시:D-성-256], [임시:D-성-313], [임시:FR-성-27], 시안 320×300 모서리 24). 아래에서부터 거리 자, 내 레인, 상대 레인을
@@ -266,22 +267,29 @@ private fun Ruler(myX: Float, otherX: Float?, label: String?, modifier: Modifier
             }
         }
         if (label != null) {
-            // 두 러너의 가운데(from과 to의 평균)에 알약 가운데가 오게, 그 두 배 폭의 칸 가운데에 놓는다.
-            Box(Modifier.fillMaxHeight().width(maxWidth * (from + to)), contentAlignment = Alignment.Center) {
-                Text(
-                    label,
-                    style = RunkkTextStyles.text(11, FontWeight.Bold),
-                    color = RunkkColors.TextPrimary,
-                    maxLines = 1,
-                    softWrap = false,
-                    modifier = Modifier
-                        .testTag(TRACK_RULER_TAG)
-                        .requiredWidthIn(min = 0.dp)
-                        .clip(RunkkShapes.Pill)
-                        .background(RunkkColors.SurfaceHigh)
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                )
-            }
+            val middle = (from + to) / 2
+            Text(
+                label,
+                style = RunkkTextStyles.text(11, FontWeight.Bold),
+                color = RunkkColors.TextPrimary,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier
+                    .testTag(TRACK_RULER_TAG)
+                    // 두 러너의 가운데에 알약 가운데가 오게 놓는다.
+                    .layout { measurable, constraints ->
+                        val pill = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                        layout(constraints.maxWidth, constraints.maxHeight) {
+                            pill.place(
+                                (constraints.maxWidth * middle - pill.width / 2f).roundToInt(),
+                                (constraints.maxHeight - pill.height) / 2
+                            )
+                        }
+                    }
+                    .clip(RunkkShapes.Pill)
+                    .background(RunkkColors.SurfaceHigh)
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+            )
         }
     }
 }
