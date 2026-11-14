@@ -270,6 +270,13 @@ public class Avatar {
                 Map.of());
     }
 
+    /** 착용 부위 → 아이템 ID(읽기 전용 복사본, 부위 순). */
+    Map<ItemSlot, Long> equippedItems() {
+        Map<ItemSlot, Long> worn = new EnumMap<>(ItemSlot.class);
+        worn.putAll(equipped);
+        return worn;
+    }
+
     public long memberId() {
         return memberId;
     }

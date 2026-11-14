@@ -53,9 +53,17 @@ internal fun bodyShapeOf(variant: Int?): AvatarBodyShape =
  * 상점 착용(부위 → 아이템 ID)을 Rive 의상 번호(상의·하의·신발 0..6)로 옮긴다(contract-W8.md 6.3 제안표). 아이템 그림 키로 찾고, 안 입었거나
  * 표에 없는 키면 0(기본 의상)이다. 모자는 Rive 슬롯이 없어 그리지 않는다.
  */
-internal fun outfitOf(equipped: Map<ItemSlot, Long>, items: List<Shop.Item>): AvatarOutfit {
+internal fun outfitOf(equipped: Map<ItemSlot, Long>, items: List<Shop.Item>): AvatarOutfit = riveOutfitOf(
+    equipped.mapNotNull { (slot, id) -> items.firstOrNull { it.itemId == id }?.imageKey?.let { slot to it } }.toMap()
+)
+
+/**
+ * 착용 부위 → 아이템 그림 키를 Rive 의상 번호로 옮긴다(내 착용은 [outfitOf]가, 다른 러너는 랭킹 모습이 바로 넘긴다, S15P31A207-300).
+ * 표에 없는 키·안 입은 부위는 0(기본 의상)이고, 모자는 Rive 슬롯이 없어 그리지 않는다.
+ */
+internal fun riveOutfitOf(keys: Map<ItemSlot, String>): AvatarOutfit {
     fun idOf(slot: ItemSlot): Int {
-        val key = equipped[slot]?.let { id -> items.firstOrNull { it.itemId == id }?.imageKey } ?: return 0
+        val key = keys[slot] ?: return 0
         return RIVE_OUTFITS[slot]?.indexOf(key)?.takeIf { it >= 0 }?.plus(1) ?: 0
     }
     return AvatarOutfit(top = idOf(ItemSlot.TOP), bottom = idOf(ItemSlot.BOTTOM), shoes = idOf(ItemSlot.SHOES))

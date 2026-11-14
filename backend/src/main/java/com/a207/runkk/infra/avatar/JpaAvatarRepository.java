@@ -4,6 +4,8 @@ import com.a207.runkk.avatar.Avatar;
 import com.a207.runkk.avatar.AvatarRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Repository;
@@ -25,6 +27,24 @@ public class JpaAvatarRepository implements AvatarRepository {
     public Avatar findOrCreate(long memberId) {
         Avatar found = entityManager.find(Avatar.class, memberId);
         return found != null ? found : Avatar.create(memberId);
+    }
+
+    /**
+     * 얼굴 부위·착용(EAGER 값 컬렉션)을 fetch join으로 함께 읽어 회원마다 따로 읽지 않는다(N+1 방지). 두 컬렉션 모두 Map이라 bag 두 개 동시
+     * fetch 제한에 걸리지 않고, 중복 행은 Hibernate가 엔티티 하나로 합친다.
+     */
+    @Override
+    public List<Avatar> findAllByMemberIds(Collection<Long> memberIds) {
+        if (memberIds.isEmpty()) {
+            return List.of();
+        }
+        return entityManager
+                .createQuery(
+                        "select a from Avatar a left join fetch a.facePartKeys"
+                                + " left join fetch a.equipped where a.memberId in :ids",
+                        Avatar.class)
+                .setParameter("ids", memberIds)
+                .getResultList();
     }
 
     /** 있으면 FOR UPDATE로 읽고, 없으면 새로 넣고 돌려준다(첫 생성이 겹치면 기본 키 위반 → 409 "다시 시도"). */

@@ -210,6 +210,54 @@ class AvatarSlotsTest {
     }
 
     @Test
+    fun `전신 정지 그림 칸은 다른 러너의 랭킹 모습이 있으면 그 셀카 머리를 받아 그리고, 그리지 못하면 성별 기본 전신 그림이다(S15P31A207-300)`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject(
+                        isMine = false,
+                        isFemale = true,
+                        look = AvatarStillSubject.Look(
+                            faceKey = "head:12:abc",
+                            topKey = "top_crew_tee",
+                            bottomKey = null,
+                            shoesKey = null,
+                            bodyVariant = 1,
+                            runAmount = 40
+                        )
+                    )
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(listOf("head:head:12:abc"), repo.calls.filter { it.startsWith("head:") }, "그 러너의 머리를 받는다")
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 다른 러너 얼굴이 없으면 머리를 받지 않는다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject(
+                        isMine = false,
+                        look = AvatarStillSubject.Look(null, null, null, null, 0, 0)
+                    )
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(emptyList(), repo.calls.filter { it.startsWith("head:") || it.startsWith("face:") })
+    }
+
+    @Test
     fun `전신 정지 그림 칸은 아바타 꾸미기가 닫혀 있으면 부르는 쪽 지금 그림을 그린다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {

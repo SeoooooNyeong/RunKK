@@ -4,6 +4,7 @@ import com.a207.runkk.common.AggregationPeriod;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.CrewSummary;
@@ -12,6 +13,7 @@ import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.running.RunQueryService;
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -49,6 +51,7 @@ public class RankingService {
     private final CrewMembershipReader crewMembershipReader;
     private final RunQueryService runQueryService;
     private final AnalysisTransactions transactions;
+    private final DomainEventPublisher events;
     private final Clock clock;
 
     /**
@@ -64,12 +67,14 @@ public class RankingService {
             CrewMembershipReader crewMembershipReader,
             RunQueryService runQueryService,
             AnalysisTransactions transactions,
+            DomainEventPublisher events,
             Clock clock) {
         this.snapshotRepository = snapshotRepository;
         this.memberQueryService = memberQueryService;
         this.crewMembershipReader = crewMembershipReader;
         this.runQueryService = runQueryService;
         this.transactions = transactions;
+        this.events = events;
         this.clock = clock;
     }
 
@@ -102,7 +107,12 @@ public class RankingService {
         }
     }
 
-    private RankingRecomputeResult rebuildLocked(LocalDateTime now) {
+    /**
+     * 집계 시각은 밀리초로 자른다. 조회 응답 aggregatedAt(캐시 또는 DB에서 읽은 값)과 재집계 사건의 computedAt이 같아 look 키(집계 시각
+     * 밀리초, [임시:D-성-226])가 어긋나지 않는다(DB는 마이크로초로 반올림한다).
+     */
+    private RankingRecomputeResult rebuildLocked(LocalDateTime at) {
+        LocalDateTime now = at.truncatedTo(ChronoUnit.MILLIS);
         Set<Long> ranked = memberQueryService.rankedMemberIds();
         Map<Long, List<Long>> crews = crewMembershipReader.activeMembersByCrew();
         Set<Long> everyone = new HashSet<>(ranked);
@@ -273,12 +283,24 @@ public class RankingService {
         return scores;
     }
 
-    /** 저장하면 0, 실패하면 1(로그만 남기고 다른 종류·기간은 이어서 저장한다). */
+    private static RankingSnapshotRebuilt rebuiltOf(RankingSnapshot snapshot) {
+        return new RankingSnapshotRebuilt(
+                snapshot.getKind(),
+                snapshot.getPeriod(),
+                snapshot.getComputedAt(),
+                snapshot.entries().stream().limit(TOP).map(RankEntry::subjectId).toList());
+    }
+
+    /**
+     * 저장하면 0, 실패하면 1(로그만 남기고 다른 종류·기간은 이어서 저장한다). 저장과 같은 트랜잭션에서 재집계 사건(상위 줄 ID)을 내 커밋 뒤 web.record가
+     * 개인 줄 모습을 미리 채운다([임시:DF-성-20]). 수신자 실패는 수신자가 삼킨다.
+     */
     private int save(RankingSnapshot snapshot) {
         try {
             transactions.write(
                     () -> {
                         snapshotRepository.save(snapshot);
+                        events.publish(rebuiltOf(snapshot));
                         return null;
                     });
             return 0;
