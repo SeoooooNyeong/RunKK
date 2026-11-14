@@ -20,8 +20,8 @@ import java.time.Duration;
  * @param animationSeconds 매칭 애니메이션 길이(D-17)
  * @param placementRound 배치고사 대결이면 판 번호(1~3), 아니면 null(05-03 5.7.3.4). 이때 opponentTier는
  *     UNRANKED(J24-3)
- * @param opponentLook 상대 아바타 모습(랜덤·친구 대결만, 성별은 opponentGender와 같은 표시 성별). 배치고사·고스트·가상 상대이거나 읽지 못했으면
- *     null(설계 5.31 [임시:D-성-252]·[임시:D-성-253])
+ * @param opponentLook 상대 아바타 모습(랜덤·친구 대결만, 성별은 opponentGender와 같은 표시 성별). 배치고사·고스트·가상 상대이거나 상대 모습이
+ *     없으면 null(설계 5.31 [임시:D-성-252]·[임시:D-성-253])
  */
 public record MatchFound(
         long battleId,

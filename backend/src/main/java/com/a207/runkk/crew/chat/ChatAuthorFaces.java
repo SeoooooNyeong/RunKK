@@ -21,6 +21,9 @@ import org.springframework.stereotype.Component;
 @Component
 class ChatAuthorFaces {
 
+    /** 보는 회원이 없는 판정(회원 ID는 1부터라 누구와도 같지 않다). 탈퇴가 아니면 PUBLIC이다. */
+    static final long NO_VIEWER = 0L;
+
     private final MemberQueryService memberQuery;
     private final AvatarQuery avatarQuery;
 
@@ -62,6 +65,17 @@ class ChatAuthorFaces {
             faces.put(id, new Face(faceKeys.get(id), gender == null ? null : gender.name()));
         }
         return faces;
+    }
+
+    /**
+     * 실시간 알림에 싣는 작성자 얼굴. 받는 사람마다 따로 만들지 않으므로 보는 사람 없이(NO_VIEWER) 판정한다. 작성자 본인 기준으로 물으면 탈퇴한 작성자도
+     * 본인(SELF)으로 판정돼 얼굴이 나가므로 쓰지 않는다. 작성자가 없거나(null) 탈퇴했으면 Face.NONE.
+     */
+    Face ofAuthor(Long authorId) {
+        if (authorId == null) {
+            return Face.NONE;
+        }
+        return of(NO_VIEWER, java.util.List.of(authorId)).getOrDefault(authorId, Face.NONE);
     }
 
     /**

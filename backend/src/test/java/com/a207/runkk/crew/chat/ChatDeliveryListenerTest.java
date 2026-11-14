@@ -163,8 +163,8 @@ class ChatDeliveryListenerTest {
     }
 
     private void authorFace(long author, String faceKey, Gender gender) {
-        when(memberQuery.disclosureOf(author, Set.of(author)))
-                .thenReturn(Map.of(author, DisclosureLevel.SELF));
+        when(memberQuery.disclosureOf(ChatAuthorFaces.NO_VIEWER, Set.of(author)))
+                .thenReturn(Map.of(author, DisclosureLevel.PUBLIC));
         when(avatarQuery.faceKeysOf(Set.of(author)))
                 .thenReturn(faceKey == null ? Map.of() : Map.of(author, faceKey));
         when(memberQuery.shownGendersOf(Set.of(author))).thenReturn(Map.of(author, gender));
@@ -181,6 +181,24 @@ class ChatDeliveryListenerTest {
         CrewChatPosted signal = (CrewChatPosted) sent.get(0).signal();
         assertThat(signal.authorFaceKey()).isEqualTo("head:3:ab12");
         assertThat(signal.authorShownGender()).isEqualTo("FEMALE");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "보낸 직후 탈퇴한 작성자는 알림에 얼굴을 싣지 않는다: 작성자 본인 기준(SELF)이 아니라 보는 사람 없이 판정한다")
+    void 탈퇴한_작성자는_알림에_얼굴이_없다() {
+        when(memberQuery.disclosureOf(ChatAuthorFaces.NO_VIEWER, Set.of(3L)))
+                .thenReturn(Map.of(3L, DisclosureLevel.WITHDRAWN));
+        when(memberQuery.disclosureOf(3L, Set.of(3L))).thenReturn(Map.of(3L, DisclosureLevel.SELF));
+        when(avatarQuery.faceKeysOf(Set.of(3L))).thenReturn(Map.of(3L, "head:3:ab12"));
+        when(memberQuery.shownGendersOf(Set.of(3L))).thenReturn(Map.of(3L, Gender.FEMALE));
+        long id = posted(3, "곧 탈퇴");
+
+        listener.onPosted(new ChatMessagePosted(CREW, id, 3, NOW));
+
+        CrewChatPosted signal = (CrewChatPosted) sent.get(0).signal();
+        assertThat(signal.authorFaceKey()).isNull();
+        assertThat(signal.authorShownGender()).isNull();
     }
 
     @Test
