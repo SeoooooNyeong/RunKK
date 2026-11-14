@@ -111,6 +111,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 - 에지 설정은 마지막으로 배포한 브랜치의 것이 반영됩니다. nginx·모니터링 설정을 바꾸면 develop에서 확인한 뒤 main에도 곧 반영합니다(main 배포가 옛 설정으로 되돌리지 않게).
 - `.env`를 통째로 컨테이너에 넣지 않습니다. `docker-compose.yml`의 `environment:`가 컨테이너마다 필요한 값만 고릅니다. 새 환경 변수는 `.env.example`과 함께 해당 서비스의 `environment:`에도 추가합니다.
 - prod 환경 확인: `deploy.sh`는 `RUNKK_ENV=prod`인데 `SPRING_PROFILES_ACTIVE`가 prod가 아니거나 `SWAGGER_ENABLED=true`면 멈춥니다. `smoke.sh`는 prod에서 `/v3/api-docs`가 열려 있으면 실패합니다.
+- 아바타 서버 확인: `.env`의 `COMPOSE_PROFILES`에 `avatar`가 있으면 `smoke.sh`가 `avatar` 컨테이너 헬스 상태가 healthy인지(starting이면 1분까지 기다림), ai 컨테이너에서 `http://avatar:3000/api/health`가 응답하는지 보고, 아니면 실패합니다. 프로필이 없으면 건너뜁니다. avatar 포트는 밖으로 열지 않습니다.
 
 ### 셀카 변환 스위치
 
@@ -261,8 +262,10 @@ grafana ─┬─ 망 runkk_db-prod (internal)    ─ postgres-prod:5432     (ru
 
 각 환경의 `backup` 컨테이너가 매일 `BACKUP_TIME`(기본 04:30, 3시 파기 배치 뒤)에 `pg_dump -Fc`를 뜨고, `pg_restore --list`로 읽히는지 확인한 뒤 `/var/backups/runkk/<환경>/runkk-<환경>-daily-YYYYMMDD-HHMMSS.dump`로 둡니다. 7일(`BACKUP_KEEP_DAYS`)이 지난 덤프는 지워 "오늘 + 지난 6일" 7개만 남습니다(처리방침 "하루 1회 이상 백업, 백업본 7일 보존"). 배포 직전 덤프(`-predeploy-`)도 같은 폴더·같은 보존 기간입니다. 폴더는 0700, 덤프는 0600이고 소유자는 `BACKUP_OWNER`(기본 1000:1000 = ubuntu)입니다.
 
+같은 시각에 아바타 결과 볼륨(`avatar-data`, 사용자별 머리 그림)도 `runkk-<환경>-avatar-daily-YYYYMMDD-HHMMSS.tar.gz`로 같은 폴더에 남습니다. 보존 기간·권한·소유자는 덤프와 같고, `tar -t`로 읽히는지 확인한 뒤에만 이름을 바꿉니다. backup 컨테이너는 볼륨을 읽기 전용(`/avatar-data`)으로만 붙이고, avatar 프로필이 꺼진 환경은 볼륨이 비어 있어 건너뜁니다. 배포 직전 덤프(`now predeploy`)는 DB만 뜨고, 수동 `now manual`·`now before-restore`는 아바타 묶음도 남깁니다.
+
 ```bash
-ls -l /var/backups/runkk/prod/                                        # 덤프 목록
+ls -l /var/backups/runkk/prod/                                        # 덤프·아바타 묶음 목록
 docker logs --tail 20 runkk-prod-backup-1                             # "ok ..." 또는 "FAILED ..." 기록
 docker exec runkk-prod-backup-1 sh /opt/runkk-backup/pg-backup.sh now manual   # 지금 하나 뜨기
 ```
@@ -274,6 +277,7 @@ docker exec runkk-prod-backup-1 sh /opt/runkk-backup/pg-backup.sh now manual   #
 - 한 번만 돌게 release 기간(`RELEASE_FREEZE=1`)에는 release 스케줄, 아니면 develop 스케줄에서 돕니다. 스케줄이 04:30 덤프보다 먼저 돌아 아티팩트는 전날 04:30 덤프입니다.
 - 아티팩트는 7일 뒤 만료되고 Developer 이상만 내려받습니다(처리방침 "백업본 7일 보존"). **Settings › CI/CD › Artifacts › Keep artifacts from most recent successful jobs**를 꺼 둬야 마지막 사본도 7일 뒤 지워집니다.
 - 덤프가 26시간보다 오래됐으면 잡이 실패합니다(매일 백업이 멈춤). 아직 덤프가 없는 환경(prod 첫 배포 전)은 경고만 남깁니다.
+- 가장 최근 아바타 묶음(`-avatar-daily-`)도 같은 규칙으로 올립니다(26시간보다 오래되면 실패, 없는 환경은 건너뜀). 아티팩트 크기 제한에 걸려 덤프 사본까지 잃지 않게 `OFFSITE_AVATAR_MAX_MB`(기본 50)보다 큰 묶음은 경고만 남기고 뺍니다. 그때 아바타는 서버 안 7일치만 남습니다.
 - 서버가 사라졌을 때: 마지막 성공한 backup:offsite 잡의 아티팩트를 내려받아 새 서버에서 아래 "실제 복구" 절차로 넣습니다.
 
 ### 복구 리허설 (베타 기간 1회, 운영 DB를 건드리지 않음)
@@ -310,6 +314,15 @@ docker start runkk-prod-api-1 && docker logs -f --tail 50 runkk-prod-api-1   # F
 ```
 
 덤프보다 뒤의 자료는 잃습니다. 기기에 남은 미전송 기록(FR-039)은 앱이 다시 보냅니다.
+
+아바타 볼륨은 avatar를 멈추고 볼륨을 비운 뒤 묶음을 풀어 넣습니다(파일 소유자 node 1000은 묶음에 남아 그대로 돌아옵니다). 볼륨 이름은 `runkk-<환경>_avatar-data`입니다.
+
+```bash
+A=<고른 묶음>.tar.gz   # 예: runkk-prod-avatar-daily-20261114-043000.tar.gz
+docker stop runkk-prod-avatar-1
+docker run --rm --network none -v runkk-prod_avatar-data:/data -v /var/backups/runkk/prod:/backups:ro --entrypoint sh postgres:17-alpine -c "find /data -mindepth 1 -delete && tar -xzf /backups/$A -C /data"
+docker start runkk-prod-avatar-1
+```
 
 ## 8. 로그 보관 (NFR-020)
 
