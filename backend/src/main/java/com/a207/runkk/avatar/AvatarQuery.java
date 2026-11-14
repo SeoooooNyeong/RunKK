@@ -1,5 +1,6 @@
 package com.a207.runkk.avatar;
 
+import com.a207.runkk.common.AvatarLook;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -14,9 +15,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class AvatarQuery {
 
     private final AvatarRepository avatarRepository;
+    private final AvatarLookReader avatarLookReader;
 
-    public AvatarQuery(AvatarRepository avatarRepository) {
+    public AvatarQuery(AvatarRepository avatarRepository, AvatarLookReader avatarLookReader) {
         this.avatarRepository = avatarRepository;
+        this.avatarLookReader = avatarLookReader;
     }
 
     /** Face.renderKey. 얼굴을 고르지 않았으면 비어 있다. */
@@ -38,6 +41,21 @@ public class AvatarQuery {
             }
         }
         return keys;
+    }
+
+    /**
+     * 여러 회원의 지금 모습(설계 5.31 [임시:D-성-254]). web.crew가 크루런 대기실 참가자에 붙인다. 다른 러너에게 아바타는 늘 보이므로 거르지
+     * 않는다(faceKeysOf와 같다). null과 중복 ID는 건너뛰고, 크루 정원 10명이라 회원마다 읽는다.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, AvatarLook> looksOf(Collection<Long> memberIds) {
+        Map<Long, AvatarLook> looks = new LinkedHashMap<>();
+        for (Long id : memberIds) {
+            if (id != null && !looks.containsKey(id)) {
+                avatarLookReader.currentLookOf(id).ifPresent(look -> looks.put(id, look));
+            }
+        }
+        return looks;
     }
 
     /** 선택한 배경 키(Avatar.selectedBackgroundKey). 기본 배경이면 비어 있다(FR-202, 12.2 D37). */

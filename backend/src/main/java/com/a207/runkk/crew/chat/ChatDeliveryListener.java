@@ -46,6 +46,7 @@ class ChatDeliveryListener {
     private final ChatReactionRepository reactions;
     private final CrewMembershipReader membership;
     private final MemberQueryService memberQuery;
+    private final ChatAuthorFaces authorFaces;
     private final ChatRoomPresence presence;
     private final CrewChatMessenger messenger;
     private final NotificationService notifications;
@@ -58,6 +59,7 @@ class ChatDeliveryListener {
             ChatReactionRepository reactions,
             CrewMembershipReader membership,
             MemberQueryService memberQuery,
+            ChatAuthorFaces authorFaces,
             ChatRoomPresence presence,
             CrewChatMessenger messenger,
             NotificationService notifications,
@@ -68,6 +70,7 @@ class ChatDeliveryListener {
         this.reactions = reactions;
         this.membership = membership;
         this.memberQuery = memberQuery;
+        this.authorFaces = authorFaces;
         this.presence = presence;
         this.messenger = messenger;
         this.notifications = notifications;
@@ -94,6 +97,7 @@ class ChatDeliveryListener {
                             message.authorId() == null
                                     ? Map.of()
                                     : memberQuery.summaries(List.of(message.authorId())));
+            ChatAuthorFaces.Face face = authorFaces.ofAuthor(message.authorId());
             send(
                     inRoom,
                     new CrewChatPosted(
@@ -106,7 +110,9 @@ class ChatDeliveryListener {
                             message.clientMessageId(),
                             message.kind(),
                             roleName(e.crewId(), message.authorId()),
-                            message.runDistanceMeters()));
+                            message.runDistanceMeters(),
+                            face.faceKey(),
+                            face.shownGender()));
             if (message.isSystem()) {
                 return; // 러닝 완료 시스템 메시지는 방 밖 푸시를 보내지 않는다(W5 결정)
             }

@@ -4,6 +4,7 @@ import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.crew.CrewRunResultView;
 import com.a207.runkk.crew.CrewRunService;
 import com.a207.runkk.crew.LobbyView;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
@@ -88,9 +89,8 @@ public class CrewRunController {
     }
 
     private CrewDtos.LobbyResponse lobby(LobbyView view, long viewerId) {
-        Map<Long, String> faces =
-                avatarQuery.faceKeysOf(
-                        view.participants().stream().map(LobbyView.Entry::memberId).toList());
-        return CrewDtos.LobbyResponse.of(view, viewerId, faces);
+        List<Long> ids = view.participants().stream().map(LobbyView.Entry::memberId).toList();
+        return CrewDtos.LobbyResponse.of(
+                view, viewerId, avatarQuery.faceKeysOf(ids), avatarQuery.looksOf(ids));
     }
 }

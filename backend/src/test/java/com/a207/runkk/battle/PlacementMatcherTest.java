@@ -80,7 +80,8 @@ class PlacementMatcherTest {
                         messenger,
                         new InMemoryBattleStores.Sessions(),
                         clock,
-                        InMemoryBattleStores.transactions());
+                        InMemoryBattleStores.transactions(),
+                        BattleFixtures.noLooks());
         matcher =
                 new PlacementMatcher(
                         placementService,

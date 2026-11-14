@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex">
+<title>런크크 크루 초대</title>
+<meta name="description" content="런크크 크루에 초대받았어요. 앱을 설치하고 크루에 가입하세요.">
+<meta property="og:title" content="런크크 크루 초대">
+<meta property="og:description" content="런크크 크루에 초대받았어요.">
+<style>
+:root{--bg:#09090B;--surface:#18181B;--border:#27272A;--text:#FAFAFA;--muted:#A1A1AA;--lime:#CBEA2B;--lime-bg:#262B10;color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;font-size:16px;line-height:1.6;word-break:keep-all;padding:24px 16px}
+main{width:100%;max-width:420px;background:var(--surface);border:1px solid var(--border);border-radius:20px;overflow:hidden}
+.body{padding:20px}
+h1{font-size:22px;line-height:1.35;margin:0 0 8px}
+p{color:var(--muted);margin:0 0 20px}
+a.button{display:block;text-align:center;text-decoration:none;font-weight:700;border-radius:12px;padding:14px 16px;margin:0 0 10px}
+a.primary{background:var(--lime);color:#111}
+a.secondary{border:1px solid var(--border);color:var(--text)}
+a:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+small{display:block;color:var(--muted);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+<div class="body">
+<h1>런크크 크루에 초대받았어요</h1>
+<p>런크크 앱에서 초대를 열면 크루 정보를 보고 가입할 수 있어요. 초대 코드가 바뀌면 크루원에게 새 초대를 받아 주세요.</p>
+<a class="button primary" id="open-app" href="https://play.google.com/store/apps/details?id=com.a207.runkk">앱에서 초대 열기</a>
+<a class="button secondary" href="https://play.google.com/store/apps/details?id=com.a207.runkk">Play 스토어에서 런크크 설치</a>
+<small>앱이 설치되어 있으면 이 링크가 바로 앱으로 열려요. 이 페이지가 보이면 앱을 설치한 뒤 카카오톡의 초대 링크를 다시 눌러 주세요.</small>
+</div>
+</main>
+<script>
+// 앱이 설치된 Android에서는 같은 링크를 앱(App Links 실패 시 intent)으로 다시 연다. 없으면 Play 스토어로 간다.
+(function () {
+  var path = location.pathname;
+  var code = path.replace(/^\/invite\/crew\/?/, '').split('/')[0].toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(code || '')) { return; }
+  if (!/Android/i.test(navigator.userAgent)) { return; }
+  var store = 'https://play.google.com/store/apps/details?id=com.a207.runkk';
+  var intent = 'intent://' + location.host + '/invite/crew/' + code +
+    '#Intent;scheme=https;package=com.a207.runkk;S.browser_fallback_url=' + encodeURIComponent(store) + ';end';
+  document.getElementById('open-app').setAttribute('href', intent);
+})();
+</script>
+</body>
+</html>

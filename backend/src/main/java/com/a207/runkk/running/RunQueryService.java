@@ -1,6 +1,7 @@
 package com.a207.runkk.running;
 
 import com.a207.runkk.common.AggregationPeriod;
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
@@ -53,6 +54,14 @@ public class RunQueryService {
     /** 회원이 지운 기록인가(묘비가 있다). 삭제 사건 수신자가 실패해 남은 기록 ID를 읽는 쪽이 거를 때 쓴다(결정 D67, U8-6). */
     public boolean isDeleted(String recordId) {
         return runRecordRepository.isBuried(recordId);
+    }
+
+    /**
+     * 기록을 저장한 시점의 아바타 모습(설계 5.31 [임시:D-성-251]). 기록이 없거나 모습 없이 저장한 기록(옛 기록)이면 비어 있다. battle이 나와의 싸움
+     * 상대("그날의 나")를 그릴 때 읽는다.
+     */
+    public Optional<AvatarLook> lookOf(String recordId) {
+        return runRecordRepository.findLook(recordId);
     }
 
     /** 기록 요약. 없으면 BusinessRuleException(RECORD_NOT_FOUND). */

@@ -1,5 +1,6 @@
 package com.a207.runkk.infra.running;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.Pace;
@@ -245,6 +246,30 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                 .setParameter("t", runimalType)
                 .setParameter("id", recordId)
                 .executeUpdate();
+    }
+
+    @Override
+    public Optional<AvatarLook> findLook(String recordId) {
+        return entityManager
+                .createQuery(
+                        "select r.lookGender, r.lookTopItemId, r.lookBottomItemId,"
+                                + " r.lookShoesItemId, r.lookBodyVariant, r.lookRunAmount,"
+                                + " r.lookFaceKey from RunRecord r where r.recordId = :id",
+                        Object[].class)
+                .setParameter("id", recordId)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .flatMap(
+                        row ->
+                                RunRecord.lookOf(
+                                        (String) row[0],
+                                        (Long) row[1],
+                                        (Long) row[2],
+                                        (Long) row[3],
+                                        (Integer) row[4],
+                                        (Integer) row[5],
+                                        (String) row[6]));
     }
 
     @Override

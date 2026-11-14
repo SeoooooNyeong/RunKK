@@ -8,6 +8,7 @@ import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.common.Week;
 import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberProfile;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
@@ -108,6 +109,7 @@ public class CrewQueryService {
                                         levels.getOrDefault(id, DisclosureLevel.WITHDRAWN)
                                                 .showsProfile())
                         .collect(Collectors.toSet());
+        Map<Long, Gender> shownGenders = memberQueryService.shownGendersOf(ids);
         List<CrewMembersView.Line> lines = new ArrayList<>();
         for (CrewMembership membership : active) {
             boolean shown = disclosed.contains(membership.memberId());
@@ -123,7 +125,8 @@ public class CrewQueryService {
                             membership.joinedAt(),
                             CrewMemberProfile.shownTo(
                                     shown ? profiles.get(membership.memberId()) : null,
-                                    membership.memberId() == viewerId)));
+                                    membership.memberId() == viewerId),
+                            shownGenders.get(membership.memberId()).name()));
         }
         return new CrewMembersView(crewId, lines, disclosed);
     }

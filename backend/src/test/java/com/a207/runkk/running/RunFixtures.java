@@ -75,6 +75,27 @@ public final class RunFixtures {
                 samples);
     }
 
+    /** 시작 기기만 바꾼 사본(워치 단독 기록 WATCH, W23). */
+    public static RunUpload withStartDevice(RunUpload u, StartDevice device) {
+        return new RunUpload(
+                u.recordId(),
+                u.startedAt(),
+                u.endedAt(),
+                u.distance(),
+                u.elapsed(),
+                u.mode(),
+                u.cardKind(),
+                u.battleId(),
+                u.crewRunPostId(),
+                u.declaredPointCount(),
+                u.points(),
+                u.unstableSegments(),
+                u.heartRates(),
+                u.pauses(),
+                device,
+                u.motions());
+    }
+
     /** 기기가 잰 속도·케이던스를 단 사본(S15P31A207-242). */
     public static RunUpload withMotions(RunUpload u, List<MotionSample> motions) {
         return new RunUpload(

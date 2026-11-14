@@ -1,5 +1,6 @@
 package com.a207.runkk.web.crew;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.CrewTag;
 import com.a207.runkk.common.DisplayName;
@@ -856,8 +857,13 @@ final class CrewDtos {
 
         /**
          * @param faceKeys 참가자 얼굴 키(AvatarQuery.faceKeysOf). 얼굴을 고르지 않은 회원은 없다
+         * @param looks 참가자 모습(AvatarQuery.looksOf, 설계 5.31 [임시:D-성-254])
          */
-        static LobbyResponse of(LobbyView v, long viewerId, Map<Long, String> faceKeys) {
+        static LobbyResponse of(
+                LobbyView v,
+                long viewerId,
+                Map<Long, String> faceKeys,
+                Map<Long, AvatarLook> looks) {
             return new LobbyResponse(
                     v.postId(),
                     at(v.scheduledAt()),
@@ -874,7 +880,8 @@ final class CrewDtos {
                                                     p.readiness() == Readiness.READY,
                                                     p.memberId() == viewerId,
                                                     faceKeys.get(p.memberId()),
-                                                    p.shownGender()))
+                                                    p.shownGender(),
+                                                    looks.get(p.memberId())))
                             .toList());
         }
 
@@ -888,6 +895,7 @@ final class CrewDtos {
          * @param me 열람자 본인
          * @param faceKey 아바타 얼굴 키(프로필 faceKey와 같은 값), 얼굴을 고르지 않았으면 null(크루원 아바타, S15P31A207-236)
          * @param shownGender 표시 성별(MALE·FEMALE, D-327). 앱이 크루원 기본 캐릭터를 이 값으로 그린다
+         * @param look 전신 아바타 모습(트랙 보기에서 memberId로 이어 쓴다), 읽지 못했으면 null(설계 5.31 [임시:D-성-254])
          */
         record Participant(
                 long memberId,
@@ -896,7 +904,8 @@ final class CrewDtos {
                 boolean ready,
                 boolean me,
                 String faceKey,
-                String shownGender) {}
+                String shownGender,
+                AvatarLook look) {}
     }
 
     /**

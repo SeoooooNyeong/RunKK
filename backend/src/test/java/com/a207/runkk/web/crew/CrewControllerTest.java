@@ -278,7 +278,30 @@ class CrewControllerTest extends WebTestSupport {
                         jsonPath("$.participants[*].shownGender")
                                 .value(
                                         org.hamcrest.Matchers.everyItem(
-                                                org.hamcrest.Matchers.oneOf("MALE", "FEMALE"))));
+                                                org.hamcrest.Matchers.oneOf("MALE", "FEMALE"))))
+                // 대기실 참가자에 look이 실린다(설계 5.31 B [임시:D-성-254]): 기존 faceKey·shownGender는 그대로 둔다
+                .andExpect(
+                        jsonPath(
+                                        "$.participants[?(@.memberId == "
+                                                + a.memberId()
+                                                + ")].look.faceKey")
+                                .value(org.hamcrest.Matchers.contains("default:FOX")))
+                .andExpect(
+                        jsonPath("$.participants[*].look.gender")
+                                .value(
+                                        org.hamcrest.Matchers.everyItem(
+                                                org.hamcrest.Matchers.oneOf("MALE", "FEMALE"))))
+                .andExpect(
+                        jsonPath("$.participants[*].look.bodyVariant")
+                                .value(
+                                        org.hamcrest.Matchers.everyItem(
+                                                org.hamcrest.Matchers.oneOf(0, 1, 2))))
+                .andExpect(
+                        jsonPath("$.participants[*].look.equipped")
+                                .value(
+                                        org.hamcrest.Matchers.everyItem(
+                                                org.hamcrest.Matchers.instanceOf(
+                                                        java.util.Map.class))));
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null);
         call(a, post("/api/v1/crew-runs/" + run + "/lobby/ready"), null);
         call(leader, post("/api/v1/crew-runs/" + run + "/lobby/leave"), null);

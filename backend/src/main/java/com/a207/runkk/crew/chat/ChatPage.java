@@ -34,6 +34,8 @@ public record ChatPage(List<Line> messages, boolean hasMore) {
      * @param kind 메시지 종류(보통 TEXT, 러닝 완료 RUN_FINISHED, W5)
      * @param authorRole 작성자의 지금 크루 역할, 탈퇴했거나 크루를 떠났으면 null(크루장 배지, W5)
      * @param runDistanceMeters 러닝 완료 메시지의 거리(미터), 보통 메시지면 null(W5)
+     * @param authorFaceKey 작성자 아바타 얼굴 키, 얼굴을 안 골랐거나 탈퇴 작성자면 null(설계 5.31 [임시:D-성-229])
+     * @param authorShownGender 작성자 표시 성별 이름(MALE | FEMALE), 탈퇴 작성자면 null
      */
     public record Line(
             long messageId,
@@ -48,7 +50,9 @@ public record ChatPage(List<Line> messages, boolean hasMore) {
             String clientMessageId,
             ChatMessageKind kind,
             CrewRole authorRole,
-            Long runDistanceMeters) {
+            Long runDistanceMeters,
+            String authorFaceKey,
+            String authorShownGender) {
 
         public Line {
             reactions = Map.copyOf(reactions);

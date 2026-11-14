@@ -300,9 +300,14 @@ class BattleV014Test {
                         events::add,
                         messenger,
                         clock,
-                        InMemoryBattleStores.transactions());
+                        InMemoryBattleStores.transactions(),
+                        BattleFixtures.noLooks());
         history =
-                new BattleHistoryService(battles, members, new InMemoryBattleStores.Celebrities());
+                new BattleHistoryService(
+                        battles,
+                        members,
+                        new InMemoryBattleStores.Celebrities(),
+                        BattleFixtures.noLooks());
     }
 
     @ParameterizedTest(name = "TC-9310 {0}")

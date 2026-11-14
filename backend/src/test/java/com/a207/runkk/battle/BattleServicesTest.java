@@ -21,12 +21,14 @@ import com.a207.runkk.battle.live.BattleStart;
 import com.a207.runkk.battle.live.CountdownStarted;
 import com.a207.runkk.battle.live.MatchFound;
 import com.a207.runkk.battle.live.OpponentProgress;
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DomainEvent;
 import com.a207.runkk.common.DomainEventPublisher;
+import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.ProgressReport;
 import com.a207.runkk.common.ReasonCode;
@@ -88,6 +90,12 @@ class BattleServicesTest {
     private final Clock clock = Clock.fixed(NOW.atZone(SEOUL).toInstant(), SEOUL);
     private final PlacementMatcher placementMatcher = mock(PlacementMatcher.class);
 
+    /** 회원별 지금 모습(AvatarLookSource 대역). 없는 회원은 모습이 비어 있다. */
+    private final Map<Long, AvatarLook> currentLooks = new java.util.HashMap<>();
+
+    private final OpponentLooks opponentLooks =
+            new OpponentLooks(memberId -> Optional.ofNullable(currentLooks.get(memberId)), runs);
+
     /** nextBoolean이 늘 true인 생성기: 무작위 성별은 FEMALE(OpponentGenders.random). */
     private static final RandomGenerator FEMALE_PICK = () -> -1L;
 
@@ -115,7 +123,8 @@ class BattleServicesTest {
                             return map;
                         });
         startService =
-                new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
+                new BattleStartService(
+                        battles, members, runs, messenger, sessions, clock, tx, opponentLooks);
         GhostMatcher ghost =
                 new GhostMatcher(members, runs, virtuals, battles, startService, new Random(3));
         matchmaker = new Matchmaker(queue, battles, startService, ghost, policy, tx, messenger);
@@ -125,7 +134,15 @@ class BattleServicesTest {
                         battles, startService, sessions, messenger, notifications, publisher, tx);
         resultService =
                 new BattleResultService(
-                        battles, runs, members, notifications, publisher, messenger, clock, tx);
+                        battles,
+                        runs,
+                        members,
+                        notifications,
+                        publisher,
+                        messenger,
+                        clock,
+                        tx,
+                        opponentLooks);
     }
 
     private MatchTicket waiting(long memberId, LocalDateTime since) {
@@ -399,6 +416,83 @@ class BattleServicesTest {
                     .isEqualTo(bobShown);
             assertThat(resultService.result(BOB, battle.getId()).opponentGender())
                     .isEqualTo("MALE");
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "랜덤 성사 알림에 상대 모습과 표시 성별이 실린다: 모습의 성별은 대결에 저장된 표시 성별로 덮어쓰고, 대결 조회와"
+                        + " 결과도 같은 모습이다(설계 5.31 [임시:D-성-252])")
+        void 랜덤_성사_알림에_상대_모습과_표시_성별이_실린다() {
+            when(members.shownGendersOf(anyCollection()))
+                    .thenReturn(Map.of(ALICE, Gender.MALE, BOB, Gender.FEMALE));
+            AvatarLook alice =
+                    new AvatarLook("FEMALE", Map.of(ItemSlot.TOP, 12L), 1, 42, "head:1:ab12");
+            AvatarLook bob = new AvatarLook("MALE", Map.of(ItemSlot.SHOES, 31L), 0, 7, null);
+            currentLooks.put(ALICE, alice);
+            currentLooks.put(BOB, bob);
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+
+            Battle battle = battles.all().get(0);
+            MatchFound toAlice = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
+            MatchFound toBob = (MatchFound) messenger.to(BOB, "MatchFound").get(0);
+            assertThat(toAlice.opponentGender()).isEqualTo("FEMALE");
+            assertThat(toAlice.opponentLook()).isEqualTo(bob.withGender("FEMALE"));
+            assertThat(toBob.opponentLook()).isEqualTo(alice.withGender("MALE"));
+            assertThat(resultService.result(ALICE, battle.getId()).opponentLook())
+                    .isEqualTo(bob.withGender("FEMALE"));
+            assertThat(
+                            new BattleHistoryService(
+                                            battles,
+                                            members,
+                                            new InMemoryBattleStores.Celebrities(),
+                                            opponentLooks)
+                                    .active(BOB)
+                                    .orElseThrow()
+                                    .opponentLook())
+                    .isEqualTo(alice.withGender("MALE"));
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName("상대의 지금 모습을 읽지 못하면 opponentLook만 null이고 성사 알림은 그대로 간다")
+        void 상대_모습이_없으면_null로_성사된다() {
+            waiting(ALICE, NOW);
+            waiting(BOB, NOW.plusSeconds(1));
+            matchmaker.tick(NOW.plusSeconds(2));
+
+            MatchFound toAlice = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
+            assertThat(toAlice.opponentLook()).isNull();
+            assertThat(toAlice.opponentGender()).isNotNull();
+        }
+
+        @Test
+        @org.junit.jupiter.api.DisplayName(
+                "배치고사와 고스트는 모습이 null이다: 가상 상대 고스트의 성사 알림·결과, 배치고사 대결 모두 opponentLook을"
+                        + " 싣지 않는다(설계 5.31 [임시:D-성-253])")
+        void 배치고사와_고스트는_모습이_null이다() {
+            currentLooks.put(ALICE, new AvatarLook("FEMALE", Map.of(), 0, 0, null));
+            virtuals.replaceAll(
+                    List.of(
+                            new VirtualRecord(
+                                    Tier.GOLD,
+                                    StandardDistance.KM5,
+                                    "달빛여우",
+                                    Duration.ofMinutes(26))));
+            when(members.ghostEligibleOwners(any(), anyLong())).thenReturn(Map.of());
+            waiting(ALICE, NOW);
+            matchmaker.tick(NOW.plusSeconds(16));
+
+            Battle ghost = battles.all().get(0);
+            assertThat(ghost.getType()).isEqualTo(BattleType.GHOST);
+            MatchFound found = (MatchFound) messenger.to(ALICE, "MatchFound").get(0);
+            assertThat(found.opponentGender()).isNotNull();
+            assertThat(found.opponentLook()).isNull();
+            assertThat(resultService.result(ALICE, ghost.getId()).opponentLook()).isNull();
+
+            Battle placement = PlacementRoundCheckTest.started();
+            assertThat(placement.placementRound()).isPresent();
+            assertThat(opponentLooks.of(placement, ALICE)).isNull();
         }
 
         @Test
@@ -1033,7 +1127,10 @@ class BattleServicesTest {
 
             BattleHistoryView history =
                     new BattleHistoryService(
-                                    battles, members, new InMemoryBattleStores.Celebrities())
+                                    battles,
+                                    members,
+                                    new InMemoryBattleStores.Celebrities(),
+                                    opponentLooks)
                             .history(
                                     BOB,
                                     new DateRange(NOW.toLocalDate(), NOW.toLocalDate()),

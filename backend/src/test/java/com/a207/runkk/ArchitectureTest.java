@@ -198,7 +198,8 @@ class ArchitectureTest {
         m.put("audit", Set.of());
         m.put("common", Set.of());
         // v0.11 (부록 F F.6.2 N1~N4, N7~N9. N5·N6은 설계 검증 D-135로 report.target으로 옮겨 없다)
-        m.put("crew.chat", Set.of("crew", "member", "notification", "audit"));
+        // 설계 5.31 [임시:D-성-231]: 채팅 작성자·반응자 얼굴 키(AvatarQuery.faceKeysOf)
+        m.put("crew.chat", Set.of("crew", "member", "notification", "audit", "avatar"));
         m.put("report", Set.of("notification", "audit", "member"));
         // 신고 대상 조립(V1~V3, D-135): crew·crew.chat의 신고용 공개 연산으로 report.ReportedContentPort를 구현
         m.put("report.target", Set.of("crew", "crew.chat", "report"));
