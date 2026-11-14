@@ -1,5 +1,6 @@
 package com.a207.runkk.running;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.Distance;
 import java.time.LocalDate;
@@ -69,6 +70,9 @@ public interface RunRecordRepository {
     // 통계 조회(RunQueryService용)
 
     Optional<RunSummary> findSummary(String recordId);
+
+    /** 기록에 남은 저장 시점 모습(V66). 기록이 없거나 모습 없이 저장했으면 비어 있다. 경로·심박 열을 읽지 않는다. */
+    Optional<AvatarLook> findLook(String recordId);
 
     /** 여러 기록의 요약을 한 번에 읽는다. 없는 ID는 빠진다(순서 보장 없음). */
     List<RunSummary> findSummaries(Collection<String> recordIds);

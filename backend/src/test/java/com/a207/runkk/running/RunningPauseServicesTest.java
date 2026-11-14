@@ -52,6 +52,7 @@ class RunningPauseServicesTest {
                 books,
                 (point, at) -> Optional.empty(),
                 new MemberQueryService(members),
+                memberId -> java.util.Optional.empty(),
                 published::add,
                 NoTransactions.manager(),
                 clock);

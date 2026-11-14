@@ -221,7 +221,7 @@ class BackgroundServiceTest {
         assertThat(avatars.findOrCreate(M).unlockedBackgrounds()).hasSize(2);
         service.choose(M, "INCHEON");
         assertThat(avatarService.view(M).backgroundKey()).isEqualTo("INCHEON");
-        assertThat(new AvatarQuery(avatars).backgroundKeyOf(M)).contains("INCHEON");
+        assertThat(new AvatarQuery(avatars, null).backgroundKeyOf(M)).contains("INCHEON");
         verifyNoInteractions(notifications);
     }
 
