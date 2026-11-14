@@ -56,6 +56,70 @@ class InviteLinkReaderTest {
     }
 
     @Test
+    fun `크루_https_링크는_Crew(code)`() {
+        assertEquals(InviteLink.Crew("AB12CD"), reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/AB12CD")))
+        assertEquals(
+            InviteLink.Crew("AB12CD"),
+            reader.readNewLink(view("https://K15A207.p.ssafy.io/invite/crew/AB12CD"))
+        )
+    }
+
+    @Test
+    fun `크루_링크는_대결_토큰으로_안_읽힌다`() {
+        assertNull(reader.read(view("https://k15a207.p.ssafy.io/invite/crew/AB12CD")))
+        assertNull(reader.readNew(view("https://k15a207.p.ssafy.io/invite/crew/AB12CD")))
+        assertNull(reader.read(view("kakaoabc123://kakaolink?crewInvite=AB12CD")))
+    }
+
+    @Test
+    fun `대결_링크는_그대로`() {
+        assertEquals(
+            InviteLink.FriendBattle(token),
+            reader.readLink(view("https://k15a207.p.ssafy.io/invite/battle/$token"))
+        )
+        assertEquals(InviteLink.FriendBattle(token), reader.readLink(view("kakaoabc123://kakaolink?invite=$token")))
+        // 6자 영숫자 토큰도 대결 경로·인자로 오면 대결 초대다(경로와 인자 이름으로만 가른다).
+        assertEquals(
+            InviteLink.FriendBattle("AB12CD"),
+            reader.readLink(view("https://k15a207.p.ssafy.io/invite/battle/AB12CD"))
+        )
+        assertEquals(InviteLink.FriendBattle("AB12CD"), reader.readLink(view("kakaoabc123://kakaolink?invite=AB12CD")))
+    }
+
+    @Test
+    fun `소문자_코드는_대문자로`() {
+        assertEquals(InviteLink.Crew("AB12CD"), reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/ab12cd")))
+        assertEquals(InviteLink.Crew("AB12CD"), reader.readLink(view("kakaoabc123://kakaolink?crewInvite=aB12cd")))
+    }
+
+    @Test
+    fun `6자가_아니면_버린다`() {
+        assertNull(reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/AB12C")))
+        assertNull(reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/AB12CDE")))
+        assertNull(reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/")))
+        assertNull(reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/AB12-D")), "대문자·숫자만 받는다")
+        assertNull(reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/AB12CD/x")))
+        assertNull(reader.readLink(view("https://k15a207.p.ssafy.io/invite/crew/index.html")), "스토어 안내 페이지 주소")
+        assertNull(reader.readLink(view("https://evil.example.com/invite/crew/AB12CD")))
+        assertNull(reader.readLink(view("http://k15a207.p.ssafy.io/invite/crew/AB12CD")))
+        assertNull(reader.readLink(view("kakaoabc123://kakaolink?crewInvite=AB12")))
+    }
+
+    @Test
+    fun `카카오_실행링크_crewInvite`() {
+        assertEquals(InviteLink.Crew("AB12CD"), reader.readLink(view("kakaoabc123://kakaolink?crewInvite=AB12CD")))
+        assertNull(reader.readLink(view("kakaozzz://kakaolink?crewInvite=AB12CD")), "다른 카카오 앱 키")
+        assertNull(reader.readLink(view("kakaoabc123://oauth?crewInvite=AB12CD")))
+        assertNull(
+            InviteLinkReader("").readLink(view("kakao://kakaolink?crewInvite=AB12CD")),
+            "앱 키가 없으면 카카오 링크를 받지 않는다"
+        )
+        val fromHistory = Intent(view("kakaoabc123://kakaolink?crewInvite=AB12CD"))
+            .addFlags(Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY)
+        assertNull(reader.readNewLink(fromHistory), "최근 앱에서 다시 연 실행은 읽지 않는다")
+    }
+
+    @Test
     fun `TC-9676 로그인 상태이고 홈이 맨 위일 때만 연다`() {
         val pending = PendingInvite(token, received)
         assertEquals(token, inviteToOpen(pending, loggedIn = true, top = Routes.Key(Routes.HOME), now = received))

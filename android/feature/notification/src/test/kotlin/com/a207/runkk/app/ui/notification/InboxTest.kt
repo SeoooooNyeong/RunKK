@@ -242,7 +242,7 @@ class InboxTest {
         )
         assertEquals(
             V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS + W7_KEYS +
-                GUIDE_REPLAY_KEYS,
+                GUIDE_REPLAY_KEYS + CREW_INVITE_KEYS,
             keys
         )
     }
@@ -380,6 +380,9 @@ class InboxTest {
 
         /** 실기기 수정([임시:D-성-312]): 가이드 다시 보기 신호 경로. */
         val GUIDE_REPLAY_KEYS = setOf("GuideReplay")
+
+        /** 실기기 수정([임시:D-성-243]): 크루 초대 링크의 가입 확인. */
+        val CREW_INVITE_KEYS = setOf("CrewInviteJoin")
 
         // W5([임시:D-성-21]): 채팅은 크루 홈 탭이 되어 CrewChat 경로를 지웠다.
         val V011_KEYS = setOf("CrewPollWrite", "CrewBoardWrite")
