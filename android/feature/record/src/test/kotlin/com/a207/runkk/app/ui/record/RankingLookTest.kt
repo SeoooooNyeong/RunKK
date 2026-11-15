@@ -130,7 +130,7 @@ class RankingLookTest {
     }
 
     @Test
-    fun `모르는 접두어 얼굴 키 줄은 받지 않고 빈 자리 대신 성별 기본 얼굴이다(AR-성-87)`() {
+    fun `모르는 접두어 얼굴 키 줄은 받지 않고 빈 자리 대신 성별 기본 얼굴이다(AR-87)`() {
         val future = ranking.entries[3].copy(look = RunnerLook("future:4:a", null, null, null, 0, 60))
         val shown = mutableListOf<String>()
         show(
@@ -144,7 +144,7 @@ class RankingLookTest {
     }
 
     @Test
-    fun `얼굴 받기에 실패한 줄은 빈 자리 대신 성별 기본 얼굴이다(AR-성-88)`() {
+    fun `얼굴 받기에 실패한 줄은 빈 자리 대신 성별 기본 얼굴이다(AR-88)`() {
         show(RankingUiState(isLoading = false, ranking = ranking, faces = mapOf("head:4:a" to emptyList())))
         compose.waitForIdle()
 

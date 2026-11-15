@@ -100,7 +100,7 @@ public class OperationPolicy {
                 valueOf(SettingKey.RUNBODY_ENABLED, Boolean.class));
     }
 
-    /** 체형 변화 공개(BODY_SHAPE_RELEASED, 기본 false, [임시:D-성-218]). */
+    /** 체형 변화 공개(BODY_SHAPE_RELEASED, 기본 false, D-850). */
     public boolean bodyShapeReleased() {
         return valueOf(SettingKey.BODY_SHAPE_RELEASED, Boolean.class);
     }

@@ -1,4 +1,4 @@
-"""기본 머리 그림(core/ui drawable avatar_default_head_{male,female}.webp, 512×512)을 만든다([임시:D-성-189]).
+"""기본 머리 그림(core/ui drawable avatar_default_head_{male,female}.webp, 512×512)을 만든다(D-821).
 
 core/avatar 내장 기본 머리 정면 층(assets/avatars/{male,female}/face·eyes_open·hair.png, 1024 공통 캔버스)을 겹쳐
 프로필 원 목표 구도(앱 PortraitHeadFrame.TARGET과 같다)에 놓는다.
@@ -6,7 +6,7 @@ core/avatar 내장 기본 머리 정면 층(assets/avatars/{male,female}/face·e
 - 머리 크기: 정수리(헤어 알파 128 이상 위 끝)~턱이 상자의 91%, 목 가운데는 50%. 머리 너비가 상자의 약 90%다.
 - 원 안(avatar_default_head_*): 목은 늘리지 않고 제 길이 그대로 두고 머리를 내려, 목이 둥글게 끝나기 시작하는 줄(목 폭이 최대 폭의
   97% 이상인 마지막 줄 다음)이 상자 바닥에 오게 한다(사용자 요청 2026-11-12). 정수리는 약 2~3%이고 목 끝 외곽선은 상자 밖이다.
-- 원 밖(avatar_default_head_*_free, [임시:D-성-193]): 정수리 -5%, 턱 86% 자리에 목은 제 길이로 둥글게 끝난다(늘리지 않는다).
+- 원 밖(avatar_default_head_*_free, D-825): 정수리 -5%, 턱 86% 자리에 목은 제 길이로 둥글게 끝난다(늘리지 않는다).
 - 피부 층(avatar_default_head_*_skin, S15P31A207-300): 같은 구도의 얼굴(피부) 층에서 눈·헤어가 덮는 만큼 알파를 뺀 그림이다. 앱은
   기본 머리를 그린 뒤 그을림이 있으면 이 층만 거르개로 덧그려 피부만 어둡게 한다(셀카 머리가 얼굴 층에만 거르개를 씌우는 것과 같다).
 

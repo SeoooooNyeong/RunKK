@@ -101,8 +101,8 @@ data class AvatarRunnerActions(
 
 /**
  * 내 러너 B안(62325:1678): 상단 바(제목, 리워드 칩), 무대 카드 358×460(모서리 28, 왼쪽 위 레벨 칩), 숫자 타일 3개, 진입 목록 2줄(얼굴,
- * 배경 n/m), 아래 꾸미기(라임)·상점(회색). 아바타와 숫자·단추만 두고 체형·피부톤 설명은 두지 않는다([임시:D-성-128]).
- * 읽는 동안에도 무대 자리(배경 + 로딩 표시)를 먼저 그린다([임시:D-성-106]).
+ * 배경 n/m), 아래 꾸미기(라임)·상점(회색). 아바타와 숫자·단추만 두고 체형·피부톤 설명은 두지 않는다(D-760).
+ * 읽는 동안에도 무대 자리(배경 + 로딩 표시)를 먼저 그린다(D-738).
  */
 @Composable
 fun AvatarRunnerScreen(state: AvatarRunnerUiState, actions: AvatarRunnerActions, modifier: Modifier = Modifier) {

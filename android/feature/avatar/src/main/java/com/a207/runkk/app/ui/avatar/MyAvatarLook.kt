@@ -4,7 +4,7 @@ import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.model.FaceLayer
 
 /**
- * 홈·러닝 중 칸이 그리는 내 아바타 모습([임시:D-성-103]).
+ * 홈·러닝 중 칸이 그리는 내 아바타 모습(D-735).
  *
  * @property rive 렌더러 모습(성별·의상·체형·러닝량·생성 머리). 미리 준비([prepareRiveAvatarLook][com.a207.runkk.app.core.avatar.prepareRiveAvatarLook])에
  *   넘긴 것과 같은 인스턴스라 머리 레이어 참조가 같다

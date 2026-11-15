@@ -96,7 +96,7 @@ class CrewRunHistoryTest {
     }
 
     @Test
-    @DisplayName("마친 크루런 참석자 거리(DV-성-2): 기록 → 끝낸 값 → 없음, 달리지 않은 참석자는 없음, 기록은 한 번에 읽는다")
+    @DisplayName("마친 크루런 참석자 거리(DV-2): 기록 → 끝낸 값 → 없음, 달리지 않은 참석자는 없음, 기록은 한 번에 읽는다")
     void attendeeDistances_finished() {
         CrewRunPost post = run(5, "r5", 900L);
         post.answer(11L, AttendanceAnswer.GOING, NOW);
@@ -124,7 +124,7 @@ class CrewRunHistoryTest {
     }
 
     @Test
-    @DisplayName("마치지 않은 크루런은 참석자 거리를 주지 않고 기록도 읽지 않는다(DV-성-2)")
+    @DisplayName("마치지 않은 크루런은 참석자 거리를 주지 않고 기록도 읽지 않는다(DV-2)")
     void attendeeDistances_notFinished() {
         CrewRunPost post = run(6, "r6", 900L);
 

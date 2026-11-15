@@ -5,7 +5,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * [임시:D-성-107]: 그림자는 앱이 그린다(타원 0.24A × 0.048A). riv 네 파일에 들어 있는 Ground shadow(타원 105x8, SolidColor
+ * D-739: 그림자는 앱이 그린다(타원 0.24A × 0.048A). riv 네 파일에 들어 있는 Ground shadow(타원 105x8, SolidColor
  * 0x143D2D25, 알파 20/255)가 겹치지 않게 읽은 바이트 사본에서 그 칠의 알파만 0으로 바꾼다(파일은 승인본 그대로).
  */
 class RivGroundShadowTest {

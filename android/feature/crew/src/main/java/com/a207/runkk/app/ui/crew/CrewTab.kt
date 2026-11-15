@@ -3,7 +3,7 @@ package com.a207.runkk.app.ui.crew
 import androidx.annotation.StringRes
 
 /**
- * 크루 홈 탭(피그마 F-05·F-09·F-11): 레이스, 크루런(크루런 일정만), 채팅(ui.chat ChatTabContent, [임시:D-성-21]). 크루 정보와
+ * 크루 홈 탭(피그마 F-05·F-09·F-11): 레이스, 크루런(크루런 일정만), 채팅(ui.chat ChatTabContent, D-653). 크루 정보와
  * 크루원은 머리글 ⋯ 메뉴로 여는 쪽(CrewHomePage)이다. 경로 Routes.CrewHome.tab은 이 이름이다.
  */
 enum class CrewTab(@StringRes val labelRes: Int) {

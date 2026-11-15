@@ -496,7 +496,7 @@ class CrewThreadIntegrationTest {
                 .isEqualTo(5);
         assertThat(avatars.equip(m, List.of(EquipChange.wear(ItemSlot.HAT, 77))).rejected())
                 .containsKey(ItemSlot.HAT);
-        // 한 번도 달리지 않은 회원은 기본 몸(4단계) 그대로다([임시:D-성-212]: 셀카·기본 아바타 몸이 가입 직후부터 같다)
+        // 한 번도 달리지 않은 회원은 기본 몸(4단계) 그대로다(D-844: 셀카·기본 아바타 몸이 가입 직후부터 같다)
         appearance.refreshAll(LocalDate.now());
         assertThat(
                         jdbc.queryForObject(

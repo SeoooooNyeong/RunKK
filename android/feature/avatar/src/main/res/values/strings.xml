@@ -80,7 +80,7 @@
     <string name="avatar_unlock_together">이번 러닝으로 함께 연 배경</string>
     <string name="avatar_unlock_close">닫기</string>
     <string name="avatar_unlock_change">배경 바꾸기</string>
-    <!-- 피그마 제안(S15P31A207-300, design-oo 05-30 D-성-131): 내 러너 B안, 꾸미기 A안, 상점 A안, 사진 업로드 흐름 1안 -->
+    <!-- 피그마 제안(S15P31A207-300, design-oo 05-30 D-763): 내 러너 B안, 꾸미기 A안, 상점 A안, 사진 업로드 흐름 1안 -->
     <string name="avatar_runner_level">Lv.%1$d</string>
     <string name="avatar_runner_level_description">레벨 %1$d</string>
     <string name="avatar_runner_unit_runs">회</string>

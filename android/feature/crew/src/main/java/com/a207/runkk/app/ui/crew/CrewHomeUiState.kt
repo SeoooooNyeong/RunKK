@@ -60,7 +60,7 @@ data class CrewHomeUiState(
     val isGenderPublic: Boolean = false,
     /** 크루 정보 수정(F-26) 입력. 수정 쪽을 열 때 크루 정보로 채운다. */
     val editForm: CrewFormState = CrewFormState(),
-    /** 정보 수정에서 새로 고른 로고(JPEG, 미리보기, DV-성-6). 올린 주소는 [editForm]의 logoUrl이다. 고르지 않았으면 null. */
+    /** 정보 수정에서 새로 고른 로고(JPEG, 미리보기, DV-6). 올린 주소는 [editForm]의 logoUrl이다. 고르지 않았으면 null. */
     val editLogo: ByteArray? = null,
     /** 정보 수정에서 고른 로고를 올리는 중(저장을 막는다). */
     val isUploadingLogo: Boolean = false,

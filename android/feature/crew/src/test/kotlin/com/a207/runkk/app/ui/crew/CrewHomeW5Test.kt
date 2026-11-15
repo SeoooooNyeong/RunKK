@@ -59,7 +59,7 @@ class CrewHomeW5ViewModelTest {
     ).also { it.bind(key) }
 
     @Test
-    fun `채팅 알림 경로(tab CHAT)로 열면 채팅 탭이고 레이스·크루런을 읽지 않는다(D-성-21)`() {
+    fun `채팅 알림 경로(tab CHAT)로 열면 채팅 탭이고 레이스·크루런을 읽지 않는다(D-653)`() {
         val vm = vm(Routes.CrewHome(11, "CHAT"))
         assertEquals(CrewTab.CHAT, vm.state.value.tab)
         assertTrue("race" !in base.calls)
@@ -71,7 +71,7 @@ class CrewHomeW5ViewModelTest {
     }
 
     @Test
-    fun `목표를 달성한 주는 첫 진입 때 축하 팝업을 한 번 띄우고 같은 주 다시 들어오면 띄우지 않는다(F-08b, D-성-23)`() {
+    fun `목표를 달성한 주는 첫 진입 때 축하 팝업을 한 번 띄우고 같은 주 다시 들어오면 띄우지 않는다(F-08b, D-655)`() {
         val first = vm()
         assertNotNull(first.state.value.celebration)
         assertTrue(first.state.value.isCelebrationBannerShown)

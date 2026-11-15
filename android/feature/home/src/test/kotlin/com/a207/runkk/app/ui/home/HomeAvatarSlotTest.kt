@@ -55,7 +55,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /**
- * 홈 아바타 칸(design-oo 05-30 2절, [임시:D-성-100], [임시:D-성-102], [임시:D-성-134], 피그마 62341:1878): 칸이 있으면 390×420 칸을
+ * 홈 아바타 칸(design-oo 05-30 2절, D-732, D-734, D-766, 피그마 62341:1878): 칸이 있으면 390×420 칸을
  * 그리고 누르면 내 러너로 간다. 칸 바닥선(칸 위에서 342dp, 아래에서 78dp)은 지금 아바타 발 자리에 온다. 칸이 비면 지금 그림이다.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -143,7 +143,7 @@ class HomeAvatarSlotTest {
     }
 
     @Test
-    fun `칸을 눌러도 물결(누름 표시)을 그리지 않고 단추 안내는 그대로다(D-성-182)`() {
+    fun `칸을 눌러도 물결(누름 표시)을 그리지 않고 단추 안내는 그대로다(D-814)`() {
         val indication = PressRecordingIndication()
         show(mapOf(SlotKey.HOME_AVATAR to listOf(probe)), indication = indication)
         assertNoRippleButton(HOME_AVATAR_SLOT_TAG, indication)
@@ -151,7 +151,7 @@ class HomeAvatarSlotTest {
     }
 
     @Test
-    fun `칸이 비어 지금 서기 그림을 그려도 눌렀을 때 물결이 없다(D-성-182)`() {
+    fun `칸이 비어 지금 서기 그림을 그려도 눌렀을 때 물결이 없다(D-814)`() {
         val indication = PressRecordingIndication()
         show(emptyMap(), indication = indication)
         val created = indication.created

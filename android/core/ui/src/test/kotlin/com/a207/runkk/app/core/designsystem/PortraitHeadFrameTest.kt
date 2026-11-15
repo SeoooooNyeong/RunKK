@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 import org.junit.Test
 
 /**
- * 프로필 원의 셀카 머리 구도([임시:D-성-189], 사용자 요청 2026-11-12): 셀카 머리 층(1024 캔버스, 얼굴·짧은 목)을 머리 크기·가운데
+ * 프로필 원의 셀카 머리 구도(D-821, 사용자 요청 2026-11-12): 셀카 머리 층(1024 캔버스, 얼굴·짧은 목)을 머리 크기·가운데
  * ([PortraitHeadFrame.TARGET], 정수리~턱 91%, 가운데)에 맞추고, 원 안이면 목을 늘리지 않고 머리를 내려 목이 둥글게 끝나기 시작하는 줄이
  * 상자 바닥에 오게 한다(목 끝 외곽선은 원 아래 가장자리 밖). 원 밖이면 정수리 -5%·턱 86% 자리에 목이 제 길이로 끝난다. 기본 머리 그림도
  * 같은 구도다. 픽셀 배열만 다루는 계산을 시험한다.
@@ -41,7 +41,7 @@ class PortraitHeadFrameTest {
 
     @Test
     fun `원 안 - 턱 바로 아래 목이 가장 넓어도 목 끝을 턱으로 잡지 않아 목이 보인다`() {
-        // 생성 셀카처럼 목이 턱에 이어지는 곳이 가장 넓고 아래로 조금 좁아진다([임시:D-성-221])
+        // 생성 셀카처럼 목이 턱에 이어지는 곳이 가장 넓고 아래로 조금 좁아진다(D-853)
         val frame = assertNotNotNull(PortraitHeadFrame.of(face(flaredNeck = true), hair(), SIZE, SIZE))
         assertTrue(frame.mapY(CHIN.toFloat()) < .97f, "턱이 원 바닥에 붙지 않는다: ${frame.mapY(CHIN.toFloat())}")
         assertNull(frame.neckRow)

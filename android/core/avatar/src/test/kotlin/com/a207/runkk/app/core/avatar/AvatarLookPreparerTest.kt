@@ -15,7 +15,7 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 미리 준비([임시:D-성-104], [임시:D-성-105], [임시:DR-성-10]): `prepareRiveAvatarLook`은 Rive 뷰 없이 그 모습의 서기 합성 텍스처를
+ * 미리 준비(D-736, D-737, DR-10): `prepareRiveAvatarLook`은 Rive 뷰 없이 그 모습의 서기 합성 텍스처를
  * 프로세스 공용 캐시에 넣는다. 같은 모습이면 두 번째는 합성하지 않는다. 요청은 뷰가 만드는 것과 같은 원본(riv 내장 이미지, 내장 머리,
  * 앞 단계 서기 몸)으로 만든다.
  */

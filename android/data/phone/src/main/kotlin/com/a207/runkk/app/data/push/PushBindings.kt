@@ -11,7 +11,7 @@ import dagger.hilt.components.SingletonComponent
 
 /**
  * PushTokenSource ← FcmPushTokenSource, OpenChatRoomRegistry ← OpenChatRoomTracker(6.1.14, D-43, D-61, D-130),
- * SelfieScreenPresence·SelfieResultNotifier ← SelfieNoticeTracker(design-oo 05-30 [임시:D-성-120]).
+ * SelfieScreenPresence·SelfieResultNotifier ← SelfieNoticeTracker(design-oo 05-30 D-752).
  */
 @Module
 @InstallIn(SingletonComponent::class)

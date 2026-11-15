@@ -33,7 +33,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 크루런 측정 화면의 내 아바타 칸(design-oo 05-30 7절, [임시:D-성-121], [임시:D-성-122], D-856): RUNNING이고 내가 움직이는 중이면
+ * 크루런 측정 화면의 내 아바타 칸(design-oo 05-30 7절, D-753, D-754, D-856): RUNNING이고 내가 움직이는 중이면
  * RUN, 내가 일시정지했거나 거리가 3초 늘지 않거나(멈춤) 페이스를 모르면 STAND다. 달리기 빠르기는 자유런·대결과 같이 내 현재 페이스에
  * 비례하고(runMotionSpeed), 진행 방향 원값을 넘기며 내 칸만 88dp다(크루원 그림은 그대로). PM 2026-11-15.
  */

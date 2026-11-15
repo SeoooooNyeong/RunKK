@@ -879,7 +879,7 @@ class AnalysisServicesTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "DF-성-20 0시 재집계: 저장한 스냅숏마다 종류·기간·집계 시각(밀리초로 자름)·상위 줄 ID로 재집계 사건을 낸다")
+            "DF-089 0시 재집계: 저장한 스냅숏마다 종류·기간·집계 시각(밀리초로 자름)·상위 줄 ID로 재집계 사건을 낸다")
     void rebuild_publishesSnapshotRebuiltWithTopSubjects() {
         RankingService service =
                 new RankingService(snapshots, members, crews, runs, tx, rankingEvents, clock);
@@ -921,7 +921,7 @@ class AnalysisServicesTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "DF-성-20 운영자 재계산도 사건을 내고, 상위 줄은 TOP(100)까지, 저장에 실패한 스냅숏은 사건을 내지 않는다")
+            "DF-089 운영자 재계산도 사건을 내고, 상위 줄은 TOP(100)까지, 저장에 실패한 스냅숏은 사건을 내지 않는다")
     void recompute_publishesTopOnlyAndSkipsFailedSnapshots() {
         RankingSnapshotRepository failing = mock(RankingSnapshotRepository.class);
         org.mockito.Mockito.doThrow(new IllegalStateException("db"))

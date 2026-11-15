@@ -293,7 +293,7 @@ class SelfieJobServiceTest {
 
     @Test
     void unknownOutcomeIsRecoveredWhenAiLaterReportsSuccess() {
-        // DV-성-9: Node가 결과를 확정하지 못하고 실패로 끝냈지만 그 뒤 머리를 저장해 작업을 성공으로 회수했다
+        // DV-9: Node가 결과를 확정하지 못하고 실패로 끝냈지만 그 뒤 머리를 저장해 작업을 성공으로 회수했다
         service.submit(1, new byte[] {1});
         when(gateway.status(1, "job-1")).thenReturn(failed("job-1", "GENERATION_OUTCOME_UNKNOWN"));
         assertThat(service.status(1, "job-1").status()).isEqualTo(FaceJob.Status.FAILED);

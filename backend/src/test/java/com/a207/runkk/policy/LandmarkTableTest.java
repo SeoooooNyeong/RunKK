@@ -68,7 +68,7 @@ class LandmarkTableTest {
     }
 
     @Test
-    @org.junit.jupiter.api.DisplayName("D-성-129 춘천 149.999km는 아직 인천, 150km 정각부터 춘천(왕복 1회)")
+    @org.junit.jupiter.api.DisplayName("D-761 춘천 149.999km는 아직 인천, 150km 정각부터 춘천(왕복 1회)")
     void chuncheonBoundary() {
         assertThat(table.personalProgressOf(Distance.ofMeters(149_999)).name()).isEqualTo("인천");
         LandmarkProgress at = table.personalProgressOf(Distance.ofMeters(150_000));

@@ -121,7 +121,7 @@ fun RouteCanvas(
                 drawCircle(startBorder, radius = 7.dp.toPx(), center = o, style = Stroke(width = 2.dp.toPx()))
             }
         }
-        // 표지로 묶어 마커가 늘거나 줄어도(대결 상대가 나타남) 내 마커 내용(Rive 칸)을 새로 만들지 않는다([임시:DR-성-14])
+        // 표지로 묶어 마커가 늘거나 줄어도(대결 상대가 나타남) 내 마커 내용(Rive 칸)을 새로 만들지 않는다(DR-14)
         markers.forEach { marker ->
             key(marker.tag) { MarkerAt(projection.project(marker.point), marker, marker.size ?: markerSize) }
         }

@@ -32,7 +32,7 @@ internal fun RunBodyDetailPage(state: RunBodyUiState, actions: RunBodyActions) {
         onBack = actions.onBack,
         onCoach = actions.onCoach
     ) {
-        // 피그마 "11월 2일 오전 7:10 · 5.2km"의 가운뎃점은 메타 줄로 그린다([임시:D-성-10])
+        // 피그마 "11월 2일 오전 7:10 · 5.2km"의 가운뎃점은 메타 줄로 그린다(D-642)
         MetaRow(
             listOf(
                 MetaItem(RunkkIcons.CalendarToday, runTime(result.summary.startedAt, state.zone)),
@@ -177,7 +177,7 @@ private fun CompareCard(summary: RunBodyResult.Summary, previous: RunBodyResult.
 
 /**
  * 라벨과 본문을 한 줄(문단)에: "좋았던 점 전반과 후반 페이스 차이가 작아요."(G-20). 피그마는 한 줄 전체가 14 Regular 보조색이고 라벨 뒤를
- * 가운뎃점으로 띄운다. 가운뎃점 대신 라벨만 Medium으로 구분한다([임시:D-성-10]). [spoken]이 있으면 화면 읽기는 본문 대신 그 문구를
+ * 가운뎃점으로 띄운다. 가운뎃점 대신 라벨만 Medium으로 구분한다(D-642). [spoken]이 있으면 화면 읽기는 본문 대신 그 문구를
  * 라벨 뒤에 읽는다(페이스 기호 ′ ″ → "5분 44초", 리뷰 PL12-A4).
  */
 @Composable

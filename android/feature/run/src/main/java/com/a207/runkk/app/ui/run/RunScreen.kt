@@ -412,7 +412,7 @@ private fun RunningStats(progress: RunProgress) {
 /**
  * 경로선과 경로 끝의 내 아바타(D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. 아바타는 경로 전후 같은 그림이다.
  * 아바타 칸(SlotKey.RUN_AVATAR, design-oo 05-30 7절)이 있으면 88dp 칸에 Rive 아바타를 넣는다: 측정 중(일시정지 아님)이면 RUN, 그 밖은
- * STAND이고 진행 방향 원값을 넘긴다([임시:D-성-122], [임시:D-성-133]). 칸이 비면 지금 그림이다: 움직이는 동안 달리기 동작을 현재
+ * STAND이고 진행 방향 원값을 넘긴다(D-754, D-765). 칸이 비면 지금 그림이다: 움직이는 동안 달리기 동작을 현재
  * 페이스 빠르기로 넘기고, 멈춰 있거나 일시정지면 서 있는다.
  */
 @Composable
@@ -531,7 +531,7 @@ private const val SUMMARY_SEPARATOR = ", "
 private const val NO_HEART_RATE = "--"
 private val BIG_BUTTON = 88.dp
 
-/** 내 위치 그림 칸: 지금 그림 72dp, 아바타 칸(Rive)이면 88dp([임시:D-성-121], 피그마 62341:1878). */
+/** 내 위치 그림 칸: 지금 그림 72dp, 아바타 칸(Rive)이면 88dp(D-753, 피그마 62341:1878). */
 private val MY_FIGURE = 72.dp
 private val MY_AVATAR_SLOT = 88.dp
 private val SMALL_BUTTON = 48.dp

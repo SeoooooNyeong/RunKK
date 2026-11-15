@@ -68,7 +68,7 @@ public class AppearanceService {
         List<LocalDateTime> starts = runQueryService.recentStartTimes(memberId, RECENT_RUNS);
         LocalDateTime last = starts.stream().max(Comparator.naturalOrder()).orElse(null);
         Avatar avatar = avatarRepository.findForUpdate(memberId).orElseThrow();
-        // 체형 변화 미공개면 기본 몸으로 두고 알리지 않는다([임시:D-성-218])
+        // 체형 변화 미공개면 기본 몸으로 두고 알리지 않는다(D-850)
         boolean shapeReleased = operationPolicy.bodyShapeReleased();
         BodyShape shape =
                 shapeReleased

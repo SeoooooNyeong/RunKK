@@ -5,7 +5,7 @@ package com.a207.runkk.app.core.avatar
  * [PreparedRiveAssets.embeddedImages])가 같은 원본으로 같은 요청을 만들어야 공용 합성 캐시([SharedToneCache])의 결과를 서로 쓸 수 있다.
  */
 internal object AvatarToneRequests {
-    /** 정면 몸 원본: standing_body, 체형 0 볼 덮개. 남자 내장 기본 옷 몸(male_selected_body)은 그리지 않아 넣지 않는다(D-성-115). */
+    /** 정면 몸 원본: standing_body, 체형 0 볼 덮개. 남자 내장 기본 옷 몸(male_selected_body)은 그리지 않아 넣지 않는다(D-747). */
     class FrontOriginals(val body: ByteArray, val fullness: ByteArray)
 
     /** 달리기 원본: 피부·의상 자리 일곱(이름 → PNG), 체형 0 옆볼 덮개. */

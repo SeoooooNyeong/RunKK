@@ -52,7 +52,7 @@ class CrewHomeViewModel @Inject constructor(
     private val serverClock: ServerClock,
     private val celebration: CelebrationSharer,
     private val visibility: ProfileVisibilitySaver,
-    /** 축하 팝업을 그 주에 본 기록([임시:D-성-23]). 시험은 기본 메모리 구현을 쓴다. */
+    /** 축하 팝업을 그 주에 본 기록(D-655). 시험은 기본 메모리 구현을 쓴다. */
     private val celebrationStore: CrewCelebrationStore = CrewCelebrationStore.inMemory()
 ) : ViewModel() {
     private val _state = MutableStateFlow(CrewHomeUiState())
@@ -79,7 +79,7 @@ class CrewHomeViewModel @Inject constructor(
 
     private var bound: Long? = null
 
-    /** 크루 로고 바이트(크루 홈 머리·크루 정보·정보 수정의 크루 이미지가 읽는다, DV-성-8). */
+    /** 크루 로고 바이트(크루 홈 머리·크루 정보·정보 수정의 크루 이미지가 읽는다, DV-8). */
     suspend fun logo(url: String): Outcome<ByteArray> = crews.logo(url)
     private var refreshJob: Job? = null
     private var detailJob: Job? = null
@@ -143,7 +143,7 @@ class CrewHomeViewModel @Inject constructor(
 
             CrewTab.SCHEDULE -> s.crewRuns != null
 
-            // 채팅 탭은 ChatTabContent가 방을 열어 스스로 읽는다([임시:D-성-21]).
+            // 채팅 탭은 ChatTabContent가 방을 열어 스스로 읽는다(D-653).
             CrewTab.CHAT -> true
         }
         if (!loaded) refresh()
@@ -206,7 +206,7 @@ class CrewHomeViewModel @Inject constructor(
         return (race as? Outcome.Failure)?.error ?: (ranking as? Outcome.Failure)?.error
     }
 
-    /** 이번 주 공동 목표를 달성했고 이 기기에서 그 주에 아직 팝업을 보지 않았으면 한 번 띄운다(피그마 F-08b, [임시:D-성-23]). */
+    /** 이번 주 공동 목표를 달성했고 이 기기에서 그 주에 아직 팝업을 보지 않았으면 한 번 띄운다(피그마 F-08b, D-655). */
     private fun celebrateOnce(crewId: Long, race: RaceStatus) {
         if (race.achievedAt == null || race.celebration == null) return
         val weekStart = raceWeekStart(race)
@@ -579,7 +579,7 @@ class CrewHomeViewModel @Inject constructor(
     fun onEditForm(form: CrewFormState) = _state.update { it.copy(editForm = form.copy(logoUrl = it.editForm.logoUrl)) }
 
     /**
-     * 정보 수정에서 고른 로고(JPEG로 줄인 바이트, 크루 만들기와 같은 CrewLogoEncoder)를 미리 보이고 올린다(POST /crew-logos, DV-성-6).
+     * 정보 수정에서 고른 로고(JPEG로 줄인 바이트, 크루 만들기와 같은 CrewLogoEncoder)를 미리 보이고 올린다(POST /crew-logos, DV-6).
      * 올리면 받은 주소를 입력에 싣고, 실패하면 미리보기를 비우고 원래 로고 주소를 둔 채 안내한다.
      */
     fun onEditLogoPicked(jpeg: ByteArray) {
@@ -623,7 +623,7 @@ class CrewHomeViewModel @Inject constructor(
     }
 
     /**
-     * 탈퇴·크루 삭제가 됐다(DV-성-7): 떠난 크루의 상태와 읽기를 모두 버리고 크루 탭으로 나가라고 알린다. 같은 크루 홈 항목이 남아 있어도
+     * 탈퇴·크루 삭제가 됐다(DV-7): 떠난 크루의 상태와 읽기를 모두 버리고 크루 탭으로 나가라고 알린다. 같은 크루 홈 항목이 남아 있어도
      * 다음 bind가 처음부터 읽는다.
      */
     private fun leftCrew() {

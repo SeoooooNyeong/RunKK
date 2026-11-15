@@ -138,7 +138,7 @@ class AvatarServicesTest {
         when(runs.recentStartTimes(ALICE, 10))
                 .thenReturn(List.of(TODAY.minusDays(1).atTime(5, 30)));
         when(runs.recentStartTimes(2L, 10)).thenReturn(List.of(TODAY.minusDays(10).atTime(12, 0)));
-        // 달린 적 없는 회원은 기본 몸 그대로다([임시:D-성-212])
+        // 달린 적 없는 회원은 기본 몸 그대로다(D-844)
         when(runs.recentStartTimes(3L, 10)).thenReturn(List.of());
 
         assertThat(appearance.refreshAll(TODAY)).isEqualTo(1);
