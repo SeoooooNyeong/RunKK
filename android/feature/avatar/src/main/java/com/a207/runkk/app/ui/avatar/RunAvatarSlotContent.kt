@@ -80,13 +80,15 @@ private fun MyRunAvatar(store: MyAvatarStore) {
             isReadyTimedOut = true
         }
     }
+    val figure = runFigureState(
+        look?.rive,
+        state is MyAvatarState.Failed || isRiveFailed || (look == null && isReadyTimedOut),
+        LocalAvatarCharacter.current
+    )
     RunAvatarFigure(
-        look = look?.rive,
-        isFailed = state is MyAvatarState.Failed || isRiveFailed || (look == null && isReadyTimedOut),
-        character = LocalAvatarCharacter.current,
+        state = figure,
         pose = pose,
-        rawLeft = rawLeft,
-        facingLeft = facingLeft,
+        facing = if (figure is RunFigureState.Failed) rawLeft else facingLeft,
         onError = { isRiveFailed = true }
     )
 }
@@ -114,54 +116,48 @@ private fun RunnerRunAvatar(subject: RunAvatarSubject, resolver: RunnerLookResol
             isReadyTimedOut = true
         }
     }
+    val figure = runFigureState(
+        look,
+        isRiveFailed || (look == null && isReadyTimedOut),
+        if (subject.isFemale == true) AvatarCharacter.FEMALE else AvatarCharacter.MALE
+    )
     RunAvatarFigure(
-        look = look,
-        isFailed = isRiveFailed || (look == null && isReadyTimedOut),
-        character = if (subject.isFemale == true) AvatarCharacter.FEMALE else AvatarCharacter.MALE,
+        state = figure,
         pose = pose,
-        rawLeft = rawLeft,
-        facingLeft = facingLeft,
+        facing = if (figure is RunFigureState.Failed) rawLeft else facingLeft,
         onError = { isRiveFailed = true }
     )
 }
 
 /**
- * 달리는 아바타 한 명. 실패면 [character]의 지금 달리기 그림, 움직임 줄이기([LocalReduceMotion])면 멈춘 그림([RiveAvatarStill],
+ * 달리는 아바타 한 명. 실패면 해당 성별의 지금 달리기 그림, 움직임 줄이기([LocalReduceMotion])면 멈춘 그림([RiveAvatarStill],
  * [임시:D-성-262]: 렌더러는 줄이기를 보지 않아 칸 내용이 가른다), 아니면 Rive 무대다(준비 전에는 로딩 표시).
  */
 @Composable
-private fun RunAvatarFigure(
-    look: RiveAvatarLook?,
-    isFailed: Boolean,
-    character: AvatarCharacter,
-    pose: AvatarSlotPose,
-    rawLeft: Boolean,
-    facingLeft: Boolean,
-    onError: () -> Unit
-) {
+private fun RunAvatarFigure(state: RunFigureState, pose: AvatarSlotPose, facing: Boolean, onError: () -> Unit) {
     Box(Modifier.fillMaxSize()) {
         when {
-            isFailed -> Box(Modifier.fillMaxSize().testTag(RUN_AVATAR_FALLBACK_TAG)) {
+            state is RunFigureState.Failed -> Box(Modifier.fillMaxSize().testTag(RUN_AVATAR_FALLBACK_TAG)) {
                 RunkkRunningFigure(
                     isMoving = pose == AvatarSlotPose.RUN,
                     frameMillis = runFrameMillis(null),
-                    character = character,
-                    isFacingLeft = rawLeft
+                    character = state.character,
+                    isFacingLeft = facing
                 )
             }
 
-            look != null && LocalReduceMotion.current -> RiveAvatarStill(
-                look,
+            state is RunFigureState.Ready && LocalReduceMotion.current -> RiveAvatarStill(
+                state.look,
                 Modifier.fillMaxSize().testTag(RUN_AVATAR_STILL_TAG),
                 onError = { onError() }
             )
 
             else -> RiveAvatarStage(
-                look = look,
+                look = (state as? RunFigureState.Ready)?.look,
                 darkTheme = LocalRunkkColors.current.isDark,
                 modifier = Modifier.fillMaxSize(),
                 motion = pose.motion(),
-                mirrored = facingLeft,
+                mirrored = facing,
                 runSpeed = LocalSlotAvatarRunSpeed.current,
                 loadingColor = RunkkColors.TextSecondary,
                 onError = { onError() }
@@ -169,3 +165,16 @@ private fun RunAvatarFigure(
         }
     }
 }
+
+private sealed interface RunFigureState {
+    data object Loading : RunFigureState
+    data class Ready(val look: RiveAvatarLook) : RunFigureState
+    data class Failed(val character: AvatarCharacter) : RunFigureState
+}
+
+private fun runFigureState(look: RiveAvatarLook?, isFailed: Boolean, character: AvatarCharacter): RunFigureState =
+    when {
+        isFailed -> RunFigureState.Failed(character)
+        look != null -> RunFigureState.Ready(look)
+        else -> RunFigureState.Loading
+    }

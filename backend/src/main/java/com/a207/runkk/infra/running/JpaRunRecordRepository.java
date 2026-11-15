@@ -263,13 +263,14 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                 .flatMap(
                         row ->
                                 RunRecord.lookOf(
-                                        (String) row[0],
-                                        (Long) row[1],
-                                        (Long) row[2],
-                                        (Long) row[3],
-                                        (Integer) row[4],
-                                        (Integer) row[5],
-                                        (String) row[6]));
+                                        new RunRecord.LookColumns(
+                                                (String) row[0],
+                                                (Long) row[1],
+                                                (Long) row[2],
+                                                (Long) row[3],
+                                                (Integer) row[4],
+                                                (Integer) row[5],
+                                                (String) row[6])));
     }
 
     @Override

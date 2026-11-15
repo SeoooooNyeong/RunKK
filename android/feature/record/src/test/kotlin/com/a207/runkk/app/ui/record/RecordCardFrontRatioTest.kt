@@ -10,14 +10,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.a207.runkk.app.core.designsystem.RESULT_STAGE_DEFAULT_AVATAR_TAG
+import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.splitPace
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlots
@@ -57,10 +65,12 @@ class RecordCardFrontRatioTest {
     }
 
     private var width by mutableStateOf(334.dp)
+    private var fontScale by mutableStateOf(1f)
 
     private fun show(slot: (@Composable () -> Unit)? = null) = compose.setContent {
         CompositionLocalProvider(
-            LocalSlots provides (slot?.let { mapOf(SlotKey.AVATAR_STILL to listOf(it)) } ?: emptyMap())
+            LocalSlots provides (slot?.let { mapOf(SlotKey.AVATAR_STILL to listOf(it)) } ?: emptyMap()),
+            LocalDensity provides Density(LocalDensity.current.density, fontScale)
         ) {
             RunkkTheme(reduceMotion = true) {
                 Box(Modifier.width(width)) { RecordCardFront(card, Modifier.testTag("front")) }
@@ -144,5 +154,56 @@ class RecordCardFrontRatioTest {
         compose.onNodeWithText("운동 시간", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("평균 페이스", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("152", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `글자 1점3배에서도 날짜와 모든 지표의 한 줄이 카드 안에 온전히 보인다`() {
+        fontScale = 1.3f
+        show()
+        listOf(334.dp, 304.dp, 280.dp).forEach { nextWidth ->
+            width = nextWidth
+            compose.waitForIdle()
+            val front = boundsOf("front")
+            assertEquals(RECORD_CARD_RATIO, front.width / front.height, 0.005f)
+            assertEquals(RECORD_CARD_PICTURE_SHARE, boundsOf(RECORD_CARD_PICTURE_TAG).height / front.height, 0.005f)
+            listOf(
+                "맑음 14°", "5.02", "km", "신기록", "운동 시간", "평균 페이스", "평균 심박", "152",
+                RunkkFormat.duration(card.elapsed), card.averagePace?.let(::splitPace) ?: RunkkFormat.EMPTY
+            ).forEach { text ->
+                val layout =
+                    assertFullLine(compose.onNodeWithText(text, useUnmergedTree = true), front, "$nextWidth $text")
+                if (text == "5.02") assertEquals(40.sp, layout.layoutInput.style.fontSize)
+                if (text == "152") assertEquals(16.sp, layout.layoutInput.style.fontSize)
+            }
+            assertFullLine(
+                compose.onNodeWithText("2026.", substring = true, useUnmergedTree = true),
+                front,
+                "$nextWidth 날짜"
+            )
+        }
+    }
+
+    private fun assertFullLine(
+        node: androidx.compose.ui.test.SemanticsNodeInteraction,
+        front: Rect,
+        label: String
+    ): TextLayoutResult {
+        val layouts = mutableListOf<TextLayoutResult>()
+        node.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        val result = layouts.single()
+        assertEquals(1.3f, result.layoutInput.density.fontScale, 0.001f, "$label 글자 배율 유지")
+        val bounds = node.fetchSemanticsNode().boundsInRoot
+        assertTrue(!result.didOverflowHeight, "$label 줄 높이 넘침: ${result.size} / ${result.multiParagraph.height}")
+        assertEquals(1, result.lineCount, "$label 한 줄")
+        assertTrue(bounds.height + 1f >= result.getLineBottom(0), "$label 줄 잘림")
+        // wrap-content Text의 문단은 가용 폭 전체를 쓰므로 폭 플래그 대신 실제 글리프 경계를 확인한다.
+        assertTrue(result.getLineRight(0) <= bounds.width + 1f, "$label 줄 폭 잘림")
+        result.layoutInput.text.text.indices.forEach { index ->
+            val glyph = result.getBoundingBox(index)
+            assertTrue(glyph.left >= -1f && glyph.right <= bounds.width + 1f, "$label 글리프 가로 잘림: $glyph / $bounds")
+            assertTrue(glyph.top >= -1f && glyph.bottom <= bounds.height + 1f, "$label 글리프 세로 잘림: $glyph / $bounds")
+        }
+        assertTrue(bounds.top >= front.top && bounds.bottom <= front.bottom + 1f, "$label 카드 밖")
+        return result
     }
 }

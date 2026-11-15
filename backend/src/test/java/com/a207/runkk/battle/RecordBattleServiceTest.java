@@ -254,4 +254,43 @@ class RecordBattleServiceTest {
             pool.shutdownNow();
         }
     }
+
+    @Test
+    void ownGenderReadUsesTheSameReadSlots() throws Exception {
+        var reading = new java.util.concurrent.CountDownLatch(1);
+        var release = new java.util.concurrent.CountDownLatch(1);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        when(runs.lookOf("best")).thenReturn(Optional.of(THAT_DAY));
+        OpponentLooks one =
+                new OpponentLooks(
+                        id -> Optional.of(TODAY),
+                        runs,
+                        id -> {
+                            calls.incrementAndGet();
+                            if (id == ALICE) {
+                                reading.countDown();
+                                try {
+                                    release.await(5, java.util.concurrent.TimeUnit.SECONDS);
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                }
+                            }
+                            return Optional.of("MALE");
+                        },
+                        5);
+        var pool = java.util.concurrent.Executors.newSingleThreadExecutor();
+        try {
+            var first = pool.submit(() -> one.selfLook(ALICE, "best"));
+            assertThat(reading.await(5, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
+            assertThat(one.selfLook(ALICE + 1, "best")).isNull();
+            assertThat(calls).hasValue(1);
+            release.countDown();
+            assertThat(first.get(5, java.util.concurrent.TimeUnit.SECONDS))
+                    .isEqualTo(THAT_DAY.withGender("MALE"));
+            assertThat(one.selfLook(ALICE + 1, "best")).isEqualTo(THAT_DAY.withGender("MALE"));
+        } finally {
+            release.countDown();
+            pool.shutdownNow();
+        }
+    }
 }

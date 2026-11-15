@@ -30,17 +30,11 @@ public class AvatarQuery {
 
     /**
      * 여러 회원의 얼굴 키(Face.renderKey). 얼굴을 고르지 않은 회원은 맵에 없다. 다른 러너에게 아바타는 늘 보이므로(FR-006, D-241) 거르지
-     * 않는다. 탈퇴 회원 ID는 부르는 쪽이 넘기지 않는다. web.crew가 크루런 대기실·결과의 크루원 아바타에 쓴다(크루 정원 10명이라 회원마다 읽는다).
+     * 않는다. 탈퇴 회원 ID는 부르는 쪽이 넘기지 않는다. 얼굴 값만 한 번의 투영 쿼리로 읽는다.
      */
     @Transactional(readOnly = true)
     public Map<Long, String> faceKeysOf(Collection<Long> memberIds) {
-        Map<Long, String> keys = new LinkedHashMap<>();
-        for (Long id : memberIds) {
-            if (id != null && !keys.containsKey(id)) {
-                faceKey(id).ifPresent(key -> keys.put(id, key));
-            }
-        }
-        return keys;
+        return avatarRepository.faceKeysOf(memberIds);
     }
 
     /**

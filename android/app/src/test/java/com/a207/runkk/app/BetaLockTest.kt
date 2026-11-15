@@ -32,15 +32,26 @@ private object LockEntries : FeatureEntry {
         builder.route(Routes.HOME) {
             val navigator = LocalRunkkNavigator.current
             val isCrewOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.CREW)
-            Text("홈 화면 크루 공개 $isCrewOpen")
-            TextButton(onClick = { navigator.navigate(Routes.CrewHome(1)) }) { Text("크루 알림 열기") }
+            androidx.compose.foundation.layout.Column {
+                Text("홈 화면 크루 공개 $isCrewOpen")
+                TextButton(onClick = { navigator.navigate(Routes.CrewHome(1)) }) { Text("크루 알림 열기") }
+                TextButton(onClick = { navigator.navigate(Routes.CrewInviteJoin("ABC123")) }) { Text("크루 초대 열기") }
+            }
         }
         builder.route(Routes.CREW) { Text("크루 화면") }
         builder.route(Routes.RECORD_RUN) { Text("기록런 화면") }
         builder.route(Routes.RANKING) { Text("랭킹 화면") }
         builder.route(Routes.ME) { Text("마이 화면") }
         builder.addEntryProvider(Routes.CrewHome::class) { Text("크루 홈 화면") }
+        builder.addEntryProvider(Routes.CrewInviteJoin::class) {
+            androidx.compose.runtime.LaunchedEffect(Unit) { previews++ }
+            Text("크루 가입 확인")
+            TextButton(onClick = { joins++ }) { Text("가입") }
+        }
     }
+
+    var previews = 0
+    var joins = 0
 }
 
 /**
@@ -62,6 +73,7 @@ class BetaLockTest {
             Routes.Key(Routes.CREW_NOTICE),
             Routes.CrewHome(1),
             Routes.CrewHome(1, "CHAT"),
+            Routes.CrewInviteJoin("ABC123"),
             Routes.CrewRunLobby(1)
         ).forEach { assertEquals(UnreleasedFeature.CREW, BetaLock.featureOf(it), "$it") }
         listOf(Routes.AVATAR, Routes.AVATAR_SETUP, Routes.SHOP, Routes.AVATAR_BACKGROUND).forEach {
@@ -79,6 +91,7 @@ class BetaLockTest {
         listOf<NavKey>(
             Routes.Key(Routes.CREW),
             Routes.CrewHome(1),
+            Routes.CrewInviteJoin("ABC123"),
             Routes.Key(Routes.SHOP),
             Routes.Key(Routes.AVATAR),
             Routes.Key(Routes.REPORT)
@@ -174,6 +187,34 @@ class BetaLockTest {
         compose.onNodeWithText("홈 화면 크루 공개 true").assertExists()
         compose.onNodeWithText("크루").performClick()
         compose.onNodeWithText("크루 화면").assertExists()
+    }
+
+    @Test
+    fun `닫힌 크루 초대는 제공자를 실행하지 않아 미리보기와 가입 요청이 없다`() {
+        LockEntries.previews = 0
+        LockEntries.joins = 0
+        show(ReleaseScope.FIRST_RELEASE)
+        compose.onNodeWithText("크루 초대 열기").performClick()
+        compose.onNodeWithText("추후 추가 예정").assertExists()
+        compose.onNodeWithText("크루 가입 확인").assertDoesNotExist()
+        compose.runOnIdle {
+            assertEquals(0, LockEntries.previews)
+            assertEquals(0, LockEntries.joins)
+        }
+    }
+
+    @Test
+    fun `열린 크루 초대는 미리보고 가입할 수 있다`() {
+        LockEntries.previews = 0
+        LockEntries.joins = 0
+        show(ReleaseScope.of(isLockingUnreleased = true))
+        compose.onNodeWithText("크루 초대 열기").performClick()
+        compose.onNodeWithText("크루 가입 확인").assertExists()
+        compose.onNodeWithText("가입").performClick()
+        compose.runOnIdle {
+            assertEquals(1, LockEntries.previews)
+            assertEquals(1, LockEntries.joins)
+        }
     }
 
     private fun show(releaseScope: ReleaseScope) {

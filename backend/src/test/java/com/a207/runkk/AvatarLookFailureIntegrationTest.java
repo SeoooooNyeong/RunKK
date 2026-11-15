@@ -28,6 +28,7 @@ import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.MemberFixtures;
+import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberRepository;
 import com.a207.runkk.running.AvatarLookSource;
 import com.a207.runkk.running.RunFixtures;
@@ -83,6 +84,9 @@ class AvatarLookFailureIntegrationTest {
     @MockitoSpyBean RunnerService runner;
     @MockitoSpyBean RunQueryService runQueries;
     @MockitoSpyBean BattleMessenger messenger;
+    @MockitoSpyBean MemberQueryService memberQueries;
+
+    private final AtomicBoolean ownGenderDown = new AtomicBoolean();
 
     /** 켜면 지금 모습 읽기(AvatarLookReader) 도중 SQL 오류가 난다. */
     private final AtomicBoolean currentLookDown = new AtomicBoolean();
@@ -94,6 +98,16 @@ class AvatarLookFailureIntegrationTest {
     void clean() throws Throwable {
         currentLookDown.set(false);
         recordLookDown.set(false);
+        ownGenderDown.set(false);
+        doAnswer(
+                        inv -> {
+                            if (ownGenderDown.get()) {
+                                failingSql();
+                            }
+                            return inv.callRealMethod();
+                        })
+                .when(memberQueries)
+                .ownGenderOf(anyLong());
         doAnswer(
                         inv -> {
                             if (currentLookDown.get()) {
@@ -237,6 +251,34 @@ class AvatarLookFailureIntegrationTest {
                 .as("후보 조회도 정상 응답한다")
                 .isNotEmpty()
                 .allSatisfy(c -> assertThat(c.look()).isNull());
+    }
+
+    @Test
+    @DisplayName("본인 성별 SQL만 실패해도 후보와 진행 조회는 저장된 모습을 유지하고 바깥 쓰기를 커밋한다")
+    void ownGenderFailureLeavesSelfBattleAndCallerUsable() {
+        long alice = ranked("성별곰");
+        recordBattles.startSelfBattle(alice, StandardDistance.KM5);
+        String recordId = battleOf(alice).getOpponent().orElseThrow().recordId();
+        AvatarLook stored = runQueries.lookOf(recordId).orElseThrow();
+        assertThat(stored).isNotNull();
+        ownGenderDown.set(true);
+
+        tx.executeWithoutResult(
+                status -> {
+                    assertThat(recordBattles.selfCandidates(alice).candidates())
+                            .filteredOn(c -> c.look() != null)
+                            .isNotEmpty()
+                            .allSatisfy(c -> assertThat(c.look()).isEqualTo(stored));
+                    assertThat(history.active(alice).orElseThrow().opponentLook())
+                            .isEqualTo(stored);
+                    assertThat(status.isRollbackOnly()).isFalse();
+                    jdbc.update("update member set intro = ? where id = ?", "격리 성공", alice);
+                });
+
+        assertThat(
+                        jdbc.queryForObject(
+                                "select intro from member where id = ?", String.class, alice))
+                .isEqualTo("격리 성공");
     }
 
     @Test

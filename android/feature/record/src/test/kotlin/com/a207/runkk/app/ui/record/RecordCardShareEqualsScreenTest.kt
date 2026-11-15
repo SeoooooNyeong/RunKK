@@ -7,12 +7,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillOnReady
@@ -42,9 +44,10 @@ class RecordCardShareEqualsScreenTest {
     private val rendered = Bitmap.createBitmap(8, 10, Bitmap.Config.ARGB_8888)
     private val shared = mutableListOf<Pair<CardShareKind, CapturedCard?>>()
 
-    private fun show(slot: (@Composable () -> Unit)? = null) = compose.setContent {
+    private fun show(slot: (@Composable () -> Unit)? = null, fontScale: Float = 1f) = compose.setContent {
         CompositionLocalProvider(
-            LocalSlots provides (slot?.let { mapOf(SlotKey.AVATAR_STILL to listOf(it)) } ?: emptyMap())
+            LocalSlots provides (slot?.let { mapOf(SlotKey.AVATAR_STILL to listOf(it)) } ?: emptyMap()),
+            LocalDensity provides Density(LocalDensity.current.density, fontScale)
         ) {
             RunkkTheme(darkTheme = false, reduceMotion = true) {
                 RecordCardScreen(
@@ -89,7 +92,16 @@ class RecordCardShareEqualsScreenTest {
 
     @Test
     fun `캡처 이미지는 화면의 앞면과 같은 크기이고 픽셀이 같다`() {
-        show()
+        assertCaptureEqualsScreen(1f)
+    }
+
+    @Test
+    fun `글자 1점3배의 공유 이미지도 화면 앞면과 크기와 픽셀이 같다`() {
+        assertCaptureEqualsScreen(1.3f)
+    }
+
+    private fun assertCaptureEqualsScreen(fontScale: Float) {
+        show(fontScale = fontScale)
         val onScreen = compose.onNodeWithContentDescription("러닝 카드 앞면", substring = true)
             .captureToImage().asAndroidBitmap()
         compose.onNodeWithText("더 보기").performClick()

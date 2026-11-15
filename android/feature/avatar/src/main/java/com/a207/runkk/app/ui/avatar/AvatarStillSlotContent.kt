@@ -3,10 +3,12 @@ package com.a207.runkk.app.ui.avatar
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,22 +48,38 @@ internal const val AVATAR_STILL_READY_TIMEOUT_MS = RUN_AVATAR_READY_TIMEOUT_MS
 @Composable
 internal fun AvatarStillSlotContent(store: MyAvatarStore, resolver: RunnerLookResolver) {
     val subject = LocalSlotAvatarStill.current ?: return
+    var hasShown by remember { mutableStateOf(false) }
+    val currentOnReady by rememberUpdatedState(LocalSlotAvatarStillOnReady.current)
+    val onReady = remember {
+        {
+            hasShown = true
+            currentOnReady()
+        }
+    }
     if (!LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
         LocalSlotAvatarStillFallback.current?.invoke()
         // 부르는 쪽 그림은 바로 보인다([임시:D-성-292])
-        val onReady = LocalSlotAvatarStillOnReady.current
         LaunchedEffect(Unit) { onReady() }
         return
     }
-    if (subject.isMine) {
-        MyAvatarStill(store, subject.isLightSkin)
-    } else {
-        RunnerAvatarStill(subject.isFemale?.let { if (it) Gender.FEMALE else Gender.MALE }, subject.look, resolver)
+    CompositionLocalProvider(LocalSlotAvatarStillOnReady provides onReady) {
+        if (subject.isMine) {
+            MyAvatarStill(store, subject.isLightSkin, hasShown)
+        } else {
+            RunnerAvatarStill(
+                subject.isFemale?.let {
+                    if (it) Gender.FEMALE else Gender.MALE
+                },
+                subject.look,
+                resolver,
+                hasShown
+            )
+        }
     }
 }
 
 @Composable
-private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
+private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean, hasShown: Boolean) {
     LaunchedEffect(store) { store.warm() }
     val state by store.state.collectAsStateWithLifecycle()
     val look = (state as? MyAvatarState.Ready)?.look?.rive?.let { if (isLightSkin) it.copy(runningAmount = 0) else it }
@@ -74,14 +92,15 @@ private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
         }
     }
     when {
-        state is MyAvatarState.Failed || isFailed || (look == null && isTimedOut) ->
+        state is MyAvatarState.Failed || isFailed || (look == null && (isTimedOut || hasShown)) ->
             StillFallback(LocalAvatarCharacter.current)
 
         look != null -> RiveAvatarStill(
             look,
             Modifier.fillMaxSize(),
             onError = { isFailed = true },
-            onReady = LocalSlotAvatarStillOnReady.current
+            onReady = LocalSlotAvatarStillOnReady.current,
+            pending = { if (hasShown) StillFallback(LocalAvatarCharacter.current) }
         )
 
         else -> Unit
@@ -94,7 +113,12 @@ private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
  * 기본 전신 그림이다.
  */
 @Composable
-private fun RunnerAvatarStill(gender: Gender?, received: SlotRunnerLook?, resolver: RunnerLookResolver) {
+private fun RunnerAvatarStill(
+    gender: Gender?,
+    received: SlotRunnerLook?,
+    resolver: RunnerLookResolver,
+    hasShown: Boolean
+) {
     val isFemale = received?.isFemale ?: (gender == Gender.FEMALE)
     var look by remember(isFemale, received) {
         mutableStateOf(
@@ -120,14 +144,15 @@ private fun RunnerAvatarStill(gender: Gender?, received: SlotRunnerLook?, resolv
     }
     val shown = look
     when {
-        isFailed || (shown == null && isTimedOut) ->
+        isFailed || (shown == null && (isTimedOut || hasShown)) ->
             StillFallback(if (isFemale) AvatarCharacter.FEMALE else AvatarCharacter.MALE)
 
         shown != null -> RiveAvatarStill(
             shown,
             Modifier.fillMaxSize(),
             onError = { isFailed = true },
-            onReady = LocalSlotAvatarStillOnReady.current
+            onReady = LocalSlotAvatarStillOnReady.current,
+            pending = { if (hasShown) StillFallback(if (isFemale) AvatarCharacter.FEMALE else AvatarCharacter.MALE) }
         )
 
         else -> Unit

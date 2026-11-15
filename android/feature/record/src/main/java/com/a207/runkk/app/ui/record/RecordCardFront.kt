@@ -67,8 +67,12 @@ fun RecordCardFront(
         val density = LocalDensity.current
         // 너비를 아직 모르면(0) 밀도를 바꾸지 않는다(밀도 0은 안쪽 계산을 깨뜨린다).
         val scale = (maxWidth / CARD_DESIGN_WIDTH).takeIf { it > 0f } ?: 1f
+        // 글자 배율은 유지하고 확대된 줄에 필요한 높이만큼 여백을 먼저 줄인다(NFR-047).
+        val compact = ((density.fontScale - 1f) / (CARD_LARGE_FONT_SCALE - 1f)).coerceIn(0f, 1f)
+        val rowGap = FRONT_ROW_GAP * (1f - compact) + 1.dp * compact
+        val verticalPadding = FRONT_VERTICAL_PADDING * (1f - compact) + 2.dp * compact
         CompositionLocalProvider(LocalDensity provides Density(density.density * scale, density.fontScale)) {
-            RecordCardShell(card, Modifier.fillMaxSize(), FRONT_ROW_GAP, FRONT_VERTICAL_PADDING) {
+            RecordCardShell(card, Modifier.fillMaxSize(), rowGap, verticalPadding) {
                 ResultCardStage(
                     backgroundKey,
                     Modifier
@@ -250,3 +254,4 @@ private val CARD_PADDING = 18.dp
 private val FRONT_ROW_GAP = 5.dp
 private val FRONT_VERTICAL_PADDING = 14.dp
 private const val DISTANCE_SIZE = 40
+private const val CARD_LARGE_FONT_SCALE = 1.3f
