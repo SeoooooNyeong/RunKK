@@ -302,7 +302,8 @@ private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () ->
                         celebrityFigure = state.celebrityFigure,
                         caption = state.opponentRecord?.let { record ->
                             stringResource(R.string.battle_record_line, distance, RunkkFormat.duration(record))
-                        }
+                        },
+                        look = state.opponentLook
                     )
                 }
             )

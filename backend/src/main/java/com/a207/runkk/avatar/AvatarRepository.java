@@ -1,5 +1,7 @@
 package com.a207.runkk.avatar;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -8,6 +10,9 @@ public interface AvatarRepository {
 
     /** 없으면 저장하지 않은 새 아바타(조회용). */
     Avatar findOrCreate(long memberId);
+
+    /** 필요한 얼굴 값만 한 번에 읽는다. 얼굴이 없거나 없는 ID는 맵에 없다. */
+    Map<Long, String> faceKeysOf(Collection<Long> memberIds);
 
     /** 없으면 만들고 행을 잠가(SELECT … FOR UPDATE) 돌려준다(5.3 아바타 하루 1회). 트랜잭션 안에서만 부른다. */
     Optional<Avatar> findForUpdate(long memberId);

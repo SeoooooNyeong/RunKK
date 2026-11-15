@@ -274,7 +274,7 @@ private fun Figures(
         }
         Box(Modifier.align(Alignment.CenterEnd).offset(y = 12.dp)) {
             if (opponent == Figure.PAST_SELF) {
-                PastSelfStill(size = 110.dp, colorFilter = sceneAvatarFilter())
+                PastSelfStill(size = 110.dp, colorFilter = sceneAvatarFilter(), look = opponentLook)
             } else {
                 OpponentFigure(
                     opponent,

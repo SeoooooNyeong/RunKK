@@ -1,12 +1,16 @@
 package com.a207.runkk.app.core.avatar
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
@@ -26,6 +30,58 @@ class RiveAvatarStillReadyTest {
     val compose = createComposeRule()
 
     private val look = RiveAvatarLook(AvatarGender.MALE, AvatarOutfit(), AvatarBodyShape.BASE, 37, null)
+
+    @Test
+    fun `새 모습과 새 크기의 비트맵 준비 중에는 대체 그림이 남고 준비되면 사라진다`() {
+        var current by mutableStateOf(look.copy(runningAmount = 94))
+        var width by mutableStateOf(63.dp)
+        var cached by mutableStateOf(false)
+        var readies = 0
+        compose.setContent {
+            if (cached) {
+                val size = with(LocalDensity.current) { width.roundToPx() to 103.dp.roundToPx() }
+                AvatarStillCache.put(
+                    AvatarStillKey.of(current, size.first, size.second),
+                    Bitmap.createBitmap(30, 50, Bitmap.Config.ARGB_8888)
+                )
+            }
+            RiveAvatarStill(
+                current,
+                Modifier.size(width, 103.dp),
+                onReady = { readies++ },
+                pending = { Box(Modifier.fillMaxSize().testTag("pending-fallback")) }
+            )
+        }
+        compose.onNodeWithTag("pending-fallback").assertExists()
+        compose.onNodeWithTag(AVATAR_STILL_TAG).assertDoesNotExist()
+        assertEquals(0, readies)
+
+        compose.runOnIdle {
+            cached = true
+            width = 64.dp
+        }
+        compose.onNodeWithTag(AVATAR_STILL_TAG).assertExists()
+        compose.onNodeWithTag("pending-fallback").assertDoesNotExist()
+        assertEquals(1, readies)
+
+        compose.runOnIdle {
+            cached = false
+            current = look.copy(runningAmount = 95)
+        }
+        compose.onNodeWithTag("pending-fallback").assertExists()
+        compose.onNodeWithTag(AVATAR_STILL_TAG).assertDoesNotExist()
+        compose.runOnIdle { width = 65.dp }
+        compose.onNodeWithTag("pending-fallback").assertExists()
+        assertEquals(1, readies)
+
+        compose.runOnIdle {
+            cached = true
+            width = 66.dp
+        }
+        compose.onNodeWithTag(AVATAR_STILL_TAG).assertExists()
+        compose.onNodeWithTag("pending-fallback").assertDoesNotExist()
+        assertEquals(2, readies)
+    }
 
     @Test
     fun `onReady가 그림이 보이면 한 번 불린다`() {

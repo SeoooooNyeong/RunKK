@@ -52,6 +52,74 @@ class AvatarSlotsTest {
     @get:Rule
     val compose = createComposeRule()
 
+    @Test
+    fun `달리기 그림은 상태와 동작과 방향과 오류의 네 인자로 받는다`() {
+        val function = Class.forName("com.a207.runkk.app.ui.avatar.RunAvatarSlotContentKt")
+            .declaredMethods.single { it.name == "RunAvatarFigure" }
+        val actual = function.parameterTypes.filterNot {
+            it.name == "androidx.compose.runtime.Composer" || it == Integer.TYPE
+        }
+        assertEquals(4, actual.size)
+    }
+
+    @Test
+    fun `시간 초과 대체 그림은 늦은 Ready 뒤 비트맵을 읽는 동안에도 남는다`() {
+        compose.mainClock.autoAdvance = false
+        var readies = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject.MINE,
+                    LocalSlotAvatarStillOnReady provides { readies++ }
+                ) {
+                    Box(Modifier.size(81.dp, 129.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(AVATAR_STILL_READY_TIMEOUT_MS + 100)
+        compose.onNodeWithTag(AVATAR_STILL_FALLBACK_TAG).assertExists()
+        assertEquals(1, readies)
+        gender.value = Gender.MALE
+        compose.mainClock.advanceTimeBy(32)
+        compose.waitUntil(timeoutMillis = 2_000) { store.state.value is MyAvatarState.Ready }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithTag(AVATAR_STILL_FALLBACK_TAG).assertExists()
+    }
+
+    @Test
+    fun `이미 준비 신호를 보낸 슬롯은 다시 Loading이 되어도 대체 그림이 남는다`() {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var isRetry = false
+        val slow = object : com.a207.runkk.app.domain.avatar.AvatarRepository by repo {
+            override suspend fun avatar(): Outcome<com.a207.runkk.app.domain.avatar.Avatar> {
+                if (isRetry) gate.await()
+                return repo.avatar()
+            }
+        }
+        val retryStore = MyAvatarStore(slow, gender, headsOf(repo), {}, { _, _ -> }, scope)
+        repo.avatarResult = Outcome.Failure(AppError.Network)
+        gender.value = Gender.MALE
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(LocalSlotAvatarStill provides AvatarStillSubject.MINE) {
+                    Box(Modifier.size(83.dp, 131.dp)) { AvatarStillSlotContent(retryStore, resolver) }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 2_000) { retryStore.state.value is MyAvatarState.Failed }
+        compose.onNodeWithTag(AVATAR_STILL_FALLBACK_TAG).assertExists()
+        compose.mainClock.autoAdvance = false
+        compose.runOnIdle {
+            isRetry = true
+            repo.avatarResult = Outcome.Success(avatar)
+            retryStore.refresh()
+        }
+        assertIs<MyAvatarState.Loading>(retryStore.state.value)
+        compose.mainClock.advanceTimeBy(200)
+        compose.onNodeWithTag(AVATAR_STILL_FALLBACK_TAG).assertExists()
+        gate.complete(Unit)
+    }
+
     private val repo = FakeAvatars()
     private val gender = MutableStateFlow<Gender?>(null)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)

@@ -118,12 +118,7 @@ class OpponentLooks {
 
     /** 내 실제 성별. 읽다가 실패하면 경고 로그만 남기고 비어 있다(모습 때문에 대결이 실패하지 않는다). */
     private Optional<String> ownGenderOf(long memberId) {
-        try {
-            return ownGender.apply(memberId);
-        } catch (RuntimeException e) {
-            log.warn("battle_look_own_gender_failed memberId={} reason={}", memberId, e.toString());
-            return Optional.empty();
-        }
+        return guarded("own_gender", memberId, () -> ownGender.apply(memberId));
     }
 
     private Optional<AvatarLook> recordLook(String recordId) {
@@ -135,8 +130,7 @@ class OpponentLooks {
     }
 
     /** 자리가 있을 때만 읽는다. 자리가 없거나 읽다가 실패하면 경고 로그만 남기고 비어 있다. */
-    private Optional<AvatarLook> guarded(
-            String source, Object id, Supplier<Optional<AvatarLook>> read) {
+    private <T> Optional<T> guarded(String source, Object id, Supplier<Optional<T>> read) {
         if (!readSlots.tryAcquire()) {
             log.warn("battle_look_read_skipped source={} id={} reason=busy", source, id);
             return Optional.empty();

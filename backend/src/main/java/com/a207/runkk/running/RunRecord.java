@@ -396,41 +396,42 @@ public class RunRecord {
     /** 저장 시점의 아바타 모습. 모습 없이 저장한 기록(옛 기록, 읽기 실패)은 비어 있다. */
     public Optional<AvatarLook> look() {
         return lookOf(
-                lookGender,
-                lookTopItemId,
-                lookBottomItemId,
-                lookShoesItemId,
-                lookBodyVariant,
-                lookRunAmount,
-                lookFaceKey);
+                new LookColumns(
+                        lookGender,
+                        lookTopItemId,
+                        lookBottomItemId,
+                        lookShoesItemId,
+                        lookBodyVariant,
+                        lookRunAmount,
+                        lookFaceKey));
     }
 
-    /**
-     * 모습 열 일곱 값을 AvatarLook으로 묶는다. 성별이 없으면 비어 있다. 저장소의 투영 조회(RunRecordRepository.findLook)도 같은 규칙을
-     * 쓴다.
-     */
-    public static Optional<AvatarLook> lookOf(
+    /** 저장된 아바타 모습의 일곱 열. */
+    public record LookColumns(
             String gender,
             Long topItemId,
             Long bottomItemId,
             Long shoesItemId,
             Integer bodyVariant,
             Integer runAmount,
-            String faceKey) {
-        if (gender == null) {
+            String faceKey) {}
+
+    /** 성별이 없으면 비어 있다. 엔티티와 저장소 투영이 같은 모습 복원 규칙을 쓴다. */
+    public static Optional<AvatarLook> lookOf(LookColumns columns) {
+        if (columns.gender() == null) {
             return Optional.empty();
         }
         Map<ItemSlot, Long> equipped = new EnumMap<>(ItemSlot.class);
-        putIfPresent(equipped, ItemSlot.TOP, topItemId);
-        putIfPresent(equipped, ItemSlot.BOTTOM, bottomItemId);
-        putIfPresent(equipped, ItemSlot.SHOES, shoesItemId);
+        putIfPresent(equipped, ItemSlot.TOP, columns.topItemId());
+        putIfPresent(equipped, ItemSlot.BOTTOM, columns.bottomItemId());
+        putIfPresent(equipped, ItemSlot.SHOES, columns.shoesItemId());
         return Optional.of(
                 new AvatarLook(
-                        gender,
+                        columns.gender(),
                         equipped,
-                        bodyVariant == null ? 0 : bodyVariant,
-                        runAmount == null ? 0 : runAmount,
-                        faceKey));
+                        columns.bodyVariant() == null ? 0 : columns.bodyVariant(),
+                        columns.runAmount() == null ? 0 : columns.runAmount(),
+                        columns.faceKey()));
     }
 
     private static void putIfPresent(Map<ItemSlot, Long> equipped, ItemSlot slot, Long itemId) {

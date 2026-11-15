@@ -121,7 +121,7 @@ private fun FigureCard(figure: Figure, character: AvatarCharacter, celebrityFigu
     ) {
         // 셀프런 카운트다운(D-2)의 과거의 나도 결과 화면처럼 반투명한 내 전신 정지 그림이다(S15P31A207-300).
         if (figure == Figure.PAST_SELF) {
-            PastSelfStill(size = 96.dp, colorFilter = null)
+            PastSelfStill(size = 96.dp, colorFilter = null, look = look)
         } else {
             OpponentFigure(figure, size = 96.dp, character = character, celebrityFigure = celebrityFigure, look = look)
         }
@@ -194,9 +194,9 @@ internal val MY_STILL = AvatarStillSubject(isMine = true)
 
 /** 카운트다운·결과 화면의 과거의 나(셀프런): 반투명한 내 전신 정지 그림(S15P31A207-300). 칸이 비면 반투명 기본 서기 그림이다. */
 @Composable
-internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?) {
+internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?, look: RunnerLook? = null) {
     Box(Modifier.alpha(PAST_SELF_ALPHA)) {
-        AvatarStillSlot(MY_STILL, Modifier.size(size)) {
+        AvatarStillSlot(pastSelfStill(look), Modifier.size(size)) {
             RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(size), colorFilter = colorFilter)
         }
     }
