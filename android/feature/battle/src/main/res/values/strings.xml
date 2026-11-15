@@ -88,6 +88,7 @@
     <string name="battle_running_forfeit_confirm">포기하기</string>
     <string name="battle_running_forfeit_button">그만두기</string>
     <string name="battle_running_title_random">배틀런, %1$s</string>
+    <string name="battle_running_label">%1$s, %2$s</string>
     <string name="battle_running_title_celeb">vs %1$s, %2$s</string>
     <string name="battle_running_ready">준비</string>
     <string name="battle_running_forfeit_dismiss">계속 달리기</string>

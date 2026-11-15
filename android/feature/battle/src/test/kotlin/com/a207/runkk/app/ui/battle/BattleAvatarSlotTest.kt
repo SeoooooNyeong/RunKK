@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertWidthIsEqualTo
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -36,7 +37,7 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * 대결 측정 화면의 내 아바타 칸(design-oo 05-30 7절, [임시:D-성-121], [임시:D-성-122]): RUNNING이면 RUN(일시정지 없음), 마감(CLOSING)
- * 등 그 밖은 STAND이고 내 칸은 109dp다. 트랙 보기([임시:FR-성-27])에서는 나와 상대 모두 진행 방향(오른쪽)을 보므로 지도 위 진행
+ * 등 그 밖은 STAND이고 보이는 내 칸은 105dp다. 트랙 보기([임시:FR-성-27])에서는 나와 상대 모두 진행 방향(오른쪽)을 보므로 지도 위 진행
  * 방향 원값을 넘기지 않는다. 트랙 안의 상대는 같은 칸에 상대 대상으로 그린다([임시:D-성-259]).
  */
 @RunWith(RobolectricTestRunner::class)
@@ -70,13 +71,46 @@ class BattleAvatarSlotTest {
                 RunkkTheme(reduceMotion = true) { BattleRunningScreen(state, BattleRunningActions()) }
             }
         }
-        compose.onNodeWithTag("battle-avatar-probe").assertWidthIsEqualTo(109.dp)
+        compose.onNodeWithTag("battle-avatar-probe").assertWidthIsEqualTo(105.dp)
         assertEquals(AvatarSlotPose.RUN, pose)
         assertEquals(false, left, "서쪽으로 달려도 트랙에서는 오른쪽을 본다")
 
         state = state.copy(phase = BattlePhase.CLOSING)
         compose.waitForIdle()
         assertEquals(AvatarSlotPose.STAND, pose)
+    }
+
+    @Test
+    fun `상대 진행 대기에서 격차로 바뀌어도 트랙 카드 위치와 높이가 같다`() {
+        var state by mutableStateOf(BattleRunningUiState(battleId = 9, phase = BattlePhase.RUNNING))
+        compose.setContent { RunkkTheme(reduceMotion = true) { BattleRunningScreen(state, BattleRunningActions()) } }
+        val before = compose.onNodeWithTag(BATTLE_TRACK_TAG).getUnclippedBoundsInRoot()
+        state = state.copy(gapMeters = -3)
+        compose.waitForIdle()
+        assertEquals(before, compose.onNodeWithTag(BATTLE_TRACK_TAG).getUnclippedBoundsInRoot())
+    }
+
+    @Test
+    fun `진행 화면 왼쪽 위에 종류와 목표 거리 알약을 둔다`() {
+        var kind by mutableStateOf(OpponentKind.RANDOM)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                BattleRunningScreen(
+                    BattleRunningUiState(
+                        battleId = 9,
+                        phase = BattlePhase.RUNNING,
+                        distance = Distance(5_000),
+                        kind = kind
+                    ),
+                    BattleRunningActions()
+                )
+            }
+        }
+        compose.onNodeWithText("배틀런, 5km").assertExists()
+        kind = OpponentKind.SELF
+        compose.onNodeWithText("셀프런, 5km").assertExists()
+        kind = OpponentKind.CELEBRITY
+        compose.onNodeWithText("셀럽런, 5km").assertExists()
     }
 
     @Test

@@ -78,6 +78,7 @@ import com.a207.runkk.app.core.designsystem.RunkkPauseScrim
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
 import com.a207.runkk.app.core.designsystem.RunkkRunDistance
+import com.a207.runkk.app.core.designsystem.RunkkRunLabel
 import com.a207.runkk.app.core.designsystem.RunkkRunStat
 import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
@@ -88,6 +89,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.RunkkTrackCard
 import com.a207.runkk.app.core.designsystem.RunkkTrackProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkViewModeToggle
+import com.a207.runkk.app.core.designsystem.TrackHorizonAlignment
 import com.a207.runkk.app.core.designsystem.TrackLayout
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
@@ -249,20 +251,7 @@ private fun CrewRunChip(distance: Distance?, isDistanceKnown: Boolean) {
     }
     val label = distanceText?.let { stringResource(R.string.crew_run_chip, it) }
         ?: stringResource(R.string.crew_run_live_title)
-    val spoken = RunkkFormat.spokenLabel(label)
-    Row(
-        modifier = Modifier
-            .heightIn(min = 28.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(RunkkColors.SurfaceHigh)
-            .padding(horizontal = 10.dp)
-            .semantics(mergeDescendants = true) { if (spoken != label) contentDescription = spoken },
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(RunkkColors.TextPrimary))
-        Text(label, style = RunkkTextStyles.text(12, lineHeight = 14), color = RunkkColors.TextPrimary)
-    }
+    RunkkRunLabel(label)
 }
 
 /**
@@ -730,7 +719,7 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBott
                 AvatarStageBackdrop(
                     state.myAvatar?.backgroundKey,
                     Modifier.fillMaxSize(),
-                    alignment = Alignment.TopCenter
+                    alignment = TrackHorizonAlignment
                 )
             }
         }

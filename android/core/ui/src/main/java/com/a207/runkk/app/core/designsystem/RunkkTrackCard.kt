@@ -12,7 +12,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,15 +26,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.FloatState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
@@ -97,6 +100,7 @@ fun RunkkTrackCard(
     val travel = rememberTrackTravel(isMoving, speedMetersPerSecond, reduceMotion)
     val isDark = LocalRunkkColors.current.isDark
     val shape = RoundedCornerShape(26.dp)
+    var isOtherLoading by remember { mutableStateOf(false) }
     // 상대가 트랙에 들어올 때는 내 자리에서 미끄러져 오지 않게 바로 놓고, 트랙 위에서 움직일 때만 따라간다.
     val otherX by animateFloatAsState(
         targetValue = onTrack?.x ?: layout.myX,
@@ -128,27 +132,24 @@ fun RunkkTrackCard(
                     .testTag(TRACK_FINISH_TAG)
             )
         }
-        if (onTrack != null) {
+        // 상대가 트랙 밖일 때도 보이지 않게 미리 그려 둔다. 트랙에 들어오는 순간 자리 표시 그림이 잠깐 보이는 것을 막는다.
+        if (otherTag != null) {
             Runner(
-                tag = otherTag,
-                pace = otherPace,
                 isMine = false,
-                face = otherFace,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .offset(x = width * otherX - scene.otherSize.dp / 2, y = -(maxHeight - scene.otherFootY.dp))
-                    .testTag(TRACK_OTHER_TAG),
+                    .then(if (onTrack != null) Modifier.testTag(TRACK_OTHER_TAG) else Modifier.clearAndSetSemantics {})
+                    .alpha(if (onTrack != null && !isOtherLoading) 1f else PRELOAD_ALPHA),
                 size = scene.otherSize.dp,
                 scale = scene.runnerScale,
                 isMoving = false,
+                onLoading = { isOtherLoading = it },
                 avatar = otherAvatar
             )
         }
         Runner(
-            tag = myTag,
-            pace = myPace,
             isMine = true,
-            face = myFace,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .offset(x = width * layout.myX - scene.mySize.dp / 2, y = -(maxHeight - scene.myFootY.dp))
@@ -156,6 +157,7 @@ fun RunkkTrackCard(
             size = scene.mySize.dp,
             scale = scene.runnerScale,
             isMoving = isMoving && !reduceMotion,
+            onLoading = {},
             avatar = myAvatar
         )
         behindChip?.let {
@@ -178,47 +180,63 @@ fun RunkkTrackCard(
             label = rulerLabel,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+        // 두 캐릭터를 모두 그린 뒤 이름표 둘을 올린다. 상대 이름표는 위 레인의 머리 위 줄을 지킨다.
+        Box(
+            Modifier.offset(x = width * layout.myX - scene.mySize.dp / 2, y = scene.myTagY.dp)
+                .size(scene.mySize.dp, scene.tagHeight.dp).testTag(TRACK_ME_NAME_TAG),
+            contentAlignment = Alignment.Center
+        ) { NameTag(myTag, myPace, true, myFace, scene.runnerScale) }
+        if (onTrack != null && otherTag != null && !isOtherLoading) {
+            Box(
+                Modifier.offset(x = width * otherX - scene.otherSize.dp / 2, y = scene.otherTagY.dp)
+                    .size(scene.otherSize.dp, scene.tagHeight.dp).testTag(TRACK_OTHER_NAME_TAG),
+                contentAlignment = Alignment.Center
+            ) { NameTag(otherTag, otherPace, false, otherFace, scene.runnerScale) }
+        }
     }
 }
 
-/** 달리는 사람 한 명: 머리 위 이름표와 아바타 칸([size] 정사각형, 발이 칸 바닥). 이름표는 칸보다 넓어도 가운데를 맞춘다. */
+/** 트랙 밖 상대를 미리 그릴 때의 불투명도. 0이면 그리기를 건너뛰어 준비가 안 될 수 있다. */
+private const val PRELOAD_ALPHA = 0.01f
+
+/** 달리는 사람 한 명: 보이는 키 [size], 발이 칸 바닥. 이름표는 모든 캐릭터를 그린 뒤 따로 얹는다. */
 @Composable
 private fun Runner(
-    tag: String?,
-    pace: String?,
     isMine: Boolean,
-    face: (@Composable () -> Unit)?,
     modifier: Modifier,
     size: Dp,
     scale: Float,
     isMoving: Boolean,
+    onLoading: (Boolean) -> Unit,
     avatar: @Composable () -> Unit
 ) {
-    Column(modifier.width(size), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (tag != null) NameTag(tag, pace, isMine, face, scale)
-        Box(
-            Modifier.size(size).drawBehind {
-                val shadowWidth = (if (isMine) 61.dp else 51.dp).toPx() * scale
-                val shadowHeight = (if (isMine) 11.dp else 9.dp).toPx() * scale
-                drawOval(
-                    Color.Black.copy(alpha = 0.22f),
-                    topLeft = Offset((this.size.width - shadowWidth) / 2, this.size.height - shadowHeight / 2),
-                    size = Size(shadowWidth, shadowHeight)
-                )
-                if (isMoving) {
-                    listOf(20f, 15f, 11f).forEachIndexed { index, length ->
-                        drawRoundRect(
-                            Color.White,
-                            topLeft = Offset(
-                                (-24f + index * 3f).dp.toPx() * scale,
-                                (40f + index * 14f).dp.toPx() * scale
-                            ),
-                            size = Size(length.dp.toPx() * scale, 3.dp.toPx() * scale),
-                            cornerRadius = CornerRadius(2.dp.toPx() * scale)
-                        )
-                    }
+    Box(
+        modifier.size(size).drawBehind {
+            val shadowWidth = (if (isMine) 61.dp else 51.dp).toPx() * scale
+            val shadowHeight = (if (isMine) 11.dp else 9.dp).toPx() * scale
+            drawOval(
+                Color.Black.copy(alpha = 0.22f),
+                topLeft = Offset((this.size.width - shadowWidth) / 2, this.size.height - shadowHeight / 2),
+                size = Size(shadowWidth, shadowHeight)
+            )
+            if (isMoving) {
+                listOf(20f, 15f, 11f).forEachIndexed { index, length ->
+                    drawRoundRect(
+                        Color.White,
+                        topLeft = Offset(
+                            (-24f + index * 3f).dp.toPx() * scale,
+                            (40f + index * 14f).dp.toPx() * scale
+                        ),
+                        size = Size(length.dp.toPx() * scale, 3.dp.toPx() * scale),
+                        cornerRadius = CornerRadius(2.dp.toPx() * scale)
+                    )
                 }
             }
+        }
+    ) {
+        CompositionLocalProvider(
+            LocalTrackAvatarViewport provides true,
+            LocalTrackAvatarLoading provides onLoading
         ) { avatar() }
     }
 }
@@ -274,6 +292,8 @@ private fun Lanes(isDark: Boolean, travel: () -> Float, modifier: Modifier) {
             topLeft = Offset(0f, 79.dp.toPx()),
             size = Size(size.width, 59.dp.toPx())
         )
+        // 밤 거르개는 바탕에만 적용한다. 레인 선은 그 위에 그려 밤 배경에서도 대비를 지킨다.
+        if (isDark) drawRect(Color.Black.copy(alpha = 0.35f))
         drawLine(Color.White, Offset(0f, 14.dp.toPx()), Offset(size.width, 14.dp.toPx()), 2.dp.toPx())
         drawLine(
             Color.White.copy(alpha = 0.9f),
@@ -286,7 +306,7 @@ private fun Lanes(isDark: Boolean, travel: () -> Float, modifier: Modifier) {
             var x = offset + stagger.dp.toPx()
             while (x < size.width) {
                 drawLine(
-                    Color.White.copy(alpha = 0.45f),
+                    Color.White.copy(alpha = if (isDark) 0.72f else 0.45f),
                     Offset(x, y.dp.toPx()),
                     Offset(x + 22.dp.toPx(), y.dp.toPx()),
                     strokeWidth = 2.dp.toPx()
@@ -294,7 +314,6 @@ private fun Lanes(isDark: Boolean, travel: () -> Float, modifier: Modifier) {
                 x += TrackScene.DASH_PERIOD.dp.toPx()
             }
         }
-        if (isDark) drawRect(Color.Black.copy(alpha = 0.35f))
     }
 }
 
@@ -444,6 +463,8 @@ const val TRACK_FINISH_TAG = "track-finish"
 const val TRACK_AHEAD_TAG = "track-edge-ahead"
 const val TRACK_BEHIND_TAG = "track-edge-behind"
 const val TRACK_RULER_TAG = "track-ruler"
+const val TRACK_ME_NAME_TAG = "track-me-name"
+const val TRACK_OTHER_NAME_TAG = "track-other-name"
 
 private const val OTHER_MOVE_MILLIS = 300
 private val RULER_HEIGHT = TrackScene.RULER_HEIGHT.dp

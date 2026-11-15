@@ -445,6 +445,24 @@ class BattleScreenshotTest {
     }
 
     @Test
+    fun battleTrackOverlap() = compose.captureRunkkScreen("D3_battle_track_overlap", isDarkTheme = false) {
+        BattleRunningScreen(running.copy(gapMeters = 0), BattleRunningActions())
+    }
+
+    @Test
+    fun selfTrackNear() = compose.captureRunkkScreen("D3_self_track_near", isDarkTheme = false) {
+        BattleRunningScreen(
+            running.copy(
+                kind = OpponentKind.SELF,
+                gapMeters = -3,
+                connectionLabel = null,
+                opponentRecordedOn = LocalDate.of(2026, 11, 13)
+            ),
+            BattleRunningActions()
+        )
+    }
+
+    @Test
     fun battleRunningOvertook() = compose.captureRunkkScreen("D3_battle_running_overtook") {
         BattleRunningScreen(
             running.copy(gapMeters = 42, guidance = BattleGuidance.Kind.OVERTOOK, overtakes = 1),

@@ -13,8 +13,8 @@ class TrackSceneTest {
         assertEquals(164f, scene.skyHeight)
         assertEquals(138f, scene.laneHeight)
         assertEquals(26f, scene.rulerHeight)
-        assertEquals(109f, scene.mySize)
-        assertEquals(92f, scene.otherSize)
+        assertEquals(105f, scene.mySize)
+        assertEquals(88f, scene.otherSize)
         assertEquals(293f, scene.myFootY)
         assertEquals(225f, scene.otherFootY)
         assertEquals(28f, scene.tagHeight)
@@ -30,12 +30,33 @@ class TrackSceneTest {
             assertEquals(26f, scene.rulerHeight)
             assertEquals(sky + 129f, scene.myFootY)
             assertEquals(sky + 61f, scene.otherFootY)
-            assertTrue(scene.otherFootY - scene.otherSize - scene.tagHeight >= 96.99f)
-            assertEquals(scene.mySize / 109f, scene.otherSize / 92f, 0.001f)
-            assertTrue(scene.mySize < 109f)
+            assertTrue(scene.otherTagY >= 96.99f)
+            assertEquals(scene.mySize / 105f, scene.otherSize / 88f, 0.001f)
+            assertTrue(scene.mySize < 105f)
         }
-        assertEquals(109f * 2f / 3f, TrackScene.dimensions(280f).mySize, 0.001f)
-        assertEquals(109f / 3f, TrackScene.dimensions(240f).mySize, 0.001f)
+    }
+
+    @Test
+    fun `328 280 240 카드에서 보이는 머리 위 4dp에 이름표를 놓고 두 이름표가 겹치지 않는다`() {
+        listOf(328f, 280f, 240f).forEach { height ->
+            val scene = TrackScene.dimensions(height)
+            assertEquals(4f, scene.myFootY - scene.mySize - scene.myTagY - scene.tagHeight, 0.001f)
+            assertEquals(4f, scene.otherFootY - scene.otherSize - scene.otherTagY - scene.tagHeight, 0.001f)
+            assertTrue(scene.otherTagY + scene.tagHeight < scene.myTagY)
+        }
+    }
+
+    @Test
+    fun `Rive 칸의 실제 채움 비율을 보정해 머리와 발을 보이는 칸에 맞춘다`() {
+        listOf(328f, 280f, 240f).forEach { height ->
+            val scene = TrackScene.dimensions(height)
+            listOf(scene.mySize, scene.otherSize).forEach { visible ->
+                val viewport = TrackAvatarViewport.of(visible)
+                assertEquals(visible, viewport.slotSize * 0.7488f, 0.001f)
+                assertEquals(visible, viewport.top + viewport.slotSize * 0.94f, 0.001f)
+                assertEquals(0f, viewport.top + viewport.slotSize * (0.94f - 0.7488f), 0.001f)
+            }
+        }
     }
 
     @Test

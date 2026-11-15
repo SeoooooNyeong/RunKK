@@ -90,10 +90,11 @@ class RunkkTrackCardTest {
 
         val mine = compose.onNodeWithTag(TRACK_ME_TAG).getUnclippedBoundsInRoot()
         val other = compose.onNodeWithTag(TRACK_OTHER_TAG).getUnclippedBoundsInRoot()
-        assertEquals(109.dp, mine.right - mine.left)
+        assertEquals(105.dp, mine.right - mine.left)
         assertEquals(293.dp, mine.bottom)
-        assertEquals(92.dp, other.right - other.left)
+        assertEquals(88.dp, other.right - other.left)
         assertEquals(225.dp, other.bottom)
+        assertNameTags(mine.top, other.top)
     }
 
     @Test
@@ -112,6 +113,16 @@ class RunkkTrackCardTest {
         assertEquals(otherFoot, other.bottom)
         assertTrue(other.top >= 96.dp)
         assertTrue(other.right - other.left < 92.dp)
+        assertNameTags(compose.onNodeWithTag(TRACK_ME_TAG).getUnclippedBoundsInRoot().top, other.top)
+    }
+
+    private fun assertNameTags(myHead: Dp, otherHead: Dp) {
+        val mine = compose.onNodeWithTag(TRACK_ME_NAME_TAG).getUnclippedBoundsInRoot()
+        val other = compose.onNodeWithTag(TRACK_OTHER_NAME_TAG).getUnclippedBoundsInRoot()
+        // 작은 카드에서는 칸 높이와 위 좌표를 각각 정수 px로 반올림한다.
+        assertEquals(myHead.value - 4f, mine.bottom.value, 1f)
+        assertEquals(otherHead.value - 4f, other.bottom.value, 1f)
+        assertTrue(other.bottom < mine.top, "가로로 겹쳐도 상대 이름표가 한 줄 위에 있다")
     }
 
     @Test

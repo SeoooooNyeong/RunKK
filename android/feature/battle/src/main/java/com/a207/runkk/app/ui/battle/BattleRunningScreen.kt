@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -75,6 +76,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkMeMap
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
 import com.a207.runkk.app.core.designsystem.RunkkRunDistance
+import com.a207.runkk.app.core.designsystem.RunkkRunLabel
 import com.a207.runkk.app.core.designsystem.RunkkRunStat
 import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
@@ -87,6 +89,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTrackCard
 import com.a207.runkk.app.core.designsystem.RunkkTrackProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkViewModeToggle
+import com.a207.runkk.app.core.designsystem.TrackHorizonAlignment
 import com.a207.runkk.app.core.designsystem.TrackLayout
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
@@ -220,10 +223,18 @@ private fun CancelDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-/** 머리: 오른쪽에 내 연결 끊김 또는 랜덤 대결 상대 연결 상태(FR-088, 배틀 QA 5번). 모드 이름 알약은 두지 않는다(사용자 요청 2026-10-30). */
+/** 머리: 왼쪽 러닝 종류와 목표 거리, 오른쪽 연결 상태(FR-088). */
 @Composable
 private fun Header(state: BattleRunningUiState) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        val kind = stringResource(
+            when (state.kind) {
+                OpponentKind.SELF -> R.string.battle_record_run_self
+                OpponentKind.CELEBRITY -> R.string.battle_record_run_celeb
+                else -> R.string.battle_match_title
+            }
+        )
+        RunkkRunLabel(stringResource(R.string.battle_running_label, kind, RunkkFormat.targetLabel(state.distance)))
         Spacer(Modifier.weight(1f))
         val label = when {
             state.isLiveLost -> stringResource(R.string.battle_running_disconnected)
@@ -519,7 +530,7 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier, overlayBo
                 AvatarStageBackdrop(
                     state.myAvatar?.backgroundKey,
                     Modifier.fillMaxSize(),
-                    alignment = Alignment.TopCenter
+                    alignment = TrackHorizonAlignment
                 )
             }
         }
@@ -590,7 +601,8 @@ private fun OpponentRunner(state: BattleRunningUiState) {
             }
         ) {
             RunAvatarSlot(
-                pose = if (isTheirsMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND,
+                // 내 아바타와 같은 기준이다. 상대 거리가 처음 들어올 때 자세를 바꾸면 그림을 다시 준비하느라 1~2초 비어 보인다.
+                pose = if (state.phase == BattlePhase.RUNNING) AvatarSlotPose.RUN else AvatarSlotPose.STAND,
                 facingLeft = false,
                 subject = RunAvatarSubject.other(state.opponentLook?.toSlot(), character == AvatarCharacter.FEMALE)
             ) {
@@ -656,7 +668,7 @@ private fun Gap(state: BattleRunningUiState) {
     }
     val description = stringResource(R.string.battle_running_gap_desc, spoken)
     Row(
-        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
+        modifier = Modifier.fillMaxWidth().height(32.dp).clearAndSetSemantics { contentDescription = description },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.Bottom
     ) {
@@ -677,7 +689,7 @@ private fun Gap(state: BattleRunningUiState) {
 /** "+42 m", "-118 m"(격차 0은 앞서는 쪽 "+0 m"). */
 internal fun gapMetersLabel(gap: Int): String = if (gap >= 0) "+$gap m" else "$gap m"
 
-private const val PAST_SELF_ALPHA = 0.5f
+private const val PAST_SELF_ALPHA = 0.78f
 
 /** 트랙 카드 높이(시안 350×328). 화면이 낮으면 남는 높이만큼 줄어든다. */
 private val TRACK_CARD_HEIGHT = 328.dp

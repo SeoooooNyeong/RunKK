@@ -12,19 +12,22 @@ internal object TrackScene {
         val otherFootY: Float,
         val tagHeight: Float,
         val runnerScale: Float
-    )
+    ) {
+        val myTagY: Float get() = myFootY - mySize - TAG_GAP - tagHeight
+        val otherTagY: Float get() = otherFootY - otherSize - TAG_GAP - tagHeight
+    }
 
     /** 위쪽 조작부(진행 막대와 보기 전환) 아래 6dp를 남기고 주자와 이름표를 함께 줄인다. */
     fun dimensions(cardHeight: Float, overlayBottom: Float = 91f): Dimensions {
         val sky = (cardHeight - LANE_HEIGHT - RULER_HEIGHT).coerceAtLeast(0f)
         val otherFoot = sky + 61f
-        val scale = ((otherFoot - overlayBottom - 6f) / (92f + 28f)).coerceIn(0f, 1f)
+        val scale = ((otherFoot - overlayBottom - 6f - TAG_GAP) / (88f + 28f)).coerceIn(0f, 1f)
         return Dimensions(
             skyHeight = sky,
             laneHeight = LANE_HEIGHT,
             rulerHeight = RULER_HEIGHT,
-            mySize = 109f * scale,
-            otherSize = 92f * scale,
+            mySize = 105f * scale,
+            otherSize = 88f * scale,
             myFootY = sky + 129f,
             otherFootY = otherFoot,
             tagHeight = 28f * scale,
@@ -53,4 +56,5 @@ internal object TrackScene {
     const val LANE_HEIGHT = 138f
     const val RULER_HEIGHT = 26f
     const val DASH_PERIOD = 48f
+    private const val TAG_GAP = 4f
 }
