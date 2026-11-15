@@ -226,7 +226,7 @@ object Routes {
 
     /**
      * 내 크루 홈(레이스·크루런·채팅 탭). 크루 이름·역할은 화면이 GET /crews/{id}로 읽는다. [tab]은 먼저 보일 탭 이름(ui.crew CrewTab.name,
-     * 채팅 알림은 "CHAT", [임시:D-성-21])이고 없으면 레이스다. [page]는 먼저 열 ⋯ 메뉴 쪽 이름(ui.crew CrewHomePage.name, 가입 신청
+     * 채팅 알림은 "CHAT", D-653)이고 없으면 레이스다. [page]는 먼저 열 ⋯ 메뉴 쪽 이름(ui.crew CrewHomePage.name, 가입 신청
      * 알림은 크루 정보 "INFO")이고 없으면 홈이다.
      */
     @Serializable
@@ -284,7 +284,7 @@ object Routes {
     @Serializable
     data class CrewGoalSet(val crewId: Long) : NavKey
 
-    // 크루 채팅은 크루 홈의 세 번째 탭이다(CrewHome(crewId, tab = "CHAT"), [임시:D-성-21]). 따로 뜨는 채팅방 경로는 없다.
+    // 크루 채팅은 크루 홈의 세 번째 탭이다(CrewHome(crewId, tab = "CHAT"), D-653). 따로 뜨는 채팅방 경로는 없다.
 
     // 알림 이동 화면(FR-178, D-150): 서버 notification.Screen 이름과 같은 v0.11 크루 화면 4종. 알림은 크루 ID를 경로로 넘기지 않으므로
     // 내 크루(GET /crews/me)의 해당 탭을 연다. ui.crew가 등록한다(채팅은 내 크루를 확인한 뒤 CrewHome(crewId, "CHAT")으로 넘긴다).

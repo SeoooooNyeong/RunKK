@@ -578,7 +578,7 @@ class CrewRunViewModelTest {
     }
 
     @Test
-    fun `대기실 - 들어온 참가자의 셀카 얼굴 그림을 얼굴 키마다 한 번 받고 미입장은 받지 않는다(D-성-12)`() = main.runVmTest { vms ->
+    fun `대기실 - 들어온 참가자의 셀카 얼굴 그림을 얼굴 키마다 한 번 받고 미입장은 받지 않는다(D-644)`() = main.runVmTest { vms ->
         val w = crewWorld()
         w.crews.lobbyState = lobby.copy(
             participants = listOf(

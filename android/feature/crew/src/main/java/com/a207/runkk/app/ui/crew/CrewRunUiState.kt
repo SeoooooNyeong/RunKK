@@ -14,7 +14,7 @@ import java.time.Duration
 data class CrewRunUiState(
     val postId: Long = 0,
     /**
-     * 크루런 거리(대기실 응답, 다시 들어오면 결과 응답). 대기실([lobby])이 있는데 null이면 거리 「제한 없음」 크루런이다([임시:D-성-28]).
+     * 크루런 거리(대기실 응답, 다시 들어오면 결과 응답). 대기실([lobby])이 있는데 null이면 거리 「제한 없음」 크루런이다(D-660).
      */
     val distance: Distance? = null,
     val phase: CrewRunPhase = CrewRunPhase.ENTERING,
@@ -42,7 +42,7 @@ data class CrewRunUiState(
      */
     val canRetry: Boolean = true,
     /**
-     * 대기실 참가자 셀카 얼굴 부위 그림(faceKey별, [임시:D-성-12]). 들어온 참가자만 받고, 받기 전이거나 기본 캐릭터 얼굴이면 없다
+     * 대기실 참가자 셀카 얼굴 부위 그림(faceKey별, D-644). 들어온 참가자만 받고, 받기 전이거나 기본 캐릭터 얼굴이면 없다
      * (얼굴 키·표시 성별로 기본 얼굴을 그린다).
      */
     val mateFaces: Map<String, List<FaceLayer>> = emptyMap(),

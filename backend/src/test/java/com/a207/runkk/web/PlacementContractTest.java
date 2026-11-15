@@ -47,8 +47,9 @@ class PlacementContractTest {
                         + "|battleId,celebrityFigure,placementRound|opponentLook",
                 "web.battle.BattleDtos$Entry"
                         + "|battleId,sourceLabel|placementRound,opponentMemberId",
+                // + look: 랭킹 줄 회원 모습(S15P31A207-300), publicTier 뒤에 붙이기만 한다
                 "web.record.RecordDtos$Entry"
-                        + "|rank,subjectId,name,tier,distanceMeters,shownGender|publicTier",
+                        + "|rank,subjectId,name,tier,distanceMeters,shownGender|publicTier,look",
                 "web.record.RecordDtos$DashboardResponse"
                         + "|baseDate,streakWeeks,latestRun|weekRuns,weekMeters",
             })

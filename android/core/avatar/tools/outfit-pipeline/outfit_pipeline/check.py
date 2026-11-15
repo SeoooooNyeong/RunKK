@@ -114,23 +114,23 @@ def check_layer(
     empty_ok = path.parent.name in spec.EMPTY_RUN_ARM_KEYS and "run_arm" in path.name
     if coverage < spec.MIN_COVERAGE and not empty_ok:
         problems.append(Problem(4, str(path), f"coverage {coverage:.4f} < {spec.MIN_COVERAGE}"))
-    # 9번: 옷 레이어에 드러난 맨살이 없다(피부는 맨몸 바탕에서만 와 러닝량 톤이 걸린다, [임시:D-성-174]).
+    # 9번: 옷 레이어에 드러난 맨살이 없다(피부는 맨몸 바탕에서만 와 러닝량 톤이 걸린다, D-806).
     skin = count_exposed(image)
     if skin:
         problems.append(Problem(9, str(path), f"{skin} exposed skin pixel(s) in garment layer"))
-    # 10번: 굵은 실루엣 밖 부스러기(실루엣에서 뻗은 털, 떨어진 점)가 없다. 메시가 늘면 선으로 보인다([임시:D-성-184]).
+    # 10번: 굵은 실루엣 밖 부스러기(실루엣에서 뻗은 털, 떨어진 점)가 없다. 메시가 늘면 선으로 보인다(D-816).
     garment = wisp_layer(path.parent.name, path.name) if wisps is None else wisps
     strays = count_strays(image, garment=garment, thin=True)
     if strays:
         problems.append(Problem(10, str(path), f"{strays} stray pixel(s) outside the solid silhouette"))
-    # 14번: 하의 레이어에 위·아래가 천인 세로 4px 이하 틈이 없다(밑단 안감 사이로 맨몸이 살색 점선으로 보였다, [임시:D-성-185]).
+    # 14번: 하의 레이어에 위·아래가 천인 세로 4px 이하 틈이 없다(밑단 안감 사이로 맨몸이 살색 점선으로 보였다, D-817).
     if part == "BOTTOM" and (seams := int(seam_mask(image).sum())):
         problems.append(Problem(14, str(path), f"{seams} pixel(s) in thin vertical gaps of the garment"))
     # 16번: 옷 실루엣 안에 구멍(둘러싸인 반투명·투명 픽셀, 굵은 천 사이 좁은 트임)이 없다(폴로 단추 자리로 맨몸이 갈색 점으로 비쳤다).
     holes = int((hole_mask(image) & (np.array(allowed if holes_in is None else holes_in) > 0)).sum())
     if holes:
         problems.append(Problem(16, str(path), f"{holes} hole pixel(s) inside the garment"))
-    # 12번: 하의 서기 레이어의 허리 겹침 띠에 하의 본체와 떨어진 조각이 없다([임시:D-성-185]).
+    # 12번: 하의 서기 레이어의 허리 겹침 띠에 하의 본체와 떨어진 조각이 없다(D-817).
     if part == "BOTTOM" and spec.TEMPLATES[template].slot == "stand" and (loose := int(waist_tufts_mask(image).sum())):
         problems.append(Problem(12, str(path), f"{loose} loose pixel(s) above the waistband"))
     return problems
@@ -189,7 +189,7 @@ def check_bundle(outfits_dir: Path, entry: dict, masks_dir: Path) -> list[Proble
     for alias, target in shared.items():
         if not spec.FILE_PATTERN.match(f"{alias}{spec.EXTENSION}") or (folder / f"{alias}{spec.EXTENSION}").is_file():
             problems.append(Problem(6, key, f"shared entry {alias} -> {target} must name a missing file"))
-    # 13번: 하의 서기 허리가 겹침 띠 위(y 296)까지 맨몸 실루엣을 덮는다(상의 밑단 밑으로 들어간다, [임시:D-성-158]·[임시:D-성-185]).
+    # 13번: 하의 서기 허리가 겹침 띠 위(y 296)까지 맨몸 실루엣을 덮는다(상의 밑단 밑으로 들어간다, D-790·D-817).
     stand, body = (
         resolve(folder, "female_stand", shared),
         outfits_dir / spec.BODY_FOLDER / f"female_stand{spec.EXTENSION}",
@@ -242,7 +242,7 @@ def check_all(outfits_dir: Path, masks_dir: Path) -> list[Problem]:
 
 
 def check_body(outfits_dir: Path, shared: dict[str, str] | None = None) -> list[Problem]:
-    """맨몸 바탕 8장과 상의 자르기 칸 6장(5.3, [임시:D-성-156]): 크기·RGBA."""
+    """맨몸 바탕 8장과 상의 자르기 칸 6장(5.3, D-788): 크기·RGBA."""
     shared = shared or {}
     problems = []
     folder = outfits_dir / spec.BODY_FOLDER
@@ -272,7 +272,7 @@ def check_body(outfits_dir: Path, shared: dict[str, str] | None = None) -> list[
                 # 17번: 맨몸 외곽선이 승인 원본(정리 전)과 같이 이어진다
                 if breaks:
                     problems.append(Problem(17, str(path), f"{breaks} body outline pixel(s) broken"))
-            # 11번: 서기 맨몸의 허리·엉덩이 칸에 속옷(무채색) 픽셀이 없다. 하의 밖으로 비치고 피부톤이 걸려 짙은 띠가 됐다([임시:D-성-185]).
+            # 11번: 서기 맨몸의 허리·엉덩이 칸에 속옷(무채색) 픽셀이 없다. 하의 밖으로 비치고 피부톤이 걸려 짙은 띠가 됐다(D-817).
             if slot_name == "stand" and (under := int(underwear_mask(image).sum())):
                 problems.append(Problem(11, str(path), f"{under} underwear pixel(s) in the waist and hips"))
     return problems

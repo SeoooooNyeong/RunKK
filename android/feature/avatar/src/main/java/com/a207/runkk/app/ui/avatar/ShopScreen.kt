@@ -162,7 +162,7 @@ private fun ShopStage(state: ShopUiState, actions: ShopActions) {
 
 /**
  * 부위 칩(디자인 시스템 RunkkChoiceChip Ink, 높이 36 알약, 글자 14 Bold, 간격 6). 고른 칩은 textPrimary 바탕에 surface 글자다. 칩은 상의·하의·신발
- * 셋이다(모자 부위는 숨긴다, [임시:D-성-183]).
+ * 셋이다(모자 부위는 숨긴다, D-815).
  */
 @Composable
 private fun SlotChips(slot: ItemSlot, onSlot: (ItemSlot) -> Unit) {

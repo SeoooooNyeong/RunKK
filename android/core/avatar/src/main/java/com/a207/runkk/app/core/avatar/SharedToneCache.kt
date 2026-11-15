@@ -4,7 +4,7 @@ import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 프로세스 공용 합성 결과 캐시(design-oo 05-30 5.4, [임시:D-성-105], [임시:DR-성-10]). 남녀 × 동작마다 마지막 모습 하나만 두어
+ * 프로세스 공용 합성 결과 캐시(design-oo 05-30 5.4, D-737, DR-10). 남녀 × 동작마다 마지막 모습 하나만 두어
  * 상한이 4묶음이다. 키는 성별·동작·머리 동일성(생성 머리 참조, 내장 머리는 null)·[AvatarLookKey]다.
  *
  * - [prepareRiveAvatarLook]이 Rive 뷰 없이 채우고, [RiveAvatarView]는 합성 결과를 여기에도 넣는다.

@@ -32,6 +32,9 @@ class BootstrapConfigTest {
     @Value("${spring.task.scheduling.pool.size}")
     int schedulerPoolSize;
 
+    @Value("${spring.data.redis.port}")
+    int redisClientPort;
+
     /**
      * 시험 프로필이 꺼 둔 주기 작업 수(application-test.yml): 대결 시계 설정 전체 4개(battle-tick-enabled), 크루런 1초 시계
      * 1개(crew-tick-enabled), 런바디 진행 1개(runbody-poll-enabled).
@@ -59,9 +62,10 @@ class BootstrapConfigTest {
     }
 
     @Test
-    @DisplayName("L3: 내장 Redis 포트는 @ConfigurationProperties로 받는다")
+    @DisplayName("L3: 내장 Redis 포트는 @ConfigurationProperties로 받고 Redis 연결 포트와 같다")
     void embeddedRedis_bindsProperties() {
         assertThat(embeddedRedis.enabled()).isTrue();
-        assertThat(embeddedRedis.port()).isEqualTo(6371);
+        // Gradle 시험은 R-109로 빈 포트를 EMBEDDED_REDIS_PORT로 넘긴다. 없으면 application-test.yml 기본값 6371
+        assertThat(embeddedRedis.port()).isPositive().isEqualTo(redisClientPort);
     }
 }

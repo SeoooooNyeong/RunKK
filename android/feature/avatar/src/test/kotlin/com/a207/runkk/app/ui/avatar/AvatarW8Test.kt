@@ -14,8 +14,10 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.a207.runkk.app.core.avatar.AvatarBodyShape
+import com.a207.runkk.app.core.avatar.AvatarGender
 import com.a207.runkk.app.core.avatar.AvatarOutfit
 import com.a207.runkk.app.core.avatar.R as AvatarAssetR
+import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
@@ -23,6 +25,7 @@ import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarBackgrounds
 import com.a207.runkk.app.domain.avatar.AvatarRunner
@@ -86,12 +89,12 @@ class AvatarW8LogicTest {
     }
 
     @Test
-    fun `서버 체형 4단계는 서버 BodyShape variant와 같게 옮긴다 - 4단계가 기본 몸, 1단계가 가장 통통(D-성-179)`() {
+    fun `서버 체형 4단계는 서버 BodyShape variant와 같게 옮긴다 - 4단계가 기본 몸, 1단계가 가장 통통(D-811)`() {
         assertEquals(listOf(2, 1, 1, 0, 0), listOf("STAGE1", "STAGE2", "STAGE3", "STAGE4", "?").map(::bodyVariantOf))
     }
 
     @Test
-    fun `상점·꾸미기 무대 체형은 홈(내 러너 bodyVariant)과 같다 - 기본 몸이면 볼 덮개가 셀카 눈을 덮지 않는다(임시 D-성-191)`() {
+    fun `상점·꾸미기 무대 체형은 홈(내 러너 bodyVariant)과 같다 - 기본 몸이면 볼 덮개가 셀카 눈을 덮지 않는다(D-823)`() {
         val base = Avatar(null, null, "STAGE4", "DAYTIME", emptyMap(), 0, true, emptyMap())
         assertEquals(AvatarBodyShape.BASE, AvatarLook().withAvatar(base, emptyList(), 0).bodyShape)
         val fullest = base.copy(bodyShape = "STAGE1")
@@ -116,6 +119,77 @@ class AvatarW8LogicTest {
         )
         assertEquals(AvatarOutfit(top = 1), outfitOf(mapOf(ItemSlot.TOP to 1L), shop))
         assertEquals(AvatarOutfit(), outfitOf(emptyMap(), shop))
+    }
+
+    @Test
+    fun `다른 러너 의상은 그림 키로 바로 Rive 번호가 되고, 모르는 키·모자는 0이다(S15P31A207-300)`() {
+        assertEquals(
+            AvatarOutfit(top = 2, bottom = 2, shoes = 1),
+            riveOutfitOf(
+                mapOf(
+                    ItemSlot.TOP to "top_crew_tee",
+                    ItemSlot.BOTTOM to "bottom_leggings",
+                    ItemSlot.SHOES to "shoes_basic_runner",
+                    ItemSlot.HAT to "hat_running_cap"
+                )
+            )
+        )
+        assertEquals(
+            AvatarOutfit(shoes = 6),
+            riveOutfitOf(mapOf(ItemSlot.SHOES to "shoes_lime_runner", ItemSlot.TOP to "top_unknown"))
+        )
+        assertEquals(AvatarOutfit(), riveOutfitOf(emptyMap()))
+    }
+
+    @Test
+    fun `다른 러너 전신 정지 그림은 랭킹 모습(성별·의상·체형·러닝량)으로, 모습이 없으면 성별 기본 모습이다(S15P31A207-300)`() {
+        val subject = AvatarStillSubject(
+            isMine = false,
+            isFemale = true,
+            look = AvatarStillSubject.Look(
+                faceKey = "head:12:abc",
+                topKey = "top_crew_tee",
+                bottomKey = null,
+                shoesKey = "shoes_lime_runner",
+                bodyVariant = 2,
+                runAmount = 37
+            )
+        )
+        assertEquals(
+            RiveAvatarLook(AvatarGender.FEMALE, AvatarOutfit(top = 2, shoes = 6), AvatarBodyShape.CHANGE_2, 37, null),
+            runnerLookOf(subject, headLayers = null)
+        )
+        assertEquals(
+            RiveAvatarLook(AvatarGender.MALE, AvatarOutfit(), AvatarBodyShape.BASE, 0, null),
+            runnerLookOf(AvatarStillSubject(isMine = false), headLayers = null)
+        )
+        assertEquals(0, runnerLookOf(subject.copy(isLightSkin = true), null).runningAmount, "밝은 피부 요청은 러닝량 0")
+        assertEquals(
+            AvatarBodyShape.BASE,
+            runnerLookOf(subject.copy(look = subject.look?.copy(bodyVariant = 9)), null).bodyShape,
+            "모르는 체형은 기본"
+        )
+    }
+
+    @Test
+    fun `다른 러너 러닝량은 0~100 밖이면 끝값으로, 체형은 0~2 밖이면 기본으로 그린다(경곗값, S15P31A207-300)`() {
+        val look = AvatarStillSubject.Look(null, null, null, null, bodyVariant = 0, runAmount = 0)
+        fun runAmountOf(value: Int) =
+            runnerLookOf(AvatarStillSubject(isMine = false, look = look.copy(runAmount = value)), null).runningAmount
+        fun bodyOf(value: Int) =
+            runnerLookOf(AvatarStillSubject(isMine = false, look = look.copy(bodyVariant = value)), null).bodyShape
+
+        assertEquals(listOf(0, 0, 1, 99, 100, 100), listOf(-1, 0, 1, 99, 100, 101).map(::runAmountOf))
+        assertEquals(
+            listOf(
+                AvatarBodyShape.BASE,
+                AvatarBodyShape.BASE,
+                AvatarBodyShape.CHANGE_1,
+                AvatarBodyShape.CHANGE_2,
+                AvatarBodyShape.BASE
+            ),
+            listOf(-1, 0, 1, 2, 3).map(::bodyOf)
+        )
     }
 
     /**
@@ -171,7 +245,7 @@ class AvatarW8LogicTest {
     }
 
     @Test
-    fun `H-6 기기 기록에 남은 지운 키(KAESONG)는 서버 목록에 없으면 무시한다(D-성-124)`() {
+    fun `H-6 기기 기록에 남은 지운 키(KAESONG)는 서버 목록에 없으면 무시한다(D-756)`() {
         val stored = BackgroundUnlockSeenStore.Seen(setOf("INCHEON", "KAESONG"), SINCE)
         val (unlock, _) =
             findNewUnlocks(AvatarBackgrounds(null, listOf(incheon, chuncheon, daejeon, jeonju)), stored, NOW)
@@ -278,7 +352,7 @@ class AvatarW8LogicTest {
 
 private val runner = AvatarRunner("STAGE3", 1, "MORNING", 7, 3, Distance(12_400), 51, 4)
 
-/** 내 러너·꾸미기·상점에 보이면 안 되는 체형·피부톤 설명(사용자 지시 「체형 배가 블록 피부색 낮형 … 빼」, design-oo 05-30 [임시:D-성-128]). */
+/** 내 러너·꾸미기·상점에 보이면 안 되는 체형·피부톤 설명(사용자 지시 「체형 배가 블록 피부색 낮형 … 빼」, design-oo 05-30 D-760). */
 private val FORBIDDEN = listOf("체형", "배가", "볼록", "피부", "낮형", "아침형", "저녁형", "새벽형", "밤형", "톤이에요", "번 달렸어요", "근육")
 
 /** W8 화면(피그마 제안): 내 러너 B안, 꾸미기 A안, 상점 A안, 해금 팝업(H-6). */
@@ -402,7 +476,7 @@ class AvatarW8ScreenTest {
     }
 
     @Test
-    fun `꾸미기 A안 - 악세서리 탭 없음(D-성-183), 잠긴 배경은 남은 거리, 체형·피부색 칩과 빈 목록 문장 없음`() {
+    fun `꾸미기 A안 - 악세서리 탭 없음(D-815), 잠긴 배경은 남은 거리, 체형·피부색 칩과 빈 목록 문장 없음`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
@@ -497,7 +571,7 @@ class AvatarW8ScreenTest {
     }
 }
 
-/** 상점 그림 규칙(design-oo 05-30 [임시:D-성-113]): 그림 키 k의 그림은 drawable shop_k이고 V62 시드 16종이 모두 있다. */
+/** 상점 그림 규칙(design-oo 05-30 D-745): 그림 키 k의 그림은 drawable shop_k이고 V62 시드 16종이 모두 있다. */
 @RunWith(RobolectricTestRunner::class)
 class ShopArtTest {
     private val keys = listOf(

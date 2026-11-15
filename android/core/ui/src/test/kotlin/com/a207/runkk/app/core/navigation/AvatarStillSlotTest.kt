@@ -59,14 +59,14 @@ class AvatarStillSlotTest {
     @Test
     fun `받은 모습이 있으면 그 모습을 칸에 넘긴다(D-성-272)`() {
         val look = SlotRunnerLook(isFemale = false, topItemId = 12, faceKey = "head:7:ab12")
-        val subject = AvatarStillSubject(isMine = false, isFemale = false, look = look)
+        val subject = AvatarStillSubject(isMine = false, isFemale = false, slotLook = look)
         compose.setContent {
             CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(probe))) {
                 AvatarStillSlot(subject, Modifier.size(60.dp, 100.dp)) { Box(Modifier.testTag("fallback")) }
             }
         }
-        assertEquals(look, seen?.look)
-        assertEquals(null, AvatarStillSubject.MINE.look)
+        assertEquals(look, seen?.slotLook)
+        assertEquals(null, AvatarStillSubject.MINE.slotLook)
     }
 
     @Test

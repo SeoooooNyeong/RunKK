@@ -131,11 +131,11 @@ class ReleaseShellTest {
     }
 
     @Test
-    fun `TC-9701 아바타 꾸미기가 열려 있으면 아바타 머리 그림을 쓴다(기본 캐릭터 값이면 기본 머리, D-성-180)`() {
+    fun `TC-9701 아바타 꾸미기가 열려 있으면 아바타 머리 그림을 쓴다(기본 캐릭터 값이면 기본 머리, D-812)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) { RunkkAvatar("default:BEAR", AvatarExpression.JOY, Modifier.size(40.dp)) }
         }
-        // 얼굴 원이 아닌 장면은 원 밖 기본 머리다([임시:D-성-193]).
+        // 얼굴 원이 아닌 장면은 원 밖 기본 머리다(D-825).
         compose.onNodeWithTag(
             runkkAvatarDefaultHeadTag(AvatarCharacter.MALE, isInCircle = false),
             useUnmergedTree = true

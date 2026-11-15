@@ -113,7 +113,7 @@ internal fun ModeVersus(
 internal fun pastSelfStill(look: RunnerLook?): AvatarStillSubject = if (look == null) {
     MY_STILL
 } else {
-    AvatarStillSubject(isMine = false, isFemale = look.gender == Gender.FEMALE, look = look.toSlot())
+    AvatarStillSubject(isMine = false, isFemale = look.gender == Gender.FEMALE, slotLook = look.toSlot())
 }
 
 /** VS 한쪽: 점선 칸과 그 아래 글자(있을 때만). */

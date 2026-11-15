@@ -63,7 +63,7 @@ class DeviceRound3Test {
     }
 
     @Test
-    fun `DV3-5 상점 칩에 모자 부위 이름이 보이지 않는다(악세서리 숨김, D-성-183)`() {
+    fun `DV3-5 상점 칩에 모자 부위 이름이 보이지 않는다(악세서리 숨김, D-815)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), ShopActions())

@@ -40,7 +40,7 @@ internal object AvatarImages {
     }
 
     /**
-     * 헤어 레이어: 고유색은 그대로 두고 얼굴과 맞닿은 경계의 피부 섞인 색만 섞인 몫만큼 러닝량 톤을 준다([HairSkinFringe], DV-성-5).
+     * 헤어 레이어: 고유색은 그대로 두고 얼굴과 맞닿은 경계의 피부 섞인 색만 섞인 몫만큼 러닝량 톤을 준다([HairSkinFringe], DV-5).
      * 러닝량 0이거나 얼굴과 크기가 다르면 원본 바이트를 그대로 돌려준다.
      */
     fun hairForRunningAmount(hair: ByteArray, face: ByteArray, amount: Int): ByteArray {

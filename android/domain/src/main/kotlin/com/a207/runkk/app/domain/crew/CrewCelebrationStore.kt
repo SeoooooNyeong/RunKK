@@ -3,7 +3,7 @@ package com.a207.runkk.app.domain.crew
 import java.time.LocalDate
 
 /**
- * 공동 목표 축하 팝업을 그 주에 이미 보였는지 기기에 남긴다([임시:D-성-23], 피그마 F-08b). 그 주 첫 진입 때 한 번만 자동으로 띄운다.
+ * 공동 목표 축하 팝업을 그 주에 이미 보였는지 기기에 남긴다(D-655, 피그마 F-08b). 그 주 첫 진입 때 한 번만 자동으로 띄운다.
  * 서버에 보내는 상태가 없어 기기를 바꾸면 한 번 더 뜬다. 구현 data PreferencesCrewCelebrationStore.
  */
 interface CrewCelebrationStore {

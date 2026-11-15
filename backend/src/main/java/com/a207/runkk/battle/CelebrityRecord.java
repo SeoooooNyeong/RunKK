@@ -160,8 +160,8 @@ public class CelebrityRecord implements OpponentRecord {
     }
 
     /**
-     * SSAFY 코치 기록인가(그림 키 "joo"·"kim", D130). 셀럽런 목록은 코치만 보이고 다른 셀럽은 숨긴다(2026-11-13 PM 결정,
-     * [임시:D-성-219]). 행은 지우지 않아 지난 대결 이력은 그대로다.
+     * SSAFY 코치 기록인가(그림 키 "joo"·"kim", D130). 셀럽런 목록은 코치만 보이고 다른 셀럽은 숨긴다(2026-11-13 PM 결정, D-851).
+     * 행은 지우지 않아 지난 대결 이력은 그대로다.
      */
     public boolean isCoach() {
         return figureKey != null && COACH_FIGURE_KEYS.contains(figureKey.toLowerCase(Locale.ROOT));

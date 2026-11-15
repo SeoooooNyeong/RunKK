@@ -192,7 +192,7 @@ class RecordTracksControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("CELEBRITY: 코치 기록만(다른 셀럽은 숨김, [임시:D-성-219]), 거리 → 완주 시간순, 구간 없으면 균등 페이스 estimated")
+    @DisplayName("CELEBRITY: 코치 기록만(다른 셀럽은 숨김, D-851), 거리 → 완주 시간순, 구간 없으면 균등 페이스 estimated")
     void celebrity_allSortedAndEstimated() throws Exception {
         Distance fiveK = Distance.ofMeters(5_000);
         List<Long> ids = new ArrayList<>();

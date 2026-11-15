@@ -188,7 +188,7 @@ class CoachWinPointListenerTest {
     }
 
     @Test
-    @DisplayName("판정 시각이 시작 정각, 종료 정각이어도 준다(기간 양 끝 포함, TC-성-46)")
+    @DisplayName("판정 시각이 시작 정각, 종료 정각이어도 준다(기간 양 끝 포함, TC-2646)")
     void judgedAtPeriodEndsGrants() {
         wins(START, null);
         listener.onBattleJudged(judged(BattleType.CELEBRITY, Side.member(MEMBER), START));
@@ -203,7 +203,7 @@ class CoachWinPointListenerTest {
     }
 
     @Test
-    @DisplayName("승리포인트 0인 이벤트는 이겨도 적립과 지급 이력이 없다(TC-성-50)")
+    @DisplayName("승리포인트 0인 이벤트는 이겨도 적립과 지급 이력이 없다(TC-2650)")
     void zeroPointEventGrantsNothing() {
         service.changePublished("op", eventId, false);
         service.create(

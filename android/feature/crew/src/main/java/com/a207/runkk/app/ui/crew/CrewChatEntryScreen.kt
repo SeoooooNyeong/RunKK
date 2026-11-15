@@ -22,7 +22,7 @@ import com.a207.runkk.app.core.navigation.Routes
 
 /**
  * 채팅 알림(Screen CREW_CHAT)으로 들어온 경로(D-150). 알림은 크루 ID를 경로로 넘기지 않으므로 내 크루(GET /crews/me)를 확인해
- * 이 항목을 빼고 그 크루 홈의 채팅 탭(Routes.CrewHome(crewId, "CHAT"), [임시:D-성-21])을 올린다. 소속이 없으면 안내만 보인다.
+ * 이 항목을 빼고 그 크루 홈의 채팅 탭(Routes.CrewHome(crewId, "CHAT"), D-653)을 올린다. 소속이 없으면 안내만 보인다.
  */
 @Composable
 fun CrewChatEntryRoute(viewModel: CrewFindViewModel = hiltViewModel()) {

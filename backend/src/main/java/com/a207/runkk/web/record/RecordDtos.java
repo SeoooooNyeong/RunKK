@@ -12,9 +12,11 @@ import com.a207.runkk.analysis.ReportView;
 import com.a207.runkk.analysis.RunCardData;
 import com.a207.runkk.analysis.TodayPlanView;
 import com.a207.runkk.analysis.WeeklyAchievement;
+import com.a207.runkk.avatar.RunnerLook;
 import com.a207.runkk.battle.BattleOutcome;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
+import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.ServerZone;
 import com.a207.runkk.common.Tier;
@@ -552,12 +554,18 @@ final class RecordDtos {
             OffsetDateTime aggregatedAt,
             String notice) {
 
+        /** 줄 회원 모습 없이(크루 랭킹). 모든 줄의 look이 null이다. */
         static RankingResponse of(RankingView v) {
+            return of(v, Map.of());
+        }
+
+        /** looks: 회원 ID → 모습(S15P31A207-300). 맵에 없는 줄(크루·탈퇴 회원)은 look이 null이다. */
+        static RankingResponse of(RankingView v, Map<Long, RunnerLook> looks) {
             return new RankingResponse(
                     v.kind().name(),
                     v.period().name(),
-                    v.entries().stream().map(e -> Entry.of(e, v)).toList(),
-                    v.mine() == null ? null : Entry.of(v.mine(), v),
+                    v.entries().stream().map(e -> Entry.of(e, v, looks)).toList(),
+                    v.mine() == null ? null : Entry.of(v.mine(), v, looks),
                     meters(v.gapToNext()),
                     seoul(v.aggregatedAt()),
                     v.notice());
@@ -567,7 +575,8 @@ final class RecordDtos {
     /**
      * 랭킹 한 줄(앱 RankingResponse.Entry + subjectId·tier). shownGender는 개인 랭킹 줄 회원의 표시 성별(MALE·FEMALE,
      * D-327), 크루 줄은 null이다. publicTier는 조회 때 붙인 회원의 지금 티어(UNRANKED = 배치 중)이고 크루 줄·탈퇴 회원은
-     * null이다(05-03 5.7.3.3 P7, D-486). tier는 스냅숏 값 그대로다.
+     * null이다(05-03 5.7.3.3 P7, D-486). tier는 스냅숏 값 그대로다. look은 조회 때 붙인 그 회원의 모습(S15P31A207-300)이고
+     * 크루 줄·탈퇴 회원·스냅숏 없음이면 null이다.
      */
     record Entry(
             int rank,
@@ -576,10 +585,12 @@ final class RecordDtos {
             String tier,
             long distanceMeters,
             String shownGender,
-            String publicTier) {
+            String publicTier,
+            LookDto look) {
 
-        static Entry of(RankEntry e, RankingView v) {
+        static Entry of(RankEntry e, RankingView v, Map<Long, RunnerLook> looks) {
             Tier publicTier = v.publicTierOf(e);
+            RunnerLook look = looks.get(e.subjectId());
             return new Entry(
                     e.rank(),
                     e.subjectId(),
@@ -587,7 +598,23 @@ final class RecordDtos {
                     e.tier() == null ? null : e.tier().name(),
                     e.distance().meters(),
                     v.shownGenderOf(e),
-                    publicTier == null ? null : publicTier.name());
+                    publicTier == null ? null : publicTier.name(),
+                    look == null ? null : LookDto.of(look));
+        }
+    }
+
+    /**
+     * 랭킹 줄 회원 모습(S15P31A207-300, 앱과 합의한 계약).
+     *
+     * @param faceKey 얼굴 키(Face.renderKey), 얼굴을 고르지 않았으면 null
+     * @param outfit 착용 부위 이름(TOP·BOTTOM·SHOES·HAT) → 그림 키(assetKey). 안 입었거나 그림 키가 없는 부위는 키가 없다
+     * @param bodyVariant 3단계 체형 0~2
+     * @param runAmount 러닝량 0~100(최근 7일 유효 거리)
+     */
+    record LookDto(String faceKey, Map<ItemSlot, String> outfit, int bodyVariant, int runAmount) {
+
+        static LookDto of(RunnerLook look) {
+            return new LookDto(look.faceKey(), look.outfit(), look.bodyVariant(), look.runAmount());
         }
     }
 

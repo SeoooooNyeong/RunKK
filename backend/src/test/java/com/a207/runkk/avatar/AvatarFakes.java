@@ -26,7 +26,7 @@ public final class AvatarFakes {
         return new SdFacePartImages(images);
     }
 
-    public static final class Avatars implements AvatarRepository {
+    public static class Avatars implements AvatarRepository {
         private final Map<Long, Avatar> avatars = new HashMap<>();
 
         @Override
@@ -46,6 +46,16 @@ public final class AvatarFakes {
                 }
             }
             return result;
+        }
+
+        @Override
+        public synchronized java.util.List<Avatar> findAllByMemberIds(
+                java.util.Collection<Long> memberIds) {
+            return memberIds.stream()
+                    .distinct()
+                    .map(avatars::get)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
         }
 
         @Override

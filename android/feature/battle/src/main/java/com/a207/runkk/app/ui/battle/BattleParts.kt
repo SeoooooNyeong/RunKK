@@ -176,7 +176,7 @@ internal fun OpponentFigure(
 internal fun rivalStill(character: AvatarCharacter, look: RunnerLook?): AvatarStillSubject = AvatarStillSubject(
     isMine = false,
     isFemale = look?.let { it.gender == Gender.FEMALE } ?: (character == AvatarCharacter.FEMALE),
-    look = look?.toSlot()
+    slotLook = look?.toSlot()
 )
 
 /**

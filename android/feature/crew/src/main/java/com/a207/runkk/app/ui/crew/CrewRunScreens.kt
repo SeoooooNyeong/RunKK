@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -97,6 +98,7 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
+import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
@@ -241,7 +243,7 @@ private fun CancelledBody(state: CrewRunUiState, actions: CrewRunActions) {
 
 /**
  * 칩 「● 크루런 5km」(피그마 RunKK / Run / 러닝 라벨, F-14·F-15): 높이 28, 좌우 10, 모서리 14, surfaceHigh 바탕, 12 Regular 본문색.
- * 가운뎃점은 쓰지 않는다. 거리가 없는 크루런은 「제한 없음」([임시:D-성-28]), 거리를 아직 모르면(대기실·결과 응답 전) 「크루런」만이다.
+ * 가운뎃점은 쓰지 않는다. 거리가 없는 크루런은 「제한 없음」(D-660), 거리를 아직 모르면(대기실·결과 응답 전) 「크루런」만이다.
  */
 @Composable
 private fun CrewRunChip(distance: Distance?, isDistanceKnown: Boolean) {
@@ -439,7 +441,7 @@ private fun ParticipantCell(p: Lobby.Participant, faces: Map<String, List<FaceLa
 }
 
 /**
- * 참가자 원 66([임시:D-성-12]): 들어온 사람은 surfaceHigh 원 안에 아바타 얼굴(셀카 부위 그림, 없으면 얼굴 키·표시 성별의 기본 얼굴),
+ * 참가자 원 66(D-644): 들어온 사람은 surfaceHigh 원 안에 아바타 얼굴(셀카 부위 그림, 없으면 얼굴 키·표시 성별의 기본 얼굴),
  * 아직 안 들어온 자리는 바탕 없는 점선 원(외곽선색)이다. 장식이라 읽기 정보는 칸이 붙인다.
  */
 @Composable
@@ -671,8 +673,8 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBott
     val edge = layout.other as? TrackLayout.Other.Edge
     val isMoving = rememberIsMoving(mine.distance) && !mine.isPaused && mine.currentPace != null
     val frameMillis = runFrameMillis(mine.currentPace)
-    // 내 아바타 칸(design-oo 05-30 7절): 크루런 중이고 내가 멈추지 않았으면 RUN, 일시정지는 서기. 트랙에서는 늘 오른쪽을 본다.
-    val pose = if (state.phase == CrewRunPhase.RUNNING && !mine.isPaused) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 트랙에서는 오른쪽을 보고, 일시정지하거나 움직임과 페이스가 없으면 선다(D-856).
+    val pose = if (state.phase == CrewRunPhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
     val isNearestPaused = nearest?.state?.name == MateState.PAUSED.name
     val nearestName = nearest?.name.orEmpty()
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
@@ -684,9 +686,13 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBott
             if (isNearestPaused) stringResource(R.string.crew_run_mate_paused, it.name) else it.name
         },
         myAvatar = {
-            RunAvatarSlot(pose, facingLeft = false) { RunkkRunningFigure(isMoving, frameMillis) }
+            RunAvatarSlot(pose, facingLeft = false, runSpeed = runMotionSpeed(mine.currentPace)) {
+                RunkkRunningFigure(isMoving, frameMillis)
+            }
         },
-        otherAvatar = { NearestRunner(state, isRunning = !isNearestPaused && !mine.isPaused) },
+        otherAvatar = {
+            key(nearest?.memberId, nearest?.name) { NearestRunner(state) }
+        },
         modifier = modifier.testTag(CREW_TRACK_TAG),
         myPace = mine.currentPace?.let { RunkkFormat.pace(it) },
         isMoving = isMoving,
@@ -750,14 +756,18 @@ private fun MyFace(state: CrewRunUiState, size: Dp) {
  * 들어오지 못한 참가자, 옛 서버) 표시 성별의 기본 모습이고, 아바타 칸이 비었거나 그리지 못하면 그 성별의 달리기 그림이다. 멈춘 사람은 선다.
  */
 @Composable
-private fun NearestRunner(state: CrewRunUiState, isRunning: Boolean) {
+private fun NearestRunner(state: CrewRunUiState) {
     val mate = state.standing.nearest ?: return
     val row = state.relay.firstOrNull { it.memberId != null && it.memberId == mate.memberId }
     val look = mate.memberId?.let(state.looks::get)
     val character = look?.let { AvatarCharacter.of(it.gender) } ?: AvatarCharacter.of(row?.shownGender)
+    val isMoving = rememberIsMoving(Distance(mate.meters.toLong()))
+    val isRunning = state.phase == CrewRunPhase.RUNNING && !state.mine.isPaused &&
+        mate.state.name == MateState.RUNNING.name && isMoving
     RunAvatarSlot(
         pose = if (isRunning) AvatarSlotPose.RUN else AvatarSlotPose.STAND,
         facingLeft = false,
+        runSpeed = runMotionSpeed(null),
         subject = RunAvatarSubject.other(look?.toSlot(), character == AvatarCharacter.FEMALE)
     ) {
         RunkkRunningFigure(isRunning, runFrameMillis(null), character = character)

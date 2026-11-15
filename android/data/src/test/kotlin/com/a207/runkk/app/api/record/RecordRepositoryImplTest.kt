@@ -21,6 +21,7 @@ import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.record.RunCard
 import com.a207.runkk.app.domain.record.RunSummary
+import com.a207.runkk.app.domain.record.RunnerLook
 import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.record.WeeklyGoalProgress
 import java.time.Duration
@@ -45,7 +46,7 @@ class RecordRepositoryImplTest {
 
             override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
         }
-    private val repository = RecordRepositoryImpl(api.retrofit.create(), SelfMember(tokens))
+    private val repository = RecordRepositoryImpl(api.retrofit.create(), SelfMember(tokens), api.faces)
 
     @AfterTest
     fun tearDown() = api.close()
@@ -228,6 +229,49 @@ class RecordRepositoryImplTest {
         assertEquals(null, old)
         assertEquals(listOf("GOLD", "UNRANKED", null, null), ranking.entries.map { it.publicTier })
         assertEquals("UNRANKED", ranking.mine?.publicTier)
+    }
+
+    @Test
+    fun `랭킹 줄의 모습(얼굴·의상·체형·러닝량)을 읽고, 없는 줄·옛 서버는 null이다(S15P31A207-300)`() = runTest {
+        api.reply(
+            """{"entries":[{"rank":1,"name":"바람","distanceMeters":42000,"look":{"faceKey":"head:12:abc",
+               |"outfit":{"TOP":"top_crew_tee","BOTTOM":"bottom_leggings","SHOES":"shoes_basic_runner","CAPE":"cape_x"},
+               |"bodyVariant":2,"runAmount":37}},
+               |{"rank":2,"name":"구름","distanceMeters":30000,"look":{"faceKey":null,"outfit":{},"bodyVariant":0,"runAmount":0}},
+               |{"rank":3,"name":"탈퇴","distanceMeters":20000,"look":null},
+               |{"rank":4,"name":"옛 행","distanceMeters":10000}],
+               |"mine":{"rank":1,"name":"바람","distanceMeters":42000,"look":{"faceKey":"head:12:abc","outfit":{"HAT":"hat_cap"},
+               |"bodyVariant":1,"runAmount":100,"future":true}},"aggregatedAt":"2026-10-20T06:00:00"}
+            """.trimMargin()
+        )
+
+        val ranking = repository.personalRanking(AggregationPeriod.WEEKLY).value()
+
+        assertEquals(
+            RunnerLook(
+                faceKey = "head:12:abc",
+                topKey = "top_crew_tee",
+                bottomKey = "bottom_leggings",
+                shoesKey = "shoes_basic_runner",
+                bodyVariant = 2,
+                runAmount = 37
+            ),
+            ranking.entries[0].look,
+            "그리지 않는 부위(CAPE)는 버린다"
+        )
+        assertEquals(RunnerLook(null, null, null, null, 0, 0), ranking.entries[1].look, "얼굴을 안 골랐으면 faceKey null")
+        assertEquals(listOf(null, null), ranking.entries.drop(2).map { it.look }, "look null·없음(옛 서버)")
+        assertEquals(RunnerLook("head:12:abc", null, null, null, 1, 100), ranking.mine?.look)
+    }
+
+    @Test
+    fun `랭킹 얼굴 그림은 얼굴 키로 받고, 셀카가 아니면 받지 않는다`() = runTest {
+        assertEquals(emptyList(), repository.faceLayers(null).value())
+        assertEquals(emptyList(), repository.faceLayers("default:RABBIT").value())
+
+        api.reply("""{}""")
+        repository.faceLayers("head:12:abc")
+        assertEquals("/api/v1/avatar/heads/12/abc", api.take().url.encodedPath, "다른 러너 셀카 머리도 받는다")
     }
 
     @Test

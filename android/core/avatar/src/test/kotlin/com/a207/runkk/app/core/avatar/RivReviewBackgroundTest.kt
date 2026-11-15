@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
 
 /**
- * 실기기 결함 DV-성-3: 승인 Rive 파일 네 개의 아트보드에는 PoC 검수용 베이지 바탕 도형(「Background」·「Review background」,
+ * 실기기 결함 DV-3: 승인 Rive 파일 네 개의 아트보드에는 PoC 검수용 베이지 바탕 도형(「Background」·「Review background」,
  * SolidColor FFF6EFE8)이 들어 있어 카드 배경을 가린다. 파일(SHA 시험)은 그대로 두고 읽은 바이트에서 그 칠의 알파만 0으로 바꾼다.
  */
 class RivReviewBackgroundTest {

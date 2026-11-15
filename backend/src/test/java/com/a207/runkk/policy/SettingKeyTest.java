@@ -16,7 +16,7 @@ class SettingKeyTest {
     @Test
     void has21SettingItemsPlusOperatorWhitelist() {
         // v0.14 CREW_RELEASED(FR-223, D-247), AVATAR_RELEASED(D138), RUNBODY_ENABLED(05-19 D-440)
-        // BODY_SHAPE_RELEASED: 체형 변화는 2차 배포에서 뺀다([임시:D-성-218])
+        // BODY_SHAPE_RELEASED: 체형 변화는 2차 배포에서 뺀다(D-850)
         assertThat(SettingKey.values()).hasSize(28);
         assertThat(Arrays.stream(SettingKey.values()).map(Enum::name))
                 .contains(
@@ -176,7 +176,7 @@ class SettingKeyTest {
 
     @Test
     @org.junit.jupiter.api.DisplayName(
-            "D-성-129 기본 랜드마크에 북한 도시·강릉이 없고 국내 앞부분은 인천 60 → 춘천 150 → 대전 280 왕복이다")
+            "D-761 기본 랜드마크에 북한 도시·강릉이 없고 국내 앞부분은 인천 60 → 춘천 150 → 대전 280 왕복이다")
     void landmarks_domesticHeadIsIncheonChuncheonDaejeon() {
         LandmarkTable table =
                 (LandmarkTable) SettingKey.LANDMARKS.parse(SettingKey.LANDMARKS.defaultValue());

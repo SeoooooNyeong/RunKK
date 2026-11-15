@@ -131,7 +131,7 @@ constructor(
 
     fun onLoadOlder() = room.loadOlder()
 
-    // 반응한 사람(피그마 F-09d, D-성-24)
+    // 반응한 사람(피그마 F-09d, D-656)
 
     /** 서버에 있는 보이는 메시지만 연다. [tab]은 길게 누른 알약의 종류(null = 전체). */
     fun onOpenReactors(message: ChatMessage, tab: ReactionKind?) {

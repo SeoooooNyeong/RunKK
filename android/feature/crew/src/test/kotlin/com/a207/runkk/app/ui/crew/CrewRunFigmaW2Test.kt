@@ -57,7 +57,7 @@ class CrewRunFigmaW2Test {
     }
 
     @Test
-    fun `대기실 참가자 원은 들어온 사람은 얼굴, 미입장은 점선 빈 원이다(F-14, D-성-12)`() {
+    fun `대기실 참가자 원은 들어온 사람은 얼굴, 미입장은 점선 빈 원이다(F-14, D-644)`() {
         show(CrewRunUiState(postId = 31, distance = Distance(5_000), phase = CrewRunPhase.LOBBY, lobby = mixedLobby))
         compose.onAllNodesWithTag(LOBBY_EMPTY_SEAT_TAG, useUnmergedTree = true).assertCountEquals(1)
         compose.onAllNodesWithTag(LOBBY_FACE_SEAT_TAG, useUnmergedTree = true).assertCountEquals(3)
@@ -72,7 +72,7 @@ class CrewRunFigmaW2Test {
     }
 
     @Test
-    fun `거리가 없는 크루런은 제한 없음으로 보이고 준비 완료를 누를 수 있다(D-성-28)`() {
+    fun `거리가 없는 크루런은 제한 없음으로 보이고 준비 완료를 누를 수 있다(D-660)`() {
         show(CrewRunUiState(postId = 31, distance = null, phase = CrewRunPhase.LOBBY, lobby = lobby))
         compose.onNodeWithText("크루런 제한 없음", useUnmergedTree = true).assertExists()
         compose.onNode(hasText("준비 완료") and hasClickAction()).performClick()

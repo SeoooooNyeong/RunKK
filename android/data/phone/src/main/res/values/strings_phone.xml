@@ -3,7 +3,7 @@
 <resources>
     <string name="measurement_channel_name">러닝 측정</string>
     <string name="push_channel_name">런크크 알림</string>
-    <!-- 셀카 얼굴 결과 기기 알림(design-oo 05-30 D-성-120, FR-성-21, 피그마 AV-7 5 완료 알림). 결과는 워커가 이미 적용했다. -->
+    <!-- 셀카 얼굴 결과 기기 알림(design-oo 05-30 D-752, FR-342, 피그마 AV-7 5 완료 알림). 결과는 워커가 이미 적용했다. -->
     <string name="selfie_notice_done_title">새 얼굴이 준비됐어요</string>
     <string name="selfie_notice_done_body">눌러서 내 아바타를 확인해요</string>
     <string name="selfie_notice_failed_title">얼굴을 만들지 못했어요</string>

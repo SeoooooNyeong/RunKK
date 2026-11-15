@@ -196,16 +196,16 @@ class InboxTest {
         // 투표·일정 알림의 대상 ID는 글 ID라 크루 홈 경로로 쓰지 않는다: 내 크루 홈의 해당 탭(A3b 경로)으로 연다.
         assertEquals(Routes.Key(Routes.CREW_POLL), inboxDestination("CREW_POLL", "3"))
         assertEquals(Routes.Key(Routes.CREW_SCHEDULE), inboxDestination("CREW_SCHEDULE", "3"))
-        // DV-성-14: 공지를 볼 화면이 없어 공지 알림은 알림함에 머물고 줄에 공지 본문을 보인다
+        // DV-14: 공지를 볼 화면이 없어 공지 알림은 알림함에 머물고 줄에 공지 본문을 보인다
         assertEquals(null, inboxDestination("CREW_NOTICE", "3"))
         assertEquals(null, inboxDestination("CREW_NOTICE", null))
-        // DV-성-14: 크루런 모집·곧 시작(반복 회차 포함) 알림의 대상 ID는 크루런 글 ID다(서버 CrewPostService·CrewRunRepeater·
+        // DV-14: 크루런 모집·곧 시작(반복 회차 포함) 알림의 대상 ID는 크루런 글 ID다(서버 CrewPostService·CrewRunRepeater·
         // CrewRunAnnouncer). 그 크루런 상세로, ID가 없으면 내 크루 홈 크루런 탭으로 연다
         assertEquals(Routes.CrewRunDetail(9), inboxDestination("CREW_RUN_RECRUIT", "9"))
         assertEquals(Routes.Key(Routes.CREW_SCHEDULE), inboxDestination("CREW_RUN_RECRUIT", null))
         assertEquals(Routes.Key(Routes.CREW_SCHEDULE), inboxDestination("CREW_RUN_RECRUIT", "x"))
         // 채팅 알림의 대상 ID는 크루 ID다(서버 ChatDeliveryListener). 없으면 내 크루를 확인하는 채팅 경로로.
-        assertEquals(Routes.CrewHome(3, "CHAT"), inboxDestination("CREW_CHAT", "3"), "채팅은 크루 홈 채팅 탭(D-성-21)")
+        assertEquals(Routes.CrewHome(3, "CHAT"), inboxDestination("CREW_CHAT", "3"), "채팅은 크루 홈 채팅 탭(D-653)")
         assertEquals(Routes.Key(Routes.CREW_CHAT), inboxDestination("CREW_CHAT", null))
         assertEquals(Routes.Key(Routes.AVATAR_BACKGROUND), inboxDestination("AVATAR_BACKGROUND", null))
         assertEquals(Routes.CrewHome(7), inboxDestination("CREW_HOME", "7"))
@@ -250,7 +250,7 @@ class InboxTest {
     @Test
     fun `알림 이동 표는 서버 Screen 11개를 모두 다루고 EXTERNAL_LINK는 링크로 연다`() {
         assertEquals(ContractEnums.names("Screen"), INBOX_SCREENS + LINK_SCREEN)
-        // 크루 공지는 알림함에 머문다(DV-성-14, 알림 줄에 공지 본문)
+        // 크루 공지는 알림함에 머문다(DV-14, 알림 줄에 공지 본문)
         (INBOX_SCREENS - STAY_SCREENS).forEach { assertNotNull(inboxDestination(it, "1"), it) }
         STAY_SCREENS.forEach { assertNull(inboxDestination(it, "1"), it) }
         assertNull(inboxDestination(LINK_SCREEN, FORM))
@@ -304,7 +304,7 @@ class InboxTest {
     }
 
     @Test
-    fun `크루 공지 알림은 공지 줄로 제목과 공지 본문을 보이고 눌러도 알림함에 머문다(DV-성-14)`() = runTest {
+    fun `크루 공지 알림은 공지 줄로 제목과 공지 본문을 보이고 눌러도 알림함에 머문다(DV-14)`() = runTest {
         val crewNotice = Inbox.Item(
             21,
             "CREW_NOTICE",
@@ -384,7 +384,7 @@ class InboxTest {
         /** 실기기 수정([임시:D-성-243]): 크루 초대 링크의 가입 확인. */
         val CREW_INVITE_KEYS = setOf("CrewInviteJoin")
 
-        // W5([임시:D-성-21]): 채팅은 크루 홈 탭이 되어 CrewChat 경로를 지웠다.
+        // W5(D-653): 채팅은 크루 홈 탭이 되어 CrewChat 경로를 지웠다.
         val V011_KEYS = setOf("CrewPollWrite", "CrewBoardWrite")
 
         /** 와이어프레임 v0.10 반영에서 더한 인자 키(F8 다른 러너 프로필, M1 공지 쓰기, M3 투표, M7 대면 모임, M8 공동 목표). */

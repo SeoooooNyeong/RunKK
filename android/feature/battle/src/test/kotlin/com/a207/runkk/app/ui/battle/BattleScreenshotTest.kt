@@ -650,9 +650,11 @@ class BattleScreenshotTest {
 
     @Test
     fun resultDetailLight() = compose.captureRunkkScreen("D4_battle_result_detail_light", isDarkTheme = false) {
+        // 라이트 테마 구간 막대 대비(PL12-A2)를 보이게 구간 페이스를 넣는다.
+        val detail = recordDetail().copy(splitPaces = listOf(Pace(331), Pace(326), Pace(318), Pace(322), Pace(312)))
         FirstRelease {
             BattleResultScreen(
-                BattleResultUiState(isLoading = false, result = battleResult(), detail = recordDetail()),
+                BattleResultUiState(isLoading = false, result = battleResult(), detail = detail),
                 {},
                 {},
                 {},

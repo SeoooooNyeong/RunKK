@@ -34,7 +34,7 @@ import com.a207.runkk.app.domain.chat.ReactionKind
 import com.a207.runkk.app.domain.chat.Reactor
 
 /**
- * 반응한 사람 시트(피그마 F-09d, [임시:D-성-24]): W1 RunkkBottomSheet(제목 「반응」, 닫기 ✕). 탭 줄은 「전체 n」과 수가 있는 종류(아이콘 +
+ * 반응한 사람 시트(피그마 F-09d, D-656): W1 RunkkBottomSheet(제목 「반응」, 닫기 ✕). 탭 줄은 「전체 n」과 수가 있는 종류(아이콘 +
  * 수)이고 고른 탭은 보라 채움, 나머지는 테두리. 목록 줄은 높이 52, 아래 구분선, 아바타 32 + 닉네임 15와 오른쪽 반응 아이콘 18. 반응 한 건이
  * 한 줄이라 두 종류를 단 사람은 두 줄이다(contract-W5 W5-D6).
  */

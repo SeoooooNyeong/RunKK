@@ -100,7 +100,7 @@ fun RunkkNavHost(
             onInviteDone()
         }
     }
-    // 셀카 결과 알림([임시:D-성-146], [임시:D-성-160]): 초대와 같이 로그인 상태이고 홈이 맨 위일 때만 얼굴 만들기(결과 단계)를 연다.
+    // 셀카 결과 알림(D-778, D-792): 초대와 같이 로그인 상태이고 홈이 맨 위일 때만 얼굴 만들기(결과 단계)를 연다.
     // 로그인·가입 중이거나 측정 중(자유런·크루런·대결)이면 홈이 맨 위가 될 때까지 기다린다.
     LaunchedEffect(pendingSelfieResult, loggedIn, current) {
         if (selfieResultToOpen(pendingSelfieResult, loggedIn, current)) {
@@ -129,7 +129,7 @@ fun RunkkNavHost(
     var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
     val guideAnchors = remember { GuideAnchors() }
     val slots = remember(featureEntries) { featureEntries.collectSlots() }
-    // 기능이 앱 전체에 내려 주는 값(예: 아바타 기능의 내 얼굴 그을림, [임시:D-성-220])
+    // 기능이 앱 전체에 내려 주는 값(예: 아바타 기능의 내 얼굴 그을림, D-852)
     val featureLocals = featureEntries.flatMap { it.providedLocals() }
     CompositionLocalProvider(
         LocalRunkkNavigator provides navigator,

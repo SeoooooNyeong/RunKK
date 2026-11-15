@@ -17,8 +17,8 @@ import javax.inject.Inject
 
 /**
  * 아바타 만들기·꾸미기·상점 경로를 그래프에 등록한다(FeatureEntry 구현, 6.1.14). 홈·러닝 중 화면의 아바타 칸을 채우고
- * (design-oo 05-30 [임시:D-성-100]), 랭킹 시상대·기록런 VS 칸의 전신 정지 그림을 넣고(S15P31A207-300), 로그인한 동안 내 아바타를
- * 미리 준비해 둔다([임시:D-성-104]).
+ * (design-oo 05-30 D-732), 랭킹 시상대·기록런 VS 칸의 전신 정지 그림을 넣고(S15P31A207-300), 로그인한 동안 내 아바타를
+ * 미리 준비해 둔다(D-736).
  */
 class AvatarFeatureEntry @Inject constructor(
     private val store: MyAvatarStore,
@@ -42,8 +42,8 @@ class AvatarFeatureEntry @Inject constructor(
     )
 
     /**
-     * 내 얼굴 그을림([임시:D-성-220]): 얼굴 원(디자인 시스템)이 내 셀카 얼굴의 피부 층을 몸과 같은 러닝량으로 그을린다. 몸 합성을
-     * 기다리지 않고 저장소가 바로 바꾸고 기기에 남긴 값이라 앱을 켠 첫 화면부터 같다([임시:D-성-222]).
+     * 내 얼굴 그을림(D-852): 얼굴 원(디자인 시스템)이 내 셀카 얼굴의 피부 층을 몸과 같은 러닝량으로 그을린다. 몸 합성을
+     * 기다리지 않고 저장소가 바로 바꾸고 기기에 남긴 값이라 앱을 켠 첫 화면부터 같다(D-854).
      */
     @Composable
     override fun providedLocals(): List<ProvidedValue<*>> {
@@ -52,12 +52,12 @@ class AvatarFeatureEntry @Inject constructor(
     }
 
     /**
-     * 미리 준비([임시:D-성-104]): RunkkNavHost는 로그인한 동안 Overlay를 늘 그리므로 로그인된 앱 시작과 로그인·가입 완료 뒤 한 번씩
+     * 미리 준비(D-736): RunkkNavHost는 로그인한 동안 Overlay를 늘 그리므로 로그인된 앱 시작과 로그인·가입 완료 뒤 한 번씩
      * 데운다. 로그아웃 때 비우기는 저장소가 세션 상태로 한다(앞 회원 그림을 다음 회원에게 보이지 않는다). 그리는 것은 없다.
      */
     @Composable
     override fun Overlay(top: NavKey?) {
-        // 빠질 때(회전·구성 변경, 로그아웃) 비우지 않는다. 로그아웃은 저장소가 세션 상태를 보고 비운다(리뷰 R2-7, [임시:D-성-161]).
+        // 빠질 때(회전·구성 변경, 로그아웃) 비우지 않는다. 로그아웃은 저장소가 세션 상태를 보고 비운다(리뷰 R2-7, D-793).
         LaunchedEffect(store) { store.warm() }
     }
 }

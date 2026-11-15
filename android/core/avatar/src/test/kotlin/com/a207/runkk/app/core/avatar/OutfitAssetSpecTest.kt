@@ -12,9 +12,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 의상 자산 규격 검사(OUTFIT_SPEC.md 6절 열일곱 항목, D-성-114). 파이프라인(tools/outfit-pipeline `check`)과 같은 규칙을 빌드 때 다시 본다.
+ * 의상 자산 규격 검사(OUTFIT_SPEC.md 6절 열일곱 항목, D-746). 파이프라인(tools/outfit-pipeline `check`)과 같은 규칙을 빌드 때 다시 본다.
  * 자산은 무손실 WebP이고 남녀 같은 파일은 index.json `shared`로 한 장을 함께 쓴다. 허용 영역 마스크는 파이프라인 `uv-mask`가 riv 메시
- * UV로 만든 templates/masks(H-성-1: riv가 바뀌면 다시 만든다)다.
+ * UV로 만든 templates/masks(H-71: riv가 바뀌면 다시 만든다)다.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -182,7 +182,7 @@ class OutfitAssetSpecTest {
                     .also { bitmap.recycle() }
         }.filterValues { it > 0 }
         assertTrue(files.size > 40, "검사한 파일 ${files.size}")
-        assertEquals(emptyMap(), found, "부스러기 픽셀(메시가 늘면 선으로 보인다, [임시:D-성-184])")
+        assertEquals(emptyMap(), found, "부스러기 픽셀(메시가 늘면 선으로 보인다, D-816)")
     }
 
     @Test
@@ -194,7 +194,7 @@ class OutfitAssetSpecTest {
             assertEquals(
                 0,
                 StrayPixels.underwear(pixels, bitmap.width, bitmap.height),
-                "$gender 하의 밖으로 비치는 속옷([임시:D-성-185])"
+                "$gender 하의 밖으로 비치는 속옷(D-817)"
             )
             bitmap.recycle()
         }
@@ -208,7 +208,7 @@ class OutfitAssetSpecTest {
             bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
             bundle.assetKey to StrayPixels.looseWaist(pixels, bitmap.width, bitmap.height).also { bitmap.recycle() }
         }.filterValues { it > 0 }
-        assertEquals(emptyMap(), found, "밑단과 허리 사이 맨몸 위 얼룩([임시:D-성-185])")
+        assertEquals(emptyMap(), found, "밑단과 허리 사이 맨몸 위 얼룩(D-817)")
     }
 
     @Test
@@ -240,7 +240,7 @@ class OutfitAssetSpecTest {
             bundle.assetKey to gap
         }.filterValues { it > 0 }
         body.recycle()
-        assertEquals(emptyMap(), found, "상의 밑단과 하의 허리 사이 맨몸 띠([임시:D-성-185])")
+        assertEquals(emptyMap(), found, "상의 밑단과 하의 허리 사이 맨몸 띠(D-817)")
     }
 
     @Test
@@ -255,7 +255,7 @@ class OutfitAssetSpecTest {
             bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
             StrayPixels.seams(pixels, bitmap.width, bitmap.height).also { bitmap.recycle() }
         }.filterValues { it > 0 }
-        assertEquals(emptyMap(), found, "밑단 안감 사이 맨몸 점선([임시:D-성-185])")
+        assertEquals(emptyMap(), found, "밑단 안감 사이 맨몸 점선(D-817)")
     }
 
     @Test

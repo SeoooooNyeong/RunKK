@@ -237,7 +237,7 @@ class BattleScreensTest {
         }
         compose.waitForIdle()
         assertEquals(
-            setOf(MY_STILL, AvatarStillSubject(isMine = false, isFemale = true, look = look.toSlot())),
+            setOf(MY_STILL, AvatarStillSubject(isMine = false, isFemale = true, slotLook = look.toSlot())),
             subjects.toSet()
         )
         compose.onAllNodesWithTag(VERSUS_UNKNOWN_TAG, useUnmergedTree = true).assertCountEquals(0)
@@ -253,7 +253,7 @@ class BattleScreensTest {
     fun `성사와 결과의 상대 전신은 받은 모습으로, 없으면 표시 성별의 기본 모습으로 그린다(FR-성-29)`() {
         val look = RunnerLook(Gender.FEMALE, 12, null, 31, bodyVariant = 1, runAmount = 42, faceKey = "head:7:ab12")
         assertEquals(
-            AvatarStillSubject(isMine = false, isFemale = true, look = look.toSlot()),
+            AvatarStillSubject(isMine = false, isFemale = true, slotLook = look.toSlot()),
             rivalStill(AvatarCharacter.MALE, look),
             "받은 모습의 성별이 이긴다"
         )
@@ -265,7 +265,10 @@ class BattleScreensTest {
     fun `그날의 나는 받은 모습이 없으면 지금 내 모습이다(D-성-272)`() {
         assertEquals(MY_STILL, pastSelfStill(null))
         val male = RunnerLook(Gender.MALE, null, null, null, 0, 0, null)
-        assertEquals(AvatarStillSubject(isMine = false, isFemale = false, look = male.toSlot()), pastSelfStill(male))
+        assertEquals(
+            AvatarStillSubject(isMine = false, isFemale = false, slotLook = male.toSlot()),
+            pastSelfStill(male)
+        )
     }
 
     @Test

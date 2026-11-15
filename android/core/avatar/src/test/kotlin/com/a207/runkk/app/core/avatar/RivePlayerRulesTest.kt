@@ -7,8 +7,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
- * 뷰 규칙: 좌우 뒤집기는 달리기 플레이어만 `scaleX = -1`([임시:D-성-130], [임시:D-성-133]), 서기는 늘 1. 플레이어는 그 동작의 첫 텍스처가
- * 들어간 뒤에야 보이고(기본 그림 숨김), 보이지 않다가 보이게 된 때가 `onReady`다([임시:D-성-105]).
+ * 뷰 규칙: 좌우 뒤집기는 달리기 플레이어만 `scaleX = -1`(D-762, D-765), 서기는 늘 1. 플레이어는 그 동작의 첫 텍스처가
+ * 들어간 뒤에야 보이고(기본 그림 숨김), 보이지 않다가 보이게 된 때가 `onReady`다(D-737).
  */
 class RivePlayerRulesTest {
     @Test

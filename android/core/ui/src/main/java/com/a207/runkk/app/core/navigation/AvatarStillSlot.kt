@@ -11,7 +11,8 @@ import androidx.compose.ui.Modifier
 
 /**
  * 전신 정지 그림을 그릴 사람(SlotKey.AVATAR_STILL). [isMine]이면 내 아바타 모습(의상·체형·러닝량·셀카 머리) 그대로이고, 다른 러너는
- * 표시 성별 [gender]의 기본 모습(기본 의상·기본 체형·기본 머리)이다. 랭킹 응답에는 다른 러너의 의상·체형·러닝량·얼굴이 없다.
+ * [look]이 있으면 그 모습(랭킹 응답 줄의 모습, S15P31A207-300), 없으면(크루 줄·탈퇴 회원·옛 서버·대결 상대) 표시 성별의 기본 모습
+ * (기본 의상·기본 체형·기본 머리)이다.
  */
 data class AvatarStillSubject(
     val isMine: Boolean,
@@ -19,13 +20,33 @@ data class AvatarStillSubject(
     val isFemale: Boolean? = null,
     /** 참이면 러닝량과 상관없이 가장 밝은 피부(러닝량 0)로 그린다(대결 고르기 카드, 2026-11-12 PM 요구). */
     val isLightSkin: Boolean = false,
-    /** 다른 러너의 받은 모습([임시:D-성-272]: 기록런 고르기의 그날의 나). 있으면 이 모습(의상·체형·러닝량·얼굴)으로 그린다. */
-    val look: SlotRunnerLook? = null
+    /** 다른 러너의 모습. null이면 성별 기본 모습이다. 나([isMine])는 쓰지 않는다(내 아바타 저장소 모습). */
+    val look: Look? = null,
+    /** 아이템 ID로 받은 다른 러너의 모습. [look]보다 먼저 쓴다. */
+    val slotLook: SlotRunnerLook? = null
 ) {
     companion object {
-        /** 내 아바타 모습 그대로(러닝 결과 무대, 기록 카드, [임시:D-성-303]). */
         val MINE = AvatarStillSubject(isMine = true)
     }
+
+    /**
+     * 다른 러너의 모습(원시값, 5.1.2: 이 패키지는 core.model·domain을 import하지 않는다).
+     *
+     * @property faceKey 얼굴 키(GET /avatar faceKey와 같은 값). 셀카 머리("head:…")면 그 머리로 그리고, 없으면 기본 머리
+     * @property topKey 상의 상점 그림 키(Shop.Item.imageKey와 같은 값). 안 입었으면 null(기본 의상)
+     * @property bottomKey 하의 그림 키
+     * @property shoesKey 신발 그림 키
+     * @property bodyVariant 체형 0..2(/avatar/runner bodyVariant와 같은 규칙)
+     * @property runAmount 러닝량 0..100(피부 그을림)
+     */
+    data class Look(
+        val faceKey: String?,
+        val topKey: String?,
+        val bottomKey: String?,
+        val shoesKey: String?,
+        val bodyVariant: Int,
+        val runAmount: Int
+    )
 }
 
 /**

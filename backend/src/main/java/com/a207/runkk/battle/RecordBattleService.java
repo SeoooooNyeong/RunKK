@@ -108,7 +108,7 @@ public class RecordBattleService {
                 best.map(entry -> opponentLooks.selfLook(memberId, entry.recordId())).orElse(null));
     }
 
-    /** 유명인 기록 목록과 출처, 거리 필터(FR-097, FR-100). 코치 기록만 보인다([임시:D-성-219]). */
+    /** 유명인 기록 목록과 출처, 거리 필터(FR-097, FR-100). 코치 기록만 보인다(D-851). */
     @Transactional(readOnly = true)
     public RecordBattleCandidates celebrityCandidates(
             long memberId, Optional<StandardDistance> filter) {

@@ -97,6 +97,7 @@ import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
+import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
@@ -107,6 +108,7 @@ import com.a207.runkk.app.core.navigation.RunAvatarSubject
 import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
 import kotlin.math.abs
+import kotlinx.coroutines.delay
 
 /**
  * 대결 진행(C-4·D-3·E-3)과 셀프런·셀럽런 카운트다운(D-2·E-2). 끝나면 결과 화면이 이 화면을 대신하고, 셀프런·셀럽런을 그만두면
@@ -501,15 +503,17 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier, overlayBo
     val edge = layout.other as? TrackLayout.Other.Edge
     val isMoving = rememberIsMoving(state.myDistance) && state.isMeasuring && state.currentPace != null
     val frameMillis = runFrameMillis(state.currentPace)
-    // 내 아바타 칸(design-oo 05-30 7절): 대결은 일시정지가 없어 RUNNING이면 RUN, 마감·카운트다운 등은 STAND. 트랙에서는 늘 오른쪽을 본다.
-    val pose = if (state.phase == BattlePhase.RUNNING) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 트랙에서는 오른쪽을 보고, 멈추거나 페이스를 모르면 선다(D-856).
+    val pose = if (state.phase == BattlePhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     RunkkTrackCard(
         layout = layout,
         myTag = stringResource(R.string.battle_me),
         otherTag = opponentName,
         myAvatar = {
-            RunAvatarSlot(pose, facingLeft = false) { RunkkRunningFigure(isMoving, frameMillis) }
+            RunAvatarSlot(pose, facingLeft = false, runSpeed = runMotionSpeed(state.currentPace)) {
+                RunkkRunningFigure(isMoving, frameMillis)
+            }
         },
         otherAvatar = { OpponentRunner(state) },
         modifier = modifier.testTag(BATTLE_TRACK_TAG),
@@ -573,7 +577,15 @@ private fun opponentCharacter(state: BattleRunningUiState): AvatarCharacter = wh
  */
 @Composable
 private fun OpponentRunner(state: BattleRunningUiState) {
-    val isTheirsMoving = rememberIsMoving(state.opponentDistance) && state.isMeasuring
+    // 첫 거리 전부터 RUN을 유지한다. 첫 값 뒤 3초간 거리가 그대로일 때만 서서 출발 직후 재준비를 피한다.
+    var hasMovement by remember(state.battleId) { mutableStateOf(true) }
+    LaunchedEffect(state.battleId, state.phase, state.opponentDistance) {
+        if (state.phase != BattlePhase.RUNNING || state.opponentDistance == null) return@LaunchedEffect
+        hasMovement = true
+        delay(3_000)
+        hasMovement = false
+    }
+    val isTheirsMoving = state.phase == BattlePhase.RUNNING && hasMovement
     val celebrity = CelebrityCharacter.of(state.celebrityFigure)
     val character = opponentCharacter(state)
     when {
@@ -602,9 +614,9 @@ private fun OpponentRunner(state: BattleRunningUiState) {
             }
         ) {
             RunAvatarSlot(
-                // 내 아바타와 같은 기준이다. 상대 거리가 처음 들어올 때 자세를 바꾸면 그림을 다시 준비하느라 1~2초 비어 보인다.
-                pose = if (state.phase == BattlePhase.RUNNING) AvatarSlotPose.RUN else AvatarSlotPose.STAND,
+                pose = if (isTheirsMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND,
                 facingLeft = false,
+                runSpeed = runMotionSpeed(null),
                 subject = RunAvatarSubject.other(state.opponentLook?.toSlot(), character == AvatarCharacter.FEMALE)
             ) {
                 RunkkRunningFigure(isTheirsMoving, runFrameMillis(null), character = character)

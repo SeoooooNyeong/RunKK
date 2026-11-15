@@ -117,7 +117,7 @@ fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltVie
 /**
  * 크루런 결과(F-16)와 결과 상세(F-16b)를 옆으로 넘긴다(대결 결과 1·2쪽과 같은 방식). 결과 쪽 위에는 무대 배경 위에 선 내 전신 아바타
  * ([ResultStage], 발끝 266, 높이 180, [임시:FR-성-33])가 있고 상세 쪽으로 넘기는 만큼 흐려진다. 머리 줄(제목, 뒤로)은 무대 위에 겹치고
- * 뒤로 버튼은 결과 쪽에만 있다(F-16b 상세 쪽은 제목만, [임시:D-성-15]). 아래에 공유(흰 알약)·확인(라임 알약).
+ * 뒤로 버튼은 결과 쪽에만 있다(F-16b 상세 쪽은 제목만, D-647). 아래에 공유(흰 알약)·확인(라임 알약).
  */
 @Composable
 fun CrewRunResultScreen(
@@ -225,7 +225,7 @@ private fun PageLink(text: String, onClick: () -> Unit) {
 /**
  * 결과 쪽(F-16, [임시:D-성-286], [임시:D-성-307]): 위쪽 무대(내 전신 아바타)는 화면이 깔고, 300부터 올라오는 윗모서리 둥근 시트에
  * 모집글 제목(13), 크루 합산 거리(44 Bold), 그 아래 24에 참가자 목록(얼굴·이름·거리)을 담는다. 크루원 얼굴 줄은 없다(참가자 목록에
- * 얼굴이 있다). 첫 크루런·크루 주간 반영 거리는 보이지 않는다([임시:D-성-14]).
+ * 얼굴이 있다). 첫 크루런·크루 주간 반영 거리는 보이지 않는다(D-646).
  */
 @Composable
 private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map<String, List<FaceLayer>>) {
@@ -367,7 +367,7 @@ private fun DetailPage(detail: RecordResultDetail?, myAvatar: MyAvatar?, topBarH
     }
 }
 
-/** 결과 상세 날짜 줄(메타 줄): [달력]11.07 금 [시계]오후 9:00 [달리기]크루런. 가운뎃점은 쓰지 않는다([임시:D-성-10]). */
+/** 결과 상세 날짜 줄(메타 줄): [달력]11.07 금 [시계]오후 9:00 [달리기]크루런. 가운뎃점은 쓰지 않는다(D-642). */
 @Composable
 private fun dateItems(startedAt: Instant): List<MetaItem> {
     val at = startedAt.atZone(ZoneId.systemDefault())

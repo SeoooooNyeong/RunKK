@@ -51,7 +51,7 @@ fun AvatarBackdrop(
 }
 
 /**
- * 배경 키 → 그림 리소스. Compose 밖(공유 카드 비트맵)에서도 쓴다. 기본 키는 도시마다 제 그림([임시:D-성-186]), 그림이 없는 키(운영
+ * 배경 키 → 그림 리소스. Compose 밖(공유 카드 비트맵)에서도 쓴다. 기본 키는 도시마다 제 그림(D-818), 그림이 없는 키(운영
  * 기준값이 더한 LM_n)는 단계 그림이다.
  */
 @DrawableRes
@@ -71,7 +71,7 @@ private const val DOMESTIC = "DOMESTIC"
 private const val EAST_ASIA = "EAST_ASIA"
 private const val INTERCONTINENTAL = "INTERCONTINENTAL"
 
-/** [임시:D-성-186] 기본 키(개인 단계 22개) → 도시 그림(무대 규격 1080×1200, 바닥선 아래 18%). */
+/** D-818 기본 키(개인 단계 22개) → 도시 그림(무대 규격 1080×1200, 바닥선 아래 18%). */
 private val CITY_BACKDROPS: Map<String, Int> = mapOf(
     "INCHEON" to R.drawable.avatar_backdrop_incheon,
     "CHUNCHEON" to R.drawable.avatar_backdrop_chuncheon,

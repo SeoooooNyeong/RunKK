@@ -740,7 +740,7 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
         R.raw.home_jump_male
     }
     // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 소리와 함께 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다).
-    // 열린 배포에서 눌러 이동할 때는 물결을 그리지 않는다([임시:D-성-182]).
+    // 열린 배포에서 눌러 이동할 때는 물결을 그리지 않는다(D-814).
     val interaction = remember { MutableInteractionSource() }
     val press = if (isAvatarOpen) {
         Modifier.clickable(
@@ -809,11 +809,11 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
 }
 
 /**
- * 아바타 칸(SlotKey.HOME_AVATAR, design-oo 05-30 2절, [임시:D-성-100], [임시:D-성-134], 피그마 62341:1878): 390×420 칸에 ui.avatar가
+ * 아바타 칸(SlotKey.HOME_AVATAR, design-oo 05-30 2절, D-732, D-766, 피그마 62341:1878): 390×420 칸에 ui.avatar가
  * 바닥선·그림자·Rive 서기·로딩 표시를 그린다. 배경 사진은 홈이 화면 전체에 깔아 두므로 칸은 배경을 다시 그리지 않고 같은 바닥 규칙
  * (칸 위에서 342dp, 아래에서 [HOME_AVATAR_FLOOR_FROM_BOTTOM])만 쓴다. 칸 바닥선이 남은 자리 아래보다
  * [HOME_AVATAR_FLOOR_ABOVE_ROOM] 위에 오게 칸을 내리고, 남은 자리가 좁으면 칸 높이를 줄인다(바닥선은 칸 아래에서 같은 거리다).
- * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다(물결 없음, [임시:D-성-182]). 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
+ * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다(물결 없음, D-814). 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
  */
 @Composable
 private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
@@ -824,7 +824,7 @@ private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
         val drop = HOME_AVATAR_FLOOR_FROM_BOTTOM - HOME_AVATAR_FLOOR_ABOVE_ROOM
         val height = (maxHeight + drop).coerceIn(HOME_AVATAR_SLOT_MIN_HEIGHT, HOME_AVATAR_SLOT_HEIGHT)
-        // 아바타 그림을 누르면 물결(반투명 눌림)을 그리지 않는다. 단추 안내·누름 영역은 그대로다([임시:D-성-182]).
+        // 아바타 그림을 누르면 물결(반투명 눌림)을 그리지 않는다. 단추 안내·누름 영역은 그대로다(D-814).
         val press = if (isAvatarOpen) {
             Modifier.clickable(
                 interactionSource = interaction,
@@ -897,7 +897,7 @@ private const val HOP_DAMPING = 0.45f
 /** 발을 남은 자리 바닥보다 더 내리는 거리. 솟은 홈 탭 원(20dp)과 신발이 조금 겹친다(사용자 요청 2026-10-30). */
 private val AVATAR_GROUND_SINK = 8.dp
 
-/** 홈 아바타 칸 크기(피그마 62341:1878, [임시:D-성-134]). 남은 자리가 좁으면 높이만 줄인다. */
+/** 홈 아바타 칸 크기(피그마 62341:1878, D-766). 남은 자리가 좁으면 높이만 줄인다. */
 private val HOME_AVATAR_SLOT_WIDTH = 390.dp
 private val HOME_AVATAR_SLOT_HEIGHT = 420.dp
 private val HOME_AVATAR_SLOT_MIN_HEIGHT = 240.dp
@@ -910,7 +910,7 @@ internal val HOME_AVATAR_FLOOR_FROM_BOTTOM = 78.dp
 
 /**
  * Rive 칸 바닥선을 방 아래 끝보다 올리는 거리. 신발이 솟은 홈 탭 원(방 아래 끝에서 약 18dp 위까지 솟음)과 8dp쯤만 겹친다
- * (사용자 요청 2026-10-30 「조금 겹친다」, 2026-11-11 실기기 3차에서 방 아래 + 8dp는 신발 대부분이 가려짐, [임시:D-성-173]).
+ * (사용자 요청 2026-10-30 「조금 겹친다」, 2026-11-11 실기기 3차에서 방 아래 + 8dp는 신발 대부분이 가려짐, D-805).
  */
 internal val HOME_AVATAR_FLOOR_ABOVE_ROOM = 10.dp
 

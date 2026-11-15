@@ -101,7 +101,7 @@ fun CrewHomeRoute(
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                // 크루 탭 자리에 그렸으면 그 탭의 내 크루를 비워 크루 찾기로 바꾼다(같은 탭 항목이 남아 있어도, DV-성-7).
+                // 크루 탭 자리에 그렸으면 그 탭의 내 크루를 비워 크루 찾기로 바꾼다(같은 탭 항목이 남아 있어도, DV-7).
                 CrewHomeEvent.Left -> {
                     onLeft()
                     navigator.selectTab(Routes.CREW)
@@ -118,7 +118,7 @@ fun CrewHomeRoute(
     }
     val scope = rememberCoroutineScope()
     val activity = LocalActivity.current
-    // 정보 수정 로고(F-26, DV-성-6): 크루 만들기와 같이 사진 고르기 → JPEG로 줄여(EXIF 방향 반영) 올린다.
+    // 정보 수정 로고(F-26, DV-6): 크루 만들기와 같이 사진 고르기 → JPEG로 줄여(EXIF 방향 반영) 올린다.
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -154,7 +154,7 @@ fun CrewHomeRoute(
                         picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }
                 ),
-            // 채팅 탭(피그마 F-09, [임시:D-성-21]): ui.chat이 칸 SlotKey.CREW_CHAT_TAB에 넣은 ChatTabContent를 그린다.
+            // 채팅 탭(피그마 F-09, D-653): ui.chat이 칸 SlotKey.CREW_CHAT_TAB에 넣은 ChatTabContent를 그린다.
             chatContent = { chatModifier -> CrewChatSlot(state.crewId, chatModifier) }
         )
     }
@@ -415,7 +415,7 @@ private fun Header(state: CrewHomeUiState, actions: CrewHomeActions, isAtTabRoot
                 onClick = actions.onBack
             )
         }
-        // 올린 로고가 있으면 그 로고, 없으면 groups 기본 그림(DV-성-8, 결정: 로고는 어디서나 같은 그림).
+        // 올린 로고가 있으면 그 로고, 없으면 groups 기본 그림(DV-8, 결정: 로고는 어디서나 같은 그림).
         CrewImage(state.detail?.logoUrl, size = 48.dp, corner = 16.dp)
         Text(
             state.crewName,

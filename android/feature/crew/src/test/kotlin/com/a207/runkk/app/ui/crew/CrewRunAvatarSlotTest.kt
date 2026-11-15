@@ -8,6 +8,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertWidthIsEqualTo
@@ -18,11 +19,13 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarFacingLeft
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarPose
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarRunSpeed
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarRunSubject
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.RunAvatarSubject
@@ -36,10 +39,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/**
- * 크루런 측정 화면의 내 아바타 칸(design-oo 05-30 7절, [임시:D-성-121], [임시:D-성-122]): RUNNING이고 내가 멈추지 않았으면 RUN, 진행
- * 보이는 내 칸은 카드 높이에 맞춰 최대 105dp다. 트랙 보기([임시:FR-성-30])에서는 나와 크루원 모두 진행 방향(오른쪽)을 보므로 지도 위 진행 방향 원값을 넘기지 않는다.
- * 가장 가까운 크루원은 같은 칸에 그 크루원 대상으로 그린다([임시:D-성-259]).
+/** 트랙의 대상, 크기와 방향을 보존하고, 멈춤 판정과 페이스 빠르기를 함께 검사한다(D-856).
  */
 @RunWith(RobolectricTestRunner::class)
 class CrewRunAvatarSlotTest {
@@ -48,23 +48,60 @@ class CrewRunAvatarSlotTest {
 
     private var pose: AvatarSlotPose? = null
     private var left: Boolean? = null
+    private var speed: Float? = null
     private val probe: @Composable () -> Unit = {
-        pose = LocalSlotAvatarPose.current
-        left = LocalSlotAvatarFacingLeft.current
-        Box(Modifier.fillMaxSize().testTag("crew-avatar-probe"))
+        if (LocalSlotAvatarRunSubject.current.isMine) {
+            pose = LocalSlotAvatarPose.current
+            left = LocalSlotAvatarFacingLeft.current
+            speed = LocalSlotAvatarRunSpeed.current
+            Box(Modifier.fillMaxSize().testTag("crew-avatar-probe"))
+        }
     }
 
+    private val westward = RouteLine(listOf(GeoPoint(37.5, 127.001), GeoPoint(37.5, 127.0)))
+
     @Test
-    fun `크루런 중이면 RUN을 넘기고 내가 멈추면 STAND다(트랙에서는 늘 오른쪽을 본다)`() {
-        val westward = RouteLine(listOf(GeoPoint(37.5, 127.001), GeoPoint(37.5, 127.0)))
-        var state by mutableStateOf(
-            CrewRunUiState(
-                postId = 31,
-                distance = Distance(5_000),
-                phase = CrewRunPhase.RUNNING,
-                mine = CrewRunProgress.ZERO.copy(distance = Distance(88), route = westward)
+    fun `가장 가까운 크루원도 거리가 늘지 않으면 서고 다시 움직이면 달린다`() {
+        var meters by mutableStateOf(90)
+        var otherPose: AvatarSlotPose? = null
+        val otherProbe: @Composable () -> Unit = {
+            if (!LocalSlotAvatarRunSubject.current.isMine) {
+                val value = LocalSlotAvatarPose.current
+                SideEffect { otherPose = value }
+            }
+        }
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            val standing = CrewRunStanding.of(
+                88,
+                listOf(CrewRunStanding.Mate(1, "바람처럼", meters, CrewRunRelay.State.RUNNING))
             )
-        )
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(otherProbe))) {
+                RunkkTheme(reduceMotion = true) {
+                    CrewRunScreen(running().copy(standing = standing), CrewRunActions())
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(500)
+        assertEquals(AvatarSlotPose.RUN, otherPose)
+        compose.mainClock.advanceTimeBy(3_100)
+        assertEquals(AvatarSlotPose.STAND, otherPose)
+        meters = 94
+        Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeBy(500)
+        assertEquals(AvatarSlotPose.RUN, otherPose)
+    }
+
+    private fun running(distance: Int = 88, pace: Pace? = Pace(300)) = CrewRunUiState(
+        postId = 31,
+        distance = Distance(5_000),
+        phase = CrewRunPhase.RUNNING,
+        mine = CrewRunProgress.ZERO.copy(distance = Distance(distance.toLong()), currentPace = pace, route = westward)
+    )
+
+    @Test
+    fun `크루런 중 움직이면 RUN과 트랙 방향, 페이스 빠르기를 넘기고 내가 멈추면 STAND다`() {
+        var state by mutableStateOf(running())
         compose.setContent {
             CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(probe))) {
                 RunkkTheme(reduceMotion = true) { CrewRunScreen(state, CrewRunActions()) }
@@ -73,6 +110,7 @@ class CrewRunAvatarSlotTest {
         compose.onNodeWithTag("crew-avatar-probe").assertWidthIsEqualTo(105.dp)
         assertEquals(AvatarSlotPose.RUN, pose)
         assertEquals(false, left, "서쪽으로 달려도 트랙에서는 오른쪽을 본다")
+        assertEquals(1.2f, checkNotNull(speed), 0.001f)
 
         state = state.copy(mine = state.mine.copy(isPaused = true))
         compose.waitForIdle()
@@ -117,5 +155,39 @@ class CrewRunAvatarSlotTest {
             subjects.toSet(),
             "Rive 칸은 나와 가장 가까운 크루원 둘뿐이다"
         )
+    }
+
+    @Test
+    fun `크루런 중이어도 거리가 3초 늘지 않으면 STAND이고 다시 늘면 RUN이다(D-856)`() {
+        var state by mutableStateOf(running())
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(probe))) {
+                RunkkTheme(reduceMotion = true) { CrewRunScreen(state, CrewRunActions()) }
+            }
+        }
+        compose.mainClock.advanceTimeBy(500)
+        assertEquals(AvatarSlotPose.RUN, pose)
+
+        compose.mainClock.advanceTimeBy(3_100)
+        assertEquals(AvatarSlotPose.STAND, pose, "3초 동안 거리가 그대로면 멈춘 것")
+
+        state = state.copy(mine = state.mine.copy(distance = Distance(95)))
+        // 시계를 손으로 돌리는 동안에는 바뀐 상태를 직접 알린다(waitForIdle을 쓰지 않으므로).
+        Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeBy(500)
+        assertEquals(AvatarSlotPose.RUN, pose, "다시 움직이면 달린다")
+    }
+
+    @Test
+    fun `크루런 중이어도 페이스를 모르면 STAND이고 빠르기는 기준값이다`() {
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(probe))) {
+                RunkkTheme(reduceMotion = true) { CrewRunScreen(running(pace = null), CrewRunActions()) }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(AvatarSlotPose.STAND, pose)
+        assertEquals(1f, checkNotNull(speed), 0.001f)
     }
 }

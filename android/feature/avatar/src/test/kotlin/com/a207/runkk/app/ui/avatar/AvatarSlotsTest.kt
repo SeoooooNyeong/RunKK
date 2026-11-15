@@ -43,9 +43,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 칸 채움과 미리 준비(design-oo 05-30 [임시:D-성-100], [임시:D-성-104], [임시:D-성-106], 7절): ui.avatar가 홈·러닝 중 칸을 채우고, Overlay가
+ * 칸 채움과 미리 준비(design-oo 05-30 D-732, D-736, D-738, 7절): ui.avatar가 홈·러닝 중 칸을 채우고, Overlay가
  * 로그인한 동안 저장소를 데워 두며 로그아웃(Overlay가 빠짐)에 비운다. 준비 전에는 홈·러닝 중 칸 모두 가운데 로딩 표시를 보이고, 러닝 중
- * 칸은 준비에 실패했을 때만 지금 달리기 그림을 보인다([임시:D-성-181]).
+ * 칸은 준비에 실패했을 때만 지금 달리기 그림을 보인다(D-813).
  */
 @RunWith(RobolectricTestRunner::class)
 class AvatarSlotsTest {
@@ -186,7 +186,7 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `러닝 중 칸은 준비 전이면 지금 달리기 그림 대신 가운데 로딩 표시를 보인다(D-성-181)`() {
+    fun `러닝 중 칸은 준비 전이면 지금 달리기 그림 대신 가운데 로딩 표시를 보인다(D-813)`() {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -203,7 +203,7 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `러닝 중 칸은 준비가 8초 넘게 끝나지 않으면(성별을 모름 등) 로딩 표시 대신 지금 달리기 그림을 보인다(D-성-181, 리뷰 U-11)`() {
+    fun `러닝 중 칸은 준비가 8초 넘게 끝나지 않으면(성별을 모름 등) 로딩 표시 대신 지금 달리기 그림을 보인다(D-813, 리뷰 U-11)`() {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -219,7 +219,7 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `러닝 중 칸은 준비에 실패하면 로딩 표시를 거두고 지금 달리기 그림을 보인다(D-성-181)`() {
+    fun `러닝 중 칸은 준비에 실패하면 로딩 표시를 거두고 지금 달리기 그림을 보인다(D-813)`() {
         repo.avatarResult = Outcome.Failure(AppError.Network)
         gender.value = Gender.MALE
         compose.setContent {
@@ -322,10 +322,17 @@ class AvatarSlotsTest {
     @Test
     fun `전신 정지 그림 칸은 받은 모습이 있으면 그 모습의 재료(상점 목록)를 읽어 그린다(D-성-272)`() {
         val look = SlotRunnerLook(isFemale = true, topItemId = 1, bodyVariant = 1, runAmount = 30)
+        var readies = 0
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CompositionLocalProvider(
-                    LocalSlotAvatarStill provides AvatarStillSubject(isMine = false, isFemale = true, look = look)
+                    LocalSlotAvatarStill provides AvatarStillSubject(
+                        isMine = false,
+                        isFemale = true,
+                        slotLook = look,
+                        look = AvatarStillSubject.Look("head:999:other", null, null, null, 0, 0)
+                    ),
+                    LocalSlotAvatarStillOnReady provides { readies++ }
                 ) {
                     Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
                 }
@@ -336,6 +343,8 @@ class AvatarSlotsTest {
             compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
         }
         assertEquals(listOf("shop:null"), repo.calls.filter { it.startsWith("shop") })
+        assertEquals(emptyList(), repo.calls.filter { it.startsWith("head:") }, "두 모습이 있으면 아이템 ID 모습을 쓴다")
+        assertEquals(1, readies)
     }
 
     @Test
@@ -422,6 +431,88 @@ class AvatarSlotsTest {
             Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
         }
         compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).assertCountEqualsTo(0, "사람이 없으면 비운다")
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 다른 러너의 랭킹 모습이 있으면 그 셀카 머리를 받아 그리고, 그리지 못하면 성별 기본 전신 그림이다(S15P31A207-300)`() {
+        var readies = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject(
+                        isMine = false,
+                        isFemale = true,
+                        look = AvatarStillSubject.Look(
+                            faceKey = "head:12:abc",
+                            topKey = "top_crew_tee",
+                            bottomKey = null,
+                            shoesKey = null,
+                            bodyVariant = 1,
+                            runAmount = 40
+                        )
+                    ),
+                    LocalSlotAvatarStillOnReady provides { readies++ }
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(listOf("head:head:12:abc"), repo.calls.filter { it.startsWith("head:") }, "그 러너의 머리를 받는다")
+        assertEquals(1, readies, "랭킹 경로도 그림이 보인 뒤 준비 신호를 보낸다")
+    }
+
+    @Test
+    fun `전신 정지 그림 칸은 다른 러너 얼굴이 없으면 머리를 받지 않는다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject(
+                        isMine = false,
+                        look = AvatarStillSubject.Look(null, null, null, null, 0, 0)
+                    )
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(emptyList(), repo.calls.filter { it.startsWith("head:") || it.startsWith("face:") })
+    }
+
+    @Test
+    fun `랭킹 셀카 머리를 기다릴 때는 준비 신호를 보내지 않고 시간 초과 뒤 대체 그림에서 보낸다`() {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        repo.headGates["head:12:slow"] = gate
+        var readies = 0
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(
+                    LocalSlotAvatarStill provides AvatarStillSubject(
+                        isMine = false,
+                        look = AvatarStillSubject.Look("head:12:slow", null, null, null, 0, 20)
+                    ),
+                    LocalSlotAvatarStillOnReady provides { readies++ }
+                ) {
+                    Box(Modifier.size(80.dp, 128.dp)) { entry.slots.getValue(SlotKey.AVATAR_STILL)() }
+                }
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        assertEquals(0, readies)
+        compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).assertCountEqualsTo(0, "머리를 기다리는 중")
+        compose.mainClock.advanceTimeBy(AVATAR_STILL_READY_TIMEOUT_MS)
+        compose.mainClock.autoAdvance = true
+        compose.waitUntil(timeoutMillis = 5_000) {
+            compose.onAllNodesWithTag(AVATAR_STILL_FALLBACK_TAG).fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(1, readies)
+        gate.complete(Unit)
     }
 }
 

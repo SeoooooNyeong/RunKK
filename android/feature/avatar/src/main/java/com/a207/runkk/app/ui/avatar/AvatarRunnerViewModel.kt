@@ -26,7 +26,7 @@ import kotlinx.coroutines.launch
  * 내 러너(피그마 제안 B안, W8): 아바타(GET /avatar)·내 러너(GET /avatar/runner)·착용 이름용 상점 목록을 함께 읽고, 셀카 머리면 렌더러 머리
  * 레이어를 얼굴마다 한 번 만든다([SelfieHeads]). 레벨은 본인 요약, 배경 수는 배경 목록에서 읽는다. 들어올 때마다 새로 연 배경이 있으면
  * 해금 팝업(H-6)을 띄운다(기기 기록 [BackgroundUnlockSeenStore]). 셀카 작업 진행을 들어 얼굴 줄에 보이고, 셀카가 끝나 얼굴이 바뀌면
- * 다시 읽는다(design-oo 05-30 [임시:D-성-118]).
+ * 다시 읽는다(design-oo 05-30 D-750).
  */
 @HiltViewModel
 class AvatarRunnerViewModel internal constructor(
@@ -74,7 +74,7 @@ class AvatarRunnerViewModel internal constructor(
 
     init {
         load()
-        // 러닝 저장 뒤 체형·러닝량이 바뀌었을 수 있으므로 들어올 때 홈·러닝 칸도 다시 준비한다(design-oo 05-30 [임시:D-성-104]).
+        // 러닝 저장 뒤 체형·러닝량이 바뀌었을 수 있으므로 들어올 때 홈·러닝 칸도 다시 준비한다(design-oo 05-30 D-736).
         myAvatar.revalidate()
         viewModelScope.launch {
             var isFirst = true

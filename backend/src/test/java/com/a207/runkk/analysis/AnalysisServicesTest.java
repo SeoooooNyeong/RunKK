@@ -20,6 +20,7 @@ import com.a207.runkk.common.DateRange;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.DistanceUnit;
+import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.GeoPoint;
 import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
@@ -99,6 +100,7 @@ class AnalysisServicesTest {
     private final AnalysisFixtures.Snapshots snapshots = new AnalysisFixtures.Snapshots();
     private final AnalysisTransactions tx =
             new AnalysisTransactions(mock(PlatformTransactionManager.class));
+    private final DomainEventPublisher rankingEvents = mock(DomainEventPublisher.class);
 
     @BeforeEach
     void defaults() {
@@ -663,7 +665,8 @@ class AnalysisServicesTest {
     @org.junit.jupiter.api.DisplayName(
             "랭킹: 0시 개인·크루 × 주간·월간 4개 스냅숏, 거리 조회는 기간마다 한 번, 나만 보기·크루 없음 안내")
     void ranking() {
-        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        RankingService service =
+                new RankingService(snapshots, members, crews, runs, tx, rankingEvents, clock);
         when(members.rankedMemberIds()).thenReturn(Set.of(ME, OTHER));
         when(crews.activeMembersByCrew()).thenReturn(Map.of(7L, List.of(ME, 3L)));
         when(members.summaries(any()))
@@ -723,7 +726,8 @@ class AnalysisServicesTest {
             "TC-5802 랭킹 공개 티어는 조회 때 붙인다: 스냅숏 tier(0시 값)는 그대로, publicTier는 지금 회원 티어, 탈퇴 회원·크루 줄은"
                     + " 없음(D-486)")
     void ranking_publicTierAttachedAtQueryTime() {
-        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        RankingService service =
+                new RankingService(snapshots, members, crews, runs, tx, rankingEvents, clock);
         when(members.rankedMemberIds()).thenReturn(Set.of(ME, OTHER));
         when(crews.activeMembersByCrew()).thenReturn(Map.of(7L, List.of(ME)));
         when(members.summaries(any()))
@@ -777,7 +781,8 @@ class AnalysisServicesTest {
     @org.junit.jupiter.api.DisplayName(
             "TC-5803 본인 줄도 공개 티어다: 배치 중이면 UNRANKED이고 임시 티어는 랭킹 어디에도 없다(D-485)")
     void ranking_ownRowHasNoProvisionalTier() {
-        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        RankingService service =
+                new RankingService(snapshots, members, crews, runs, tx, rankingEvents, clock);
         when(members.rankedMemberIds()).thenReturn(Set.of(ME));
         when(crews.activeMembersByCrew()).thenReturn(Map.of());
         when(members.summaries(any()))
@@ -830,7 +835,8 @@ class AnalysisServicesTest {
     @Test
     @org.junit.jupiter.api.DisplayName("운영자 재계산: 지금 시각으로 4개 스냅숏을 다시 만들고 개인·크루 건수를 돌려준다")
     void recompute_rebuildsNowAndReportsCounts() {
-        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        RankingService service =
+                new RankingService(snapshots, members, crews, runs, tx, rankingEvents, clock);
         when(members.rankedMemberIds()).thenReturn(Set.of(ME, OTHER));
         when(crews.activeMembersByCrew()).thenReturn(Map.of(7L, List.of(ME, 3L)));
         when(members.summaries(any()))
@@ -855,16 +861,108 @@ class AnalysisServicesTest {
         org.mockito.Mockito.doThrow(new IllegalStateException("db"))
                 .when(failing)
                 .save(org.mockito.ArgumentMatchers.argThat(s -> s.getKind() == RankingKind.CREW));
-        RankingService service = new RankingService(failing, members, crews, runs, tx, clock);
+        RankingService service =
+                new RankingService(failing, members, crews, runs, tx, rankingEvents, clock);
 
         assertThat(service.recompute().failedSnapshots()).isEqualTo(2);
+    }
+
+    private List<RankingSnapshotRebuilt> publishedRebuilds() {
+        org.mockito.ArgumentCaptor<com.a207.runkk.common.DomainEvent> captor =
+                org.mockito.ArgumentCaptor.forClass(com.a207.runkk.common.DomainEvent.class);
+        verify(rankingEvents, org.mockito.Mockito.atLeast(0)).publish(captor.capture());
+        return captor.getAllValues().stream()
+                .filter(RankingSnapshotRebuilt.class::isInstance)
+                .map(RankingSnapshotRebuilt.class::cast)
+                .toList();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "DF-089 0시 재집계: 저장한 스냅숏마다 종류·기간·집계 시각(밀리초로 자름)·상위 줄 ID로 재집계 사건을 낸다")
+    void rebuild_publishesSnapshotRebuiltWithTopSubjects() {
+        RankingService service =
+                new RankingService(snapshots, members, crews, runs, tx, rankingEvents, clock);
+        when(members.rankedMemberIds()).thenReturn(Set.of(ME, OTHER));
+        when(crews.activeMembersByCrew()).thenReturn(Map.of(7L, List.of(ME, 3L)));
+        when(members.summaries(any()))
+                .thenReturn(Map.of(ME, summaryOf(ME, "나"), OTHER, summaryOf(OTHER, "너")));
+        when(crews.crewNames(any())).thenReturn(Map.of(7L, DisplayName.of("새벽크루")));
+        when(runs.distancesByMember(anyCollection(), any()))
+                .thenReturn(Map.of(ME, Distance.ofKm(10), OTHER, Distance.ofKm(20)));
+        LocalDateTime at = NOW.withHour(0).withNano(123_456_789);
+        LocalDateTime millis = NOW.withHour(0).withNano(123_000_000);
+
+        service.rebuild(at);
+
+        List<RankingSnapshotRebuilt> events = publishedRebuilds();
+        assertThat(events)
+                .extracting(RankingSnapshotRebuilt::kind, RankingSnapshotRebuilt::period)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple(
+                                RankingKind.PERSONAL, AggregationPeriod.WEEKLY),
+                        org.assertj.core.groups.Tuple.tuple(
+                                RankingKind.PERSONAL, AggregationPeriod.MONTHLY),
+                        org.assertj.core.groups.Tuple.tuple(
+                                RankingKind.CREW, AggregationPeriod.WEEKLY),
+                        org.assertj.core.groups.Tuple.tuple(
+                                RankingKind.CREW, AggregationPeriod.MONTHLY));
+        assertThat(events)
+                .as("사건 시각 = 저장한 스냅숏의 집계 시각(밀리초로 잘라 DB·캐시·look 키가 같다)")
+                .allSatisfy(e -> assertThat(e.computedAt()).isEqualTo(millis));
+        snapshots.rows.values().forEach(s -> assertThat(s.getComputedAt()).isEqualTo(millis));
+        assertThat(events)
+                .filteredOn(e -> e.kind() == RankingKind.PERSONAL)
+                .allSatisfy(e -> assertThat(e.topSubjectIds()).containsExactly(OTHER, ME));
+        assertThat(events)
+                .filteredOn(e -> e.kind() == RankingKind.CREW)
+                .allSatisfy(e -> assertThat(e.topSubjectIds()).containsExactly(7L));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "DF-089 운영자 재계산도 사건을 내고, 상위 줄은 TOP(100)까지, 저장에 실패한 스냅숏은 사건을 내지 않는다")
+    void recompute_publishesTopOnlyAndSkipsFailedSnapshots() {
+        RankingSnapshotRepository failing = mock(RankingSnapshotRepository.class);
+        org.mockito.Mockito.doThrow(new IllegalStateException("db"))
+                .when(failing)
+                .save(org.mockito.ArgumentMatchers.argThat(s -> s.getKind() == RankingKind.CREW));
+        RankingService service =
+                new RankingService(failing, members, crews, runs, tx, rankingEvents, clock);
+        Set<Long> ranked = new java.util.HashSet<>();
+        Map<Long, MemberSummary> names = new java.util.HashMap<>();
+        Map<Long, Distance> distances = new java.util.HashMap<>();
+        for (long id = 1; id <= RankingService.TOP + 1; id++) {
+            ranked.add(id);
+            names.put(id, summaryOf(id, "러너" + id));
+            distances.put(id, Distance.ofMeters(id * 100));
+        }
+        when(members.rankedMemberIds()).thenReturn(ranked);
+        when(members.summaries(any())).thenReturn(names);
+        when(runs.distancesByMember(anyCollection(), any())).thenReturn(distances);
+
+        service.recompute();
+
+        List<RankingSnapshotRebuilt> events = publishedRebuilds();
+        assertThat(events)
+                .hasSize(2)
+                .allSatisfy(e -> assertThat(e.kind()).isEqualTo(RankingKind.PERSONAL));
+        assertThat(events)
+                .allSatisfy(
+                        e -> {
+                            assertThat(e.computedAt()).isEqualTo(NOW);
+                            assertThat(e.topSubjectIds()).hasSize(RankingService.TOP);
+                            assertThat(e.topSubjectIds().get(0)).isEqualTo(RankingService.TOP + 1L);
+                            assertThat(e.topSubjectIds()).doesNotContain(1L);
+                        });
     }
 
     @Test
     @org.junit.jupiter.api.DisplayName(
             "재계산 중 또 부르면 IllegalStateException(409), 0시 작업은 끝날 때까지 기다렸다 이어서 집계한다")
     void recompute_whileRunning_isRejected_andMidnightRebuildWaits() throws Exception {
-        RankingService service = new RankingService(snapshots, members, crews, runs, tx, clock);
+        RankingService service =
+                new RankingService(snapshots, members, crews, runs, tx, rankingEvents, clock);
         java.util.concurrent.CountDownLatch inside = new java.util.concurrent.CountDownLatch(1);
         java.util.concurrent.CountDownLatch release = new java.util.concurrent.CountDownLatch(1);
         java.util.concurrent.atomic.AtomicInteger calls =

@@ -185,7 +185,7 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `크루 홈에서 탈퇴하면 내 크루를 비우고 다시 확인해 크루 찾기를 보인다(DV-성-7)`() {
+    fun `크루 홈에서 탈퇴하면 내 크루를 비우고 다시 확인해 크루 찾기를 보인다(DV-7)`() {
         repo.mine = MyCrew(crewDetail(11, CrewRole.MEMBER), emptyList())
         val vm = CrewFindViewModel(repo)
         assertEquals(11L, vm.state.value.mine?.crewId)
@@ -231,7 +231,7 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 시트 안 칸 아래에 기다리라고 안내한다(DV-성-1)`() {
+    fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 시트 안 칸 아래에 기다리라고 안내한다(DV-1)`() {
         repo.fail["preview"] = AppError.Rejected("TOO_MANY_ATTEMPTS")
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()
@@ -244,7 +244,7 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `가입하기에서 시도 제한(TOO_MANY_ATTEMPTS)이 와도 시트 안에 안내한다(DV-성-1)`() {
+    fun `가입하기에서 시도 제한(TOO_MANY_ATTEMPTS)이 와도 시트 안에 안내한다(DV-1)`() {
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()
         vm.onInviteCode("AB12CD")

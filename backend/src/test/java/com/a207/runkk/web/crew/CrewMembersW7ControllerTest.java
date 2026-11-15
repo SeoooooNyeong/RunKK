@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.common.Week;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.ShownGender;
 import com.a207.runkk.web.WebTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -172,7 +173,7 @@ class CrewMembersW7ControllerTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("크루원 목록 응답 끝에 faceKey·shownGender(설계 5.31 A): 고른 얼굴 키, 안 골랐으면 null, 성별 비공개는 대체 성별")
+    @DisplayName("크루원 목록 얼굴과 성별: 얼굴 미선택은 null, 비공개 성별은 본인만 실제 값")
     void members_carryFaceKeyAndShownGender() throws Exception {
         Session leader = signUp();
         Session a = signUp();
@@ -180,7 +181,8 @@ class CrewMembersW7ControllerTest extends WebTestSupport {
         call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId))
                 .andExpect(jsonPath("$.status").value("JOINED"));
         profile(leader, 1990, "FEMALE", "PUBLIC", "PUBLIC");
-        profile(a, 1995, "MALE", "PUBLIC", "PRIVATE");
+        String ownGender = ShownGender.fallbackOf(a.memberId()) == Gender.MALE ? "FEMALE" : "MALE";
+        profile(a, 1995, ownGender, "PUBLIC", "PRIVATE");
         call(leader, post("/api/v1/avatar/default"), Map.of("characterId", "FOX"))
                 .andExpect(status().isOk());
 
@@ -194,7 +196,13 @@ class CrewMembersW7ControllerTest extends WebTestSupport {
         assertThat(noFace.has("faceKey")).as("키는 항상 있고 값만 null").isTrue();
         assertThat(noFace.get("faceKey").isNull()).isTrue();
         assertThat(noFace.get("shownGender").asText())
-                .as("성별 비공개는 회원 ID로 정한 대체 성별(본인이 봐도 같다)")
+                .as("내 줄은 비공개여도 실제 성별이다")
+                .isEqualTo(ownGender);
+        JsonNode seenByLeader =
+                json(call(leader, get("/api/v1/crews/" + crewId + "/members"), null))
+                        .get("members");
+        assertThat(find(seenByLeader, a.memberId()).get("shownGender").asText())
+                .as("다른 크루원에게는 회원 ID로 정한 대체 성별이다")
                 .isEqualTo(ShownGender.fallbackOf(a.memberId()).name());
         List<String> keys = new ArrayList<>();
         noFace.fieldNames().forEachRemaining(keys::add);

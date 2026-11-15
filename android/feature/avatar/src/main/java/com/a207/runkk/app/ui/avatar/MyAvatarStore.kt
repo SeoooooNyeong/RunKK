@@ -40,13 +40,13 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
- * 내 아바타 입력을 프로세스에 한 번 모아 두는 저장소(design-oo 05-30 [임시:D-성-103], [임시:D-성-104]). 홈·러닝 중 칸이 같은 입력을
+ * 내 아바타 입력을 프로세스에 한 번 모아 두는 저장소(design-oo 05-30 D-735, D-736). 홈·러닝 중 칸이 같은 입력을
  * 나눠 쓴다.
  *
  * - [warm]: 내 성별(`AccountRepository.myGender`)을 구독한다. 모르면(null) Loading에 머물고 그림을 고르지 않는다(FR-162 CR-86).
  *   알면 그 성별의 riv를 미리 읽고([preloadRiveAvatar]) 아바타·내 러너·상점 목록과 생성 머리를 모은 뒤 서기 모습을 미리 합성해
  *   ([prepareRiveAvatarLook]) Ready로 둔다. Ready 뒤에 같은 모습의 달리기 동작(motion = RUN)도 이어서 미리 합성해 측정 화면 칸이
- *   Rive 파일 읽기·텍스처 합성을 기다리지 않게 한다([임시:D-성-181]). 달리기 준비는 Ready를 늦추지 않는다. 성별이 바뀌면 앞 그림을
+ *   Rive 파일 읽기·텍스처 합성을 기다리지 않게 한다(D-813). 달리기 준비는 Ready를 늦추지 않는다. 성별이 바뀌면 앞 그림을
  *   버리고 다시 준비한다.
  * - 아바타나 내 러너를 못 읽으면 Failed다. 미리 읽기·미리 합성 실패는 준비 실패로 보지 않는다(뷰가 다시 읽고 합성하며, 그래도 안 되면
  *   칸이 성별 기본 그림으로 바꾼다).
@@ -58,20 +58,21 @@ import kotlinx.coroutines.launch
 class MyAvatarStore internal constructor(
     private val avatars: AvatarRepository,
     private val myGender: Flow<Gender?>,
-    private val heads: SelfieHeads,
+    /** 셀카 머리 캐시. 전신 정지 그림 칸이 다른 러너 머리도 이것으로 받는다(S15P31A207-300). */
+    internal val heads: SelfieHeads,
     private val preload: suspend (AvatarGender) -> Unit,
     /** 모습 미리 합성(동작별, [prepareRiveAvatarLook]). */
     private val prepare: suspend (RiveAvatarLook, AvatarMotion) -> Unit,
     private val scope: CoroutineScope,
-    /** 로그인 상태(SessionRepository.loggedIn). 참 → 거짓이면 비운다([임시:D-성-161], 리뷰 R2-7). */
+    /** 로그인 상태(SessionRepository.loggedIn). 참 → 거짓이면 비운다(D-793, 리뷰 R2-7). */
     private val loggedIn: StateFlow<Boolean> = MutableStateFlow(true),
     /** 로그아웃 뒷정리(보낸 사진 지움, 리뷰 R2-11). */
     private val onLoggedOut: suspend () -> Unit = {},
-    /** 기기에 남은 셀카 작업 따라가기 잇기(리뷰 R2-3, [임시:D-성-163]). */
+    /** 기기에 남은 셀카 작업 따라가기 잇기(리뷰 R2-3, D-795). */
     private val resumeSelfie: suspend () -> Unit = {},
-    /** 기기에 남은 셀카 작업을 앞 화면에서 한 번 직접 확인([임시:D-성-188]). */
+    /** 기기에 남은 셀카 작업을 앞 화면에서 한 번 직접 확인(D-820). */
     private val checkPending: suspend () -> Unit = {},
-    /** 기기에 남긴 마지막 내 얼굴 그을림(앱을 켠 첫 화면부터 쓴다, [임시:D-성-222]). */
+    /** 기기에 남긴 마지막 내 얼굴 그을림(앱을 켠 첫 화면부터 쓴다, D-854). */
     private val savedTone: () -> SelfFaceTone = { SelfFaceTone() },
     /** 내 얼굴 그을림을 기기에 남긴다. 로그아웃이면 빈 값을 남긴다. */
     private val saveTone: (SelfFaceTone) -> Unit = {}
@@ -117,7 +118,7 @@ class MyAvatarStore internal constructor(
     val state: StateFlow<MyAvatarState> = _state.asStateFlow()
 
     /**
-     * 내 얼굴 그을림(얼굴 원이 쓴다, [임시:D-성-222]). 몸 합성(Ready)을 기다리지 않는다: 아바타·러너 응답을 받자마자 바꾸고 기기에
+     * 내 얼굴 그을림(얼굴 원이 쓴다, D-854). 몸 합성(Ready)을 기다리지 않는다: 아바타·러너 응답을 받자마자 바꾸고 기기에
      * 남겨, 앱을 다시 켜면 첫 화면부터 홈·랭킹·크루런의 내 얼굴이 같은 톤이다.
      */
     private val _faceTone = MutableStateFlow(savedTone())
@@ -161,12 +162,12 @@ class MyAvatarStore internal constructor(
         }
         // 셀카 화면을 다시 열지 않아도 남은 작업이 이어지게 따라가기를 잇는다(KEEP이라 돌고 있으면 그대로다). 이어서 바로 한 번
         // 직접 확인한다: 서버 current로 들여온 작업(재설치·다른 기기 접수)은 앞 화면 확인이 들여오기 전에 끝나 워커만 남았고, 워커가
-        // 돌지 못하는 망에서는 「얼굴 만드는 중」이 남았다([임시:D-성-223]). 확인은 워커와 겹쳐도 한 번만 처리한다.
+        // 돌지 못하는 망에서는 「얼굴 만드는 중」이 남았다(D-855). 확인은 워커와 겹쳐도 한 번만 처리한다.
         scope.launch {
             quietly { resumeSelfie() }
             quietly { checkPending() }
         }
-        // 셀카 결과는 화면이 없어도 워커가 적용한다. 성공을 받으면 바뀐 머리로 다시 준비한다([임시:DR-성-13]).
+        // 셀카 결과는 화면이 없어도 워커가 적용한다. 성공을 받으면 바뀐 머리로 다시 준비한다(DR-13).
         selfieJob = scope.launch {
             // 첫 값은 지금 상태라 버린다(앞에서 이미 적용한 성공이면 준비가 이미 반영한다).
             avatars.selfieProgress()
@@ -179,7 +180,7 @@ class MyAvatarStore internal constructor(
     }
 
     /**
-     * 홈 칸이 보일 때(앱이 다시 앞으로 온 때 포함): 기기에 남은 셀카 작업을 워커와 따로 한 번 직접 확인한다([임시:D-성-188]). 워커가
+     * 홈 칸이 보일 때(앱이 다시 앞으로 온 때 포함): 기기에 남은 셀카 작업을 워커와 따로 한 번 직접 확인한다(D-820). 워커가
      * 네트워크 제약(인터넷 확인된 연결)을 못 채워 돌지 않아도 끝난 작업의 「얼굴 만드는 중」이 남지 않는다. 로그아웃 상태면 묻지 않는다.
      */
     fun checkSelfie() {
@@ -208,7 +209,7 @@ class MyAvatarStore internal constructor(
         if (_state.value is MyAvatarState.Failed) refresh()
     }
 
-    /** 로그아웃: 진행 중 작업과 성별 구독을 멈추고 세대를 올려 늦은 결과를 버린 뒤 Idle로 둔다. 합성 캐시는 비우지 않는다([임시:D-성-139]). */
+    /** 로그아웃: 진행 중 작업과 성별 구독을 멈추고 세대를 올려 늦은 결과를 버린 뒤 Idle로 둔다. 합성 캐시는 비우지 않는다(D-771). */
     fun clear() {
         generation++
         genderJob?.cancel()
@@ -251,7 +252,7 @@ class MyAvatarStore internal constructor(
                 }
             if (mine != generation) return@launch
             _state.value = next
-            // 러닝 칸이 기다리지 않게 같은 모습의 달리기 동작도 미리 합성한다([임시:D-성-181]). 다음 준비가 이 작업을 취소한다.
+            // 러닝 칸이 기다리지 않게 같은 모습의 달리기 동작도 미리 합성한다(D-813). 다음 준비가 이 작업을 취소한다.
             if (next is MyAvatarState.Ready) quietly { prepare(next.look.rive, AvatarMotion.RUN) }
         }
     }
@@ -266,7 +267,7 @@ class MyAvatarStore internal constructor(
             shopCall.cancel()
             return@coroutineScope MyAvatarState.Failed
         }
-        // 얼굴 톤은 몸 합성을 기다리지 않고 바로 바꾼다([임시:D-성-222])
+        // 얼굴 톤은 몸 합성을 기다리지 않고 바로 바꾼다(D-854)
         val tone = SelfFaceTone(avatar.value.faceKey, runner.value.runAmount)
         if (tone != _faceTone.value) {
             _faceTone.value = tone
