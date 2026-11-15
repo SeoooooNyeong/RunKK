@@ -6,15 +6,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsEqualTo
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.model.RunViewMode
 import kotlin.test.assertEquals
@@ -34,7 +38,8 @@ class RunkkTrackCardTest {
         layout: TrackLayout.Result,
         aheadChip: String? = null,
         behindChip: String? = null,
-        rulerLabel: String? = null
+        rulerLabel: String? = null,
+        height: Dp = 328.dp
     ) {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -44,7 +49,7 @@ class RunkkTrackCardTest {
                     otherTag = "바람처럼",
                     myAvatar = {},
                     otherAvatar = {},
-                    modifier = Modifier.size(width = 320.dp, height = 300.dp),
+                    modifier = Modifier.size(width = 320.dp, height = height),
                     myPace = "5'30\"",
                     aheadChip = aheadChip,
                     behindChip = behindChip,
@@ -63,7 +68,8 @@ class RunkkTrackCardTest {
     fun `나는 폭의 40퍼센트에 있고 앞선 상대는 거리만큼 오른쪽에 그린다`() {
         card(TrackLayout.of(aheadMeters = 12.0, remainingMeters = 2_000.0), rulerLabel = "12 m")
 
-        assertEquals(128.dp, centerX(TRACK_ME_TAG))
+        // 홀수 크기 아바타를 정수 픽셀에 놓을 때 생기는 반 픽셀 반올림을 허용한다.
+        assertEquals(128f, centerX(TRACK_ME_TAG).value, 0.5f)
         assertEquals(256.dp, centerX(TRACK_OTHER_TAG))
         compose.onNodeWithText("바람처럼").assertExists()
         compose.onNodeWithText("5'30\"").assertExists()
@@ -76,6 +82,47 @@ class RunkkTrackCardTest {
         card(TrackLayout.of(aheadMeters = -6.0, remainingMeters = 2_000.0))
 
         assertTrue(centerX(TRACK_OTHER_TAG) < centerX(TRACK_ME_TAG))
+    }
+
+    @Test
+    fun `주자 칸은 시안 크기로 각 레인 발 위치에 놓인다`() {
+        card(TrackLayout.of(aheadMeters = -6.0, remainingMeters = 2_000.0))
+
+        val mine = compose.onNodeWithTag(TRACK_ME_TAG).getUnclippedBoundsInRoot()
+        val other = compose.onNodeWithTag(TRACK_OTHER_TAG).getUnclippedBoundsInRoot()
+        assertEquals(105.dp, mine.right - mine.left)
+        assertEquals(293.dp, mine.bottom)
+        assertEquals(88.dp, other.right - other.left)
+        assertEquals(225.dp, other.bottom)
+        assertNameTags(mine.top, other.top)
+    }
+
+    @Test
+    fun `280 카드에서는 주자를 줄여 이름표와 보기 전환이 겹치지 않는다`() {
+        assertShortCard(280.dp, otherFoot = 177.dp)
+    }
+
+    @Test
+    fun `240 카드에서도 이름표가 보기 전환 아래에 남고 발은 레인을 지킨다`() {
+        assertShortCard(240.dp, otherFoot = 137.dp)
+    }
+
+    private fun assertShortCard(height: Dp, otherFoot: Dp) {
+        card(TrackLayout.of(aheadMeters = -6.0, remainingMeters = 2_000.0), height = height)
+        val other = compose.onNodeWithTag(TRACK_OTHER_TAG).getUnclippedBoundsInRoot()
+        assertEquals(otherFoot, other.bottom)
+        assertTrue(other.top >= 96.dp)
+        assertTrue(other.right - other.left < 92.dp)
+        assertNameTags(compose.onNodeWithTag(TRACK_ME_TAG).getUnclippedBoundsInRoot().top, other.top)
+    }
+
+    private fun assertNameTags(myHead: Dp, otherHead: Dp) {
+        val mine = compose.onNodeWithTag(TRACK_ME_NAME_TAG).getUnclippedBoundsInRoot()
+        val other = compose.onNodeWithTag(TRACK_OTHER_NAME_TAG).getUnclippedBoundsInRoot()
+        // 작은 카드에서는 칸 높이와 위 좌표를 각각 정수 px로 반올림한다.
+        assertEquals(myHead.value - 4f, mine.bottom.value, 1f)
+        assertEquals(otherHead.value - 4f, other.bottom.value, 1f)
+        assertTrue(other.bottom < mine.top, "가로로 겹쳐도 상대 이름표가 한 줄 위에 있다")
     }
 
     @Test
@@ -143,7 +190,8 @@ class RunkkTrackCardTest {
                             ProgressDot(1.4f, false)
                         ),
                         leading = "2.34 / 5 km",
-                        trailing = "남은 거리 2.66 km"
+                        trailing = "남은 거리 2.66 km",
+                        modifier = Modifier.testTag("track-progress")
                     )
                 }
             }
@@ -151,6 +199,9 @@ class RunkkTrackCardTest {
 
         compose.onAllNodesWithTag(TRACK_DOT_MINE_TAG).assertCountEquals(1)
         compose.onAllNodesWithTag(TRACK_DOT_OTHER_TAG).assertCountEquals(2)
+        compose.onNodeWithTag("track-progress").assertHeightIsEqualTo(44.dp)
+        compose.onNodeWithTag(TRACK_DOT_MINE_TAG).assertWidthIsEqualTo(13.dp)
+        compose.onAllNodesWithTag(TRACK_DOT_OTHER_TAG)[0].assertWidthIsEqualTo(11.dp)
         compose.onNodeWithText("2.34 / 5 km").assertExists()
         compose.onNodeWithText("남은 거리 2.66 km").assertExists()
     }

@@ -19,6 +19,7 @@ import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.LocalRunkkColors
+import com.a207.runkk.app.core.designsystem.LocalTrackAvatarViewport
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.runFrameMillis
@@ -139,6 +140,10 @@ private fun RunAvatarFigure(
     facingLeft: Boolean,
     onError: () -> Unit
 ) {
+    if (LocalTrackAvatarViewport.current) {
+        TrackRunAvatarFigure(look, isFailed, character, pose, facingLeft, onError)
+        return
+    }
     Box(Modifier.fillMaxSize()) {
         when {
             isFailed -> Box(Modifier.fillMaxSize().testTag(RUN_AVATAR_FALLBACK_TAG)) {

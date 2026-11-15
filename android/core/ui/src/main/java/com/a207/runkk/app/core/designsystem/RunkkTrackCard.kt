@@ -8,10 +8,10 @@ import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,34 +22,54 @@ import androidx.compose.foundation.layout.requiredWidthIn
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.FloatState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import kotlinx.coroutines.isActive
 
 /**
- * 트랙 보기 카드([임시:D-성-256], [임시:D-성-313], [임시:FR-성-27], 시안 320×300 모서리 24). 아래에서부터 거리 자, 내 레인, 상대 레인을
- * 놓고 그 뒤에 [backdrop](내가 고른 아바타 무대 배경)을 깐다. 가로 위치는 [layout]이 정한다: 내 아바타([myAvatar])는 폭의 40%, 상대
+ * 트랙 보기 카드([임시:D-성-256], [임시:D-성-313], [임시:FR-성-27], 시안 350×328 모서리 26). 아래에서부터 거리 자 26, 레인 138을
+ * 놓고 남은 하늘 칸에 [backdrop](내가 고른 아바타 무대 배경)을 깐다. 가로 위치는 [layout]이 정한다: 내 아바타([myAvatar])는 폭의 40%, 상대
  * ([otherAvatar])는 거리 차만큼 앞뒤, 화면 밖이면 그리지 않는다. 결승선은 [layout]에 있을 때만 그린다([임시:D-성-306]). 상대 위치는 300 ms
  * 안에 따라간다([임시:D-성-273], 움직임 줄이기면 바로 옮긴다).
  *
- * 이름표는 아바타 머리 위에 [myTag](라임 바탕)·[otherTag](표면색 바탕, null이면 없음)와 현재 페이스([myPace]·[otherPace]), 얼굴 원
- * ([myFace]·[otherFace], 20dp 칸)을 적는다. 가장자리 칩 [aheadChip](오른쪽)·[behindChip](왼쪽)과 거리 자 가운데 알약 [rulerLabel]은
+ * 이름표는 아바타 머리 위에 [myTag](라임 바탕), [otherTag](표면색 바탕, null이면 없음)와 현재 페이스([myPace], [otherPace]), 얼굴 원
+ * ([myFace], [otherFace], 22dp 칸)을 적는다. 가장자리 칩 [aheadChip](오른쪽), [behindChip](왼쪽)과 거리 자 가운데 알약 [rulerLabel]은
  * 글자를 부르는 쪽이 만든다(대결 「바람처럼 +240 m」, 크루런 「앞 2명 ›」). 진행 막대([RunkkTrackProgressBar])와 보기 전환
  * ([RunkkViewModeToggle])은 이 부품에 없다: 트랙과 지도 가운데 무엇을 그릴지는 화면이 고르고, 둘을 카드 위에 겹쳐 놓는다.
  * 아바타와 배경은 람다로 받는다(이 패키지는 core.navigation의 칸을 import할 수 없다).
@@ -69,11 +89,18 @@ fun RunkkTrackCard(
     rulerLabel: String? = null,
     myFace: (@Composable () -> Unit)? = null,
     otherFace: (@Composable () -> Unit)? = null,
+    isMoving: Boolean = false,
+    speedMetersPerSecond: Float = 0f,
+    overlayBottom: Dp = 91.dp,
     backdrop: @Composable () -> Unit = {}
 ) {
     LogDrawn(layout)
     val onTrack = layout.other as? TrackLayout.Other.OnTrack
     val reduceMotion = LocalReduceMotion.current
+    val travel = rememberTrackTravel(isMoving, speedMetersPerSecond, reduceMotion)
+    val isDark = LocalRunkkColors.current.isDark
+    val shape = RoundedCornerShape(26.dp)
+    var isOtherLoading by remember { mutableStateOf(false) }
     // 상대가 트랙에 들어올 때는 내 자리에서 미끄러져 오지 않게 바로 놓고, 트랙 위에서 움직일 때만 따라간다.
     val otherX by animateFloatAsState(
         targetValue = onTrack?.x ?: layout.myX,
@@ -82,13 +109,21 @@ fun RunkkTrackCard(
     )
     BoxWithConstraints(
         modifier = modifier
-            .clip(RunkkShapes.ExtraLarge)
+            .clip(shape)
             .background(RunkkColors.Surface)
+            .border(1.dp, if (isDark) RunkkColors.Border else TRACK_BORDER, shape)
     ) {
         val width = maxWidth
-        // 배경은 거리 자 위까지만 깐다: 무대 그림의 바닥(트랙)이 자에 가리지 않고 두 레인 밑에 놓인다.
-        Box(Modifier.fillMaxSize().padding(bottom = RULER_HEIGHT)) { backdrop() }
-        Lanes(Modifier.align(Alignment.BottomCenter))
+        val scene = TrackScene.dimensions(maxHeight.value, overlayBottom.value)
+        Box(
+            Modifier.fillMaxWidth().height(scene.skyHeight.dp)
+                .background(Brush.verticalGradient(listOf(Color(0xFFCFE6FB), Color(0xFFEAF5FF))))
+                .clipToBounds().clearAndSetSemantics {}
+        ) {
+            backdrop()
+            if (isDark) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.35f)))
+        }
+        Lanes(isDark, { travel.floatValue }, Modifier.align(Alignment.BottomCenter).padding(bottom = RULER_HEIGHT))
         layout.finish?.let { finish ->
             FinishLine(
                 Modifier
@@ -97,30 +132,32 @@ fun RunkkTrackCard(
                     .testTag(TRACK_FINISH_TAG)
             )
         }
-        if (onTrack != null) {
+        // 상대가 트랙 밖일 때도 보이지 않게 미리 그려 둔다. 트랙에 들어오는 순간 자리 표시 그림이 잠깐 보이는 것을 막는다.
+        if (otherTag != null) {
             Runner(
-                tag = otherTag,
-                pace = otherPace,
                 isMine = false,
-                face = otherFace,
                 modifier = Modifier
                     .align(Alignment.BottomStart)
-                    .offset(x = width * otherX - OTHER_SIZE / 2, y = -(RULER_HEIGHT + LANE_HEIGHT + FOOT_LIFT))
-                    .testTag(TRACK_OTHER_TAG),
-                size = OTHER_SIZE,
+                    .offset(x = width * otherX - scene.otherSize.dp / 2, y = -(maxHeight - scene.otherFootY.dp))
+                    .then(if (onTrack != null) Modifier.testTag(TRACK_OTHER_TAG) else Modifier.clearAndSetSemantics {})
+                    .alpha(if (onTrack != null && !isOtherLoading) 1f else PRELOAD_ALPHA),
+                size = scene.otherSize.dp,
+                scale = scene.runnerScale,
+                isMoving = false,
+                onLoading = { isOtherLoading = it },
                 avatar = otherAvatar
             )
         }
         Runner(
-            tag = myTag,
-            pace = myPace,
             isMine = true,
-            face = myFace,
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .offset(x = width * layout.myX - MY_SIZE / 2, y = -(RULER_HEIGHT + FOOT_LIFT))
+                .offset(x = width * layout.myX - scene.mySize.dp / 2, y = -(maxHeight - scene.myFootY.dp))
                 .testTag(TRACK_ME_TAG),
-            size = MY_SIZE,
+            size = scene.mySize.dp,
+            scale = scene.runnerScale,
+            isMoving = isMoving && !reduceMotion,
+            onLoading = {},
             avatar = myAvatar
         )
         behindChip?.let {
@@ -128,13 +165,13 @@ fun RunkkTrackCard(
                 it,
                 Modifier.align(
                     Alignment.BottomStart
-                ).padding(start = 8.dp, bottom = CHIP_BOTTOM).testTag(TRACK_BEHIND_TAG)
+                ).padding(start = 8.dp, bottom = 46.dp).testTag(TRACK_BEHIND_TAG)
             )
         }
         aheadChip?.let {
             EdgeChip(
                 it,
-                Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = CHIP_BOTTOM).testTag(TRACK_AHEAD_TAG)
+                Modifier.align(Alignment.BottomEnd).padding(end = 8.dp, bottom = 112.dp).testTag(TRACK_AHEAD_TAG)
             )
         }
         Ruler(
@@ -143,76 +180,166 @@ fun RunkkTrackCard(
             label = rulerLabel,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+        // 두 캐릭터를 모두 그린 뒤 이름표 둘을 올린다. 상대 이름표는 위 레인의 머리 위 줄을 지킨다.
+        Box(
+            Modifier.offset(x = width * layout.myX - scene.mySize.dp / 2, y = scene.myTagY.dp)
+                .size(scene.mySize.dp, scene.tagHeight.dp).testTag(TRACK_ME_NAME_TAG),
+            contentAlignment = Alignment.Center
+        ) { NameTag(myTag, myPace, true, myFace, scene.runnerScale) }
+        if (onTrack != null && otherTag != null && !isOtherLoading) {
+            Box(
+                Modifier.offset(x = width * otherX - scene.otherSize.dp / 2, y = scene.otherTagY.dp)
+                    .size(scene.otherSize.dp, scene.tagHeight.dp).testTag(TRACK_OTHER_NAME_TAG),
+                contentAlignment = Alignment.Center
+            ) { NameTag(otherTag, otherPace, false, otherFace, scene.runnerScale) }
+        }
     }
 }
 
-/** 달리는 사람 한 명: 머리 위 이름표와 아바타 칸([size] 정사각형, 발이 칸 바닥). 이름표는 칸보다 넓어도 가운데를 맞춘다. */
+/** 트랙 밖 상대를 미리 그릴 때의 불투명도. 0이면 그리기를 건너뛰어 준비가 안 될 수 있다. */
+private const val PRELOAD_ALPHA = 0.01f
+
+/** 달리는 사람 한 명: 보이는 키 [size], 발이 칸 바닥. 이름표는 모든 캐릭터를 그린 뒤 따로 얹는다. */
 @Composable
 private fun Runner(
-    tag: String?,
-    pace: String?,
     isMine: Boolean,
-    face: (@Composable () -> Unit)?,
     modifier: Modifier,
     size: Dp,
+    scale: Float,
+    isMoving: Boolean,
+    onLoading: (Boolean) -> Unit,
     avatar: @Composable () -> Unit
 ) {
-    Column(modifier.width(size), horizontalAlignment = Alignment.CenterHorizontally) {
-        if (tag != null) NameTag(tag, pace, isMine, face)
-        Box(Modifier.size(size)) { avatar() }
+    Box(
+        modifier.size(size).drawBehind {
+            val shadowWidth = (if (isMine) 61.dp else 51.dp).toPx() * scale
+            val shadowHeight = (if (isMine) 11.dp else 9.dp).toPx() * scale
+            drawOval(
+                Color.Black.copy(alpha = 0.22f),
+                topLeft = Offset((this.size.width - shadowWidth) / 2, this.size.height - shadowHeight / 2),
+                size = Size(shadowWidth, shadowHeight)
+            )
+            if (isMoving) {
+                listOf(20f, 15f, 11f).forEachIndexed { index, length ->
+                    drawRoundRect(
+                        Color.White,
+                        topLeft = Offset(
+                            (-24f + index * 3f).dp.toPx() * scale,
+                            (40f + index * 14f).dp.toPx() * scale
+                        ),
+                        size = Size(length.dp.toPx() * scale, 3.dp.toPx() * scale),
+                        cornerRadius = CornerRadius(2.dp.toPx() * scale)
+                    )
+                }
+            }
+        }
+    ) {
+        CompositionLocalProvider(
+            LocalTrackAvatarViewport provides true,
+            LocalTrackAvatarLoading provides onLoading
+        ) { avatar() }
     }
 }
 
-/** 이름표: 얼굴 원 20, 이름, 현재 페이스. 내 이름표는 라임 바탕, 상대는 표면색 바탕이다. */
+/** 이름표: 높이 28, 얼굴 원 22, 이름 12, 페이스 11. 작은 카드에서는 주자와 같은 비율로 줄인다. */
 @Composable
-private fun NameTag(name: String, pace: String?, isMine: Boolean, face: (@Composable () -> Unit)?) {
+private fun NameTag(name: String, pace: String?, isMine: Boolean, face: (@Composable () -> Unit)?, scale: Float) {
     val background = if (isMine) RunkkColors.LimeFill else RunkkColors.Surface
     val content = if (isMine) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
     Row(
         modifier = Modifier
-            .requiredWidthIn(max = TAG_MAX_WIDTH)
+            .requiredWidthIn(max = TAG_MAX_WIDTH * scale)
+            .height(28.dp * scale)
             .clip(RunkkShapes.Pill)
             .background(background)
-            .padding(start = 2.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+            .padding(start = 3.dp * scale, end = 8.dp * scale),
+        horizontalArrangement = Arrangement.spacedBy(4.dp * scale),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (face != null) Box(Modifier.size(TAG_FACE)) { face() } else Box(Modifier.width(4.dp).height(TAG_FACE))
+        if (face != null) {
+            Box(
+                Modifier.size(TAG_FACE * scale).clip(CircleShape)
+                    .border(2.dp * scale, if (isMine) RunkkColors.OnLimeFill else TRACK_PURPLE, CircleShape)
+            ) { face() }
+        }
         Text(
             name,
-            style = RunkkTextStyles.text(11, FontWeight.Bold),
+            style = RunkkTextStyles.text(12, FontWeight.Bold).copy(fontSize = (12 * scale).sp),
             color = content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)
         )
-        if (pace != null) Text(pace, style = RunkkTextStyles.text(11), color = content, maxLines = 1)
+        if (pace != null) {
+            Text(
+                pace,
+                style = RunkkTextStyles.text(11).copy(fontSize = (11 * scale).sp),
+                color = if (isMine) TRACK_TAG_SECONDARY else RunkkColors.TextSecondary,
+                maxLines = 1
+            )
+        }
     }
 }
 
-/** 두 레인: 위는 상대, 아래는 나. 사이에 점선을 긋는다. */
+/** 두 레인과 잔디. 이동 상태는 그리기 단계에서만 읽어 매 프레임 카드 전체를 다시 구성하지 않는다. */
 @Composable
-private fun Lanes(modifier: Modifier) {
-    val lane = RunkkColors.Scrim
-    val line = RunkkColors.Border
-    Canvas(modifier.fillMaxWidth().height(RULER_HEIGHT + LANE_HEIGHT * 2)) {
-        val laneHeight = LANE_HEIGHT.toPx()
-        drawRect(lane.copy(alpha = LANE_ALPHA), size = size.copy(height = laneHeight * 2))
-        drawLine(
-            line,
-            Offset(0f, laneHeight),
-            Offset(size.width, laneHeight),
-            strokeWidth = 1.dp.toPx(),
-            pathEffect = PathEffect.dashPathEffect(floatArrayOf(8.dp.toPx(), 6.dp.toPx()))
+private fun Lanes(isDark: Boolean, travel: () -> Float, modifier: Modifier) {
+    Canvas(modifier.fillMaxWidth().height(TrackScene.LANE_HEIGHT.dp).clearAndSetSemantics {}) {
+        drawRect(Color(0xFFE8805C))
+        drawRect(Color(0xFFA9D58A), size = Size(size.width, 13.dp.toPx()))
+        drawRect(
+            Color(0xFFDE7450).copy(alpha = 0.55f),
+            topLeft = Offset(0f, 79.dp.toPx()),
+            size = Size(size.width, 59.dp.toPx())
         )
+        // 밤 거르개는 바탕에만 적용한다. 레인 선은 그 위에 그려 밤 배경에서도 대비를 지킨다.
+        if (isDark) drawRect(Color.Black.copy(alpha = 0.35f))
+        drawLine(Color.White, Offset(0f, 14.dp.toPx()), Offset(size.width, 14.dp.toPx()), 2.dp.toPx())
+        drawLine(
+            Color.White.copy(alpha = 0.9f),
+            Offset(0f, 70.dp.toPx()),
+            Offset(size.width, 70.dp.toPx()),
+            2.dp.toPx()
+        )
+        val offset = TrackScene.dashOffset(travel(), size.width / density).dp.toPx()
+        listOf(42f to 0f, 105f to -13f).forEach { (y, stagger) ->
+            var x = offset + stagger.dp.toPx()
+            while (x < size.width) {
+                drawLine(
+                    Color.White.copy(alpha = if (isDark) 0.72f else 0.45f),
+                    Offset(x, y.dp.toPx()),
+                    Offset(x + 22.dp.toPx(), y.dp.toPx()),
+                    strokeWidth = 2.dp.toPx()
+                )
+                x += TrackScene.DASH_PERIOD.dp.toPx()
+            }
+        }
     }
+}
+
+/** 정지하거나 움직임 줄이기가 켜지면 현재 점선 위치를 보존한다. */
+@Composable
+private fun rememberTrackTravel(isMoving: Boolean, speed: Float, reduceMotion: Boolean): FloatState {
+    val travel = remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(isMoving, speed, reduceMotion) {
+        if (!isMoving || reduceMotion || !speed.isFinite() || speed <= 0f) return@LaunchedEffect
+        var previous = withFrameNanos { it }
+        while (isActive) {
+            withFrameNanos { now ->
+                val seconds = ((now - previous) / 1_000_000_000f).coerceAtMost(0.1f)
+                travel.floatValue = TrackScene.advanceTravel(travel.floatValue, seconds, speed, isMoving, reduceMotion)
+                previous = now
+            }
+        }
+    }
+    return travel
 }
 
 /** 결승선: 두 레인을 가로지르는 점선 띠. */
 @Composable
 private fun FinishLine(modifier: Modifier) {
     val color = RunkkColors.TextPrimary
-    Canvas(modifier.width(FINISH_WIDTH).height(LANE_HEIGHT * 2)) {
+    Canvas(modifier.width(FINISH_WIDTH).height(TrackScene.LANE_HEIGHT.dp).clearAndSetSemantics {}) {
         drawLine(
             color,
             Offset(size.width / 2, 0f),
@@ -243,8 +370,19 @@ private fun EdgeChip(text: String, modifier: Modifier) {
 /** 거리 자: 두 러너 사이를 선으로 잇고 가운데 알약에 차이를 적는다. 상대가 트랙에 없으면 선 없이 바탕만 둔다. */
 @Composable
 private fun Ruler(myX: Float, otherX: Float?, label: String?, modifier: Modifier) {
-    val line = RunkkColors.TextSecondary
+    val line = TRACK_GREEN
+    val tick = if (LocalRunkkColors.current.isDark) RunkkColors.Border else TRACK_BORDER
     Box(modifier.fillMaxWidth().height(RULER_HEIGHT).background(RunkkColors.Surface)) {
+        Canvas(Modifier.fillMaxSize().clearAndSetSemantics {}) {
+            drawLine(tick, Offset.Zero, Offset(size.width, 0f), 1.dp.toPx())
+            var x = 9.dp.toPx()
+            var index = 0
+            while (x < size.width) {
+                drawLine(tick, Offset(x, 0f), Offset(x, (if (index % 5 == 4) 9.dp else 4.dp).toPx()), 1.dp.toPx())
+                x += 20.7.dp.toPx()
+                index++
+            }
+        }
         if (otherX == null) return@Box
         val from = minOf(myX, otherX)
         val to = maxOf(myX, otherX)
@@ -260,8 +398,8 @@ private fun Ruler(myX: Float, otherX: Float?, label: String?, modifier: Modifier
             listOf(from, to).forEach { x ->
                 drawLine(
                     line,
-                    Offset(size.width * x, y - 5.dp.toPx()),
-                    Offset(size.width * x, y + 5.dp.toPx()),
+                    Offset(size.width * x, y - 5.5.dp.toPx()),
+                    Offset(size.width * x, y + 5.5.dp.toPx()),
                     strokeWidth = 2.dp.toPx(),
                     cap = StrokeCap.Round
                 )
@@ -271,10 +409,11 @@ private fun Ruler(myX: Float, otherX: Float?, label: String?, modifier: Modifier
             val middle = (from + to) / 2
             Text(
                 label,
-                style = RunkkTextStyles.text(11, FontWeight.Bold),
-                color = RunkkColors.TextPrimary,
+                style = RunkkTextStyles.text(11, FontWeight.Bold, lineHeight = 17),
+                color = Color.White,
                 maxLines = 1,
                 softWrap = false,
+                textAlign = TextAlign.Center,
                 modifier = Modifier
                     .testTag(TRACK_RULER_TAG)
                     // 두 러너의 가운데에 알약 가운데가 오게 놓는다.
@@ -287,9 +426,11 @@ private fun Ruler(myX: Float, otherX: Float?, label: String?, modifier: Modifier
                             )
                         }
                     }
+                    .widthIn(min = 45.dp)
+                    .height(17.dp)
                     .clip(RunkkShapes.Pill)
-                    .background(RunkkColors.SurfaceHigh)
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                    .background(TRACK_GREEN)
+                    .padding(horizontal = 8.dp)
             )
         }
     }
@@ -322,18 +463,16 @@ const val TRACK_FINISH_TAG = "track-finish"
 const val TRACK_AHEAD_TAG = "track-edge-ahead"
 const val TRACK_BEHIND_TAG = "track-edge-behind"
 const val TRACK_RULER_TAG = "track-ruler"
+const val TRACK_ME_NAME_TAG = "track-me-name"
+const val TRACK_OTHER_NAME_TAG = "track-other-name"
 
 private const val OTHER_MOVE_MILLIS = 300
-private const val LANE_ALPHA = 0.35f
-private val RULER_HEIGHT = 28.dp
-private val LANE_HEIGHT = 34.dp
-private val MY_SIZE = 88.dp
-private val OTHER_SIZE = 76.dp
-
-/** 발을 레인 바닥에서 띄우는 높이. */
-private val FOOT_LIFT = 10.dp
+private val RULER_HEIGHT = TrackScene.RULER_HEIGHT.dp
 private val FINISH_WIDTH = 6.dp
-private val TAG_FACE = 20.dp
+private val TAG_FACE = 22.dp
 private val TAG_MAX_WIDTH = 140.dp
 private val CHIP_MAX_WIDTH = 150.dp
-private val CHIP_BOTTOM = 34.dp
+private val TRACK_BORDER = Color(0xFFE9EDE0)
+private val TRACK_GREEN = Color(0xFF3F6212)
+private val TRACK_PURPLE = Color(0xFF5C4BDB)
+private val TRACK_TAG_SECONDARY = Color(0xFF67705B)

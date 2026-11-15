@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
@@ -75,6 +76,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkMeMap
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
 import com.a207.runkk.app.core.designsystem.RunkkRunDistance
+import com.a207.runkk.app.core.designsystem.RunkkRunLabel
 import com.a207.runkk.app.core.designsystem.RunkkRunStat
 import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
@@ -87,6 +89,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTrackCard
 import com.a207.runkk.app.core.designsystem.RunkkTrackProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkViewModeToggle
+import com.a207.runkk.app.core.designsystem.TrackHorizonAlignment
 import com.a207.runkk.app.core.designsystem.TrackLayout
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
@@ -220,10 +223,18 @@ private fun CancelDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-/** 머리: 오른쪽에 내 연결 끊김 또는 랜덤 대결 상대 연결 상태(FR-088, 배틀 QA 5번). 모드 이름 알약은 두지 않는다(사용자 요청 2026-10-30). */
+/** 머리: 왼쪽 러닝 종류와 목표 거리, 오른쪽 연결 상태(FR-088). */
 @Composable
 private fun Header(state: BattleRunningUiState) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        val kind = stringResource(
+            when (state.kind) {
+                OpponentKind.SELF -> R.string.battle_record_run_self
+                OpponentKind.CELEBRITY -> R.string.battle_record_run_celeb
+                else -> R.string.battle_match_title
+            }
+        )
+        RunkkRunLabel(stringResource(R.string.battle_running_label, kind, RunkkFormat.targetLabel(state.distance)))
         Spacer(Modifier.weight(1f))
         val label = when {
             state.isLiveLost -> stringResource(R.string.battle_running_disconnected)
@@ -356,13 +367,13 @@ private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunn
             longPressLabel = stringResource(R.string.battle_running_hold_to_end),
             contentDescription = stringResource(R.string.battle_running_forfeit_desc),
             caption = stringResource(R.string.battle_running_hold_to_end),
-            size = 88.dp,
-            borderColor = RunkkColors.Surface,
+            size = 84.dp,
+            borderColor = RunkkColors.LimeFill,
             borderWidth = 0.dp,
-            background = RunkkColors.Surface,
+            background = RunkkColors.LimeFill,
             modifier = Modifier.align(Alignment.Center)
         ) {
-            RunkkStopSquare(size = 28.dp)
+            RunkkStopSquare(size = 28.dp, corner = 7.dp, color = RunkkColors.OnLimeFill)
         }
     }
 }
@@ -419,9 +430,9 @@ private fun BattleTrack(
     var isMapFailed by remember { mutableStateOf(false) }
     val isMapAvailable = canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)
     val mode = shownViewMode(state.viewMode, isMapAvailable)
-    Box(modifier.clip(RunkkShapes.ExtraLarge)) {
+    Box(modifier.clip(RoundedCornerShape(26.dp))) {
         when (mode) {
-            RunViewMode.TRACK -> TrackView(state, Modifier.fillMaxSize())
+            RunViewMode.TRACK -> TrackView(state, Modifier.fillMaxSize(), if (isMapAvailable) 91.dp else 55.dp)
 
             RunViewMode.MAP -> RunkkMeMap(
                 route = state.route,
@@ -431,7 +442,10 @@ private fun BattleTrack(
                 myLabel = stringResource(R.string.battle_me)
             ) { MyFace(state, MAP_FACE_SIZE) }
         }
-        Column(Modifier.align(Alignment.TopStart).padding(8.dp)) {
+        Column(
+            Modifier.align(Alignment.TopStart).padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             RunkkTrackProgressBar(
                 dots = progressDots(state),
                 modifier = Modifier.fillMaxWidth(),
@@ -476,7 +490,7 @@ private fun progressDots(state: BattleRunningUiState): List<ProgressDot> {
 
 /** 트랙 보기: 위치 계산은 매번 다시 한다(받은 거리값이 바로 다음 그림에 반영된다, [임시:D-성-273]). */
 @Composable
-private fun TrackView(state: BattleRunningUiState, modifier: Modifier = Modifier) {
+private fun TrackView(state: BattleRunningUiState, modifier: Modifier, overlayBottom: Dp) {
     val gap = state.gapMeters
     val layout = TrackLayout.of(
         aheadMeters = gap?.let { -it.toDouble() },
@@ -499,6 +513,9 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier = Modifier
         otherAvatar = { OpponentRunner(state) },
         modifier = modifier.testTag(BATTLE_TRACK_TAG),
         myPace = state.currentPace?.let { RunkkFormat.pace(it) },
+        isMoving = isMoving,
+        speedMetersPerSecond = state.currentPace?.let { 1_000f / it.secondsPerKm } ?: 0f,
+        overlayBottom = overlayBottom,
         aheadChip = edge?.takeIf { it.isAhead }?.let {
             stringResource(R.string.battle_track_edge_ahead, opponentName, it.meters)
         },
@@ -509,16 +526,18 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier = Modifier
         myFace = { MyFace(state, TAG_FACE_SIZE) },
         otherFace = opponentFace(state),
         backdrop = {
-            AvatarStageBackdrop(
-                if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
-                Modifier.fillMaxSize(),
-                alignment = Alignment.BottomCenter
-            )
+            if (isAvatarOpen) {
+                AvatarStageBackdrop(
+                    state.myAvatar?.backgroundKey,
+                    Modifier.fillMaxSize(),
+                    alignment = TrackHorizonAlignment
+                )
+            }
         }
     )
 }
 
-/** 내 얼굴 원(이름표 20, 지도 위 내 위치 44): 홈과 같은 내 얼굴이다. */
+/** 내 얼굴 원(이름표 22, 지도 위 내 위치 44): 홈과 같은 내 얼굴이다. */
 @Composable
 private fun MyFace(state: BattleRunningUiState, size: Dp) {
     RunkkAvatarCircle(
@@ -582,7 +601,8 @@ private fun OpponentRunner(state: BattleRunningUiState) {
             }
         ) {
             RunAvatarSlot(
-                pose = if (isTheirsMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND,
+                // 내 아바타와 같은 기준이다. 상대 거리가 처음 들어올 때 자세를 바꾸면 그림을 다시 준비하느라 1~2초 비어 보인다.
+                pose = if (state.phase == BattlePhase.RUNNING) AvatarSlotPose.RUN else AvatarSlotPose.STAND,
                 facingLeft = false,
                 subject = RunAvatarSubject.other(state.opponentLook?.toSlot(), character == AvatarCharacter.FEMALE)
             ) {
@@ -648,7 +668,7 @@ private fun Gap(state: BattleRunningUiState) {
     }
     val description = stringResource(R.string.battle_running_gap_desc, spoken)
     Row(
-        modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
+        modifier = Modifier.fillMaxWidth().height(32.dp).clearAndSetSemantics { contentDescription = description },
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.Bottom
     ) {
@@ -669,16 +689,16 @@ private fun Gap(state: BattleRunningUiState) {
 /** "+42 m", "-118 m"(격차 0은 앞서는 쪽 "+0 m"). */
 internal fun gapMetersLabel(gap: Int): String = if (gap >= 0) "+$gap m" else "$gap m"
 
-private const val PAST_SELF_ALPHA = 0.5f
+private const val PAST_SELF_ALPHA = 0.78f
 
-/** 트랙 카드 높이(시안 320×300). 화면이 낮으면 남는 높이만큼 줄어든다. */
-private val TRACK_CARD_HEIGHT = 300.dp
+/** 트랙 카드 높이(시안 350×328). 화면이 낮으면 남는 높이만큼 줄어든다. */
+private val TRACK_CARD_HEIGHT = 328.dp
 
-/** 배치고사 「?」 원을 그리는 칸(상대 레인 아바타 칸 76 안에 성사 화면과 같은 비율로 그린다). */
+/** 배치고사 「?」 원은 상대 아바타 칸 가운데에 성사 화면과 같은 모양으로 그린다. */
 private val UNKNOWN_SIZE = 72.dp
 
 /** 이름표 얼굴 원과 지도 위 내 얼굴 원. */
-private val TAG_FACE_SIZE = 20.dp
+private val TAG_FACE_SIZE = 22.dp
 private val MAP_FACE_SIZE = 44.dp
 private const val METERS_PER_KM = 1_000L
 

@@ -78,6 +78,7 @@ import com.a207.runkk.app.core.designsystem.RunkkPauseScrim
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
 import com.a207.runkk.app.core.designsystem.RunkkRunDistance
+import com.a207.runkk.app.core.designsystem.RunkkRunLabel
 import com.a207.runkk.app.core.designsystem.RunkkRunStat
 import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
@@ -88,6 +89,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.RunkkTrackCard
 import com.a207.runkk.app.core.designsystem.RunkkTrackProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkViewModeToggle
+import com.a207.runkk.app.core.designsystem.TrackHorizonAlignment
 import com.a207.runkk.app.core.designsystem.TrackLayout
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
@@ -249,20 +251,7 @@ private fun CrewRunChip(distance: Distance?, isDistanceKnown: Boolean) {
     }
     val label = distanceText?.let { stringResource(R.string.crew_run_chip, it) }
         ?: stringResource(R.string.crew_run_live_title)
-    val spoken = RunkkFormat.spokenLabel(label)
-    Row(
-        modifier = Modifier
-            .heightIn(min = 28.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(RunkkColors.SurfaceHigh)
-            .padding(horizontal = 10.dp)
-            .semantics(mergeDescendants = true) { if (spoken != label) contentDescription = spoken },
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(RunkkColors.TextPrimary))
-        Text(label, style = RunkkTextStyles.text(12, lineHeight = 14), color = RunkkColors.TextPrimary)
-    }
+    RunkkRunLabel(label)
 }
 
 /**
@@ -513,7 +502,7 @@ private fun CountdownBody(state: CrewRunUiState) {
 private fun RunningContent(state: CrewRunUiState, actions: CrewRunActions) {
     Box(Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 36.dp),
+            modifier = Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 36.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Box(Modifier.fillMaxWidth().height(CHIP_AREA)) {
@@ -606,9 +595,9 @@ private fun CrewTrack(state: CrewRunUiState, onViewModeChange: (RunViewMode) -> 
     val mode = if (isMapAvailable) state.viewMode else RunViewMode.TRACK
     val mine = state.mine.distance
     val goal = state.distance
-    Box(modifier.clip(RunkkShapes.ExtraLarge)) {
+    Box(modifier.clip(RoundedCornerShape(26.dp))) {
         when (mode) {
-            RunViewMode.TRACK -> CrewTrackView(state, Modifier.fillMaxSize())
+            RunViewMode.TRACK -> CrewTrackView(state, Modifier.fillMaxSize(), if (isMapAvailable) 91.dp else 55.dp)
 
             RunViewMode.MAP -> RunkkMeMap(
                 route = state.mine.route,
@@ -618,7 +607,10 @@ private fun CrewTrack(state: CrewRunUiState, onViewModeChange: (RunViewMode) -> 
                 myLabel = stringResource(R.string.crew_member_me)
             ) { MyFace(state, MAP_FACE_SIZE) }
         }
-        Column(Modifier.align(Alignment.TopStart).padding(8.dp)) {
+        Column(
+            Modifier.align(Alignment.TopStart).padding(horizontal = 13.dp, vertical = 11.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             RunkkTrackProgressBar(
                 dots = progressDots(state),
                 modifier = Modifier.fillMaxWidth(),
@@ -660,7 +652,7 @@ internal fun progressDots(state: CrewRunUiState): List<ProgressDot> {
 
 /** 트랙 보기: 위치 계산은 매번 다시 한다(받은 거리값이 바로 다음 그림에 반영된다). */
 @Composable
-private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier = Modifier) {
+private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBottom: Dp) {
     val mine = state.mine
     val standing = state.standing
     val nearest = standing.nearest
@@ -689,6 +681,9 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier = Modifier) 
         otherAvatar = { NearestRunner(state, isRunning = !isNearestPaused && !mine.isPaused) },
         modifier = modifier.testTag(CREW_TRACK_TAG),
         myPace = mine.currentPace?.let { RunkkFormat.pace(it) },
+        isMoving = isMoving,
+        speedMetersPerSecond = mine.currentPace?.let { 1_000f / it.secondsPerKm } ?: 0f,
+        overlayBottom = overlayBottom,
         aheadChip = when {
             edge != null && edge.isAhead -> stringResource(R.string.crew_run_track_edge_ahead, nearestName, edge.meters)
             standing.ahead > 0 -> stringResource(R.string.crew_run_track_ahead, standing.ahead)
@@ -720,16 +715,18 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier = Modifier) 
             }
         },
         backdrop = {
-            AvatarStageBackdrop(
-                if (isAvatarOpen) state.myAvatar?.backgroundKey else null,
-                Modifier.fillMaxSize(),
-                alignment = Alignment.BottomCenter
-            )
+            if (isAvatarOpen) {
+                AvatarStageBackdrop(
+                    state.myAvatar?.backgroundKey,
+                    Modifier.fillMaxSize(),
+                    alignment = TrackHorizonAlignment
+                )
+            }
         }
     )
 }
 
-/** 내 얼굴 원(이름표 20, 지도 위 내 위치 44): 홈과 같은 내 얼굴이다. */
+/** 내 얼굴 원(이름표 22, 지도 위 내 위치 44): 홈과 같은 내 얼굴이다. */
 @Composable
 private fun MyFace(state: CrewRunUiState, size: Dp) {
     RunkkAvatarCircle(
@@ -889,11 +886,11 @@ private val LOBBY_GRID_GAP = 14.dp
 private val CHIP_AREA = 64.dp
 private val BIG_DISTANCE_HEIGHT = 82.dp
 
-/** 트랙 카드 높이(시안 320×300). 화면이 낮으면 남는 높이만큼 줄어든다. */
-private val TRACK_CARD_HEIGHT = 300.dp
+/** 트랙 카드 높이(시안 350×328). 화면이 낮으면 남는 높이만큼 줄어든다. */
+private val TRACK_CARD_HEIGHT = 328.dp
 
 /** 이름표 얼굴 원과 지도 위 내 얼굴 원. */
-private val TAG_FACE_SIZE = 20.dp
+private val TAG_FACE_SIZE = 22.dp
 private val MAP_FACE_SIZE = 44.dp
 private const val METERS_PER_KM = 1_000L
 private const val HANGUL_FIRST = '가'
