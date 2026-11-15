@@ -402,13 +402,15 @@ private fun DrawScope.sparkle(center: Offset, radius: Float) {
 
 /**
  * 4위부터 목록 카드(둥근 24, 테두리): 행 사이에만 안쪽 구분선을 긋는다. 얼굴 원은 줄 모습의 얼굴([faces], 얼굴 키 → 층)로 그리고, 원이
- * 화면에 보이면 [onFaceShown]으로 그 얼굴을 받게 한다(S15P31A207-300, 목록이 길어 보이는 줄만 받는다).
+ * 화면에 보이면 [onFaceShown]으로 그 얼굴을 받게 한다(S15P31A207-300, 목록이 길어 보이는 줄만 받는다). 내 줄은 [myFace](홈 아바타와
+ * 같은 내 얼굴)를 알면 그것으로 그리고 따로 받지 않는다(PM 2026-11-15).
  */
 @Composable
 internal fun RankingListCard(
     rest: List<Ranking.Entry>,
     mine: Ranking.Entry?,
     faces: Map<String, List<FaceLayer>> = emptyMap(),
+    myFace: RankingFace? = null,
     onFaceShown: (String) -> Unit = {}
 ) {
     if (rest.isEmpty()) return
@@ -420,7 +422,13 @@ internal fun RankingListCard(
         verticalArrangement = Arrangement.Top
     ) {
         rest.forEachIndexed { index, entry ->
-            RankingListRow(entry, isMine = entry == mine, showDivider = index < rest.lastIndex, faces, onFaceShown)
+            val isMine = entry == mine
+            // 내 줄은 내 얼굴을 알면(읽는 중 포함) 서버 줄 모습(하루 고정)보다 앞서고 따로 받지 않는다(PM 2026-11-15)
+            val own = myFace.takeIf { isMine }
+            val fetch = if (own == null) onFaceShown else null
+            RankingListRow(entry, isMine, showDivider = index < rest.lastIndex) {
+                RankingFaceCircle(entry, isMine, own ?: RankingFace.ofRow(entry, faces), fetch)
+            }
         }
     }
 }
@@ -428,16 +436,10 @@ internal fun RankingListCard(
 /**
  * 4위부터 한 줄(최소 높이 62): 순위·아바타 40·닉네임 + 배지·거리. 순위 변동은 서버 값이 생길 때까지 그리지 않는다. 얼굴 원은 줄 모습의
  * 얼굴(셀카면 받은 층, 받기 전이면 빈 자리, 받지 못했거나 얼굴이 없으면 성별 기본 머리)이고, 다른 러너 얼굴은 그 러너의 러닝량으로
- * 그을린다([rankingFaceTone]).
+ * 그을린다([rankingFaceTone]). 얼굴 원은 [face]가 그린다.
  */
 @Composable
-private fun RankingListRow(
-    entry: Ranking.Entry,
-    isMine: Boolean,
-    showDivider: Boolean,
-    faces: Map<String, List<FaceLayer>>,
-    onFaceShown: (String) -> Unit
-) {
+private fun RankingListRow(entry: Ranking.Entry, isMine: Boolean, showDivider: Boolean, face: @Composable () -> Unit) {
     val spoken = rankingSpoken(entry, isMine)
     RunkkPersonRow(
         name = entry.name,
@@ -453,7 +455,7 @@ private fun RankingListRow(
                 maxLines = 1,
                 modifier = Modifier.width(30.dp)
             )
-            RankingFaceCircle(entry, isMine, faces, onFaceShown)
+            face()
         },
         badge = rankingTier(entry)?.let { tier -> { TierBadge(tier, TierBadgeSize.XSMALL) } },
         trailing = { KmText(entry.distance, 18, RunkkColors.TextPrimary, RunkkColors.TextSecondary) },
@@ -463,52 +465,64 @@ private fun RankingListRow(
     )
 }
 
+/** 목록 줄 얼굴 원 40: [face]를 그리고, [onFaceShown]이 있으면 원이 보일 때 그 얼굴을 받게 한다(내 얼굴은 받지 않는다). */
 @Composable
 private fun RankingFaceCircle(
     entry: Ranking.Entry,
     isMine: Boolean,
-    faces: Map<String, List<FaceLayer>>,
-    onFaceShown: (String) -> Unit
+    face: RankingFace,
+    onFaceShown: ((String) -> Unit)?
 ) {
-    val faceKey = entry.look?.faceKey
+    val faceKey = face.faceKey
     val circle = @Composable {
         RunkkAvatarCircle(
             faceKey = faceKey,
             size = 40.dp,
-            modifier = if (faceKey != null && isFetchableFace(faceKey)) {
+            modifier = if (onFaceShown != null && faceKey != null && isFetchableFace(faceKey)) {
                 Modifier.onVisibilityChanged(minFractionVisible = FACE_VISIBLE_FRACTION) {
                     if (it) onFaceShown(faceKey)
                 }
             } else {
                 Modifier
             },
-            faceLayers = faceKey?.let(faces::get).orEmpty(),
+            faceLayers = face.faceLayers,
             character = if (isMine) LocalAvatarCharacter.current else AvatarCharacter.of(entry.shownGender),
-            isFaceLoading = rankingFaceLoading(faceKey, faces),
+            isFaceLoading = face.isLoading,
             background = RunkkColors.RunimalTile
         )
     }
-    val tone = rankingFaceTone(entry, isMine, LocalSelfFaceTone.current)
-    if (tone != null) CompositionLocalProvider(LocalSelfFaceTone provides tone, content = circle) else circle()
+    WithRankingFaceTone(rankingFaceTone(entry, isMine, LocalSelfFaceTone.current, myFaceKey = faceKey), circle)
+}
+
+/** [tone]이 있으면 그 얼굴 원 하나만 그 톤으로 감싼다. */
+@Composable
+private fun WithRankingFaceTone(tone: SelfFaceTone?, content: @Composable () -> Unit) {
+    if (tone != null) CompositionLocalProvider(LocalSelfFaceTone provides tone, content = content) else content()
 }
 
 /**
  * 얼굴 원 그을림(S15P31A207-300): 다른 러너는 그 러너의 얼굴 키·러닝량으로 피부 층을 그을린다. 이 톤은 그 줄의 얼굴 원 하나만 감싸므로
  * 기본 캐릭터 얼굴에도 쓴다(PM 2026-11-14). 나는 앱 전체에 내려 준 내 톤([myTone])을 그대로 쓰되(null), 내 얼굴이 기본 캐릭터면 앱 전체 톤은
- * 기본 얼굴을 그을리지 않으므로 내 러닝량으로 이 원만 감싼다. 모습이나 얼굴이 없는 줄은 그을릴 얼굴이 없다(null).
+ * 기본 얼굴을 그을리지 않으므로 내 러닝량으로 이 원만 감싼다. 내 얼굴 키는 그 원에 그리는 내 얼굴([myFaceKey], 내 아바타 얼굴을 알면 그
+ * 키, PM 2026-11-15)로 본다. 모습이나 얼굴이 없는 줄은 그을릴 얼굴이 없다(null).
  */
 internal fun rankingFaceTone(
     entry: Ranking.Entry,
     isMine: Boolean,
-    myTone: SelfFaceTone = SelfFaceTone()
+    myTone: SelfFaceTone = SelfFaceTone(),
+    myFaceKey: String? = entry.look?.faceKey
 ): SelfFaceTone? {
+    if (isMine) {
+        val key = myFaceKey ?: return null
+        return if (RunkkAvatarArt.isDefaultKey(key)) {
+            SelfFaceTone(key, myTone.runningAmount, includesDefaultFace = true)
+        } else {
+            null
+        }
+    }
     val look = entry.look ?: return null
     val faceKey = look.faceKey ?: return null
-    return when {
-        !isMine -> SelfFaceTone(faceKey, look.runAmount, includesDefaultFace = true)
-        RunkkAvatarArt.isDefaultKey(faceKey) -> SelfFaceTone(faceKey, myTone.runningAmount, includesDefaultFace = true)
-        else -> null
-    }
+    return SelfFaceTone(faceKey, look.runAmount, includesDefaultFace = true)
 }
 
 /** 랭킹 줄 모습 → 전신 정지 그림 칸 모습(원시값, S15P31A207-300). */
@@ -523,10 +537,17 @@ internal fun stillLookOf(look: RunnerLook): AvatarStillSubject.Look = AvatarStil
 
 /**
  * 내 순위(하단 탭 바로 위에 고정, 랭킹 v3): 바이올렛 카드에 순위·얼굴·「나」와 배지·바로 위 순위까지 남은 거리 막대·내 거리.
- * 1위이거나 남은 거리를 모르면 막대 줄을 그리지 않는다. 범위·기간을 바꿔 순위가 바뀌면 알린다.
+ * 1위이거나 남은 거리를 모르면 막대 줄을 그리지 않는다. 범위·기간을 바꿔 순위가 바뀌면 알린다. 얼굴은 홈 아바타와 같은 내 얼굴
+ * ([myFace], 읽는 중이면 빈 자리, 모르면 성별 기본 머리)이다(PM 2026-11-15).
  */
 @Composable
-internal fun RankingMineCard(mine: Ranking.Entry, gapToNext: Distance?, rankAbove: Int, modifier: Modifier = Modifier) {
+internal fun RankingMineCard(
+    mine: Ranking.Entry,
+    gapToNext: Distance?,
+    rankAbove: Int,
+    myFace: RankingFace?,
+    modifier: Modifier = Modifier
+) {
     val me = stringResource(R.string.record_ranking_me)
     val gap = gapToNext?.takeIf { mine.rank > 1 }
     val gapText = gap?.let { stringResource(R.string.record_ranking_gap, rankAbove, RunkkFormat.kmShort(it)) }
@@ -552,16 +573,21 @@ internal fun RankingMineCard(mine: Ranking.Entry, gapToNext: Distance?, rankAbov
             color = RunkkColors.OnSecondary,
             maxLines = 1
         )
-        RunkkAvatar(
-            faceKey = null,
-            expression = AvatarExpression.FACE,
-            modifier = Modifier
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(RunkkColors.RunimalTile)
-                .border(2.dp, RunkkColors.OnSecondary, CircleShape),
-            character = LocalAvatarCharacter.current
-        )
+        val faceKey = myFace?.faceKey
+        WithRankingFaceTone(rankingFaceTone(mine, isMine = true, LocalSelfFaceTone.current, myFaceKey = faceKey)) {
+            RunkkAvatar(
+                faceKey = faceKey,
+                expression = AvatarExpression.FACE,
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(RunkkColors.RunimalTile)
+                    .border(2.dp, RunkkColors.OnSecondary, CircleShape),
+                faceLayers = myFace?.faceLayers.orEmpty(),
+                character = LocalAvatarCharacter.current,
+                isFaceLoading = myFace?.isLoading == true
+            )
+        }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(me, style = RunkkTextStyles.text(15, FontWeight.Bold), color = RunkkColors.OnSecondary)

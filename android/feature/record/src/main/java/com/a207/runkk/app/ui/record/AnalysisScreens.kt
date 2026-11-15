@@ -344,6 +344,7 @@ fun RankingScreen(
                 mine,
                 ranking.gapToNext,
                 rankAbove(ranking.entries, mine),
+                state.myFace,
                 Modifier
                     .align(Alignment.BottomCenter)
                     .padding(start = 16.dp, end = 16.dp, bottom = RUNKK_BOTTOM_BAR_RISE + 8.dp)
@@ -361,7 +362,7 @@ private fun RankingBody(state: RankingUiState, ranking: Ranking, onFaceShown: (S
         return
     }
     RankingTop3Card(podium, ranking.mine, state.period)
-    RankingListCard(podium.rest, ranking.mine, state.faces, onFaceShown)
+    RankingListCard(podium.rest, ranking.mine, state.faces, state.myFace, onFaceShown)
 }
 
 /** 고정한 내 순위 카드에 가리지 않게 목록 아래에 비워 둘 높이와, 카드 뒤 아래 흐림 높이. */
