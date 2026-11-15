@@ -12,7 +12,7 @@ internal class StageFloorPainter(override val intrinsicSize: Size) : Painter() {
     override fun DrawScope.onDraw() = Unit
 
     companion object {
-        /** 배경 그림 규격(design-oo 05-30 4.3, [임시:D-성-136]). 390×420 칸이면 바닥선 342dp, 아트보드 378dp다([임시:D-성-134]). */
+        /** 배경 그림 규격(design-oo 05-30 4.3, D-768). 390×420 칸이면 바닥선 342dp, 아트보드 378dp다(D-766). */
         val BACKDROP_SPEC = StageFloorPainter(Size(1080f, 1200f))
     }
 }

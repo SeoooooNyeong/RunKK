@@ -49,7 +49,7 @@ import kotlin.math.roundToInt
 
 /**
  * 요약 탭(G-14·G-33): 최근 10회 변화(계약 v1.2 8절), 주간 러닝 기록, 최근 10회 평균, 러닝 코멘트(FR-066). 빈도는 주간만 보인다(주간/월간
- * 토글 없음, [임시:D-성-17]). 코멘트가 없으면 "코멘트 준비 중", 출처는 표시하지 않는다.
+ * 토글 없음, D-649). 코멘트가 없으면 "코멘트 준비 중", 출처는 표시하지 않는다.
  */
 @Composable
 internal fun SummaryTab(state: RunBodyUiState, actions: RunBodyActions) {
@@ -259,7 +259,7 @@ private fun SameHeartRateRow(change: Int?) {
     )
 }
 
-/** 주간 러닝 빈도(회/주). 서버 runsPerMonth는 계약에 남아 있으나 읽지 않는다([임시:D-성-17]). */
+/** 주간 러닝 빈도(회/주). 서버 runsPerMonth는 계약에 남아 있으나 읽지 않는다(D-649). */
 @Composable
 private fun FrequencyRow(recent: RunBodyTrend.Window, previous: RunBodyTrend.Window?) {
     val label = stringResource(R.string.record_runbody_trend_weekly)
@@ -321,7 +321,7 @@ private fun TrendRow(icon: ImageVector, label: String, value: String, note: Stri
 
 /**
  * 나의 러닝 유형(피그마 바탕 accent container, 모서리 16): 흰 원(안쪽 2) 안 러니멀 그림 44 + 이름. 피그마는 얼굴 그림이지만 러니멀 그림을
- * 그대로 쓴다(사용자 결정 B2, [임시:D-성-18]).
+ * 그대로 쓴다(사용자 결정 B2, D-650).
  */
 @Composable
 private fun RunimalTypeBox(type: String) {

@@ -5,14 +5,14 @@ import com.a207.runkk.app.core.model.FaceLayer
 
 /**
  * 얼굴 만들기(피그마 AV-7 1안) 상태. 단계는 [phase]이고, 보낸 사진([photo], 이미 줄인 JPEG)은 사진 확인·만드는 중·실패 화면에 보인다
- * (design-oo 05-30 [임시:D-성-119]).
+ * (design-oo 05-30 D-751).
  */
 data class AvatarSetupUiState(
     val isLoading: Boolean = true,
     val phase: SetupPhase = SetupPhase.CHOOSE,
     /** 오늘 셀카 아바타를 만들 수 있는가(하루 1회, FR-157). 모르면 참으로 두고 서버가 거부한다. */
     val canCreateSelfie: Boolean = true,
-    /** 「기본 얼굴」 칸을 골랐는가([임시:D-성-187]). 지금 얼굴이 기본 캐릭터면 고른 채 연다. */
+    /** 「기본 얼굴」 칸을 골랐는가(D-819). 지금 얼굴이 기본 캐릭터면 고른 채 연다. */
     val isDefaultSelected: Boolean = false,
     /** 지금 얼굴 키(미리보기, 「기본 얼굴」을 고르지 않았을 때). */
     val faceKey: String? = null,

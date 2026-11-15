@@ -170,7 +170,7 @@ class ChatRoomScreenTest {
     }
 
     @Test
-    fun `W5 반응 알약을 길게 누르면 그 종류로 반응한 사람 시트를 열고, 메뉴에 체크 반응이 있다(D-성-24)`() {
+    fun `W5 반응 알약을 길게 누르면 그 종류로 반응한 사람 시트를 열고, 메뉴에 체크 반응이 있다(D-656)`() {
         show(ChatUiState(messages = listOf(chatMessage(101, reactions = mapOf(ReactionKind.CHECK to 2)))))
         compose.onNodeWithContentDescription("체크 2개").performSemanticsAction(SemanticsActions.OnLongClick)
         openMenu("m101")

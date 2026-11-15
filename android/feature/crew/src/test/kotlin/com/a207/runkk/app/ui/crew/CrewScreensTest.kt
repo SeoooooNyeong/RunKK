@@ -181,7 +181,7 @@ class CrewScreensTest {
     }
 
     @Test
-    fun `초대 코드 - 너무 많이 틀리면 칸 아래 같은 자리에 시도 제한 안내를 보인다(DV-성-1)`() {
+    fun `초대 코드 - 너무 많이 틀리면 칸 아래 같은 자리에 시도 제한 안내를 보인다(DV-1)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 InviteSheetContent(InviteSheetState(code = "ZZZZZZ", step = InviteStep.LIMITED), CrewFindActions())
@@ -261,7 +261,7 @@ class CrewScreensTest {
         compose.onNodeWithText("게시판").assertDoesNotExist()
         compose.onNodeWithText("크루런").performClick()
         compose.onNodeWithText("채팅").performClick()
-        assertEquals(listOf("SCHEDULE", "CHAT"), calls, "채팅도 탭이다(D-성-21)")
+        assertEquals(listOf("SCHEDULE", "CHAT"), calls, "채팅도 탭이다(D-653)")
     }
 
     @Test
@@ -758,7 +758,7 @@ class CrewScreenshotTest {
     }
 
     @Test
-    fun `지난 크루런 상세는 참석자 줄 오른쪽에 달린 거리를 보이고 달리지 않았으면 비운다(F-11d, FR-성-8, DV-성-2)`() {
+    fun `지난 크루런 상세는 참석자 줄 오른쪽에 달린 거리를 보이고 달리지 않았으면 비운다(F-11d, FR-329, DV-2)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewRunDetailScreen(

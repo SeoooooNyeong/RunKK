@@ -32,7 +32,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 대결 측정 화면의 내 아바타 칸(design-oo 05-30 7절, [임시:D-성-121], [임시:D-성-122], D-856): RUNNING이고 움직이는 중이면 RUN,
+ * 대결 측정 화면의 내 아바타 칸(design-oo 05-30 7절, D-753, D-754, D-856): RUNNING이고 움직이는 중이면 RUN,
  * 거리가 3초 늘지 않거나(멈춤) 페이스를 모르거나 마감(CLOSING) 등 그 밖은 STAND다. 달리기 빠르기는 자유런과 같이 현재 페이스에
  * 비례하고(runMotionSpeed), 진행 방향 원값을 넘기며 내 칸만 88dp다(상대 그림은 그대로). 리뷰 PL12-A1.
  */

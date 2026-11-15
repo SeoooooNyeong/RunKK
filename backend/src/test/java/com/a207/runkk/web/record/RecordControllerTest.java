@@ -399,7 +399,7 @@ class RecordControllerTest extends WebTestSupport {
 
     @Test
     @DisplayName(
-            "DF-성-20 재집계(0시·운영자 재계산)가 끝나면 상위 줄 모습을 조회와 같은 키로 미리 저장한다: 재집계 뒤 바꾼 모습이 아니라 재집계"
+            "DF-089 재집계(0시·운영자 재계산)가 끝나면 상위 줄 모습을 조회와 같은 키로 미리 저장한다: 재집계 뒤 바꾼 모습이 아니라 재집계"
                     + " 때 모습을 DB를 다시 읽지 않고 준다")
     void ranking_lookPrefilledAtRebuild() throws Exception {
         ensureLookItems();

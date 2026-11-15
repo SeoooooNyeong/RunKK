@@ -46,7 +46,7 @@ import timber.log.Timber
 const val AVATAR_LOADING_TAG = "avatar_loading"
 
 /**
- * 아바타 무대의 틀(design-oo 05-30 4절, [임시:D-성-107], [임시:D-성-108]): 배경 그림 → 바닥 그림자 → 아트보드 상자 → [overlay] 순으로
+ * 아바타 무대의 틀(design-oo 05-30 4절, D-739, D-740): 배경 그림 → 바닥 그림자 → 아트보드 상자 → [overlay] 순으로
  * 겹친다. 칸 크기는 부르는 쪽이 고정한다(이 틀은 받은 최대 크기를 칸으로 본다).
  *
  * - [backdrop]은 아래 가운데 정렬로 잘라 채운다(`ContentScale.Crop`, `Alignment.BottomCenter`). 바닥선 = 칸 아래 − 0.18 × 그려진
@@ -54,7 +54,7 @@ const val AVATAR_LOADING_TAG = "avatar_loading"
  * - [backdropSize]가 null이면 배경 없는 칸(러닝 중 지도 마커)이다: 바닥선 94%, 아트보드 1.17 × 칸 높이(칸 아래로 넘친 발 아래 빈 자리는
  *   잘린다).
  * - 그림자는 앱이 그린다: 타원 0.24A × 0.048A, 중심 = 칸 가운데 바닥선, 검정 라이트 18% / 다크 24%([darkTheme]), 흐림 4dp
- *   ([임시:D-성-132]). riv 안의 그림자는 숨겨 두었다.
+ *   (D-764). riv 안의 그림자는 숨겨 두었다.
  * - [artboard]는 아트보드 상자(너비 0.8A, 높이 A, 발끝 줄이 바닥선) 안에 그린다. Rive 뷰나 앞 단계 그림을 `fillMaxSize`로 넣는다.
  *   계산 결과([AvatarStageLayout], px)를 함께 받는다.
  */
@@ -110,11 +110,11 @@ fun AvatarStageFrame(
  * 내 Rive 아바타 무대(홈·내 러너·꾸미기·해금 팝업·러닝 중 칸이 함께 쓰는 「배경 + 바닥선 + 그림자 + Rive + 로딩」 상자,
  * design-oo 05-30 2절·3절·4절). [AvatarStageFrame] 위에 [RunkkRiveAvatar]와 [AvatarLoadingPlaceholder]를 얹는다.
  *
- * - [look]이 null이면(아직 준비 중) 배경과 그림자만 깔고 로딩 표시를 보인다(빈 칸 0프레임, [임시:NFR-성-4]).
+ * - [look]이 null이면(아직 준비 중) 배경과 그림자만 깔고 로딩 표시를 보인다(빈 칸 0프레임, NFR-061).
  * - 로딩 표시([showLoading]): 첫 그림이 100ms 안에 보이면 그리지 않고, 아니면 가운데 원형 표시(32dp, 선 3dp, [loadingColor])를 보이다가
- *   그림이 보이면 200ms 페이드로 거둔다([임시:D-성-106]). 러닝 중 칸은 false.
+ *   그림이 보이면 200ms 페이드로 거둔다(D-738). 러닝 중 칸은 false.
  * - [mirrored]: 달리기([motion] = RUN)일 때만 좌우로 뒤집는다. 뒤집기 전후 몸 위치 차이가 칸 너비 3%를 넘으면 그만큼 옮긴다
- *   ([AvatarStageLayout.mirrorShift], [임시:D-성-133]). 그림자·기준점(칸 아래 가운데)은 그대로다.
+ *   ([AvatarStageLayout.mirrorShift], D-765). 그림자·기준점(칸 아래 가운데)은 그대로다.
  * - [onError]: Rive를 그리지 못했다(네이티브 없음, 자산 실패). 로딩 표시를 거둔다. 부르는 쪽이 성별 기본 그림으로 바꾼다
  *   ([AvatarStageFrame]에 앞 단계 그림을 넣으면 같은 바닥선에 선다).
  * - 디버그 로그 `AvatarStage shown=<ms> ready=<ms>`(SystemClock.uptimeMillis)로 표시 시간을 잰다(앱은 디버그 빌드에서만 기록).
@@ -182,7 +182,7 @@ fun RiveAvatarStage(
 }
 
 /**
- * 아바타 로딩 표시([임시:D-성-106]). [isReady]가 false로 100ms 넘게 이어지면 원형 진행 표시(지름 32dp, 선 3dp, [color])를 보이고,
+ * 아바타 로딩 표시(D-738). [isReady]가 false로 100ms 넘게 이어지면 원형 진행 표시(지름 32dp, 선 3dp, [color])를 보이고,
  * true가 되면 200ms 페이드로 거둔다. 100ms 안에 true가 되면 아예 그리지 않는다(깜박임 방지). 칸 가운데에 놓는다.
  */
 @Composable
@@ -232,7 +232,7 @@ internal fun AvatarLoadingPlaceholder(
     }
 }
 
-/** 로딩 표시 수치([임시:D-성-106]): 100ms 뒤에 보이고, 200ms 페이드, 지름 32dp, 선 3dp. */
+/** 로딩 표시 수치(D-738): 100ms 뒤에 보이고, 200ms 페이드, 지름 32dp, 선 3dp. */
 private const val LOADING_SHOW_DELAY_MILLIS = 100L
 private const val LOADING_FADE_MILLIS = 200
 private const val LOADING_SIZE_DP = 32

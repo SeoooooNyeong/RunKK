@@ -192,7 +192,7 @@ class ColorContrastTest {
     }
 
     @Test
-    fun `S15P31A207-292 중립색 토큰은 두 벌 모두 녹색 기운이 없는 무채색이다 (D-성-93)`() {
+    fun `S15P31A207-292 중립색 토큰은 두 벌 모두 녹색 기운이 없는 무채색이다 (D-725)`() {
         val greenish =
             listOf("light" to RunkkColors.light, "dark" to RunkkColors.dark).flatMap { (name, colors) ->
                 val tokens = tokensOf(colors) + ("scrim" to colors.scrim) + ("imageScrim" to colors.imageScrim)

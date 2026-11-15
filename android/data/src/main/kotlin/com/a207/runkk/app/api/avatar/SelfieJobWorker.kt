@@ -11,7 +11,7 @@ import dagger.hilt.components.SingletonComponent
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
- * 셀카 작업을 화면 밖에서 끝까지 따라간다(design-oo 05-30 6.1, [임시:D-성-117]). 한 번의 실행은 [SelfieJobPoller.poll]이고, 실행 시간을
+ * 셀카 작업을 화면 밖에서 끝까지 따라간다(design-oo 05-30 6.1, D-749). 한 번의 실행은 [SelfieJobPoller.poll]이고, 실행 시간을
  * 다 쓰면 같은 작업을 뒤에 다시 건다. 시스템이 멈추면(제약 상실, 시간 제한) WorkManager가 다시 걸고, 총 상한은 접수 시각 기준이다.
  *
  * 의존은 Hilt EntryPoint로 받는다(UploadWorker 선례, D-61: HiltWorkerFactory를 쓰려면 Application의 WorkManager 설정을 바꿔야 한다).
@@ -47,7 +47,7 @@ internal class SelfieJobWorker(context: Context, params: WorkerParameters) : Cor
         const val KEY_JOB = "jobId"
         private const val TAG = "SelfieJobWorker"
 
-        /** 예외로 끝난 실행을 몇 번까지 백오프로 다시 걸지(이 횟수째 실패에서 멈춘다, [임시:D-성-159]). */
+        /** 예외로 끝난 실행을 몇 번까지 백오프로 다시 걸지(이 횟수째 실패에서 멈춘다, D-791). */
         const val MAX_EXCEPTION_ATTEMPTS = 3
 
         /** 예외로 끝난 실행의 결과: [MAX_EXCEPTION_ATTEMPTS]번째 전까지는 백오프 재시도, 그 뒤에는 멈춘다. */

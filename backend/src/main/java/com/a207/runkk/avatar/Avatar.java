@@ -112,7 +112,7 @@ public class Avatar {
         this.skinTone = SkinTone.DAYTIME;
     }
 
-    /** 얼굴 없음, 기본 몸(4단계, [임시:D-성-179]), 낮 톤, 착용 없음. */
+    /** 얼굴 없음, 기본 몸(4단계, D-811), 낮 톤, 착용 없음. */
     public static Avatar create(long memberId) {
         return new Avatar(memberId);
     }

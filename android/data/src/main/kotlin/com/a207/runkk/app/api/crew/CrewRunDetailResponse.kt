@@ -30,7 +30,7 @@ internal data class CrewRunDetailResponse(
 ) {
     /**
      * 참석자. memberId는 탈퇴했으면 null, shownGender는 MALE·FEMALE이거나 null. distanceMeters는 마친 크루런에서 달린 거리(결과 화면과 같은
-     * 규칙: 연결 기록 → 끝낸 값), 마치지 않았거나 달리지 않았으면 null(DV-성-2).
+     * 규칙: 연결 기록 → 끝낸 값), 마치지 않았거나 달리지 않았으면 null(DV-2).
      */
     @Serializable
     data class Attendee(

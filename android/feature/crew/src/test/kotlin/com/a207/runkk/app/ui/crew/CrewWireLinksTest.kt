@@ -92,7 +92,7 @@ class CrewWireLinksScreensTest {
     }
 
     @Test
-    fun `탭 줄의 채팅 칸은 채팅 탭을 고르고, 채팅 탭은 목록 밖 칸에 채팅 내용을 그린다(D-성-21)`() {
+    fun `탭 줄의 채팅 칸은 채팅 탭을 고르고, 채팅 탭은 목록 밖 칸에 채팅 내용을 그린다(D-653)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(home(CrewTab.RACE), CrewHomeActions(onTab = { calls += it.name }))

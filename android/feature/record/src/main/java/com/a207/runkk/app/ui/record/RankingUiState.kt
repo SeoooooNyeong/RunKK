@@ -25,13 +25,13 @@ data class RankingUiState(
 }
 
 /**
- * 받을 얼굴 키인가([임시:AR-성-87]): 셀카 머리(`head:`)와 셀카 부위 얼굴(`selfie:`)만 받는다. 기본 캐릭터 키, 얼굴 없음, 앱이 모르는
+ * 받을 얼굴 키인가(AR-87): 셀카 머리(`head:`)와 셀카 부위 얼굴(`selfie:`)만 받는다. 기본 캐릭터 키, 얼굴 없음, 앱이 모르는
  * 접두어는 받을 것이 없어 바로 성별 기본 얼굴이다. 뷰모델(받기)과 얼굴 원(받는 중 자리)이 이 판정 하나를 함께 쓴다.
  */
 internal fun isFetchableFace(faceKey: String?): Boolean =
     faceKey != null && (faceKey.startsWith(HEAD_PREFIX) || faceKey.startsWith(SELFIE_PREFIX))
 
-/** 그 얼굴을 받는 중인가: 받을 키인데 아직 [faces]에 없다. 받기에 실패한 키는 빈 층으로 들어 있어 기본 얼굴이다([임시:AR-성-88]). */
+/** 그 얼굴을 받는 중인가: 받을 키인데 아직 [faces]에 없다. 받기에 실패한 키는 빈 층으로 들어 있어 기본 얼굴이다(AR-88). */
 internal fun rankingFaceLoading(faceKey: String?, faces: Map<String, List<FaceLayer>>): Boolean =
     isFetchableFace(faceKey) && faceKey !in faces
 

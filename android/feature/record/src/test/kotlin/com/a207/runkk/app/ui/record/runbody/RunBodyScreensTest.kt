@@ -220,7 +220,7 @@ class RunBodyScreensTest {
                 )
             }
         }
-        // 피그마 "5.2km · 선택됨"은 가운뎃점 대신 메타 줄로 그리고 한 번에 읽는다([임시:D-성-10])
+        // 피그마 "5.2km · 선택됨"은 가운뎃점 대신 메타 줄로 그리고 한 번에 읽는다(D-642)
         compose.onNodeWithContentDescription("5.2km, 선택됨").assertIsSelected()
         compose.onNodeWithContentDescription("10.0km, 58:00").assertIsNotSelected()
         compose.onNodeWithContentDescription("10.0km, 58:00").performClick()
@@ -382,7 +382,7 @@ class RunBodyScreensTest {
         compose.onNodeWithText("2.1 → 2.8회").assertExists()
         compose.onNodeWithText("0.7회 늘었어요").assertExists()
         compose.onNodeWithText("출근도장 거북이").performScrollTo().assertExists()
-        // 피그마 G-14에는 토글이 없다([임시:D-성-17]). "월간"은 맨 위 탭 하나뿐이다
+        // 피그마 G-14에는 토글이 없다(D-649). "월간"은 맨 위 탭 하나뿐이다
         compose.onNodeWithText("주간").assertDoesNotExist()
         assertEquals(1, compose.onAllNodesWithText("월간").fetchSemanticsNodes().size)
         compose.onNodeWithText("월간 러닝 빈도").assertDoesNotExist()

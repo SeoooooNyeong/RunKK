@@ -83,7 +83,7 @@ class CrewMeetupGoalViewModelsTest {
     private val repo = FakeCrewRepository()
 
     @Test
-    fun `주간 목표 - 지난 3주를 race 세 번으로 읽고 1km 미만은 막고 정하면 닫는다(FR-138, D-성-32)`() {
+    fun `주간 목표 - 지난 3주를 race 세 번으로 읽고 1km 미만은 막고 정하면 닫는다(FR-138, D-664)`() {
         val vm = CrewGoalSetViewModel(repo, MutableClock()).also { it.bind(11) }
         assertEquals(LocalDate.of(2026, 10, 19), vm.state.value.weekStart)
         assertEquals(3, vm.state.value.pastWeeks.size)

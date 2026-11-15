@@ -315,7 +315,8 @@ class EventServiceTest {
 
     @Test
     @DisplayName(
-            "관리 설정 경곗값: 셀럽 ID 0, -1, null과 승리포인트 없음, -1은 거부하고 셀럽 ID 1, 승리포인트 0과 1은 받는다(TC-성-12~14)")
+            "관리 설정 경곗값: 셀럽 ID 0, -1, null과 승리포인트 없음, -1은 거부하고 셀럽 ID 1, 승리포인트 0과 1은"
+                    + " 받는다(TC-2612~TC-2614)")
     void admin_coachConfigBoundaries() {
         for (String config :
                 List.of(
@@ -348,7 +349,7 @@ class EventServiceTest {
     }
 
     @Test
-    @DisplayName("관리 설정 경곗값: 기준 거리 -1, 0, 없음은 거부하고 1은 받는다(TC-성-16)")
+    @DisplayName("관리 설정 경곗값: 기준 거리 -1, 0, 없음은 거부하고 1은 받는다(TC-2616)")
     void admin_runConfigBoundaries() {
         for (String config :
                 List.of(
@@ -373,7 +374,7 @@ class EventServiceTest {
     }
 
     @Test
-    @DisplayName("RUN_DISTANCE: 1,000m 정각과 1,001m는 응모 1, 999m는 0(응모기준거리 이상, TC-성-33)")
+    @DisplayName("RUN_DISTANCE: 1,000m 정각과 1,001m는 응모 1, 999m는 0(응모기준거리 이상, TC-2633)")
     void runEntry_countsExactlyMinimumDistance() {
         service.create(OPERATOR, run("beta-1km", START, END, 2));
         LocalDateTime at = LocalDateTime.of(2026, 11, 9, 7, 30);
@@ -388,7 +389,7 @@ class EventServiceTest {
     }
 
     @Test
-    @DisplayName("RUN_DISTANCE: 시작 정각과 종료 정각에 시작한 기록은 세고 종료 + 1초는 세지 않는다(양 끝 포함, TC-성-34)")
+    @DisplayName("RUN_DISTANCE: 시작 정각과 종료 정각에 시작한 기록은 세고 종료 + 1초는 세지 않는다(양 끝 포함, TC-2634)")
     void runEntry_includesBothEndsOfPeriod() {
         service.create(OPERATOR, run("beta-1km", START, END, 2));
         for (LocalDateTime startedAt : List.of(START, END, END.plusSeconds(1))) {

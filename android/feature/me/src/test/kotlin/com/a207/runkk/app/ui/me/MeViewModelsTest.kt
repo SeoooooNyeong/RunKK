@@ -147,7 +147,7 @@ class MeViewModelsTest {
     }
 
     @Test
-    fun `프로필 편집은 셀카 얼굴 층을 받는 동안 받는 중이고, 받거나 받지 못하면 끝난다(임시 D-성-190)`() = runTest {
+    fun `프로필 편집은 셀카 얼굴 층을 받는 동안 받는 중이고, 받거나 받지 못하면 끝난다(D-822)`() = runTest {
         account.profile = sampleProfile.copy(faceKey = "head:1:job-1")
         val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
         account.faceGate = gate

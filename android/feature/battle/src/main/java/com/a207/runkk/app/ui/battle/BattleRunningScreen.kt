@@ -584,7 +584,7 @@ private const val PAST_SELF_ALPHA = 0.5f
 /** 경로 마커 그림 칸(RouteCanvas·KakaoRunMap 기본 markerSize). 배치고사 「?」 원은 이 칸 안에 성사 화면과 같은 비율로 그린다. */
 private val MARKER_SIZE = 72.dp
 
-/** 내 Rive 아바타 칸(SlotKey.RUN_AVATAR가 있을 때, [임시:D-성-121]). 상대 그림 칸은 [MARKER_SIZE] 그대로다. */
+/** 내 Rive 아바타 칸(SlotKey.RUN_AVATAR가 있을 때, D-753). 상대 그림 칸은 [MARKER_SIZE] 그대로다. */
 private val MY_AVATAR_SLOT = 88.dp
 
 /** 셀프런·셀럽런 출발 전 카운트다운(3초, design-review.md M34). 고리 몫의 분모다. */

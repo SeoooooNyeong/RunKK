@@ -22,8 +22,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.transaction.PlatformTransactionManager;
 
 /**
- * 0시 재집계 뒤 개인 랭킹 상위 줄 모습 미리 채우기(RankingLookPrefill, [임시:DF-성-20], PM 2026-11-14). 조회와 같은 스냅숏 식별자로
- * 저장하고, 크루·빈 줄은 건너뛰며, 실패는 삼켜 재집계를 실패시키지 않는다(첫 조회 지연 채움이 안전망).
+ * 0시 재집계 뒤 개인 랭킹 상위 줄 모습 미리 채우기(RankingLookPrefill, DF-089, PM 2026-11-14). 조회와 같은 스냅숏 식별자로 저장하고,
+ * 크루·빈 줄은 건너뛰며, 실패는 삼켜 재집계를 실패시키지 않는다(첫 조회 지연 채움이 안전망).
  */
 @DisplayName("랭킹 재집계 뒤 줄 모습 미리 채우기")
 class RankingLookPrefillTest {

@@ -83,7 +83,7 @@ class RedisRunnerLookSnapshotStoreTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("AR-성-90 저장은 HSET과 만료를 스크립트 한 번으로 보낸다: 따로 부르는 만료가 없어 만료만 실패해 만료 없는 키가 남는 일이 없다")
+    @DisplayName("AR-90 저장은 HSET과 만료를 스크립트 한 번으로 보낸다: 따로 부르는 만료가 없어 만료만 실패해 만료 없는 키가 남는 일이 없다")
     void saveSetsFieldsAndExpiryAtomically() {
         StringRedisTemplate template = mock(StringRedisTemplate.class);
         RedisRunnerLookSnapshotStore atomic = new RedisRunnerLookSnapshotStore(template, json);
@@ -100,7 +100,7 @@ class RedisRunnerLookSnapshotStoreTest extends WebTestSupport {
     }
 
     @Test
-    @DisplayName("AR-성-90 만료 없이 남아 있던 키도 저장하면 만료가 걸리고, 이미 있던 필드는 지우지 않는다")
+    @DisplayName("AR-90 만료 없이 남아 있던 키도 저장하면 만료가 걸리고, 이미 있던 필드는 지우지 않는다")
     void saveAddsFieldsAndRefreshesExpiryOnExistingKey() {
         String snapshot = "PERSONAL:WEEKLY:" + UUID.randomUUID();
         String key = "ranking:look:" + snapshot;

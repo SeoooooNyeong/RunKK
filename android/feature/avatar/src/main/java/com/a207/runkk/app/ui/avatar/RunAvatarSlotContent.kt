@@ -26,18 +26,18 @@ import kotlinx.coroutines.delay
 /** 러닝 중 칸이 준비에 실패했을 때 그리는 지금 그림의 시험 표지. */
 internal const val RUN_AVATAR_FALLBACK_TAG = "run-avatar-fallback"
 
-/** 러닝 중 칸이 준비를 기다리는 최대 시간. 넘으면 지금 그림을 보인다(리뷰 U-11, [임시:D-성-181]). */
+/** 러닝 중 칸이 준비를 기다리는 최대 시간. 넘으면 지금 그림을 보인다(리뷰 U-11, D-813). */
 internal const val RUN_AVATAR_READY_TIMEOUT_MS = 8_000L
 
 /**
  * 러닝 중 아바타 칸 내용(SlotKey.RUN_AVATAR, design-oo 05-30 7절): 88dp 마커 칸을 채워 배경 없이 그림자와 Rive 아바타를 그린다.
  *
  * - 동작은 [LocalSlotAvatarPose]다(측정 중 RUN, 그 밖 STAND).
- * - 진행 방향 원값([LocalSlotAvatarFacingLeft])은 같은 방향이 2초 이어질 때만 바꾸고(rememberRunFacingLeft, [임시:D-성-133]) RUN일 때만
+ * - 진행 방향 원값([LocalSlotAvatarFacingLeft])은 같은 방향이 2초 이어질 때만 바꾸고(rememberRunFacingLeft, D-765) RUN일 때만
  *   좌우로 뒤집는다. 그림자·기준점(칸 아래 가운데)은 그대로다.
  * - 준비 전·첫 그림 전에는 칸 가운데 로딩 표시(AvatarLoadingPlaceholder, RiveAvatarStage가 그린다)를 보인다. 지금 그림
  *   (RunkkRunningFigure)은 준비 실패(MyAvatarState.Failed, Rive onError)일 때만 보여 기존 그림이 먼저 보였다가 바뀌지 않게 한다
- *   ([임시:D-성-181]). 준비가 [RUN_AVATAR_READY_TIMEOUT_MS] 넘게 끝나지 않아도 지금 그림을 보인다. 달리기 동작은
+ *   (D-813). 준비가 [RUN_AVATAR_READY_TIMEOUT_MS] 넘게 끝나지 않아도 지금 그림을 보인다. 달리기 동작은
  *   MyAvatarStore.warm이 미리 합성해 두어 대개 바로 보인다.
  * - 측정 화면은 준비를 기다리지 않는다. 칸에 들어올 때 앞 준비가 실패했으면 한 번 다시 시도한다.
  */

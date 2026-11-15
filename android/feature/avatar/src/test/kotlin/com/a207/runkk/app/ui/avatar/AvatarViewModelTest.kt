@@ -126,7 +126,7 @@ class FakeAvatars : AvatarRepository {
 
     override suspend fun pendingSelfieJobId(): String? = pendingJob
 
-    /** 기기에 남긴 마지막 셀카 실패(DV-성-10). */
+    /** 기기에 남긴 마지막 셀카 실패(DV-10). */
     var lastFailure: SelfieFailure? = null
 
     override suspend fun lastSelfieFailure(): SelfieFailure? = lastFailure
@@ -181,7 +181,7 @@ class FakeAvatars : AvatarRepository {
     /** 셀카 머리 응답(기본: 셀카 머리가 아님). */
     var headResult: Outcome<SelfieHead?> = Outcome.Success(null)
 
-    /** 얼굴 키별로 머리 응답을 붙잡아 두는 문([임시:AR-성-89] 동시 받기 시험). */
+    /** 얼굴 키별로 머리 응답을 붙잡아 두는 문(AR-89 동시 받기 시험). */
     val headGates = mutableMapOf<String, kotlinx.coroutines.CompletableDeferred<Unit>>()
 
     override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> {
@@ -302,7 +302,7 @@ class AvatarSetupViewModelTest {
         val s = vm().state.value
         assertEquals(SetupPhase.CHOOSE, s.phase)
         assertTrue(s.canCreateSelfie)
-        assertTrue(s.isDefaultSelected, "지금 얼굴이 기본 캐릭터(어느 값이든)면 「기본 얼굴」 칸을 고른 채 연다(D-성-187)")
+        assertTrue(s.isDefaultSelected, "지금 얼굴이 기본 캐릭터(어느 값이든)면 「기본 얼굴」 칸을 고른 채 연다(D-819)")
     }
 
     @Test
@@ -335,7 +335,7 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `만들기 시작 - 접수되면 사진을 남기고 워커에 따라가기를 맡겨 만드는 중이다(D-성-117, D-성-119)`() {
+    fun `만들기 시작 - 접수되면 사진을 남기고 워커에 따라가기를 맡겨 만드는 중이다(D-749, D-751)`() {
         val model = vm()
         val jpeg = byteArrayOf(9)
         model.onSelfie(jpeg)
@@ -476,7 +476,7 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `기본 얼굴에서 셀카가 만들어지면 기본 얼굴 칸 고름을 풀어 새 셀카를 기본 얼굴로 덮지 않는다(D-성-187, 리뷰 U-11)`() {
+    fun `기본 얼굴에서 셀카가 만들어지면 기본 얼굴 칸 고름을 풀어 새 셀카를 기본 얼굴로 덮지 않는다(D-819, 리뷰 U-11)`() {
         val model = vm()
         assertTrue(model.state.value.isDefaultSelected)
         model.onSelfie(byteArrayOf(1))
@@ -489,7 +489,7 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `만드는 중에도 기본 얼굴을 저장할 수 있고(서버에는 RABBIT) 따라가기를 멈추고 사진을 지운 뒤 돌아간다(FR-158, D-성-187)`() = runTest(main.dispatcher) {
+    fun `만드는 중에도 기본 얼굴을 저장할 수 있고(서버에는 RABBIT) 따라가기를 멈추고 사진을 지운 뒤 돌아간다(FR-158, D-819)`() = runTest(main.dispatcher) {
         val model = vm()
         model.onSelfie(byteArrayOf(1))
         model.onStart()
@@ -504,7 +504,7 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `화면이 보이는 동안 얼굴 만들기 화면 표시를 열고 안 보이면 닫는다(D-성-120)`() {
+    fun `화면이 보이는 동안 얼굴 만들기 화면 표시를 열고 안 보이면 닫는다(D-752)`() {
         val model = vm()
         model.onScreenVisible()
         assertTrue(presence.isVisible)
@@ -513,7 +513,7 @@ class AvatarSetupViewModelTest {
     }
 
     @Test
-    fun `화면이 보이면 기기에 남은 작업을 워커와 따로 한 번 직접 확인한다(임시 D-성-188)`() {
+    fun `화면이 보이면 기기에 남은 작업을 워커와 따로 한 번 직접 확인한다(D-820)`() {
         val model = vm()
         model.onScreenVisible()
         assertEquals(1, follower.calls.count { it == "check" })
@@ -579,7 +579,7 @@ class AvatarDecorateViewModelTest {
     }
 
     @Test
-    fun `저장은 바뀐 부위만 한 번에 보내고 홈 칸을 다시 준비한 뒤 닫는다(FR-161, D-성-104)`() {
+    fun `저장은 바뀐 부위만 한 번에 보내고 홈 칸을 다시 준비한 뒤 닫는다(FR-161, D-736)`() {
         val store = storeOf(repo, Gender.MALE).also { it.warm() }
         val model = AvatarViewModel(repo, headsOf(repo), store)
         val before = repo.calls.count { it == "runner" }
@@ -592,7 +592,7 @@ class AvatarDecorateViewModelTest {
     }
 
     @Test
-    fun `숨긴 모자 부위의 착용은 저장해도 그대로 둔다(보내지 않는다, D-성-183)`() {
+    fun `숨긴 모자 부위의 착용은 저장해도 그대로 둔다(보내지 않는다, D-815)`() {
         repo.avatarResult = Outcome.Success(avatar.copy(equipped = mapOf(ItemSlot.TOP to 1L, ItemSlot.HAT to 3L)))
         val model = AvatarViewModel(repo, headsOf(repo), storeOf(repo))
         model.onToggle(items[1])
@@ -650,7 +650,7 @@ class AvatarDecorateViewModelTest {
     }
 
     @Test
-    fun `셀카 결과 적용은 워커가 하므로 꾸미기는 결과를 받지 않는다(D-성-118)`() {
+    fun `셀카 결과 적용은 워커가 하므로 꾸미기는 결과를 받지 않는다(D-750)`() {
         repo.pendingJob = "job-1"
         vm()
         assertTrue(repo.calls.none { it.startsWith("finish:") || it.startsWith("job:") })

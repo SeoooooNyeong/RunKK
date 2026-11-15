@@ -172,7 +172,7 @@ def fill_base_gaps(work: Path) -> None:
         covered |= array[..., 3] > 0
     differs = np.abs(body_stand[..., :3].astype(int) - ref[..., :3].astype(int)).sum(axis=2) > 12
     gap = (ref[..., 3] > 0) & ~covered & (differs | (body_stand[..., 3] == 0))
-    # 승인 피부는 옷 레이어에 넣지 않는다(넣으면 러닝량 톤을 받지 않는 밝은 피부가 된다: 하의 칸 허벅지 DV-성-11, 상의 칸 소매 밑
+    # 승인 피부는 옷 레이어에 넣지 않는다(넣으면 러닝량 톤을 받지 않는 밝은 피부가 된다: 하의 칸 허벅지 DV-11, 상의 칸 소매 밑
     # 팔 안쪽 DV3-8). 그 피부는 맨몸 바탕이 승인 픽셀로 그린다(make_body). 피부가 아닌 승인 픽셀(소매 밑단 선, 몸통 옆 외곽선)은
     # 팔 칸이어도 넣는다: 빠지면 기본 의상에서 소매 밑단·옷 옆에 구멍(배경)이 점점이 비쳤다(실기기 3차 재확인).
     from outfit_pipeline.build import _skin_like

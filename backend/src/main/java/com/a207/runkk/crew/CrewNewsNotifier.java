@@ -20,8 +20,7 @@ public class CrewNewsNotifier {
     static final String CLOSING_TEXT = "투표 마감이 1시간 남았어요";
 
     /**
-     * 크루 공지 알림에 싣는 공지 본문 길이(코드 포인트). 앱에 공지를 볼 화면이 없어 알림함 줄과 푸시에서 내용을 읽는다(DV-성-14). 넘으면 자르고 「…」를
-     * 붙인다.
+     * 크루 공지 알림에 싣는 공지 본문 길이(코드 포인트). 앱에 공지를 볼 화면이 없어 알림함 줄과 푸시에서 내용을 읽는다(DV-14). 넘으면 자르고 「…」를 붙인다.
      */
     static final int NOTICE_PREVIEW = 200;
 

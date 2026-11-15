@@ -22,7 +22,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.scheduling.support.CronExpression;
 
-/** 반복 크루런 회차 작업(W6, S15P31A207-297): 고정 시계의 now로 generateDue만 부르고 실패를 삼킨다(D-성-26). */
+/** 반복 크루런 회차 작업(W6, S15P31A207-297): 고정 시계의 now로 generateDue만 부르고 실패를 삼킨다(D-658). */
 @DisplayName("반복 크루런 회차 작업(W6)")
 class CrewRunRepeatJobTest {
 
@@ -42,7 +42,7 @@ class CrewRunRepeatJobTest {
     }
 
     @Test
-    @DisplayName("D-성-26(코드 리뷰 M6): 매주 일요일 오전 9시(Asia/Seoul) cron 작업 하나를 건다")
+    @DisplayName("D-658(코드 리뷰 M6): 매주 일요일 오전 9시(Asia/Seoul) cron 작업 하나를 건다")
     void schedule() {
         CrewRunRepeatJob job = new CrewRunRepeatJob(mock(CrewRunRepeater.class), clock);
         ScheduledTaskRegistrar registrar = new ScheduledTaskRegistrar();

@@ -125,7 +125,7 @@ class ProgressNotificationTest {
     }
 
     @Test
-    fun `진행 알림 작은 아이콘은 런크크 단색 아이콘이다(F-15b, D-성-16)`() {
+    fun `진행 알림 작은 아이콘은 런크크 단색 아이콘이다(F-15b, D-648)`() {
         val running = ProgressNotice.CrewRun(Duration.ofSeconds(940), Distance(2_840), isPaused = false)
         val icon = OngoingProgressStyle(context).build(running).smallIcon
         assertEquals(com.a207.runkk.app.data.phone.R.drawable.ic_stat_runkk, icon.resId)

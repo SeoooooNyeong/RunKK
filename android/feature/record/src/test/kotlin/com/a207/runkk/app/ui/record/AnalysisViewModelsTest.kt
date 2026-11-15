@@ -244,7 +244,7 @@ class AnalysisViewModelsTest {
     }
 
     @Test
-    fun `모르는 접두어 얼굴 키는 받지 않고 받는 중도 아니라 성별 기본 얼굴이다(AR-성-87)`() {
+    fun `모르는 접두어 얼굴 키는 받지 않고 받는 중도 아니라 성별 기본 얼굴이다(AR-87)`() {
         val vm = RankingViewModel(records, clock)
 
         vm.onFaceShown("future:4:a")
@@ -258,7 +258,7 @@ class AnalysisViewModelsTest {
     }
 
     @Test
-    fun `얼굴 받기가 실패하면 기본 얼굴로 두고 다시 보일 때 다시 받는다, 받는 동안 같은 키는 거듭 받지 않는다(AR-성-88)`() {
+    fun `얼굴 받기가 실패하면 기본 얼굴로 두고 다시 보일 때 다시 받는다, 받는 동안 같은 키는 거듭 받지 않는다(AR-88)`() {
         val layers = listOf(
             com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EARS, byteArrayOf(1))
         )

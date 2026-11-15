@@ -1,8 +1,8 @@
 package com.a207.runkk.app.core.avatar
 
 /**
- * 의상 묶음 하나(assets/outfits/<assetKey>/, D-성-110). [maleTopSurface]는 상의만: 남자 서기 riv 입력 selected_top 값
- * (1 반팔·민소매, 2 긴소매, DR-성-1). [bodyOverrides]는 체형 1·2 전용 파일 이름(확장자 없이, D-성-111).
+ * 의상 묶음 하나(assets/outfits/<assetKey>/, D-742). [maleTopSurface]는 상의만: 남자 서기 riv 입력 selected_top 값
+ * (1 반팔·민소매, 2 긴소매, DR-1). [bodyOverrides]는 체형 1·2 전용 파일 이름(확장자 없이, D-743).
  * [shared]는 같은 내용이라 한 장을 함께 쓰는 파일(이름 → 실제 파일 이름, 확장자 없이. 예: male_run_arm → female_run_arm).
  */
 internal data class OutfitBundle(

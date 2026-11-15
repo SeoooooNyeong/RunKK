@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * 바닥 규격 계산(design-oo 05-30 4.4, [임시:D-성-107], [임시:DR-성-5], [임시:DR-성-6]). 검산 표 다섯 칸과 홈 칸(390x420,
- * [임시:D-성-134]), 지금 배경 그림(720x1440)을 그대로 셈한다. 발끝 줄(아트보드 위에서 80.4%)이 바닥선에 온다.
+ * 바닥 규격 계산(design-oo 05-30 4.4, D-739, DR-5, DR-6). 검산 표 다섯 칸과 홈 칸(390x420,
+ * D-766), 지금 배경 그림(720x1440)을 그대로 셈한다. 발끝 줄(아트보드 위에서 80.4%)이 바닥선에 온다.
  */
 class AvatarStageLayoutTest {
     @Test

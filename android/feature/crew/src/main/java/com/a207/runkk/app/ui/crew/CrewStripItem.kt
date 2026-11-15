@@ -2,7 +2,7 @@ package com.a207.runkk.app.ui.crew
 
 import androidx.annotation.StringRes
 
-/** 크루 홈 탭 줄의 칸(피그마 F-05·F-09): 레이스, 크루런, 채팅. 채팅도 탭 내용이다([임시:D-성-21]). */
+/** 크루 홈 탭 줄의 칸(피그마 F-05·F-09): 레이스, 크루런, 채팅. 채팅도 탭 내용이다(D-653). */
 internal enum class CrewStripItem(@StringRes val labelRes: Int, val tab: CrewTab) {
     RACE(R.string.crew_home_tab_race, CrewTab.RACE),
     SCHEDULE(R.string.crew_home_tab_crew_run, CrewTab.SCHEDULE),

@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 때 붙인다(S15P31A207-300). analysis → avatar 화살표를 만들지 않도록 web.crew의 크루원 얼굴처럼 표현 계층이 붙인다(D-46). look은
  * 그 스냅숏(종류·기간·집계 시각)에 고정해 같은 스냅숏을 보는 동안 모두가 같은 값을 읽고 요청마다 DB를 다시 읽지 않는다(PM 2026-11-14,
  * RunnerLookQuery.snapshotLooksOf). 재집계가 끝나면 RankingLookPrefill이 상위 줄 모습을 같은 키로 미리 저장하고, 조회 때 빠진
- * 회원만 채운다([임시:DF-성-20]).
+ * 회원만 채운다(DF-089).
  */
 @RestController
 @RequestMapping("/api/v1/rankings")
