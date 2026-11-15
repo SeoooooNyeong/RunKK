@@ -87,6 +87,7 @@ import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
+import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -401,11 +402,13 @@ private fun BattleRoute(state: BattleRunningUiState) {
     val isMoving = rememberIsMoving(state.myDistance) && state.isMeasuring && state.currentPace != null
     val frameMillis = runFrameMillis(state.currentPace)
     val isLeft = rememberHeadingLeft(route)
-    // 내 아바타 칸(design-oo 05-30 7절): 대결은 일시정지가 없어 RUNNING이면 RUN, 마감·카운트다운 등은 STAND. 칸이 있으면 내 칸만 88dp
-    val pose = if (state.phase == BattlePhase.RUNNING) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 내 아바타 칸(design-oo 05-30 7절, D-856): 자유런과 같이 RUNNING이어도 멈춰 있으면(거리가 3초 늘지 않음) STAND이고, 달리기 동작은
+    // 현재 페이스 빠르기로 돈다. 마감·카운트다운 등은 STAND. 칸이 있으면 내 칸만 88dp
+    val pose = if (state.phase == BattlePhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    val runSpeed = runMotionSpeed(state.currentPace)
     val myFigureSize = if (isSlotFilled(SlotKey.RUN_AVATAR)) MY_AVATAR_SLOT else MARKER_SIZE
     val myFigure: @Composable () -> Unit = {
-        RunAvatarSlot(pose, isLeft) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        RunAvatarSlot(pose, isLeft, runSpeed) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
     }
     val isTheirsMoving = rememberIsMoving(state.opponentDistance) && state.isMeasuring
     val mine = stringResource(R.string.battle_me)
@@ -480,6 +483,7 @@ private fun BattleRoute(state: BattleRunningUiState) {
         isTheirsMoving,
         isLeft,
         pose,
+        runSpeed,
         myFigureSize
     ) {
         listOfNotNull(
