@@ -1,4 +1,4 @@
-> [런크크 객체지향 분석·설계서](../design-oo.md) 목차 · 이전: [13-14-구현-지침-테스트-순서](13-14-구현-지침-테스트-순서.md) · 다음: [B-E-변경-이력-색인-가정](B-E-변경-이력-색인-가정.md)
+> [런크크 객체지향 분석·설계서](../design-oo.md) 목차 · 이전: [13-14-구현-지침-테스트-순서](13-14-구현-지침-테스트-순서.md) · 다음: [A-추적표b-v0.40](A-추적표b-v0.40.md)
 
 ## A. 추적표
 
@@ -349,3 +349,4 @@ FR 184건, 담당 클래스·연산이 없는 FR 0건. (v0.38: A.1 행은 FR-321
 | NFR-056 | 앱 ui.notification의 createEventWebView(WebSettings, shouldOverrideUrlLoading, shouldInterceptRequest 403), isExternalWebLink; 정적 페이지 외부 자원 없음(d824b2a2) | ui.notification | v0.38 신규: D-614 |
 | NFR-057 | nginx /events/ Cache-Control max-age=60; event의 Event, EventService(관리 API) | event, web.admin.event | v0.38 신규: D-603, D-604 |
 
+v0.40 병합의 새 요구 행(FR-322~FR-345, NFR-058~NFR-065)은 이 조각이 100KB에 가까워 [A-추적표b-v0.40](A-추적표b-v0.40.md)에 이어 적었다.
