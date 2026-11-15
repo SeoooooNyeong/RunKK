@@ -28,7 +28,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Test
 
 /**
- * 내 아바타 저장소(design-oo 05-30 [임시:D-성-103], [임시:D-성-104], 3절 상태도, 11절 3번): 입력을 한 곳에 모아 준비하고, 세대 번호로
+ * 내 아바타 저장소(design-oo 05-30 D-735, D-736, 3절 상태도, 11절 3번): 입력을 한 곳에 모아 준비하고, 세대 번호로
  * 늦게 온 앞 작업 결과를 버리며, 로그아웃(clear) 뒤에는 앞 회원 그림을 보이지 않는다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -83,7 +83,7 @@ class MyAvatarStoreTest {
     }
 
     @Test
-    fun `checkSelfie는 기기 작업을 직접 확인하고, 로그아웃 상태면 묻지 않는다(임시 D-성-188)`() = runTest {
+    fun `checkSelfie는 기기 작업을 직접 확인하고, 로그아웃 상태면 묻지 않는다(D-820)`() = runTest {
         val store = store()
         store.checkSelfie()
         runCurrent()
@@ -107,7 +107,7 @@ class MyAvatarStoreTest {
     @Test
     fun `warm은 따라가기를 이은 뒤 바로 한 번 직접 확인한다(서버에서 들여온 끝난 작업도 워커를 기다리지 않는다)`() = runTest {
         // 재설치·다른 기기 접수처럼 기기 ID 없이 서버 current로 들여온 작업은 앞 화면 확인이 들여오기 전에 끝나 워커만
-        // 남았다([임시:D-성-223]). 들여온 직후 같은 흐름에서 확인해야 「얼굴 만드는 중」이 남지 않는다.
+        // 남았다(D-855). 들여온 직후 같은 흐름에서 확인해야 「얼굴 만드는 중」이 남지 않는다.
         val order = mutableListOf<String>()
         val store = MyAvatarStore(
             avatars = repo,
@@ -145,7 +145,7 @@ class MyAvatarStoreTest {
     }
 
     @Test
-    fun `셀카 결과를 워커가 적용하면 화면이 없어도 다시 준비하고, 앞서 끝난 성공으로는 다시 읽지 않는다(DR-성-13)`() = runTest {
+    fun `셀카 결과를 워커가 적용하면 화면이 없어도 다시 준비하고, 앞서 끝난 성공으로는 다시 읽지 않는다(DR-13)`() = runTest {
         repo.base.progress.value = SelfieProgress.Succeeded("old", "head:7:old")
         val store = store()
         store.warm()
@@ -181,7 +181,7 @@ class MyAvatarStoreTest {
     }
 
     @Test
-    fun `성별을 알면 riv를 미리 읽고 세 입력을 모아 서기 모습을 미리 준비한 뒤 Ready이고 이어서 달리기도 준비한다(D-성-181)`() = runTest {
+    fun `성별을 알면 riv를 미리 읽고 세 입력을 모아 서기 모습을 미리 준비한 뒤 Ready이고 이어서 달리기도 준비한다(D-813)`() = runTest {
         val store = store()
         store.warm()
         gender.value = Gender.FEMALE
@@ -203,7 +203,7 @@ class MyAvatarStoreTest {
     }
 
     @Test
-    fun `달리기 동작 준비는 Ready를 늦추지 않는다(서기만 끝나면 Ready, D-성-181)`() = runTest {
+    fun `달리기 동작 준비는 Ready를 늦추지 않는다(서기만 끝나면 Ready, D-813)`() = runTest {
         val running = CompletableDeferred<Unit>()
         val store = MyAvatarStore(
             avatars = repo,

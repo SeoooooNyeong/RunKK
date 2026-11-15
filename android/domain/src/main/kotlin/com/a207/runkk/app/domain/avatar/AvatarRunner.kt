@@ -8,7 +8,7 @@ import com.a207.runkk.app.core.model.Distance
  *
  * @property bodyShape 서버 체형 4단계(STAGE1~4, FR-163)
  * @property typicalStartHour 피부톤 근거 대표 시각(시 0..23), 없으면 null
- * @property recentRunCount 오늘 포함 최근 7일 유효 러닝 수("최근 7일 n번 달렸어요", DV-성-13)
+ * @property recentRunCount 오늘 포함 최근 7일 유효 러닝 수("최근 7일 n번 달렸어요", DV-13)
  * @property recentDistance 같은 7일 유효 거리
  * @property restDaysBeforeDecline 쉬면 배가 나오기 시작하는 날 수(운영 기준값, 기본 4)
  */

@@ -30,8 +30,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * 로딩 표시 규칙([임시:D-성-106]: 100ms 안에 준비되면 그리지 않음, 아니면 지름 32dp 원형 표시, 준비되면 200ms 페이드), 바닥 배치
- * ([임시:D-성-107] 4.4: 아트보드 상자가 칸 안 계산 자리), 달리기 방향 유지([임시:D-성-133]: 같은 방향이 2초 이어질 때만 뒤집음).
+ * 로딩 표시 규칙(D-738: 100ms 안에 준비되면 그리지 않음, 아니면 지름 32dp 원형 표시, 준비되면 200ms 페이드), 바닥 배치
+ * (D-739 4.4: 아트보드 상자가 칸 안 계산 자리), 달리기 방향 유지(D-765: 같은 방향이 2초 이어질 때만 뒤집음).
  */
 // 칸 350x390dp가 화면 안에 들어가게 한다(Robolectric 기본 화면은 너비 320dp).
 @RunWith(RobolectricTestRunner::class)

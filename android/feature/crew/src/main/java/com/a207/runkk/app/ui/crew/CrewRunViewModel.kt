@@ -259,7 +259,7 @@ class CrewRunViewModel @Inject constructor(
     }
 
     /**
-     * 대기실에 들어온 참가자(나 포함)의 셀카 얼굴 부위 그림을 얼굴 키마다 한 번 받는다([임시:D-성-12], 결과 화면 readMateFaces와 같은
+     * 대기실에 들어온 참가자(나 포함)의 셀카 얼굴 부위 그림을 얼굴 키마다 한 번 받는다(D-644, 결과 화면 readMateFaces와 같은
      * 방식). 미입장은 점선 원이라 받지 않고, 들어오면 다음 대기실 응답에서 받는다. 받지 못하거나 빈 목록이면 얼굴 키로 기본 얼굴을 그린다.
      */
     private fun readLobbyFaces(lobby: Lobby) {

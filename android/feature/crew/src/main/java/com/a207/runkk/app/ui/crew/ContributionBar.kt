@@ -37,7 +37,7 @@ internal fun rankingBars(entries: List<CrewRanking.Entry>, meName: String?): Lis
 }
 
 /**
- * 목표 진행률(정수 %). 100을 넘으면 넘는 값 그대로 보인다(105% 등, 사용자 결정 C2·[임시:D-성-25]). 막대 채움은 [goalFillFraction]이
+ * 목표 진행률(정수 %). 100을 넘으면 넘는 값 그대로 보인다(105% 등, 사용자 결정 C2·D-657). 막대 채움은 [goalFillFraction]이
  * 1에서 자른다. 목표가 없으면 null.
  */
 internal fun goalProgressLabel(race: RaceStatus): Int? = race.goalProgressPercent?.coerceAtLeast(0)

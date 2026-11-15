@@ -93,7 +93,7 @@ class CrewScheduleScenarioTest {
                 .postId();
     }
 
-    /** at이 든 주(월~일)의 일요일 오전 9시: 반복 작업(D-성-26, 코드 리뷰 M6)이 다음 주 회차를 만드는 시각. */
+    /** at이 든 주(월~일)의 일요일 오전 9시: 반복 작업(D-658, 코드 리뷰 M6)이 다음 주 회차를 만드는 시각. */
     private static LocalDateTime sundayOf(LocalDateTime at) {
         return at.toLocalDate().with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY)).atTime(9, 0);
     }
@@ -155,7 +155,7 @@ class CrewScheduleScenarioTest {
     }
 
     @Test
-    @DisplayName("마친 크루런 상세(DV-성-2): 참석자마다 달린 거리(끝낸 값), 달리지 않았거나 값이 없으면 null, 마치기 전엔 모두 null")
+    @DisplayName("마친 크루런 상세(DV-2): 참석자마다 달린 거리(끝낸 값), 달리지 않았거나 값이 없으면 null, 마치기 전엔 모두 null")
     void detail_finishedAttendeeDistances() {
         Crew3 c = crew();
         long id = write(c.l(), c.id(), tomorrow(), CrewRunRepeat.NONE);
@@ -219,7 +219,7 @@ class CrewScheduleScenarioTest {
     }
 
     @Test
-    @DisplayName("반복(D-성-26): 그 주 일요일 오전 9시에 +7일 회차 하나를 만들고(멱등), 바꾼 제목이 복사된다")
+    @DisplayName("반복(D-658): 그 주 일요일 오전 9시에 +7일 회차 하나를 만들고(멱등), 바꾼 제목이 복사된다")
     void weeklyGeneration() {
         Crew3 c = crew();
         LocalDateTime at = tomorrow();

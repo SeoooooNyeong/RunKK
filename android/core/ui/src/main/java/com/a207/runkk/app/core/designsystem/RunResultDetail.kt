@@ -63,7 +63,7 @@ import kotlinx.coroutines.delay
  * [crewLine]은 크루 반영 줄이고 CREW가 닫혀 있으면(1차 배포) 그리지 않는다. 가장 빠른 1km·소모 열량·날씨는 싣지 않는다(D-26).
  * [expression]은 뛰어오르는 아바타가 기본이고(D84, 피그마 B-6·C-8) 패배 상세만 부르는 쪽이 SAD를 넘긴다.
  * [faceKey]·[faceLayers]는 내 아바타 얼굴(크루런·대결 결과 상세 F-16b)이고 아바타 꾸미기가 열려 있을 때 그린다.
- * [dateItems]가 있으면 날짜 줄을 가운뎃점 글자([dateLine]) 대신 아이콘 메타 줄(MetaRow, [임시:D-성-10])로 그린다.
+ * [dateItems]가 있으면 날짜 줄을 가운뎃점 글자([dateLine]) 대신 아이콘 메타 줄(MetaRow, D-642)로 그린다.
  */
 @Immutable
 data class RunResultDetailState(
@@ -89,7 +89,7 @@ data class RunResultDetailState(
  * 러닝 결과 상세(D-282, 피그마 B-6): 큰 거리와 날짜 줄, 기본 아바타, "시간"(아래 휴식)·"평균 페이스"·"평균 심박" 세 칸,
  * 구간 페이스(1km 막대)와 심박 구간(워치), 하이라이트 줄(★ 신기록, ♥ 크루 반영(CREW), + 리워드 합계).
  * 화면 제목·버튼은 부르는 쪽(ui.crew 크루런 결과 F-16b, ui.battle 결과 2쪽)이 그린다. 값은 피그마 F-16b(S15P31A207-293,
- * [임시:D-성-15]): 블록 사이 14, 큰 거리 64 Bold + km 22, 테두리 1 divider 카드(통계 모서리 24, 구간 26).
+ * D-647): 블록 사이 14, 큰 거리 64 Bold + km 22, 테두리 1 divider 카드(통계 모서리 24, 구간 26).
  * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(칸 [Modifier], 못 그릴 때의 지금 그림). 대결 결과는 내 전신 정지 그림을 넘긴다
  * (S15P31A207-300). 없으면 지금 그림이다.
  */

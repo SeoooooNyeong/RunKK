@@ -230,7 +230,7 @@ private fun CancelledBody(state: CrewRunUiState, actions: CrewRunActions) {
 
 /**
  * 칩 「● 크루런 5km」(피그마 RunKK / Run / 러닝 라벨, F-14·F-15): 높이 28, 좌우 10, 모서리 14, surfaceHigh 바탕, 12 Regular 본문색.
- * 가운뎃점은 쓰지 않는다. 거리가 없는 크루런은 「제한 없음」([임시:D-성-28]), 거리를 아직 모르면(대기실·결과 응답 전) 「크루런」만이다.
+ * 가운뎃점은 쓰지 않는다. 거리가 없는 크루런은 「제한 없음」(D-660), 거리를 아직 모르면(대기실·결과 응답 전) 「크루런」만이다.
  */
 @Composable
 private fun CrewRunChip(distance: Distance?, isDistanceKnown: Boolean) {
@@ -441,7 +441,7 @@ private fun ParticipantCell(p: Lobby.Participant, faces: Map<String, List<FaceLa
 }
 
 /**
- * 참가자 원 66([임시:D-성-12]): 들어온 사람은 surfaceHigh 원 안에 아바타 얼굴(셀카 부위 그림, 없으면 얼굴 키·표시 성별의 기본 얼굴),
+ * 참가자 원 66(D-644): 들어온 사람은 surfaceHigh 원 안에 아바타 얼굴(셀카 부위 그림, 없으면 얼굴 키·표시 성별의 기본 얼굴),
  * 아직 안 들어온 자리는 바탕 없는 점선 원(외곽선색)이다. 장식이라 읽기 정보는 칸이 붙인다.
  */
 @Composable
@@ -581,7 +581,7 @@ private fun RunStats(mine: CrewRunProgress) {
 /**
  * 지도와 아바타(F-15): 경로 끝에 내 아바타(58), 아직 끝내지 않은 크루원(45)은 내 경로 위 거리 차만큼 떨어진 지점(OpponentMarkerPlacer, 대결
  * 상대와 같은 방식). 크루원 캐릭터는 그 크루원의 표시 성별(대기실 응답, D-327)이다. 피그마처럼 이름표는 없고, 멈춘 사람만 「이름 멈춤」
- * 표시를 단다(각자 실제 상태, [임시:D-성-13]). Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다. 모서리·테두리는 없다.
+ * 표시를 단다(각자 실제 상태, D-645). Kakao 지도를 띄울 수 없으면 격자 바탕 경로선이다. 모서리·테두리는 없다.
  */
 @Composable
 private fun CrewRunMap(state: CrewRunUiState) {
@@ -770,7 +770,7 @@ private val CHIP_AREA = 64.dp
 private val BIG_DISTANCE_HEIGHT = 82.dp
 private val MY_FIGURE = 58.dp
 
-/** 내 Rive 아바타 칸(SlotKey.RUN_AVATAR가 있을 때, [임시:D-성-121]). 크루원 그림 칸은 [MY_FIGURE] 그대로다. */
+/** 내 Rive 아바타 칸(SlotKey.RUN_AVATAR가 있을 때, D-753). 크루원 그림 칸은 [MY_FIGURE] 그대로다. */
 private val MY_AVATAR_SLOT = 88.dp
 private val MATE_FIGURE = 45.dp
 private val MAP_FADE = 24.dp

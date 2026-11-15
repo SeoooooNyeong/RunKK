@@ -17,7 +17,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * 셀카 작업 조회(design-oo 05-30 6.1, [임시:D-성-117]~[임시:D-성-120]). [SelfieJobWorker] 한 번의 실행이 부른다. 화면 ViewModel에
+ * 셀카 작업 조회(design-oo 05-30 6.1, D-749~D-752). [SelfieJobWorker] 한 번의 실행이 부른다. 화면 ViewModel에
  * 있던 폴링을 옮겼다.
  *
  * - 간격 [POLL_DELAYS](3·3·5·8·10·15초, 마지막 값을 되풀이)로 조회한다. 한 번의 실행은 [RUN_LIMIT_MILLIS](8분)까지이고, 넘으면
@@ -26,10 +26,10 @@ import kotlinx.coroutines.sync.withLock
  *   시각(기기 사본)에서 센다. 넘으면 실패(사유 [SelfieProgress.TIMEOUT])다.
  * - 성공(SUCCEEDED)이면 결과를 받아 내 얼굴을 바꾸고(finishSelfie, 하루 1회 차감은 서버가 한다) 보낸 사진을 지운 뒤 알림을 낸다.
  * - 실패(FAILED)·업무 거부(Rejected)는 바로 실패, 서버 실패(5xx 등 Server)는 [MAX_FAILURES]번 이어지면 실패다. 연결 실패(오프라인)는
- *   세지 않고 총 상한까지 이어 간다(리뷰 R2-10, [임시:D-성-159]). 실패는 하루 횟수에 세지 않는다(FR-155, 서버 규칙). 실패해도 사진을
+ *   세지 않고 총 상한까지 이어 간다(리뷰 R2-10, D-791). 실패는 하루 횟수에 세지 않는다(FR-155, 서버 규칙). 실패해도 사진을
  *   지우고 알림을 낸다. 그사이 다른 작업이 기기에 남았으면 뒷정리·알림을 하지 않는다.
  * - 기기에 남긴 작업이 [jobId]가 아니면(새로 접수, 기본 캐릭터 고름, 로그아웃) 아무것도 하지 않고 끝낸다.
- * - 앞 화면 직접 확인([checkNow], [임시:D-성-188]): 워커가 네트워크 제약(인터넷 확인된 연결)을 못 채워 돌지 않아도, 홈·얼굴 만들기가
+ * - 앞 화면 직접 확인([checkNow], D-820): 워커가 네트워크 제약(인터넷 확인된 연결)을 못 채워 돌지 않아도, 홈·얼굴 만들기가
  *   보일 때 기기 작업을 한 번 조회해 같은 규칙으로 끝낸다. 워커와 겹치지 않게 조회 한 번([checkOnce])은 프로세스에 하나만 돌고(이 객체는
  *   싱글턴), 기다리는 사이 다른 쪽이 끝냈으면(기기 작업이 바뀜) 묻지 않는다.
  */
@@ -84,7 +84,7 @@ internal class SelfieJobPoller(
     }
 
     /**
-     * 앞 화면이 기기 작업을 한 번 직접 확인한다([임시:D-성-188]). 끝났으면(성공·실패·거부) 워커와 같이 결과를 처리하고, 만드는 중·연결
+     * 앞 화면이 기기 작업을 한 번 직접 확인한다(D-820). 끝났으면(성공·실패·거부) 워커와 같이 결과를 처리하고, 만드는 중·연결
      * 실패·서버 실패는 그대로 둔다(상한·연속 실패는 워커가 센다). 기기에 남긴 작업이 없으면 묻지 않는다.
      */
     suspend fun checkNow() {
@@ -138,7 +138,7 @@ internal class SelfieJobPoller(
     private suspend fun fail(jobId: String, code: String?): SelfiePollEnd {
         val current = store.load()
         if (current != null && current != jobId) return SelfiePollEnd.FINISHED
-        // 그사이 아바타 조회가 이 작업의 머리를 보고 성공으로 정리했으면 실패로 덮지 않는다([임시:D-성-188]).
+        // 그사이 아바타 조회가 이 작업의 머리를 보고 성공으로 정리했으면 실패로 덮지 않는다(D-820).
         val shown = progress.progress.value
         if (shown is SelfieProgress.Succeeded && shown.jobId == jobId) return SelfiePollEnd.FINISHED
         store.clear()

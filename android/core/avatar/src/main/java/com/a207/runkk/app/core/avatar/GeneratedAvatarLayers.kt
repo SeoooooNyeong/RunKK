@@ -70,7 +70,7 @@ internal object GeneratedAvatarLayers {
                 val sideTarget = HeadTarget.side(gender)
                 val frontPlacement = HeadPlacement.fit(centerX, chin, crown, frontTarget)
                 val front = frontPlacement.matrix()
-                // 볼 레이어는 눈 아래부터 넓힌다(눈이 턱 가까이 있는 셀카에서 눈을 덮지 않게, [임시:D-성-192]).
+                // 볼 레이어는 눈 아래부터 넓힌다(눈이 턱 가까이 있는 셀카에서 눈을 덮지 않게, D-824).
                 val eyeBottom = frontPlacement.mapY(eyeRects.maxOf { it.bottom }.toFloat())
                 val side = HeadPlacement.fit(sideCenterX, sideChin, sideCrown, sideTarget).matrix()
                 val normalizedFace = transform(backed, front).also(bitmaps::add)
@@ -347,7 +347,7 @@ internal object GeneratedAvatarLayers {
 
     /**
      * 체형 [stage]의 볼 레이어: 턱 위 145px 띠를 턱 중심 기준으로 가로 3.5%씩 넓힌다. 띠 위 끝은 [top](정면은 눈 아래 끝)보다 위로 가지
-     * 않는다. 볼 레이어는 눈 위에 그려지므로 눈을 덮으면 눈 없는 얼굴(쌍꺼풀 선만)이 보여 눈이 감긴 선처럼 보였다([임시:D-성-192]).
+     * 않는다. 볼 레이어는 눈 위에 그려지므로 눈을 덮으면 눈 없는 얼굴(쌍꺼풀 선만)이 보여 눈이 감긴 선처럼 보였다(D-824).
      * 내장 머리의 볼 레이어도 눈 아래 끝에서 시작한다.
      */
     private fun fullness(face: Bitmap, centerX: Float, chin: Float, stage: Int, top: Float = 0f): ByteArray {

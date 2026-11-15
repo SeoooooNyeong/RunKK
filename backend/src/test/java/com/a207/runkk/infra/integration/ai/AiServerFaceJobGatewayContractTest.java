@@ -112,7 +112,7 @@ class AiServerFaceJobGatewayContractTest {
 
     @Test
     void explicitRetryAttemptIsSentAsQuery() {
-        // DV-성-9: 명시적 재시도는 ai가 새 멱등 키를 쓰도록 attempt를 붙인다(1이면 붙이지 않는다)
+        // DV-9: 명시적 재시도는 ai가 새 멱등 키를 쓰도록 attempt를 붙인다(1이면 붙이지 않는다)
         Fixture f = fixture();
         f.server
                 .expect(requestTo("http://ai:8000/users/42/faces/jobs?attempt=2"))

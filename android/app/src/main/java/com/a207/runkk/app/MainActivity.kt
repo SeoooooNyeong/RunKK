@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
     private var pendingBattleReturn by mutableStateOf<Long?>(null)
 
     /**
-     * 셀카 결과 알림을 눌러 열어 얼굴 만들기 화면으로 가야 하는가([임시:D-성-146], [임시:D-성-160]). 인텐트에서 한 번 읽고 비운다.
+     * 셀카 결과 알림을 눌러 열어 얼굴 만들기 화면으로 가야 하는가(D-778, D-792). 인텐트에서 한 번 읽고 비운다.
      * 로그인 뒤 홈이 맨 위가 되면 얼굴 만들기를 열고 비운다.
      */
     private var pendingSelfieResult by mutableStateOf(false)

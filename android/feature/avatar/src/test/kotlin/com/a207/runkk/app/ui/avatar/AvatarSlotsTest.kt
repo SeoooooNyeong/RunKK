@@ -39,9 +39,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 칸 채움과 미리 준비(design-oo 05-30 [임시:D-성-100], [임시:D-성-104], [임시:D-성-106], 7절): ui.avatar가 홈·러닝 중 칸을 채우고, Overlay가
+ * 칸 채움과 미리 준비(design-oo 05-30 D-732, D-736, D-738, 7절): ui.avatar가 홈·러닝 중 칸을 채우고, Overlay가
  * 로그인한 동안 저장소를 데워 두며 로그아웃(Overlay가 빠짐)에 비운다. 준비 전에는 홈·러닝 중 칸 모두 가운데 로딩 표시를 보이고, 러닝 중
- * 칸은 준비에 실패했을 때만 지금 달리기 그림을 보인다([임시:D-성-181]).
+ * 칸은 준비에 실패했을 때만 지금 달리기 그림을 보인다(D-813).
  */
 @RunWith(RobolectricTestRunner::class)
 class AvatarSlotsTest {
@@ -113,7 +113,7 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `러닝 중 칸은 준비 전이면 지금 달리기 그림 대신 가운데 로딩 표시를 보인다(D-성-181)`() {
+    fun `러닝 중 칸은 준비 전이면 지금 달리기 그림 대신 가운데 로딩 표시를 보인다(D-813)`() {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -130,7 +130,7 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `러닝 중 칸은 준비가 8초 넘게 끝나지 않으면(성별을 모름 등) 로딩 표시 대신 지금 달리기 그림을 보인다(D-성-181, 리뷰 U-11)`() {
+    fun `러닝 중 칸은 준비가 8초 넘게 끝나지 않으면(성별을 모름 등) 로딩 표시 대신 지금 달리기 그림을 보인다(D-813, 리뷰 U-11)`() {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
@@ -146,7 +146,7 @@ class AvatarSlotsTest {
     }
 
     @Test
-    fun `러닝 중 칸은 준비에 실패하면 로딩 표시를 거두고 지금 달리기 그림을 보인다(D-성-181)`() {
+    fun `러닝 중 칸은 준비에 실패하면 로딩 표시를 거두고 지금 달리기 그림을 보인다(D-813)`() {
         repo.avatarResult = Outcome.Failure(AppError.Network)
         gender.value = Gender.MALE
         compose.setContent {

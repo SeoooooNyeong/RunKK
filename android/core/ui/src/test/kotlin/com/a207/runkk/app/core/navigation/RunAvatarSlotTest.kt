@@ -26,7 +26,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 러닝 중 아바타 칸(design-oo 05-30 [임시:D-성-100]·[임시:D-성-101]·[임시:D-성-121]·[임시:D-성-133]): 측정 화면은 칸에 동작과 진행 방향
+ * 러닝 중 아바타 칸(design-oo 05-30 D-732·D-733·D-753·D-765): 측정 화면은 칸에 동작과 진행 방향
  * 원값만 넘기고, 칸이 비면 지금 그림을 그린다. 내 마커만 88dp로 키울 수 있다.
  */
 @RunWith(RobolectricTestRunner::class)

@@ -51,7 +51,7 @@ _STATUS_BY_REASON: dict[FaceFailureReason, int] = {
 # Node userId 허용 문자(명세 2장). 벗어나면 Node를 부르지 않고 422 INVALID_REQUEST
 UserId = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,128}$")]
 BodyId = Annotated[str, Path(pattern=r"^[A-Za-z0-9_-]{1,64}$")]
-# 명시적 재시도 번호(DV-성-9). 1이면 예전과 같은 멱등 키다. api SelfieJobService의 시도 상한과 맞춘다
+# 명시적 재시도 번호(DV-9). 1이면 예전과 같은 멱등 키다. api SelfieJobService의 시도 상한과 맞춘다
 Attempt = Annotated[int, Query(ge=1, le=20)]
 _UPSTREAM_RESPONSES: dict[int | str, dict[str, Any]] = {
     status.HTTP_503_SERVICE_UNAVAILABLE: {"description": "UPSTREAM_FAILED"},

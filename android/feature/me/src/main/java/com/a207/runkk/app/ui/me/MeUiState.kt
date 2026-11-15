@@ -10,7 +10,7 @@ data class MeUiState(
     val profile: Profile? = null,
     /** 프로필 칸 안의 셀카 얼굴 부위 그림. 비어 있으면 기본 얼굴·자리 그림. */
     val faceLayers: List<FaceLayer> = emptyList(),
-    /** 얼굴 층을 받는 중이다. 기본 머리를 먼저 보였다가 내 얼굴로 바꾸지 않고 중립 자리를 둔다([임시:D-성-190]). */
+    /** 얼굴 층을 받는 중이다. 기본 머리를 먼저 보였다가 내 얼굴로 바꾸지 않고 중립 자리를 둔다(D-822). */
     val isFaceLoading: Boolean = false,
     val error: UiText? = null,
     /**

@@ -32,11 +32,11 @@ import kotlinx.coroutines.withContext
 /**
  * 얼굴 만들기(FR-155~FR-158, 피그마 AV-7 1안, design-oo 05-30 6절): 셀카·앨범 사진을 줄여(SelfieEncoder) 사진 확인 화면에 크게 보이고,
  * 동의 뒤 「만들기 시작」으로 보낸다. 접수되면 보낸 사진을 기기에 남기고([PendingSelfiePhoto]) 따라가기를 워커에 맡긴다
- * ([SelfieJobFollower], [임시:D-성-117]). 화면은 조회하지 않고 [AvatarRepository.selfieProgress]를 단계로 바꾼다: 만드는 중이면
+ * ([SelfieJobFollower], D-749). 화면은 조회하지 않고 [AvatarRepository.selfieProgress]를 단계로 바꾼다: 만드는 중이면
  * 「나중에 다시 확인해도 돼요」와 보낸 사진, 끝나면 새 얼굴, 실패면 사유. 화면을 떠나도 워커가 이어 가고 결과를 알림으로 알린다.
- * 화면이 보이는 동안은 [SelfieScreenPresence]를 열어 둔다(알림 대신 화면이 바뀐다, [임시:D-성-120]).
+ * 화면이 보이는 동안은 [SelfieScreenPresence]를 열어 둔다(알림 대신 화면이 바뀐다, D-752).
  * 「기본 얼굴」 칸 하나를 고르면 chooseDefault로 기본 캐릭터 RABBIT을 저장한다(만드는 중에도 된다, FR-158: 서버가 진행 중 요청을 지운다).
- * 서버 기본 캐릭터 값은 어느 것이든 기본 얼굴로 본다([임시:D-성-187]).
+ * 서버 기본 캐릭터 값은 어느 것이든 기본 얼굴로 본다(D-819).
  */
 @HiltViewModel
 class AvatarSetupViewModel internal constructor(
@@ -152,7 +152,7 @@ class AvatarSetupViewModel internal constructor(
 
     /**
      * 화면이 보인다(ON_START, 앱이 다시 앞으로 온 때 포함). 보이는 동안 결과는 알림 대신 화면으로 알린다. 남은 작업을 워커와 따로 한 번
-     * 직접 확인한다(워커가 네트워크 제약으로 돌지 못해도 끝난 결과를 받는다, [임시:D-성-188]).
+     * 직접 확인한다(워커가 네트워크 제약으로 돌지 못해도 끝난 결과를 받는다, D-820).
      */
     fun onScreenVisible() {
         presence.opened()
@@ -200,7 +200,7 @@ class AvatarSetupViewModel internal constructor(
         return true
     }
 
-    /** 「기본 얼굴」 칸을 눌렀다([임시:D-성-187]). */
+    /** 「기본 얼굴」 칸을 눌렀다(D-819). */
     fun onDefaultFaceSelected() = _state.update { it.copy(isDefaultSelected = true, error = null) }
 
     /** 찍거나 고른 사진을 읽지 못했을 때. */
@@ -295,7 +295,7 @@ class AvatarSetupViewModel internal constructor(
     fun onUseDefault() = onRetry()
 
     /**
-     * 기본 얼굴 저장: 서버에 기본 캐릭터 [DefaultCharacter.DEFAULT](RABBIT)를 저장한다([임시:D-성-187]). 셀카 얼굴을 만드는 중에도 저장할 수
+     * 기본 얼굴 저장: 서버에 기본 캐릭터 [DefaultCharacter.DEFAULT](RABBIT)를 저장한다(D-819). 셀카 얼굴을 만드는 중에도 저장할 수
      * 있다(FR-158): 서버는 그 뒤 늦게 끝난 셀카 결과를 기본 캐릭터 위에 반영하지 않으므로 따라가기를 멈추고 보낸 사진을 지운다.
      */
     fun onConfirmDefaultFace() {

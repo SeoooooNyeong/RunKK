@@ -105,7 +105,7 @@ def request_id(user_id: str, image: bytes, attempt: int = 1) -> str:
 
     시도 1은 예전 키와 같다(같은 요청 재전송은 Node가 같은 작업을 돌려준다).
     사용자가 명시적으로 다시 시도하면 api가 시도 번호를 올려 새 작업을 만든다
-    (DV-성-9: 결과가 불명확하게 실패한 작업을 같은 사진으로 다시 만들 수 없었다).
+    (DV-9: 결과가 불명확하게 실패한 작업을 같은 사진으로 다시 만들 수 없었다).
     """
     digest = hashlib.sha256(image).hexdigest()
     name = f"{user_id}:{digest}" if attempt == 1 else f"{user_id}:{digest}:{attempt}"

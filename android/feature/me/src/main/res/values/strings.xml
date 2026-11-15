@@ -183,7 +183,7 @@
     <string name="me_alert_group_battle_description">매칭 성사, 대결 결과</string>
     <string name="me_alert_group_plan">러닝 계획</string>
     <string name="me_alert_group_avatar">아바타</string>
-    <!-- 체형 변화는 2차 배포에서 뺐다([임시:D-성-218]). 서버 BODY_SHAPE_RELEASED를 켜면 "체형 변화, "를 앞에 되돌린다. -->
+    <!-- 체형 변화는 2차 배포에서 뺐다(D-850). 서버 BODY_SHAPE_RELEASED를 켜면 "체형 변화, "를 앞에 되돌린다. -->
     <string name="me_alert_group_avatar_description">랜드마크 배경 해금</string>
     <string name="me_alert_group_crew_news">크루 소식</string>
     <string name="me_alert_group_crew_news_description">가입 신청 결과, 운영진 지정, 신고 처리 결과</string>

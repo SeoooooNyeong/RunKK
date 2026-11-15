@@ -11,7 +11,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.a207.runkk.app.domain.avatar.Shop
 
 /**
- * 상점 그림 규칙(design-oo 05-30 5절 [임시:D-성-113], 피그마 AV-9 썸네일 규격): 아이템 그림 키(서버 assetKey) `k`의 그림은 drawable
+ * 상점 그림 규칙(design-oo 05-30 5절 D-745, 피그마 AV-9 썸네일 규격): 아이템 그림 키(서버 assetKey) `k`의 그림은 drawable
  * `shop_k`(투명 바탕 512×512, 무손실 WebP)다. 지금 그림은 피그마 상점 제안의 원본 16종(V62 시드)을 줄인 임시본이고, 의상 파이프라인이
  * 같은 이름으로 만들면 바꿔 넣는다. 표에 없는 키는 null이고 칸은 부위 실루엣([ItemArt])을 그린다.
  */

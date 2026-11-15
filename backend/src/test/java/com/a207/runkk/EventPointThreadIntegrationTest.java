@@ -49,8 +49,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * 이벤트 응모와 코치 승리 포인트를 실 PostgreSQL에서 확인한다(S15P31A207-275, test/이벤트-성 9절 보강 1~3). 하루 적립 합계 sumOn이 이벤트
- * 포인트를 빼는지(TC-성-42), battle 셀럽 첫 승리 질의가 진 판, 포기, 보류, 다른 종류를 빼고 판정일시 양 끝을 넣는지(TC-성-28~30), 같은 회원의
- * 셀럽런 판정이 동시에 커밋돼도 500P와 지급 이력이 한 번인지(TC-성-51).
+ * 포인트를 빼는지(TC-2642), battle 셀럽 첫 승리 질의가 진 판, 포기, 보류, 다른 종류를 빼고 판정일시 양 끝을 넣는지(TC-2628~TC-2630), 같은
+ * 회원의 셀럽런 판정이 동시에 커밋돼도 500P와 지급 이력이 한 번인지(TC-2651).
  */
 @Testcontainers(disabledWithoutDocker = true)
 @ExtendWith(OutputCaptureExtension.class)
@@ -126,7 +126,7 @@ class EventPointThreadIntegrationTest {
     }
 
     @Test
-    @DisplayName("sumOn: 같은 날 EVENT 500P는 하루 적립 합계에 들지 않고 다른 사유만 더한다(TC-성-42)")
+    @DisplayName("sumOn: 같은 날 EVENT 500P는 하루 적립 합계에 들지 않고 다른 사유만 더한다(TC-2642)")
     void sumOn_excludesEventPoints() {
         long m = member();
         LocalDateTime day = LocalDateTime.of(2026, 11, 9, 9, 0);
@@ -143,7 +143,7 @@ class EventPointThreadIntegrationTest {
     @Test
     @DisplayName(
             "셀럽 첫 승리 질의: 진 판, 포기, 보류, 셀프런과 다른 종류 승리는 빼고 판정일시 양 끝은 넣으며 같은 셀럽 여러 승리는 가장 이른"
-                    + " 것(TC-성-28~30)")
+                    + " 것(TC-2628~TC-2630)")
     void celebrityWinQueries_filterAndBoundaries() {
         long m = 9_100_000 + ThreadLocalRandom.current().nextLong(100_000);
         long other = m + 1;
@@ -203,7 +203,7 @@ class EventPointThreadIntegrationTest {
     }
 
     @Test
-    @DisplayName("같은 회원의 셀럽런 판정 네 건이 동시에 커밋돼도 500P 적립과 지급 이력은 한 번이고 실패 로그가 없다(TC-성-51)")
+    @DisplayName("같은 회원의 셀럽런 판정 네 건이 동시에 커밋돼도 500P 적립과 지급 이력은 한 번이고 실패 로그가 없다(TC-2651)")
     void concurrentJudgements_grantOnce(CapturedOutput output) throws Exception {
         long m = member();
         long celebrity = celebrityBase();

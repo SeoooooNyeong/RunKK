@@ -32,7 +32,7 @@ class RiveAvatarSceneTest {
     }
 
     @Test
-    fun `남자 정면 의상 표면은 긴소매 상의 3~6은 2, 기본을 포함한 그 밖은 1이고 하의·신발은 늘 1이다(D-성-115)`() {
+    fun `남자 정면 의상 표면은 긴소매 상의 3~6은 2, 기본을 포함한 그 밖은 1이고 하의·신발은 늘 1이다(D-747)`() {
         assertEquals(listOf(1f, 1f, 1f), (0..2).map { RiveAvatarScene.topSurface(AvatarGender.MALE, it) })
         assertEquals(listOf(2f, 2f, 2f, 2f), (3..6).map { RiveAvatarScene.topSurface(AvatarGender.MALE, it) })
         assertEquals(1f, RiveAvatarScene.topSurface(AvatarGender.FEMALE, 4))

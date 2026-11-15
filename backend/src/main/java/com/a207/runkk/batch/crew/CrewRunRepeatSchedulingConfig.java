@@ -12,7 +12,7 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 import org.springframework.scheduling.support.CronTrigger;
 
 /**
- * 크루런 매주 반복 회차 작업의 실행 시각(W6, D-성-26): 기본 매주 일요일 오전 9시, Asia/Seoul(새 회차 모집 알림이 한밤에 가지 않게, 코드 리뷰 M6).
+ * 크루런 매주 반복 회차 작업의 실행 시각(W6, D-658): 기본 매주 일요일 오전 9시, Asia/Seoul(새 회차 모집 알림이 한밤에 가지 않게, 코드 리뷰 M6).
  * CrewSchedulingConfig와 따로 둬 다른 crew 작업 설정을 건드리지 않는다.
  */
 @Configuration

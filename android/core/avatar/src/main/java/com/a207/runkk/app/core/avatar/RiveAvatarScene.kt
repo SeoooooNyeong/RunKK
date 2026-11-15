@@ -33,9 +33,9 @@ internal object RiveAvatarScene {
     fun bodyShapeValue(shape: AvatarBodyShape): Float = shape.stage * BODY_SHAPE_STEP
 
     /**
-     * 남자 서기 상의 표면(selected_top): 실제로 그리는 상의 묶음의 maleTopSurface(1 반팔·민소매, 2 긴소매, DR-성-1). 고른 묶음에
+     * 남자 서기 상의 표면(selected_top): 실제로 그리는 상의 묶음의 maleTopSurface(1 반팔·민소매, 2 긴소매, DR-1). 고른 묶음에
      * 그 체형의 남자 서기 파일이 없으면 합성이 base_top을 그리므로([OutfitLayerComposer.layers]) 표면도 base_top 값이다. 기본 상의
-     * (0 = base_top)도 묶음이라 riv 내장 기본 옷 몸(표면 0)은 쓰지 않는다(D-성-115). 목록이 없으면 기존 표(0·1·2 → 1, 3..6 → 2).
+     * (0 = base_top)도 묶음이라 riv 내장 기본 옷 몸(표면 0)은 쓰지 않는다(D-747). 목록이 없으면 기존 표(0·1·2 → 1, 3..6 → 2).
      * 여자 서기 riv에는 이 입력이 없다. 파일 확인은 [OutfitLibrary]의 캐시(합성 스레드가 먼저 읽은 결과)를 쓴다.
      */
     fun topSurface(gender: AvatarGender, top: Int, shape: AvatarBodyShape = AvatarBodyShape.BASE): Float {
@@ -47,11 +47,11 @@ internal object RiveAvatarScene {
         return (drawn?.maleTopSurface ?: 1).toFloat()
     }
 
-    /** 남자 서기 하의 표면: 모든 묶음이 아틀라스 표면 1(D-성-115). */
+    /** 남자 서기 하의 표면: 모든 묶음이 아틀라스 표면 1(D-747). */
     @Suppress("UNUSED_PARAMETER")
     fun bottomSurface(bottom: Int): Float = 1f
 
-    /** 남자 서기 신발 표면: 모든 묶음이 아틀라스 표면 1(D-성-115). */
+    /** 남자 서기 신발 표면: 모든 묶음이 아틀라스 표면 1(D-747). */
     @Suppress("UNUSED_PARAMETER")
     fun shoesSurface(shoes: Int): Float = 1f
 }

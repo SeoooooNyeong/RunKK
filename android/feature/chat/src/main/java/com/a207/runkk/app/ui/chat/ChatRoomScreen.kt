@@ -52,7 +52,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 /**
- * 크루 홈의 채팅 탭(피그마 F-09, 6.1.14, [임시:D-성-21]). 상단 바가 없다(크루 머리글과 탭 줄은 크루 홈이 그린다). [isVisible](채팅 탭
+ * 크루 홈의 채팅 탭(피그마 F-09, 6.1.14, D-653). 상단 바가 없다(크루 머리글과 탭 줄은 크루 홈이 그린다). [isVisible](채팅 탭
  * 선택)이 참이고 화면이 보이는 동안(onStart~onStop)만 방을 열어 둔다: 보이면 ChatViewModel.onShown, 사라지면 onHidden(D-103, D-130).
  * 목록 위 끝에 닿거나 「이전 메시지 더 보기」를 누르면 이전 쪽을 읽는다.
  */

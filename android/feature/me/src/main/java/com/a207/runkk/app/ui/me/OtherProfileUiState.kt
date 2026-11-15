@@ -11,7 +11,7 @@ data class OtherProfileUiState(
     val isLoading: Boolean = true,
     val profile: Profile? = null,
     val faceLayers: List<FaceLayer> = emptyList(),
-    /** 얼굴 층을 받는 중이다(기본 머리 대신 중립 자리를 둔다, [임시:D-성-190]). */
+    /** 얼굴 층을 받는 중이다(기본 머리 대신 중립 자리를 둔다, D-822). */
     val isFaceLoading: Boolean = false,
     val error: UiText? = null
 ) {

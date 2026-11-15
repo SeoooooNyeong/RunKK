@@ -9,19 +9,19 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * 그 성별의 Rive 파일(서기·달리기, 최대 5MB)과 내장 머리 PNG를 IO에서 읽어 프로세스에 둔다([임시:D-성-104]). 이미 읽었으면 바로
+ * 그 성별의 Rive 파일(서기·달리기, 최대 5MB)과 내장 머리 PNG를 IO에서 읽어 프로세스에 둔다(D-736). 이미 읽었으면 바로
  * 끝난다. 화면을 그리기 전에(로그인된 앱 시작, 로그인·가입 뒤 홈 진입) 부르면 칸이 처음 그려질 때 파일을 기다리지 않는다.
  *
  * 읽지 못하면 그 예외(IOException, 형식이 틀린 내장 PNG면 IllegalArgumentException)를 던진다. 네이티브 Rive 초기화는 하지 않는다
- * (첫 render에서 한다, [임시:D-성-84]).
+ * (첫 render에서 한다, D-716).
  */
 suspend fun preloadRiveAvatar(context: Context, gender: AvatarGender) {
     RiveAvatarAssets.shared.load(context, gender)
 }
 
 /**
- * 그 모습의 합성 텍스처(피부톤·의상·체형·머리)를 Rive 뷰 없이 미리 만들어 프로세스 공용 캐시에 넣는다([임시:D-성-105],
- * [임시:DR-성-10]). 뒤에 같은 모습으로 [RunkkRiveAvatar]·[RiveAvatarStage]를 그리면 합성을 다시 하지 않고 첫 텍스처를 바로 넣는다.
+ * 그 모습의 합성 텍스처(피부톤·의상·체형·머리)를 Rive 뷰 없이 미리 만들어 프로세스 공용 캐시에 넣는다(D-737,
+ * DR-10). 뒤에 같은 모습으로 [RunkkRiveAvatar]·[RiveAvatarStage]를 그리면 합성을 다시 하지 않고 첫 텍스처를 바로 넣는다.
  *
  * - 기본은 서기([motion] = STAND)만 준비한다. 공용 캐시는 남녀 × 동작마다 마지막 모습 하나다(상한 4묶음).
  * - [preloadRiveAvatar]를 먼저 부르지 않았으면 여기서 읽는다. 합성은 [Dispatchers.Default]에서 하고(수백 ms) 주 스레드를 쓰지 않는다.
