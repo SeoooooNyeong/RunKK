@@ -89,6 +89,37 @@ class JpaMemberRepositoryIntegrationTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName("가입과 같은 시계 눈금 안에서 동의를 바꿔도 거부되지 않는다(DB는 마이크로초로 반올림해 저장)")
+    void consentInSameClockTickAsSignUp_isAccepted() {
+        // Windows 시계는 약 1~15.6ms마다 바뀌고 100ns 자리까지 준다. 가입과 다음 요청이 한 눈금 안이면 now가 같은데,
+        // DB(timestamp(6))가 생성 시각을 마이크로초로 반올림해 올리면 읽은 생성 시각이 now보다 늦어진다.
+        LocalDateTime tick = LocalDateTime.of(2026, 11, 15, 0, 35, 47, 123_456_700);
+        long id =
+                tx.execute(
+                        s ->
+                                repository
+                                        .save(
+                                                Member.signUp(
+                                                        new SocialAccount(
+                                                                ProviderType.KAKAO, "k-눈금곰"),
+                                                        new SignUpForm("눈금곰", consents()),
+                                                        Nickname.of("눈금곰"),
+                                                        tick))
+                                        .getId());
+        String count = "select count(*) from member_consent where member_id = ?";
+        int before = jdbc.queryForObject(count, Integer.class, id);
+
+        tx.executeWithoutResult(
+                s ->
+                        repository
+                                .findById(id)
+                                .orElseThrow()
+                                .giveConsent(ConsentItem.LLM_TRANSFER, tick));
+
+        assertThat(jdbc.queryForObject(count, Integer.class, id)).isEqualTo(before + 1);
+    }
+
+    @Test
     @org.junit.jupiter.api.DisplayName("V20: 게스트 저장·해시·미이용 조회(정각 포함)·연동·탈퇴가 제약을 지킨다")
     void guestLifecycle() {
         LocalDateTime now = LocalDateTime.of(2026, 10, 22, 3, 0);

@@ -41,6 +41,19 @@ class SmallValuesTest {
     }
 
     @Test
+    void timestamps_keepDbPrecisionOfMicroseconds() {
+        // DB 열(timestamp(6))과 같은 정밀도로 잘라 둔다. 저장하며 반올림돼 읽은 값이 메모리 값보다 늦어지지 않게 한다
+        LocalDateTime tick = T0.withNano(123_456_700);
+        LocalDateTime micros = T0.withNano(123_456_000);
+
+        Timestamps created = Timestamps.createdAt(tick);
+
+        assertThat(created.createdAt()).isEqualTo(micros);
+        assertThat(created.updatedAt()).isEqualTo(micros);
+        assertThat(new Timestamps(micros, micros).touched(tick).updatedAt()).isEqualTo(micros);
+    }
+
+    @Test
     void timestamps_updatedAtNotBeforeCreatedAt() {
         assertThatThrownBy(() -> new Timestamps(T0, T0.minusSeconds(1)))
                 .isInstanceOf(IllegalArgumentException.class);
