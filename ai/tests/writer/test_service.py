@@ -121,14 +121,24 @@ async def test_calls_writer_one_at_a_time(second: SessionResultOut) -> None:
 
 
 async def test_queue_wait_counts_toward_timeout(second: SessionResultOut) -> None:
-    """앞 요청을 기다린 시간도 제한에 들어간다(밀리면 기다리지 않고 템플릿으로 끝낸다)."""
-    client = FakeClient(json.dumps(GOOD, ensure_ascii=False), delay=0.08)
-    service = await _service(client, timeout_s=0.1)
+    """앞 요청을 기다린 시간도 제한에 들어간다(밀리면 기다리지 않고 템플릿으로 끝낸다).
 
-    first, second_result = await asyncio.gather(service.polish(second), service.polish(second))
+    앞 요청이 writer 차례를 쥐고 있는 상태는 시험이 차례를 직접 잡아 만든다.
+    예전처럼 두 요청을 실제 지연(0.08초 응답 두 건 대 0.1초 제한)으로 겨루게 하면
+    타이머 해상도(Windows 약 15.6ms)와 부하에 따라 앞 요청까지 제한을 넘겨 결과가 흔들렸다.
+    차례를 놓아 주지 않으므로, 기다린 시간이 제한에 들어가지 않으면
+    이 요청은 끝나지 않고 바깥 5초 감시에 걸려 실패한다.
+    """
+    client = FakeClient(json.dumps(GOOD, ensure_ascii=False))
+    service = await _service(client, timeout_s=0.5)
 
-    assert first.feedback.source == "writer"
-    assert second_result is second
+    async with service._turn:  # 앞 요청이 writer를 쓰는 중
+        queued = await asyncio.wait_for(service.polish(second), timeout=5)
+
+    assert queued is second
+    assert client.calls == []
+    # 차례가 비면 같은 제한 안에서 writer 문장으로 바뀐다(템플릿이 된 까닭은 기다림뿐이다)
+    assert (await service.polish(second)).feedback.source == "writer"
 
 
 async def test_without_an_active_model_the_template_stays(second: SessionResultOut) -> None:
