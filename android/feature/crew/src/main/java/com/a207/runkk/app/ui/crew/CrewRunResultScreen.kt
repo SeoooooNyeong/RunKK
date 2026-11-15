@@ -104,7 +104,7 @@ fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltVie
 
 /**
  * 크루런 결과(F-16)와 결과 상세(F-16b)를 옆으로 넘긴다(대결 결과 1·2쪽과 같은 방식). 배경 그림은 결과 쪽에만 있고 상세 쪽으로 넘기는 만큼
- * 흐려진다. 머리 줄 뒤로 버튼은 결과 쪽에만 있다(F-16b 상세 쪽은 제목만, [임시:D-성-15]). 아래에 공유(흰 알약)·확인(라임 알약).
+ * 흐려진다. 머리 줄 뒤로 버튼은 결과 쪽에만 있다(F-16b 상세 쪽은 제목만, D-647). 아래에 공유(흰 알약)·확인(라임 알약).
  */
 @Composable
 fun CrewRunResultScreen(
@@ -204,7 +204,7 @@ private fun PageLink(text: String, onClick: () -> Unit) {
 
 /**
  * 결과 쪽(F-16): 모집글 제목(13), 아바타 줄(가운데 내 아바타), 크루 합산 거리(44 Bold) 묶음(사이 16), 그 아래 24에 참가자 목록(이름·거리).
- * 첫 크루런·크루 주간 반영 거리는 보이지 않는다([임시:D-성-14]).
+ * 첫 크루런·크루 주간 반영 거리는 보이지 않는다(D-646).
  */
 @Composable
 private fun SummaryPage(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map<String, List<FaceLayer>>) {
@@ -270,7 +270,7 @@ private fun AvatarRow(result: CrewRunResult, myAvatar: MyAvatar?, mateFaces: Map
 
 /**
  * 크루원 아바타 한 칸: 셀카 얼굴이고 부위 그림을 받았으면 그 머리, 그 밖(얼굴 키 없음·옛 서버, 기본 캐릭터 값, 셀카 그림을 아직 받지
- * 못함)은 그 크루원 표시 성별의 기본 머리다([임시:D-성-180], 빈 칸을 그리지 않는다).
+ * 못함)은 그 크루원 표시 성별의 기본 머리다(D-812, 빈 칸을 그리지 않는다).
  */
 @Composable
 private fun MateAvatar(mate: CrewRunResult.Participant, mateFaces: Map<String, List<FaceLayer>>) {
@@ -379,7 +379,7 @@ private fun DetailPage(detail: RecordResultDetail?, myAvatar: MyAvatar?) {
     }
 }
 
-/** 결과 상세 날짜 줄(메타 줄): [달력]11.07 금 [시계]오후 9:00 [달리기]크루런. 가운뎃점은 쓰지 않는다([임시:D-성-10]). */
+/** 결과 상세 날짜 줄(메타 줄): [달력]11.07 금 [시계]오후 9:00 [달리기]크루런. 가운뎃점은 쓰지 않는다(D-642). */
 @Composable
 private fun dateItems(startedAt: Instant): List<MetaItem> {
     val at = startedAt.atZone(ZoneId.systemDefault())

@@ -89,12 +89,12 @@ class AvatarW8LogicTest {
     }
 
     @Test
-    fun `서버 체형 4단계는 서버 BodyShape variant와 같게 옮긴다 - 4단계가 기본 몸, 1단계가 가장 통통(D-성-179)`() {
+    fun `서버 체형 4단계는 서버 BodyShape variant와 같게 옮긴다 - 4단계가 기본 몸, 1단계가 가장 통통(D-811)`() {
         assertEquals(listOf(2, 1, 1, 0, 0), listOf("STAGE1", "STAGE2", "STAGE3", "STAGE4", "?").map(::bodyVariantOf))
     }
 
     @Test
-    fun `상점·꾸미기 무대 체형은 홈(내 러너 bodyVariant)과 같다 - 기본 몸이면 볼 덮개가 셀카 눈을 덮지 않는다(임시 D-성-191)`() {
+    fun `상점·꾸미기 무대 체형은 홈(내 러너 bodyVariant)과 같다 - 기본 몸이면 볼 덮개가 셀카 눈을 덮지 않는다(D-823)`() {
         val base = Avatar(null, null, "STAGE4", "DAYTIME", emptyMap(), 0, true, emptyMap())
         assertEquals(AvatarBodyShape.BASE, AvatarLook().withAvatar(base, emptyList(), 0).bodyShape)
         val fullest = base.copy(bodyShape = "STAGE1")
@@ -245,7 +245,7 @@ class AvatarW8LogicTest {
     }
 
     @Test
-    fun `H-6 기기 기록에 남은 지운 키(KAESONG)는 서버 목록에 없으면 무시한다(D-성-124)`() {
+    fun `H-6 기기 기록에 남은 지운 키(KAESONG)는 서버 목록에 없으면 무시한다(D-756)`() {
         val stored = BackgroundUnlockSeenStore.Seen(setOf("INCHEON", "KAESONG"), SINCE)
         val (unlock, _) =
             findNewUnlocks(AvatarBackgrounds(null, listOf(incheon, chuncheon, daejeon, jeonju)), stored, NOW)
@@ -352,7 +352,7 @@ class AvatarW8LogicTest {
 
 private val runner = AvatarRunner("STAGE3", 1, "MORNING", 7, 3, Distance(12_400), 51, 4)
 
-/** 내 러너·꾸미기·상점에 보이면 안 되는 체형·피부톤 설명(사용자 지시 「체형 배가 블록 피부색 낮형 … 빼」, design-oo 05-30 [임시:D-성-128]). */
+/** 내 러너·꾸미기·상점에 보이면 안 되는 체형·피부톤 설명(사용자 지시 「체형 배가 블록 피부색 낮형 … 빼」, design-oo 05-30 D-760). */
 private val FORBIDDEN = listOf("체형", "배가", "볼록", "피부", "낮형", "아침형", "저녁형", "새벽형", "밤형", "톤이에요", "번 달렸어요", "근육")
 
 /** W8 화면(피그마 제안): 내 러너 B안, 꾸미기 A안, 상점 A안, 해금 팝업(H-6). */
@@ -476,7 +476,7 @@ class AvatarW8ScreenTest {
     }
 
     @Test
-    fun `꾸미기 A안 - 악세서리 탭 없음(D-성-183), 잠긴 배경은 남은 거리, 체형·피부색 칩과 빈 목록 문장 없음`() {
+    fun `꾸미기 A안 - 악세서리 탭 없음(D-815), 잠긴 배경은 남은 거리, 체형·피부색 칩과 빈 목록 문장 없음`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
@@ -571,7 +571,7 @@ class AvatarW8ScreenTest {
     }
 }
 
-/** 상점 그림 규칙(design-oo 05-30 [임시:D-성-113]): 그림 키 k의 그림은 drawable shop_k이고 V62 시드 16종이 모두 있다. */
+/** 상점 그림 규칙(design-oo 05-30 D-745): 그림 키 k의 그림은 drawable shop_k이고 V62 시드 16종이 모두 있다. */
 @RunWith(RobolectricTestRunner::class)
 class ShopArtTest {
     private val keys = listOf(

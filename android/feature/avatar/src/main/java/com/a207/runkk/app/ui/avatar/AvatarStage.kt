@@ -21,9 +21,9 @@ import com.a207.runkk.app.core.navigation.AvatarSlotPose
 internal const val AVATAR_STAGE_FALLBACK_TAG = "avatar-stage-fallback"
 
 /**
- * 내 아바타 상태를 무대로 그리는 얇은 감싸개(design-oo 05-30 2절, [임시:D-성-138]). 칸 크기는 부르는 쪽이 [modifier]로 고정한다.
+ * 내 아바타 상태를 무대로 그리는 얇은 감싸개(design-oo 05-30 2절, D-770). 칸 크기는 부르는 쪽이 [modifier]로 고정한다.
  *
- * - Loading·Idle: 배경 자리와 그림자를 먼저 깔고 로딩 표시를 보인다([showLoading], [임시:D-성-106]).
+ * - Loading·Idle: 배경 자리와 그림자를 먼저 깔고 로딩 표시를 보인다([showLoading], D-738).
  * - Ready: RiveAvatarStage(첫 그림이 보이면 로딩 표시를 거둔다).
  * - Failed이거나 Rive를 그리지 못하면 로딩 표시 없이 같은 바닥선에 성별 기본 그림을 세운다(오류 문구 없음).
  *

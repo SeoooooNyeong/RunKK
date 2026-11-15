@@ -8,10 +8,10 @@ import com.a207.runkk.app.core.navigation.Routes
  * 그 화면을, 없으면 그 기능의 첫 화면을 연다. 모르는 화면 값(옛 앱이 모르는 새 값, 지운 CREW_BOARD)은 null이고 알림함에 머문다.
  * 크루 투표·일정 알림의 대상 ID는 글 ID라(서버 CrewNewsNotifier) 크루 홈 경로에 쓰지 않고 내 크루 홈의 해당 탭 경로
  * (Routes.CREW_POLL·CREW_SCHEDULE, ui.crew가 GET /crews/me로 내 크루를 찾는다)로 연다. 크루 공지는 앱에 공지를 볼 화면이 없어
- * 알림함에 머물고(서버가 알림 내용에 공지 본문을 싣는다) 공지 줄로 보인다([STAY_SCREENS], DV-성-14). 크루런 모집·곧 시작 알림의
+ * 알림함에 머물고(서버가 알림 내용에 공지 본문을 싣는다) 공지 줄로 보인다([STAY_SCREENS], DV-14). 크루런 모집·곧 시작 알림의
  * 대상 ID는 크루런 글 ID라(서버 CrewPostService·CrewRunRepeater·CrewRunAnnouncer) 그 크루런 상세(Routes.CrewRunDetail)를, 없으면
- * 내 크루 홈 크루런 탭(Routes.CREW_SCHEDULE)을 연다(DV-성-14). 채팅 알림의 대상 ID는 크루 ID라
- * 그 크루 홈의 채팅 탭(Routes.CrewHome(id, "CHAT"), [임시:D-성-21])을, 없으면 내 크루를 확인하는 채팅 경로(Routes.CREW_CHAT)를 연다.
+ * 내 크루 홈 크루런 탭(Routes.CREW_SCHEDULE)을 연다(DV-14). 채팅 알림의 대상 ID는 크루 ID라
+ * 그 크루 홈의 채팅 탭(Routes.CrewHome(id, "CHAT"), D-653)을, 없으면 내 크루를 확인하는 채팅 경로(Routes.CREW_CHAT)를 연다.
  * 신고 처리 결과(REPORT_RESOLVED)는 서버가 CREW_HOME으로 보낸다(D-149).
  */
 internal fun inboxDestination(screen: String?, targetId: String?): NavKey? {
@@ -42,7 +42,7 @@ internal fun inboxDestination(screen: String?, targetId: String?): NavKey? {
     }
 }
 
-/** 이동하지 않고 알림함에 머무는 서버 화면(공지 줄로 제목과 본문을 보인다, DV-성-14). */
+/** 이동하지 않고 알림함에 머무는 서버 화면(공지 줄로 제목과 본문을 보인다, DV-14). */
 internal val STAY_SCREENS: Set<String> = setOf("CREW_NOTICE")
 
 /** 크루 홈 채팅 탭 이름(ui.crew CrewTab.CHAT.name). 화면 모듈끼리 import하지 않으므로 이름으로 둔다. */

@@ -121,7 +121,7 @@ class CrewRepositoryImplTest {
             ),
             detail.attendees[0]
         )
-        assertEquals(null, detail.attendees[1].distance, "달린 거리가 없으면(마치기 전·안 달림) null(DV-성-2)")
+        assertEquals(null, detail.attendees[1].distance, "달린 거리가 없으면(마치기 전·안 달림) null(DV-2)")
 
         api.reply(detailJson)
         repository.editCrewRun(42, CrewRunEdit("하프", null, Distance(21_097), CrewRunRepeat.NONE))

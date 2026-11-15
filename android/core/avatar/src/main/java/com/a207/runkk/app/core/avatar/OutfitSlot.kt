@@ -9,7 +9,7 @@ internal enum class OutfitSlot(val fileName: String, val width: Int, val height:
     RUN_SHOE("run_shoe", 256, 160, setOf(OutfitPart.SHOES));
 
     companion object {
-        /** riv 이미지 자산 이름 → 슬롯. 달리기 몸통 세 슬롯은 같은 그림을 쓴다(DR-성-4). 의상 슬롯이 아니면 null. */
+        /** riv 이미지 자산 이름 → 슬롯. 달리기 몸통 세 슬롯은 같은 그림을 쓴다(DR-4). 의상 슬롯이 아니면 null. */
         fun of(assetName: String): OutfitSlot? = when (assetName) {
             BodySkinLayers.STANDING_BODY -> STAND
             "side_body_coral", "side_body_cream", "side_body_blue" -> RUN_BODY

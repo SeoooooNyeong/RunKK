@@ -49,7 +49,7 @@ private class RecordingNavigator : RunkkNavigator {
     override fun restart(route: String) = Unit
 }
 
-/** 홈 칸 진행 배지(피그마 AV-7 4, design-oo 05-30 [임시:D-성-147]): 만드는 중일 때만 보이고 누르면 얼굴 만들기로 간다. */
+/** 홈 칸 진행 배지(피그마 AV-7 4, design-oo 05-30 D-779): 만드는 중일 때만 보이고 누르면 얼굴 만들기로 간다. */
 @RunWith(RobolectricTestRunner::class)
 @Config(qualifiers = RUNKK_PHONE)
 class HomeSelfieBadgeTest {
@@ -90,7 +90,7 @@ class HomeSelfieBadgeTest {
     }
 
     @Test
-    fun `홈 칸이 보이면 워커와 따로 기기 작업을 직접 확인한다(임시 D-성-188, D-성-223)`() {
+    fun `홈 칸이 보이면 워커와 따로 기기 작업을 직접 확인한다(D-820, D-855)`() {
         repo.progress.value = SelfieProgress.Working("job-1")
         show()
         compose.waitForIdle()

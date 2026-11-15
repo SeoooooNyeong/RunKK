@@ -51,8 +51,8 @@ class CrewRunHistory {
     }
 
     /**
-     * 마친(FINISHED) 크루런 상세의 참석자별 달린 거리(F-11d, FR-성-8, DV-성-2). 결과 화면과 같은 규칙이다: 진행 참가자의 연결 기록 거리 → 끝낼
-     * 때 남긴 거리 → 없음. 달리지 않은 참석자와 마치지 않은 크루런은 없음이다. 연결 기록 요약은 한 번에 읽는다.
+     * 마친(FINISHED) 크루런 상세의 참석자별 달린 거리(F-11d, FR-329, DV-2). 결과 화면과 같은 규칙이다: 진행 참가자의 연결 기록 거리 → 끝낼 때
+     * 남긴 거리 → 없음. 달리지 않은 참석자와 마치지 않은 크루런은 없음이다. 연결 기록 요약은 한 번에 읽는다.
      */
     Function<CrewRunParticipation, Optional<Distance>> attendeeDistances(CrewRunPost post) {
         if (post.status() != CrewRunStatus.FINISHED) {

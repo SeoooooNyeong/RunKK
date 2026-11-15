@@ -266,7 +266,7 @@ val crewRunDetail = CrewRunDetail(
     )
 )
 
-/** 마친 크루런 상세(F-11d): 작성자는 5.12km를 달렸고 달빛은 참석만 했다(DV-성-2). */
+/** 마친 크루런 상세(F-11d): 작성자는 5.12km를 달렸고 달빛은 참석만 했다(DV-2). */
 val pastCrewRunDetail = crewRunDetail.copy(
     status = CrewRunStatus.FINISHED,
     attendees = listOf(

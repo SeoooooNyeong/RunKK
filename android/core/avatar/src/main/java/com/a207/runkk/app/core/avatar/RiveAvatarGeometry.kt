@@ -1,9 +1,9 @@
 package com.a207.runkk.app.core.avatar
 
 /**
- * Rive 아바타 아트보드와 바닥 규격 상수(design-oo 05-30 4.2·4.4, [임시:D-성-105], [임시:D-성-107], [임시:D-성-132]).
+ * Rive 아바타 아트보드와 바닥 규격 상수(design-oo 05-30 4.2·4.4, D-737, D-739, D-764).
  * 네 riv 파일 모두 아트보드 800x1000이고 캐릭터는 가로 가운데, 발끝은 위에서 80.4%다. riv가 바뀌면 이 값과 피그마 프레임 가이드를
- * 함께 고친다([임시:H-성-4]).
+ * 함께 고친다(H-74).
  */
 object RiveAvatarGeometry {
     /** 아트보드 가로/세로(800/1000). */
@@ -27,7 +27,7 @@ object RiveAvatarGeometry {
     /** 배경 없는 칸의 아트보드 높이 = 칸 높이 × 1.17(아트보드 위 끝 = 칸 위 끝). */
     const val BARE_ARTBOARD_OF_SLOT = 1.17f
 
-    /** 그림자 타원 폭 = 아트보드 높이 × 0.24(정면 몸 폭 238/800 = 아트보드 너비의 0.30, [임시:DR-성-5]). */
+    /** 그림자 타원 폭 = 아트보드 높이 × 0.24(정면 몸 폭 238/800 = 아트보드 너비의 0.30, DR-5). */
     const val SHADOW_WIDTH = 0.24f
 
     /** 그림자 타원 높이 = 아트보드 높이 × 0.048(폭 × 0.2). */
@@ -36,7 +36,7 @@ object RiveAvatarGeometry {
     /** 그림자 불투명도(검정): 라이트 18%. */
     const val SHADOW_ALPHA_LIGHT = 0.18f
 
-    /** 그림자 불투명도(검정): 다크 24%([임시:D-성-132]). */
+    /** 그림자 불투명도(검정): 다크 24%(D-764). */
     const val SHADOW_ALPHA_DARK = 0.24f
 
     /** 그림자 흐림 반지름(dp). */
@@ -48,7 +48,7 @@ object RiveAvatarGeometry {
      */
     const val RUN_BODY_CENTER_X = 0.49f
 
-    /** 뒤집기 전후 몸 가로 위치 차이 허용: 칸 너비의 3%([임시:D-성-133]). 넘으면 [AvatarStageLayout.mirrorShift]로 옮긴다. */
+    /** 뒤집기 전후 몸 가로 위치 차이 허용: 칸 너비의 3%(D-765). 넘으면 [AvatarStageLayout.mirrorShift]로 옮긴다. */
     const val MIRROR_TOLERANCE = 0.03f
 
     /** 그림자 불투명도(라이트 18%, 다크 24%). */

@@ -4,7 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
-/** 배경 키 → 그림(FR-202, D-107, [임시:D-성-186]): 기본 키는 도시마다 제 그림, 모르는 키는 단계별 기본 그림, 키가 없으면 기본 배경. */
+/** 배경 키 → 그림(FR-202, D-107, D-818): 기본 키는 도시마다 제 그림, 모르는 키는 단계별 기본 그림, 키가 없으면 기본 배경. */
 class AvatarBackdropTest {
     @Test
     fun `키가 없으면 기본 배경이다`() {
@@ -13,7 +13,7 @@ class AvatarBackdropTest {
     }
 
     @Test
-    fun `D-성-186 기본 키는 도시마다 제 그림으로 찾는다`() {
+    fun `D-818 기본 키는 도시마다 제 그림으로 찾는다`() {
         assertEquals(R.drawable.avatar_backdrop_jeju, avatarBackdropRes("JEJU"))
         assertEquals(R.drawable.avatar_backdrop_bangkok, avatarBackdropRes("BANGKOK"))
         assertEquals(R.drawable.avatar_backdrop_kuala_lumpur, avatarBackdropRes("KUALA_LUMPUR"))
@@ -22,7 +22,7 @@ class AvatarBackdropTest {
 
     @Test
     fun `서버 기본 개인 랜드마크 키는 모두 제 도시 그림으로 찾고 서로 겹치지 않는다`() {
-        // 서버 SettingKey.Defaults.LANDMARKS 의 개인 단계(국내·동아시아·대륙 간) 키 사본(H-성-2). 서버 목록을 바꾸면 여기도 고친다.
+        // 서버 SettingKey.Defaults.LANDMARKS 의 개인 단계(국내·동아시아·대륙 간) 키 사본(H-72). 서버 목록을 바꾸면 여기도 고친다.
         val serverKeys = listOf(
             "INCHEON" to "DOMESTIC",
             "CHUNCHEON" to "DOMESTIC",

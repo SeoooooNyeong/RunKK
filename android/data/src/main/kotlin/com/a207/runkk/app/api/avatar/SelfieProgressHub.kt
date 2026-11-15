@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * 셀카 작업 진행의 프로세스 사본(design-oo 05-30 [임시:D-성-117], [임시:DR-성-13], 수명 [임시:D-성-161]). 원본은 [PendingSelfieStore]
+ * 셀카 작업 진행의 프로세스 사본(design-oo 05-30 D-749, DR-13, 수명 D-793). 원본은 [PendingSelfieStore]
  * (회원별 작업 ID·접수 시각·마지막 실패)이고, 저장소 구현과 워커가 그 값을 고친 뒤 [sync]로 다시 읽어 같은 프로세스의 화면이 바로 받게 한다.
  * 성공은 원본에 남기지 않으므로(결과를 받으면 작업 ID를 지운다) [succeeded]로 다음 접수·확인까지 이 사본에만 둔다.
  *
@@ -54,7 +54,7 @@ constructor(
         if (state.value == null || owner != self.memberId()) sync()
     }
 
-    /** 결과를 받아 내 얼굴을 바꿨다([임시:D-성-118]). */
+    /** 결과를 받아 내 얼굴을 바꿨다(D-750). */
     @Synchronized
     fun succeeded(jobId: String, faceKey: String?) {
         owner = self.memberId()

@@ -107,7 +107,7 @@ class RecordAndAdminServicesTest {
                         NOW));
     }
 
-    /** 셀럽런 목록에 보이는 코치 기록(그림 키 "joo", [임시:D-성-219]). */
+    /** 셀럽런 목록에 보이는 코치 기록(그림 키 "joo", D-851). */
     private CelebrityRecord coach(List<TrackSample> splits) {
         return celebrities.save(
                 CelebrityRecord.register(

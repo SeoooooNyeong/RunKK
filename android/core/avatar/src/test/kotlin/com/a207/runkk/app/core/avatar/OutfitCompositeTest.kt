@@ -16,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * 의상 레이어 합성(D-성-110·112, [임시:D-성-156] 상의 자르기, OUTFIT_SPEC.md 3절). 실제 자산(assets/outfits)으로 슬롯 텍스처를 만들어 픽셀을 본다.
+ * 의상 레이어 합성(D-742·D-744, D-788 상의 자르기, OUTFIT_SPEC.md 3절). 실제 자산(assets/outfits)으로 슬롯 텍스처를 만들어 픽셀을 본다.
  * Rive 그림은 Robolectric에 나오지 않으므로 riv에 넣는 합성 텍스처를 검사한다.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -91,7 +91,7 @@ class OutfitCompositeTest {
     }
 
     @Test
-    fun `소매 끝 아래 팔에 톤을 받지 않은 밝은 피부 띠가 없다(DV-성-11)`() {
+    fun `소매 끝 아래 팔에 톤을 받지 않은 밝은 피부 띠가 없다(DV-11)`() {
         // 기본 반팔·민소매·카라티: 서기 아틀라스의 양팔(x 10~130·382~502, 소매 끝 아래 y 150~300).
         listOf(0, 1, 2).forEach { top ->
             listOf(AvatarGender.FEMALE, AvatarGender.MALE).forEach { gender ->
@@ -476,7 +476,7 @@ class OutfitCompositeTest {
                 }
             }
         }
-        assertEquals(emptyList(), found, "[임시:D-성-185]")
+        assertEquals(emptyList(), found, "D-817")
     }
 
     @Test
@@ -496,7 +496,7 @@ class OutfitCompositeTest {
                 if (holes > 0) found += "run_leg bottom $bottom $gender: $holes"
             }
         }
-        assertEquals(emptyList(), found, "맨몸 실루엣 안인데 아무 레이어도 덮지 않은 픽셀([임시:D-성-185])")
+        assertEquals(emptyList(), found, "맨몸 실루엣 안인데 아무 레이어도 덮지 않은 픽셀(D-817)")
     }
 
     /** 맨몸 바탕이 불투명한데 합성 결과가 비는 픽셀 수([rows] 행, [insideBottomSpan]이면 그 행 하의의 맨 왼쪽~맨 오른쪽 사이만). */
@@ -540,7 +540,7 @@ class OutfitCompositeTest {
                 }
             }
         }
-        assertEquals(emptyList(), lines.take(10), "가로 줄 ${lines.size}([임시:D-성-184])")
+        assertEquals(emptyList(), lines.take(10), "가로 줄 ${lines.size}(D-816)")
     }
 
     /**
@@ -572,7 +572,7 @@ class OutfitCompositeTest {
         var edge = 0
         val differs = mutableListOf<String>()
         // 팔 띠(소매 밑 y 190~300, 바깥 열 x < 140·x > 372)에서 승인 실루엣 경계 2px 안. y 296부터 허리 쪽 열(x 110~139·373~401)은 허리 밴드
-        // 자리라 건너뛴다(기본 하의가 그린다, [임시:D-성-185]. 허리 옆 계단을 원래 허리 가장자리로 이어 x 110·401까지 하의가 덮는다, 판정 round1 A)
+        // 자리라 건너뛴다(기본 하의가 그린다, D-817. 허리 옆 계단을 원래 허리 가장자리로 이어 x 110·401까지 하의가 덮는다, 판정 round1 A)
         for (y in 190..300) {
             for (x in (0 until 140) + (373 until width)) {
                 if (y >= 296 && (x in 110..139 || x in 373..401)) continue
@@ -636,7 +636,7 @@ class OutfitCompositeTest {
         return BooleanArray(width * legacy.height) {
             val a = legacy.getPixel(it % width, it / width)
             val c = composed.getPixel(it % width, it / width)
-            // 서기 팔의 소매 밑단 행(y 150~190, 팔 열 x < 145·x >= 367)은 소매 줄을 펴서 승인 색과 조금 다르다([임시:D-성-184]): 그곳만 승인
+            // 서기 팔의 소매 밑단 행(y 150~190, 팔 열 x < 145·x >= 367)은 소매 줄을 펴서 승인 색과 조금 다르다(D-816): 그곳만 승인
             // 그림에서도 팔(불투명)이 있던 곳이면 팔이다. 나머지는 승인 픽셀과 같아야 한다
             val x = it % width
             val armSeam = slot == OutfitSlot.STAND && it / width in 150..190 && (x < 145 || x >= 367)
@@ -778,7 +778,7 @@ class OutfitCompositeTest {
         }
         val toned = composed(100)
         val untoned = composed(0)
-        // 톤이 먹은 픽셀은 뺀다: 그을림 상한(가장 어두운 톤의 60%, [임시:D-성-205])이면 톤 걸린 피부도 맨살 색조라 색만으로는 못 가른다.
+        // 톤이 먹은 픽셀은 뺀다: 그을림 상한(가장 어두운 톤의 60%, D-837)이면 톤 걸린 피부도 맨살 색조라 색만으로는 못 가른다.
         val result = IntArray(size) { if (toned[it] == untoned[it]) toned[it] else 0 }
         return ExposedSkin.count(result, slot.width, slot.height) { !clothed[it] }
     }

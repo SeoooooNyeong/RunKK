@@ -1,7 +1,7 @@
 package com.a207.runkk.app.core.avatar
 
 /**
- * 승인 Rive 파일의 검수용 바탕을 투명하게 한다(실기기 결함 DV-성-3). 네 파일의 아트보드에는 PoC가 리뷰 화면 바탕색과 맞추려고 넣은
+ * 승인 Rive 파일의 검수용 바탕을 투명하게 한다(실기기 결함 DV-3). 네 파일의 아트보드에는 PoC가 리뷰 화면 바탕색과 맞추려고 넣은
  * 사각형 도형(이름 「Background」·「Review background」, 아트보드 전체, SolidColor FFF6EFE8)이 맨 아래에 있어 앱 카드 배경을
  * 가린다. Android Rive 런타임에는 도형을 숨기는 API가 없고 파일은 승인본(SHA 시험) 그대로 둬야 하므로, 읽은 바이트 사본에서 그 도형의
  * 첫 SolidColor 색(키 37, 리틀엔디언 ARGB)의 알파 바이트만 0으로 바꾼다. 도형·색 구조는 Rive 이진 형식(객체 형식 키 varuint, 속성 키

@@ -13,7 +13,7 @@ import java.time.temporal.TemporalAdjusters;
 
 /**
  * 크루런 매주 반복 한 줄(피그마 F-12f, 사용자 결정 C8, W6). 회차의 제목·내용·거리·시각은 최신 회차(lastPostId)를 그대로 복사하므로 규칙을 따로
- * 저장하지 않는다. 매주 일요일 오전 9시 작업(D-성-26)이 다음 주(월~일)에 들어가는 회차 하나를 만든다: 최신 회차 + 7일(nextSlot)이 다음 주
+ * 저장하지 않는다. 매주 일요일 오전 9시 작업(D-658)이 다음 주(월~일)에 들어가는 회차 하나를 만든다: 최신 회차 + 7일(nextSlot)이 다음 주
  * 끝(windowEnd) 전이면 차례(isDue)다. 표 crew_run_series(V56). 시각은 서버 시간대(Asia/Seoul) LocalDateTime이고 한국은
  * 일광 절약 시간이 없어 +7일이 늘 같은 시각이다.
  */

@@ -29,8 +29,8 @@ internal class PreparedRiveAssets(
 
     companion object {
         /**
-         * 방금 읽은 riv 바이트에서 검수용 바탕(DV-성-3, [RivReviewBackground])과 내장 바닥 그림자([RivGroundShadow],
-         * [임시:D-성-107])를 투명하게 하고, 달리기 엉덩이 잇기 메시가 쓸 텍스처 칸을 옮긴다([RivHipConnection]). [riv] 배열을 바로 고치고
+         * 방금 읽은 riv 바이트에서 검수용 바탕(DV-3, [RivReviewBackground])과 내장 바닥 그림자([RivGroundShadow],
+         * D-739)를 투명하게 하고, 달리기 엉덩이 잇기 메시가 쓸 텍스처 칸을 옮긴다([RivHipConnection]). [riv] 배열을 바로 고치고
          * 그것을 돌려준다.
          */
         fun hideBuiltInShapes(riv: ByteArray): ByteArray = riv.also {
@@ -44,11 +44,11 @@ internal class PreparedRiveAssets(
         /** 막는 읽기다. IO 스레드에서 부른다. */
         fun read(context: Context, gender: AvatarGender): PreparedRiveAssets {
             val resources = context.resources
-            // 의상 묶음 목록·PNG(assets/outfits)를 합성 스레드가 읽게 한 번 연다(D-성-110).
+            // 의상 묶음 목록·PNG(assets/outfits)를 합성 스레드가 읽게 한 번 연다(D-742).
             OutfitLibrary.install(context.applicationContext.assets)
             fun raw(id: Int): ByteArray = resources.openRawResource(id).use { it.readBytes() }
             val scenes = EnumMap<AvatarMotion, ByteArray>(AvatarMotion::class.java)
-            // 검수용 베이지 바탕 도형은 투명하게 해 카드 배경이 보이게 하고, 바닥 그림자는 앱이 그린다(DV-성-3, D-성-107,
+            // 검수용 베이지 바탕 도형은 투명하게 해 카드 배경이 보이게 하고, 바닥 그림자는 앱이 그린다(DV-3, D-739,
             // 파일은 승인본 그대로).
             AvatarMotion.entries.forEach { motion ->
                 scenes[motion] = hideBuiltInShapes(raw(RiveAvatarScene.rawResource(gender, motion))).also { riv ->

@@ -140,7 +140,7 @@ class AvatarAndRunimalAndNotificationTest {
     }
 
     @Test
-    fun `작업이 실패로 끝나면 실패를 남기고, 새로 접수하거나 결과를 받으면 지운다(DV-성-10)`() = runTest {
+    fun `작업이 실패로 끝나면 실패를 남기고, 새로 접수하거나 결과를 받으면 지운다(DV-10)`() = runTest {
         api.reply("""{"jobId":"job-1","status":"QUEUED"}""", code = 202)
         api.reply(
             """{"jobId":"job-1","status":"FAILED","error":{"code":"GENERATION_OUTCOME_UNKNOWN","message":"불명확"}}"""

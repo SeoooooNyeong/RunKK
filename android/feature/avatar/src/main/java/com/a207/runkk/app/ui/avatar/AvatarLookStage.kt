@@ -24,7 +24,7 @@ import com.a207.runkk.app.core.model.FaceLayer
  * 카드 무대(피그마 제안 B안 무대 언어: 내 러너·꾸미기·상점·새 얼굴이 같이 쓴다). 고른 배경을 아래 가운데로 잘라 깔고 바닥선에 내 아바타를
  * 세운다(design-oo 05-30 4절, 계산은 core `RiveAvatarStage`·`AvatarStageFrame`). 칸 크기는 부르는 쪽이 정한다.
  *
- * - [look]이 null이면(읽는 중) 배경과 그림자 위에 로딩 표시만 둔다([임시:D-성-106]).
+ * - [look]이 null이면(읽는 중) 배경과 그림자 위에 로딩 표시만 둔다(D-738).
  * - Rive를 그리지 못하면(네이티브 없음·자산 실패) 같은 바닥선에 앞 단계 서기 그림([LegacyStandingAvatar])을 세운다. 오류 문구는 없다.
  * - 기본 배경은 다크 벌에서 같은 장면의 밤 그림이다(core AvatarBackdrop과 같다).
  */

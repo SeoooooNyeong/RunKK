@@ -102,8 +102,8 @@ import kotlinx.coroutines.withContext
 /**
  * 얼굴 만들기(피그마 AV-7 사진 업로드 흐름 1안, FR-155~FR-158): 1 고르기 → 2 사진 확인(올린 사진을 크게, 동의, 「만들기 시작」) →
  * 3 만드는 중(보낸 사진, 「나중에 다시 확인해도 돼요」, 다른 화면 둘러보기) → 새 얼굴 / 실패. 화면이 보이는 동안 얼굴 만들기 화면 표시를
- * 열어 두어 결과는 알림 대신 화면으로 알린다(design-oo 05-30 [임시:D-성-120]). 셀카는 줄여 보낸 뒤 보낸 사진 한 장만 결과가 날 때까지
- * 기기에 둔다([임시:D-성-119]).
+ * 열어 두어 결과는 알림 대신 화면으로 알린다(design-oo 05-30 D-752). 셀카는 줄여 보낸 뒤 보낸 사진 한 장만 결과가 날 때까지
+ * 기기에 둔다(D-751).
  */
 @Composable
 fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
@@ -146,7 +146,7 @@ fun AvatarSetupRoute(viewModel: AvatarSetupViewModel = hiltViewModel()) {
         }
     }
     // 결과 알림을 받으려면 Android 13부터 알림 권한이 있어야 한다. 「만들기 시작」 직전에 이 화면에서 한 번 묻고, 거부해도 보낸다
-    // (결과는 화면·홈 배지로 본다, 리뷰 R2-12, [임시:D-성-160]).
+    // (결과는 화면·홈 배지로 본다, 리뷰 R2-12, D-792).
     var isNotificationAsked by rememberSaveable { mutableStateOf(false) }
     val notificationPermission =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { viewModel.onStart() }
@@ -207,11 +207,11 @@ fun AvatarSetupScreen(state: AvatarSetupUiState, actions: AvatarSetupActions, mo
     }
 }
 
-/** 셀카 고르기 칸의 시험 태그. 셀카 문구가 이 칸 위에 있는지 본다(DV-성-10). */
+/** 셀카 고르기 칸의 시험 태그. 셀카 문구가 이 칸 위에 있는지 본다(DV-10). */
 internal const val SELFIE_CARD_TAG = "avatar_setup_selfie_card"
 
 /**
- * 1 얼굴 만들기(62329:1715): 지금 얼굴 카드(오늘 횟수 칩), 셀카 찍기(라임)·앨범(흰), 「기본 얼굴」 칸 하나([임시:D-성-187], 동물 4종 없음),
+ * 1 얼굴 만들기(62329:1715): 지금 얼굴 카드(오늘 횟수 칩), 셀카 찍기(라임)·앨범(흰), 「기본 얼굴」 칸 하나(D-819, 동물 4종 없음),
  * 지금 얼굴이 기본 얼굴이 아닐 때 고르면 저장 단추.
  */
 @Composable
@@ -390,7 +390,7 @@ private fun PickCard(
     }
 }
 
-/** 「기본 얼굴」 칸(동그라미 72, 고른 것은 라임 3 테두리): 내 성별의 기본 머리를 그린다([임시:D-성-187]). */
+/** 「기본 얼굴」 칸(동그라미 72, 고른 것은 라임 3 테두리): 내 성별의 기본 머리를 그린다(D-819). */
 @Composable
 private fun DefaultFaceOption(isSelected: Boolean, onClick: () -> Unit) {
     val label = stringResource(R.string.avatar_setup_pick_label, stringResource(R.string.avatar_setup_pick_character))
@@ -669,7 +669,7 @@ private fun LaterNotice() {
     )
 }
 
-/** 새 얼굴: 무대 358×420에 바뀐 얼굴로 선 아바타, 「새 얼굴이 준비됐어요」, 「확인」. 결과는 워커가 이미 적용했다([임시:D-성-118]). */
+/** 새 얼굴: 무대 358×420에 바뀐 얼굴로 선 아바타, 「새 얼굴이 준비됐어요」, 「확인」. 결과는 워커가 이미 적용했다(D-750). */
 @Composable
 private fun ColumnScope.DoneStep(state: AvatarSetupUiState, actions: AvatarSetupActions) {
     RunkkTopBar(title = stringResource(R.string.avatar_setup_done_title), onBack = actions.onDoneConfirm)

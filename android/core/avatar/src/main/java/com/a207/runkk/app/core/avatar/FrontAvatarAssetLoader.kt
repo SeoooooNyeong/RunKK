@@ -31,7 +31,7 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
                 return true
             }
             if (name == MaleSelectedBody.ASSET) {
-                // 내장 기본 옷 몸은 그리지 않는다(D-성-115): 투명으로 바꿔 아틀라스 표면 빈 곳으로 비치지 않게 한다
+                // 내장 기본 옷 몸은 그리지 않는다(D-747): 투명으로 바꿔 아틀라스 표면 빈 곳으로 비치지 않게 한다
                 asset.assignPng(MaleSelectedBody.transparentPng)
                 return true
             }
@@ -76,7 +76,7 @@ internal class FrontAvatarAssetLoader(private val defaultStandingBody: ByteArray
         checkNotNull(fullnessAsset) { "fullness overlay slot missing" }.assignPng(bytes ?: TRANSPARENT_PNG)
 
     /**
-     * 톤을 적용한 피부 얼굴과 그 얼굴에 맞춘 헤어(고유색 그대로, 피부 섞인 경계만 톤, DV-성-5)를 넣는다. 머리 원본을 바꾼 뒤 처음이면
+     * 톤을 적용한 피부 얼굴과 그 얼굴에 맞춘 헤어(고유색 그대로, 피부 섞인 경계만 톤, DV-5)를 넣는다. 머리 원본을 바꾼 뒤 처음이면
      * 눈 세 장(원래 색)도 함께 넣어, 눈이 톤을 거치지 않고 피부 얼굴 위에 합성되게 한다.
      */
     fun replaceFace(face: ByteArray, hair: ByteArray) {

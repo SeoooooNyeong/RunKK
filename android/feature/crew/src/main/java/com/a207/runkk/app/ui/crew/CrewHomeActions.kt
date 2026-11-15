@@ -55,7 +55,7 @@ data class CrewHomeActions(
     /** 크루 정보 수정(F-26) 입력·저장. 여는 것은 onPage(EDIT). */
     val onEditForm: (CrewFormState) -> Unit = {},
     val onEditSave: () -> Unit = {},
-    /** 정보 수정 로고 연필 덮개(F-26, DV-성-6): 사진 고르기를 연다(Route가 넣는다). */
+    /** 정보 수정 로고 연필 덮개(F-26, DV-6): 사진 고르기를 연다(Route가 넣는다). */
     val onEditLogoPick: () -> Unit = {},
     /** 내 정보 시트(F-23)의 나이·성별 공개 토글. */
     val onAgePublic: (Boolean) -> Unit = {},

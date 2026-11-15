@@ -21,9 +21,9 @@ import kotlin.coroutines.cancellation.CancellationException
  *   결과 하나당 한 번 만들어 상태로 들고 있는다(매번 새로 만들면 파일을 다시 읽는다).
  * - [onError]: Rive 파일·자산을 읽지 못했거나 합성에 실패했을 때. 실패해도 앞 그림은 그대로 둔다.
  * - [mirrored]: 좌우로 뒤집는다. 달리기([AvatarMotion.RUN]) 플레이어에만 걸리고(네이티브 뷰 `scaleX = -1`, 축은 뷰 가운데 = 아트보드
- *   가운데) 서기는 늘 정면 그대로다([임시:D-성-130]). 진행 방향 흔들림은 [rememberRunFacingLeft]로 거른 값을 넘긴다.
+ *   가운데) 서기는 늘 정면 그대로다(D-762). 진행 방향 흔들림은 [rememberRunFacingLeft]로 거른 값을 넘긴다.
  * - [onReady]: 지금 동작의 첫 텍스처가 들어가 그림이 보이게 된 때(주 스레드). 남녀·머리·동작이 바뀌어 다시 그리면 다시 온다.
- *   로딩 표시를 거둘 시점이다([AvatarLoadingPlaceholder], [임시:D-성-106]). 끝에 둔 매개변수라 뒤붙은 람다는 이것으로 묶인다.
+ *   로딩 표시를 거둘 시점이다([AvatarLoadingPlaceholder], D-738). 끝에 둔 매개변수라 뒤붙은 람다는 이것으로 묶인다.
  *
  * 같은 모습을 [prepareRiveAvatarLook]으로 미리 준비했거나 다른 뷰가 그렸으면 합성을 다시 하지 않는다(공용 합성 캐시).
  *

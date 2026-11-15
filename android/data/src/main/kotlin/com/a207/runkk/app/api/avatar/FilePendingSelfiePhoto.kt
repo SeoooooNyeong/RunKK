@@ -12,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * 보낸 사진 한 장을 앱 전용 파일 `files/selfie/pending-{회원ID}.jpg`에 둔다(design-oo 05-30 [임시:D-성-119]). 이미 줄인 JPEG을 그대로
+ * 보낸 사진 한 장을 앱 전용 파일 `files/selfie/pending-{회원ID}.jpg`에 둔다(design-oo 05-30 D-751). 이미 줄인 JPEG을 그대로
  * 쓰고 다시 줄이지 않는다. 앱은 백업을 끈다(매니페스트 allowBackup=false)라 기기 밖으로 나가지 않는다. 로그인한 회원 것만 읽고, 새로
  * 남기면 다른 회원이 남긴 사진은 지운다(로그아웃 뒤 다음 회원이 앞 회원 사진을 보지 않게). 파일을 읽고 쓰지 못하면 없는 것으로 본다.
  */

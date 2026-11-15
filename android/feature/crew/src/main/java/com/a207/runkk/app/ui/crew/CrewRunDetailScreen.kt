@@ -329,7 +329,7 @@ private fun WeeklyBadge() {
 
 /**
  * 참석자 줄(피그마: 높이 45, 간격 12, 아래 구분선): 아바타 32, 이름(나는 "나" Bold), 작성자면 뒤에 "작성자" 12. 마친 크루런이면 오른쪽에
- * 그 사람이 달린 거리(F-11d, FR-성-8), 달리지 않았으면 비운다.
+ * 그 사람이 달린 거리(F-11d, FR-329), 달리지 않았으면 비운다.
  */
 @Composable
 private fun AttendeeRow(attendee: CrewRunDetail.Attendee) {

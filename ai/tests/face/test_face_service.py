@@ -51,7 +51,7 @@ async def test_same_user_and_photo_give_the_same_request_id() -> None:
 
 
 async def test_explicit_retry_attempt_gives_a_new_request_id() -> None:
-    """DV-성-9: 같은 사진을 사용자가 명시적으로 다시 시도하면(attempt 2 이상) Node가 새 작업을 만들도록 다른 키를 쓴다.
+    """DV-9: 같은 사진을 사용자가 명시적으로 다시 시도하면(attempt 2 이상) Node가 새 작업을 만들도록 다른 키를 쓴다.
     attempt 1은 기존 키와 같다(같은 요청 재전송은 같은 작업)."""
     client = FakeAvatarClient()
     service = _service(client)

@@ -11,7 +11,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 
 /**
- * 아바타 뷰는 터치를 받지 않는다. 칸 위의 Compose 클릭(홈 아바타 → 내 러너, [임시:FR-성-17])이 Rive 뷰에 먹히지 않게 하는 실기기 결함
+ * 아바타 뷰는 터치를 받지 않는다. 칸 위의 Compose 클릭(홈 아바타 → 내 러너, FR-338)이 Rive 뷰에 먹히지 않게 하는 실기기 결함
  * (2026-11-11 3차 확인, 홈 아바타를 눌러도 내 러너로 가지 않음)의 회귀 시험이다.
  */
 @RunWith(RobolectricTestRunner::class)

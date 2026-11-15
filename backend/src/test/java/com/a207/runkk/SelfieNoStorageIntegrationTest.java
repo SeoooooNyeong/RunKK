@@ -214,7 +214,7 @@ class SelfieNoStorageIntegrationTest {
     }
 
     @Test
-    @DisplayName("DV-성-9 결과가 불명확하게 실패한 작업을 ai가 뒤에 성공으로 회수하면 성공으로 바꾸고 결과를 한 번 반영한다")
+    @DisplayName("DV-9 결과가 불명확하게 실패한 작업을 ai가 뒤에 성공으로 회수하면 성공으로 바꾸고 결과를 한 번 반영한다")
     void unknownOutcomeRecoveredLaterIsApplied() {
         String token = consentedMember("회수곰");
         AtomicLong owner = new AtomicLong();

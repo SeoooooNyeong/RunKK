@@ -67,7 +67,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `1 고르기 - 셀카 찍기, 앨범, 「기본 얼굴」 칸 하나(동물 4종 없음), 이미 기본 얼굴이면 저장 단추가 없다(J7, D-성-187)`() {
+    fun `1 고르기 - 셀카 찍기, 앨범, 「기본 얼굴」 칸 하나(동물 4종 없음), 이미 기본 얼굴이면 저장 단추가 없다(J7, D-819)`() {
         setup(
             AvatarSetupUiState(isLoading = false, faceKey = "default:FOX", isDefaultSelected = true),
             AvatarSetupActions(
@@ -92,7 +92,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `1 고르기 - 기본 얼굴 칸과 미리보기는 내 성별의 기본 머리다(D-성-187)`() {
+    fun `1 고르기 - 기본 얼굴 칸과 미리보기는 내 성별의 기본 머리다(D-819)`() {
         compose.setContent {
             CompositionLocalProvider(LocalAvatarCharacter provides AvatarCharacter.FEMALE) {
                 RunkkTheme(reduceMotion = true) {
@@ -186,7 +186,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `새 얼굴 - 바로 적용했다고 알리고 확인으로 돌아간다(D-성-118)`() {
+    fun `새 얼굴 - 바로 적용했다고 알리고 확인으로 돌아간다(D-750)`() {
         setup(
             AvatarSetupUiState(isLoading = false, phase = SetupPhase.DONE),
             AvatarSetupActions(onDoneConfirm = { calls += "ok" })
@@ -248,7 +248,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `꾸미기 - 기본 캐릭터 키(default)면 어느 값이든 「기본 얼굴」로 읽고 체형 이름은 읽지 않는다(D-성-128, D-성-187)`() {
+    fun `꾸미기 - 기본 캐릭터 키(default)면 어느 값이든 「기본 얼굴」로 읽고 체형 이름은 읽지 않는다(D-760, D-819)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 AvatarScreen(
@@ -296,7 +296,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `악세서리(모자) 부위는 꾸미기 탭과 상점 칩에서 숨긴다(D-성-183)`() {
+    fun `악세서리(모자) 부위는 꾸미기 탭과 상점 칩에서 숨긴다(D-815)`() {
         assertEquals(listOf(ItemSlot.TOP, ItemSlot.BOTTOM, ItemSlot.SHOES), VISIBLE_ITEM_SLOTS)
         compose.setContent { RunkkTheme(reduceMotion = true) { AvatarScreen(decorating(), AvatarScreenActions()) } }
         compose.onNodeWithText(str(R.string.avatar_slot_top)).assertExists()
@@ -306,7 +306,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `상점 칩은 상의·하의·신발 셋이다(D-성-183)`() {
+    fun `상점 칩은 상의·하의·신발 셋이다(D-815)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 ShopScreen(ShopUiState(isLoading = false, shop = Shop(items, 1_240)), ShopActions())
@@ -318,7 +318,7 @@ class AvatarScreensTest {
     }
 
     @Test
-    fun `꾸미기는 숨긴 모자 착용을 읽지 않는다(D-성-183)`() {
+    fun `꾸미기는 숨긴 모자 착용을 읽지 않는다(D-815)`() {
         val withHat = avatar.copy(equipped = mapOf(ItemSlot.TOP to 1L, ItemSlot.HAT to 3L))
         compose.setContent {
             RunkkTheme(reduceMotion = true) {

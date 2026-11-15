@@ -34,7 +34,7 @@ uv run pytest && uv run ruff check .
    ./codex.sh <작업> base_run_arm  prompts/base_run_arm.txt  <작업>/in/run_arm_default.png
    ./codex.sh <작업> base_run_leg  prompts/base_run_leg.txt  <작업>/in/run_leg_default.png
    ```
-   `prompts/base_stand_blocked.txt`(맨 몸통)는 생성 도구 안전 정책이 막았다. 그래서 속옷(연회색 민소매·속바지)으로 바꾼 것이 `base_stand.txt`다([임시:D-성-152]).
+   `prompts/base_stand_blocked.txt`(맨 몸통)는 생성 도구 안전 정책이 막았다. 그래서 속옷(연회색 민소매·속바지)으로 바꾼 것이 `base_stand.txt`다(D-784).
 3. 맨몸 바탕: `uv run python make_body.py --work <작업>`으로 `<작업>/src_body/`를 만들고, `cd .. && uv run outfit-pipeline body <작업>/src_body`로 `assets/outfits/body/`(무손실 WebP, 상의 자르기 칸, 남녀 공용)를 만든다.
 4. 의상 18가지(Codex, 4개씩 병렬 가능): `./codex.sh <작업> item <assetKey> <썸네일>`. 지시문은 `prompts/items/<assetKey>.txt`다. 긴소매 4벌은 기본 아틀라스(흰 반팔티) 위에 그리고, 승인 코랄 집업 후드를 품질 참고로 함께 준다.
 5. 레이어 뽑기: `uv run python produce.py --work <작업>`(base_* 셋은 승인 기본 텍스처에서 뽑는다). 결과 `<작업>/src_outfits/<assetKey>/{g}_{slot}.png`.

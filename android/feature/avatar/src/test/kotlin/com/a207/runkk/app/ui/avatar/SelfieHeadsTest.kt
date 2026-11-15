@@ -76,7 +76,7 @@ class SelfieHeadsTest {
     }
 
     @Test
-    fun `서로 다른 얼굴은 한 머리를 받는 동안에도 함께 받는다(AR-성-89)`() = runTest {
+    fun `서로 다른 얼굴은 한 머리를 받는 동안에도 함께 받는다(AR-89)`() = runTest {
         repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
         val slow = CompletableDeferred<Unit>()
         repo.headGates["head:1:a"] = slow
@@ -93,7 +93,7 @@ class SelfieHeadsTest {
     }
 
     @Test
-    fun `같은 얼굴을 동시에 찾으면 한 번만 받고 기다린 쪽도 같은 값을 쓴다(AR-성-89)`() = runTest {
+    fun `같은 얼굴을 동시에 찾으면 한 번만 받고 기다린 쪽도 같은 값을 쓴다(AR-89)`() = runTest {
         repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
         val gate = CompletableDeferred<Unit>()
         repo.headGates["head:1:a"] = gate
@@ -108,7 +108,7 @@ class SelfieHeadsTest {
     }
 
     @Test
-    fun `동시에 기다리던 받기가 실패하면 둘 다 기본 얼굴이고 다음에 다시 받는다(AR-성-89)`() = runTest {
+    fun `동시에 기다리던 받기가 실패하면 둘 다 기본 얼굴이고 다음에 다시 받는다(AR-89)`() = runTest {
         repo.headResult = Outcome.Failure(AppError.Network)
         val gate = CompletableDeferred<Unit>()
         repo.headGates["head:1:a"] = gate

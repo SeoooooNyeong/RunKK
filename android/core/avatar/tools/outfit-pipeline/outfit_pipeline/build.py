@@ -1,4 +1,4 @@
-"""원본 → 정렬·잘라내기 → assets/outfits/<assetKey>/ + shop.webp + index.json (5.2, D-성-113, D-성-114).
+"""원본 → 정렬·잘라내기 → assets/outfits/<assetKey>/ + shop.webp + index.json (5.2, D-745, D-746).
 
 원본 폴더 하나 = 묶음 하나: `<원본>/<assetKey>/{g}_{slot}{b}.png`(또는 .webp). 결과는 무손실 WebP. 크기가 슬롯의 정수배(예: 2배로 그린 그림)면 줄인다.
 `extract`는 몸 전체로 그린 그림(맨몸 위에 옷을 입힌 아틀라스)에서 맨몸과 다른 픽셀만 의상 레이어로 뽑는다.
@@ -66,7 +66,7 @@ def clip(image: Image.Image, allowed: Image.Image) -> Image.Image:
 
 
 def outline_cut(image: Image.Image, allowed: Image.Image, strength: float = 0.55) -> Image.Image:
-    """허용 영역 경계에서 잘린 옷 가장자리에 1px 윤곽(옷 색의 어두운 톤)을 다시 그린다(5.3, D-성-116 외곽선)."""
+    """허용 영역 경계에서 잘린 옷 가장자리에 1px 윤곽(옷 색의 어두운 톤)을 다시 그린다(5.3, D-748 외곽선)."""
     array = np.array(image).astype(np.float32)
     alpha = array[..., 3] > 0
     edge = np.array(allowed.filter(ImageFilter.MinFilter(3))) == 0  # 허용 영역 가장자리 1px
@@ -278,7 +278,7 @@ def extract(
 
 
 def make_shop(stand: Image.Image) -> Image.Image:
-    """그 의상의 여자 서기 레이어 불투명 영역을 잘라 512x512 가운데에 긴 변 440px로(D-성-113)."""
+    """그 의상의 여자 서기 레이어 불투명 영역을 잘라 512x512 가운데에 긴 변 440px로(D-745)."""
     box = stand.getchannel("A").getbbox()
     if box is None:
         raise ValueError("empty stand layer")
@@ -394,7 +394,7 @@ def _write_bundle(source: Path, target: Path, masks_dir: Path, asset_key: str, p
 
 
 def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
-    """상의 자르기 칸([임시:D-성-156], 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위, 허리 밴드를 빼고 엉덩이 옆(손 칸 밖)을 더한 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
+    """상의 자르기 칸(D-788, 값 = 띠 종류): 서기는 상의 칸에서 손 칸과 목·가슴 위, 허리 밴드를 빼고 엉덩이 옆(손 칸 밖)을 더한 곳(팔 띠 둘은 따로 값), 달리기 몸통은 목
     조각을 뺀 전체, 달리기 팔은 전체(소매 끝 아래는 팔 띠)."""
     from outfit_pipeline.masks import stand_zones
 
@@ -405,7 +405,7 @@ def cut_area(raw_dir: Path, slot_name: str) -> Image.Image:
         area.paste(0, spec.NECK_CHEST)
         area.paste(0, spec.NECK_TOP)
         area.paste(0, spec.STAND_WAIST)
-        # 엉덩이(하의 칸 위쪽): 하의 밖으로 비치는 맨몸 테두리도 지운다(하의는 옷으로 친다, [임시:D-성-185])
+        # 엉덩이(하의 칸 위쪽): 하의 밖으로 비치는 맨몸 테두리도 지운다(하의는 옷으로 친다, D-817)
         hips = Image.new("L", area.size, 0)
         for box in spec.STAND_HIP_CUTS:
             hips.paste(spec.CUT_HIP, box)
@@ -496,7 +496,7 @@ def strip_bundles(outfits_dir: Path) -> dict[str, int]:
 
 
 def clean_body(slot_name: str, image: Image.Image) -> tuple[Image.Image, Image.Image | None]:
-    """맨몸 바탕 정리([임시:D-성-184]·[임시:D-성-185], `outfit_pipeline.body`): 부스러기를 지우고, 서기는 소매 밑단 줄을 펴고 허리·엉덩이
+    """맨몸 바탕 정리(D-816·D-817, `outfit_pipeline.body`): 부스러기를 지우고, 서기는 소매 밑단 줄을 펴고 허리·엉덩이
     속옷을 맨몸으로 바꾸고 외곽선 밖 나란한 가는 획을 지운다. (맨몸, 서기면 기본 하의로 옮길 허리 밴드 레이어)."""
     # 맨몸 외곽선과 그 안티에일리어싱은 승인 원본 그대로 둔다(검수: 외곽선을 다시 그리거나 3x3로 깎으면 실기기에서 팔이 울퉁불퉁했다).
     # 고립 점만 지우고, 서기는 팔 안쪽 피부의 소매 줄, 팔꿈치 꼬리 조각, 허리·엉덩이 안쪽 속옷, 팔과 몸통 사이 떨어진 조각만 고친다
@@ -522,7 +522,7 @@ LONG_LEG_ROW = 500  # 달리기 다리 하의가 이 행 아래까지 내려오�
 
 
 def tidy_bottom(layer: Image.Image, body_folder: Path, wisps: bool = False, stand: bool = True) -> Image.Image:
-    """하의 레이어 정리([임시:D-성-185]): 세로 틈을 메우고 부스러기를 지우고, 서기면 허리 조각을 지우고 허리를 겹침 띠 위까지 늘린다(맨몸
+    """하의 레이어 정리(D-817): 세로 틈을 메우고 부스러기를 지우고, 서기면 허리 조각을 지우고 허리를 겹침 띠 위까지 늘린다(맨몸
     바탕이 있으면). 한 단계가 다른 단계의 결과를 바꿀 수 있어(메운 틈 옆 털, 늘린 허리 옆 조각) 더 바뀌지 않을 때까지(최대 6번) 되풀이한다."""
     path = body_folder / f"female_stand{spec.EXTENSION}"
     body = Image.open(path) if stand and path.is_file() else None

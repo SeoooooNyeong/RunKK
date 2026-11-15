@@ -34,7 +34,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 /**
  * 아바타·상점 포트를 REST로 구현한다(6.1.14 api.avatar). 셀카 바이트는 요청 본문으로만 보내고 기기·로그에 남기지 않는다(D-23, D-59).
  * 셀카 얼굴은 서버가 비동기로 만든다(S15P31A207-276): 접수한 작업 ID·접수 시각만 [pending]에 남겨 워커가 이어 조회한다. 남긴 값을 바꿀
- * 때마다 [progress]를 다시 맞춰 같은 프로세스의 화면이 바로 받는다(design-oo 05-30 [임시:D-성-117]).
+ * 때마다 [progress]를 다시 맞춰 같은 프로세스의 화면이 바로 받는다(design-oo 05-30 D-749).
  * 앱이 모르는 착용 부위는 건너뛴다.
  */
 internal class AvatarRepositoryImpl
@@ -54,7 +54,7 @@ constructor(
     }
 
     /**
-     * 내 얼굴이 이미 남긴 작업의 셀카 머리("head:{회원ID}:{작업ID}")면 그 작업은 끝나 적용됐다([임시:D-성-188]). 워커가 돌지 못했어도
+     * 내 얼굴이 이미 남긴 작업의 셀카 머리("head:{회원ID}:{작업ID}")면 그 작업은 끝나 적용됐다(D-820). 워커가 돌지 못했어도
      * (네트워크 제약) 만드는 중 표시를 끄고 기기 작업·보낸 사진을 지우고 성공으로 둔다. 알림은 내지 않는다(화면이 바뀐 얼굴을 보인다).
      */
     private suspend fun settleIfApplied(faceKey: String) {
@@ -101,7 +101,7 @@ constructor(
         progress.reset()
     }
 
-    /** 실패로 끝나면 남긴 작업 대신 실패를 남긴다(DV-성-10). 서버가 작업을 잃었으면 둘 다 지운다. */
+    /** 실패로 끝나면 남긴 작업 대신 실패를 남긴다(DV-10). 서버가 작업을 잃었으면 둘 다 지운다. */
     override suspend fun selfieJob(jobId: String): Outcome<SelfieJob> {
         val result = ApiErrorMapper.call { api.selfieJob(jobId).toDomain() }
         when {

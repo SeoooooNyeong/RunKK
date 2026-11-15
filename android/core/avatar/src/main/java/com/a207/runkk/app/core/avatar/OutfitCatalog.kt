@@ -8,7 +8,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 /**
- * 의상 목록(assets/outfits/index.json, D-성-110·115). 묶음이 없는 키는 그 부위 기본 묶음(base_*)으로 그린다.
+ * 의상 목록(assets/outfits/index.json, D-742·D-747). 묶음이 없는 키는 그 부위 기본 묶음(base_*)으로 그린다.
  * 지금 앱의 의상 번호(AvatarOutfit 0..6)는 [LEGACY_KEYS]의 같은 자리 키로 찾는다(5.7 대응표).
  */
 internal class OutfitCatalog(bundles: List<OutfitBundle>, private val bodyShared: Map<String, String> = emptyMap()) {
