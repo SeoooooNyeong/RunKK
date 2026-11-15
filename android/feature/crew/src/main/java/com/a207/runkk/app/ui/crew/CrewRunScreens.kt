@@ -93,6 +93,7 @@ import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberHeadingLeft
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
 import com.a207.runkk.app.core.designsystem.runFrameMillis
+import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
@@ -590,11 +591,13 @@ private fun CrewRunMap(state: CrewRunUiState) {
     val isMoving = rememberIsMoving(mine.distance) && !mine.isPaused && mine.currentPace != null
     val frameMillis = runFrameMillis(mine.currentPace)
     val isLeft = rememberHeadingLeft(route)
-    // 내 아바타 칸(design-oo 05-30 7절): 크루런 중이고 내가 멈추지 않았으면 RUN. 칸이 있으면 내 칸만 88dp다(크루원 그림 칸은 그대로)
-    val pose = if (state.phase == CrewRunPhase.RUNNING && !mine.isPaused) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 내 아바타 칸(design-oo 05-30 7절, D-856, PM 2026-11-15): 자유런·대결과 같이 크루런 중이어도 일시정지했거나, 멈춰 있거나(거리가 3초
+    // 늘지 않음), 페이스를 모르면 STAND이고, 달리기 동작은 내 현재 페이스 빠르기로 돈다. 칸이 있으면 내 칸만 88dp다(크루원 그림 칸은 그대로)
+    val pose = if (state.phase == CrewRunPhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    val runSpeed = runMotionSpeed(mine.currentPace)
     val myFigureSize = if (isSlotFilled(SlotKey.RUN_AVATAR)) MY_AVATAR_SLOT else MY_FIGURE
     val myFigure: @Composable () -> Unit = {
-        RunAvatarSlot(pose, isLeft) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
+        RunAvatarSlot(pose, isLeft, runSpeed) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
     }
     val myLabel = if (mine.isPaused) {
         stringResource(R.string.crew_run_mate_paused, stringResource(R.string.crew_member_me))
