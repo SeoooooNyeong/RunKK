@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBottomSheet
 import com.a207.runkk.app.core.designsystem.RunkkChipTone
@@ -113,7 +114,8 @@ private fun ReactorRow(reactor: Reactor, layers: List<FaceLayer>) {
                 faceKey = reactor.faceKey,
                 size = 32.dp,
                 faceLayers = layers,
-                character = AvatarCharacter.of(reactor.shownGender)
+                // 내 줄은 내 성별이다: 표시 성별은 성별 비공개면 대체값이라 내 얼굴이 다른 성별로 보인다
+                character = if (reactor.isMe) LocalAvatarCharacter.current else AvatarCharacter.of(reactor.shownGender)
             )
         },
         trailing = {

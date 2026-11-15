@@ -58,6 +58,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarStageBackdrop
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.ProgressDot
@@ -469,9 +470,16 @@ private fun LobbySeat(p: Lobby.Participant, faces: Map<String, List<FaceLayer>>)
         size = LOBBY_SEAT,
         modifier = Modifier.testTag(LOBBY_FACE_SEAT_TAG),
         faceLayers = p.faceKey?.let(faces::get).orEmpty(),
-        character = AvatarCharacter.of(p.shownGender)
+        character = lobbySeatCharacter(p, LocalAvatarCharacter.current)
     )
 }
+
+/**
+ * 대기실 원의 기본 얼굴 남녀. 내 자리는 내 성별([mine])이다: 서버가 보내는 표시 성별은 성별을 공개하지 않으면 대체값이라, 그대로 쓰면
+ * 내 얼굴이 다른 성별로 보인다. 다른 사람은 표시 성별 그대로다.
+ */
+internal fun lobbySeatCharacter(p: Lobby.Participant, mine: AvatarCharacter): AvatarCharacter =
+    if (p.isMe) mine else AvatarCharacter.of(p.shownGender)
 
 @Composable
 private fun CountdownBody(state: CrewRunUiState) {
