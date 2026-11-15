@@ -318,12 +318,24 @@ class FakeAvatarRepository(
 ) : com.a207.runkk.app.domain.avatar.AvatarRepository {
     var backgroundCalls = 0
 
+    /** 내 아바타(랭킹의 내 얼굴, PM 2026-11-15). */
+    var avatarResult: Outcome<com.a207.runkk.app.domain.avatar.Avatar> = Outcome.Failure(AppError.Network)
+
+    /** 얼굴 키 → 층. 없으면 빈 층. */
+    val faceResults = mutableMapOf<String, Outcome<List<com.a207.runkk.app.core.model.FaceLayer>>>()
+    val faceCalls = mutableListOf<String>()
+
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<com.a207.runkk.app.core.model.FaceLayer>> {
+        faceKey?.let(faceCalls::add)
+        return faceResults[faceKey] ?: Outcome.Success(emptyList())
+    }
+
     override suspend fun backgroundChoice(): Outcome<BackgroundChoice?> {
         backgroundCalls++
         return backgroundResult
     }
 
-    override suspend fun avatar() = error("unused")
+    override suspend fun avatar() = avatarResult
 
     override suspend fun submitSelfie(jpeg: ByteArray) = error("unused")
 
