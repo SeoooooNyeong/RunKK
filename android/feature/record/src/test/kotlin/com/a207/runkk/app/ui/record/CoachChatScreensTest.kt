@@ -1,9 +1,11 @@
 package com.a207.runkk.app.ui.record
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -222,6 +224,13 @@ class CoachChatScreensTest {
         compose.onNodeWithText("이번 주에 뭘 하면 좋을까?").performScrollTo().assertExists()
         compose.onNodeWithText("질문").performTextInput("이어서 물어요")
         compose.onNodeWithContentDescription("질문 보내기").assertIsEnabled()
+    }
+
+    @Test
+    fun `이어가는 대화 카드의 첫 질문과 날짜는 가운뎃점 없이 쉼표로 잇는다(PL12-A3)`() {
+        compose.setContent { RunkkTheme { CoachChatScreen(continuing(), CoachChatActions()) } }
+        compose.onNodeWithText("어제 러닝 어땠어?, 11월 2일").assertExists()
+        compose.onAllNodesWithText("·", substring = true).assertCountEquals(0)
     }
 
     @Test
