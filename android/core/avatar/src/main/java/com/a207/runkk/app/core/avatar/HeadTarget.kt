@@ -5,9 +5,9 @@ package com.a207.runkk.app.core.avatar
  * 서버 분리·정합 오류를 이 값이나 파츠별 오프셋으로 덮지 않는다(온보딩 4절).
  */
 internal enum class HeadTarget(val centerX: Float, val chinY: Float, val crownY: Float) {
-    FEMALE_FRONT(534f, 787f, 64f),
+    FEMALE_FRONT(534f, 787f, 20f),
     MALE_FRONT(520f, 854f, 59f),
-    FEMALE_SIDE(651f, 792f, 60f),
+    FEMALE_SIDE(651f, 791f, 20f),
     MALE_SIDE(582f, 858f, 60f);
 
     companion object {
