@@ -12,9 +12,10 @@ import kotlin.test.assertTrue
 class HeadPlacementTest {
     @Test
     fun `여자 생성 머리 목표도 새 기본 머리의 정수리와 측면 턱에 맞춘다`() {
-        assertEquals(20f, HeadTarget.FEMALE_FRONT.crownY)
-        assertEquals(20f, HeadTarget.FEMALE_SIDE.crownY)
-        assertEquals(791f, HeadTarget.FEMALE_SIDE.chinY)
+        assertEquals(102f, HeadTarget.FEMALE_FRONT.crownY)
+        assertEquals(102f, HeadTarget.FEMALE_SIDE.crownY)
+        assertEquals(794f, HeadTarget.FEMALE_FRONT.chinY)
+        assertEquals(798f, HeadTarget.FEMALE_SIDE.chinY)
     }
 
     @Test

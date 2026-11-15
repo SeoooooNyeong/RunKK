@@ -27,7 +27,9 @@ CROWN_Y, CHIN_Y, CENTER_X = -0.05, 0.86, 0.5
 CROWN_MIN, CROWN_MAX = -0.05, 0.08
 NECK_END_RATIO = 0.97
 # 내장 머리의 턱·목 가운데 x(core/avatar HeadTarget 정면 값, 내장 머리가 그 자리에 맞춰져 있다).
-CHIN = {"male": (520, 854), "female": (534, 787)}
+CHIN = {"male": (520, 854), "female": (534, 794)}
+# 여자 내장 머리는 몸체가 크게 그리는 만큼(약 10.8%) 줄여 둔 그림이다(S15P31A207-306). 얼굴 원에서는 남자와 같은 얼굴 크기로 되돌린다.
+ASSET_SCALE = {"male": 1.0, "female": 0.903}
 
 
 def crown_of(hair: Image.Image) -> int:
@@ -61,7 +63,7 @@ def make(gender: str, in_circle: bool = True) -> Image.Image:
     center_x, chin = CHIN[gender]
     crown = crown_of(hair)
     reference_hair = hair if gender == "male" else Image.open(ASSETS / "male/hair.png").convert("RGBA")
-    scale = SIZE * (CHIN_Y - CROWN_Y) / (CHIN["male"][1] - crown_of(reference_hair))
+    scale = SIZE * (CHIN_Y - CROWN_Y) / (CHIN["male"][1] - crown_of(reference_hair)) / ASSET_SCALE[gender]
     dx = SIZE * CENTER_X - center_x * scale
     bottom = neck_bottom(face)
     if in_circle:
