@@ -5,12 +5,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_LOADING_TAG
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.SelfFaceTone
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
@@ -193,5 +198,88 @@ class RankingLookTest {
             look = RunnerLook(null, null, null, null, 0, 80)
         )
         assertNull(rankingFaceTone(faceless, isMine = false))
+    }
+
+    /** 1×1 PNG 셀카 머리 층(그릴 수 있는 그림). */
+    private val myLayers = FacePart.entries.map {
+        FaceLayer(
+            it,
+            java.util.Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+            )
+        )
+    }
+
+    /** 내가 5위라 목록 줄에도 있다. 서버 응답의 내 모습은 기본 캐릭터 얼굴(내 아바타 저장소보다 오래된 값). */
+    private val meInList =
+        Ranking.Entry(5, "나", Distance(40_000), Gender.MALE, look = windLook.copy(faceKey = "default:CAT"))
+    private val rankingWithMeInList = ranking.copy(
+        entries = listOf(
+            ranking.entries[0],
+            Ranking.Entry(2, "구름", Distance(58_000), Gender.FEMALE),
+            ranking.entries[2],
+            ranking.entries[3],
+            meInList
+        ),
+        mine = meInList
+    )
+
+    /** 다른 러너(4위) 얼굴은 받기를 끝냈다(빈 층, 기본 머리): 빈 자리는 내 얼굴 원만 센다. */
+    private val otherFaceFetched = mapOf("head:4:a" to emptyList<FaceLayer>())
+
+    @Test
+    fun `내 순위 카드와 목록의 내 줄은 홈과 같은 내 아바타(셀카 머리)로 그린다(PM 2026-11-15)`() {
+        val shown = mutableListOf<String>()
+        show(
+            RankingUiState(
+                isLoading = false,
+                ranking = rankingWithMeInList,
+                faces = otherFaceFetched,
+                myFace = RankingFace("head:7:me", myLayers)
+            ),
+            onFaceShown = { shown += it }
+        )
+        compose.waitForIdle()
+
+        compose.onAllNodesWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertCountEquals(2)
+        assertTrue("head:7:me" !in shown && "default:CAT" !in shown, "내 얼굴은 저장소 값이라 따로 받지 않는다: $shown")
+    }
+
+    @Test
+    fun `내 얼굴을 읽는 중이면 내 순위 카드와 내 줄은 기본 머리 대신 빈 자리다`() {
+        show(
+            RankingUiState(
+                isLoading = false,
+                ranking = rankingWithMeInList,
+                faces = otherFaceFetched,
+                myFace = RankingFace.LOADING
+            )
+        )
+        compose.waitForIdle()
+
+        compose.onAllNodesWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertCountEquals(2)
+    }
+
+    @Test
+    fun `내 얼굴을 모르면 내 순위 카드는 지금처럼 기본 캐릭터 얼굴이다`() {
+        show(RankingUiState(isLoading = false, ranking = rankingWithMeInList, faces = otherFaceFetched))
+        compose.waitForIdle()
+
+        compose.onAllNodesWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertCountEquals(0)
+        compose.onAllNodesWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun `얼굴 원 그을림 - 나는 내 아바타 저장소 얼굴 키로 정한다(서버 줄 모습보다 앞선다)`() {
+        val myTone = SelfFaceTone("head:7:me", 42)
+        // 저장소가 기본 캐릭터 얼굴이면 서버 줄이 셀카여도 내 러닝량으로 그 원만 감싼다.
+        assertEquals(
+            SelfFaceTone("default:CAT", 42, includesDefaultFace = true),
+            rankingFaceTone(me, isMine = true, myTone = myTone, myFaceKey = "default:CAT")
+        )
+        // 저장소가 셀카 머리면 서버 줄이 기본 얼굴이어도 앱 전체 내 톤 그대로다.
+        assertNull(rankingFaceTone(meInList, isMine = true, myTone = myTone, myFaceKey = "head:7:me"))
+        // 저장소 얼굴이 없으면(얼굴 안 고름) 그을릴 얼굴이 없다.
+        assertNull(rankingFaceTone(meInList, isMine = true, myTone = myTone, myFaceKey = null))
     }
 }
