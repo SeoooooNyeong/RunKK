@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalTrackAvatarLoading
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -25,6 +26,33 @@ import org.robolectric.RobolectricTestRunner
 class TrackRunAvatarFrameTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun `트랙 상태가 준비 중에서 실패와 재시도로 바뀌면 기본 그림과 준비 신호도 바뀐다`() {
+        var state: RunFigureState by mutableStateOf(RunFigureState.Loading)
+        val reports = mutableListOf<Boolean>()
+        var errors = 0
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CompositionLocalProvider(LocalTrackAvatarLoading provides { reports += it }) {
+                    Box(Modifier.size(88.dp)) {
+                        TrackRunAvatarFigure(state, AvatarSlotPose.RUN, facingLeft = true) { errors++ }
+                    }
+                }
+            }
+        }
+        compose.onAllNodesWithTag(TRACK_RUN_AVATAR_PLACEHOLDER_TAG).assertCountEquals(0)
+        compose.runOnIdle { assertEquals(true, reports.last()) }
+        compose.runOnIdle { state = RunFigureState.Failed(AvatarCharacter.FEMALE) }
+        compose.onNodeWithTag(TRACK_RUN_AVATAR_PLACEHOLDER_TAG).assertExists()
+        compose.runOnIdle { assertEquals(false, reports.last()) }
+        compose.runOnIdle { state = RunFigureState.Loading }
+        compose.onAllNodesWithTag(TRACK_RUN_AVATAR_PLACEHOLDER_TAG).assertCountEquals(0)
+        compose.runOnIdle {
+            assertEquals(true, reports.last())
+            assertEquals(0, errors)
+        }
+    }
 
     @Test
     fun `준비 중에는 기본 그림 없이 카드에 준비 중을 알리고 첫 프레임 뒤에 푼다`() {

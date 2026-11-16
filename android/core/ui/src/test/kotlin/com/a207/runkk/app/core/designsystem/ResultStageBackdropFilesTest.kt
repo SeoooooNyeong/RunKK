@@ -3,6 +3,7 @@ package com.a207.runkk.app.core.designsystem
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -25,6 +26,67 @@ class ResultStageBackdropFilesTest {
     private fun idOf(name: String): Int = resources.getIdentifier(name, "drawable", packageName)
 
     private fun nameOf(id: Int): String = resources.getResourceEntryName(id)
+
+    @Test
+    fun `모든 무대 배경과 세 폭과 두 테마에서 결과 발끝과 높이는 1dp 이내다`() {
+        forEachStage { name, width, aspect ->
+            val layout = ResultStageLayout.forResult(width, aspect)
+            assertEquals(266f, layout.feetY, 1f, "$name @$width 발끝")
+            assertEquals(266f, layout.avatar.bottom, 1f, "$name @$width 그림 칸 바닥")
+            assertEquals(180f, layout.avatar.height, 1f, "$name @$width 높이")
+            assertEquals(width / 2, layout.avatar.center.x, 1f, "$name @$width 가로 중심")
+            assertEquals(232f, layout.trackTop, 1f, "$name @$width 트랙")
+            assertEquals(
+                layout.trackTop,
+                layout.background.top + layout.background.height * STAGE_FLOOR_FRACTION,
+                1f,
+                "$name @$width 배경 바닥선"
+            )
+            assertTrue(layout.background.width >= width, "$name @$width 가로 채움")
+            assertTrue(layout.background.bottom >= 299f, "$name @$width 시트 위 빈 곳 없음")
+        }
+    }
+
+    @Test
+    fun `모든 무대 배경과 세 폭과 두 테마에서 트랙 바닥선과 레인과 이름표를 지킨다`() {
+        forEachStage { name, width, aspect ->
+            for (height in listOf(240f, 280f, 328f)) {
+                val scene = TrackScene.dimensions(height)
+                val imageHeight = (width / aspect).roundToInt()
+                val sky = scene.skyHeight.roundToInt()
+                val top = trackHorizonTop(imageHeight, sky)
+                assertTrue(top <= 0 && top + imageHeight >= sky, "$name @$width 빈 곳 없음")
+                assertEquals(sky.toFloat(), top + imageHeight * STAGE_FLOOR_FRACTION, 1f, "$name 바닥선")
+                assertEquals(height - 35f, scene.myFootY, .001f, "$name 내 발")
+                assertEquals(height - 103f, scene.otherFootY, .001f, "$name 상대 발")
+                assertEquals(138f, scene.laneHeight, .001f)
+                assertEquals(26f, scene.rulerHeight, .001f)
+                assertTrue(scene.otherTagY >= 96.99f, "$name 조작부 아래 6dp")
+                assertTrue(scene.otherTagY + scene.tagHeight < scene.myTagY, "$name 이름표 겹침 없음")
+            }
+        }
+    }
+
+    /** 실제 선택 함수가 돌려주는 26개 배경의 낮과 밤 크기로 156조합을 계산한다. */
+    private fun forEachStage(check: (String, Float, Float) -> Unit) {
+        val choices = CITY_KEYS.map { it to null } + STAGES.map { "LM_99" to it } + (null to null)
+        val resourcesSeen = mutableSetOf<Int>()
+        assertEquals(26, choices.size)
+        for ((key, stage) in choices) {
+            for (dark in listOf(false, true)) {
+                val id = avatarStageBackdropRes(key, stage, dark)
+                resourcesSeen += id
+                val name = nameOf(id)
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                resources.openRawResource(id).use { BitmapFactory.decodeStream(it, null, bounds) }
+                assertEquals(1080 to 1200, bounds.outWidth to bounds.outHeight, name)
+                for (width in listOf(320f, 360f, 600f)) {
+                    check(name, width, bounds.outWidth.toFloat() / bounds.outHeight)
+                }
+            }
+        }
+        assertEquals(52, resourcesSeen.size, "26종의 낮과 밤을 중복 없이 검사한다")
+    }
 
     @Test
     fun `무대 그림은 낮 26장과 밤 26장이 모두 1080×1200이다`() {

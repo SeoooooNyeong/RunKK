@@ -13,10 +13,10 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Constraints
 import com.a207.runkk.app.core.avatar.AvatarStageFrame
-import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.RiveAvatarStill
 import com.a207.runkk.app.core.avatar.RunkkRiveAvatar
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.LocalTrackAvatarLoading
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
@@ -33,13 +33,14 @@ internal const val TRACK_RUN_AVATAR_PLACEHOLDER_TAG = "track-run-avatar-placehol
  */
 @Composable
 internal fun TrackRunAvatarFigure(
-    look: RiveAvatarLook?,
-    isFailed: Boolean,
-    character: AvatarCharacter,
+    state: RunFigureState,
     pose: AvatarSlotPose,
     facingLeft: Boolean,
     onError: () -> Unit
 ) {
+    val look = (state as? RunFigureState.Ready)?.look
+    val isFailed = state is RunFigureState.Failed
+    val character = (state as? RunFigureState.Failed)?.character ?: LocalAvatarCharacter.current
     val reduceMotion = LocalReduceMotion.current
     // 자세가 바뀌어도 같은 그림이라 준비 상태를 지킨다.
     TrackRunAvatarFrame(Triple(look, reduceMotion, isFailed), isFailed, character) { onReady ->

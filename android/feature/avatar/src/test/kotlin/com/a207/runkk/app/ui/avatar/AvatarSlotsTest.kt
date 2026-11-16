@@ -63,6 +63,17 @@ class AvatarSlotsTest {
     }
 
     @Test
+    fun `트랙 달리기 그림도 같은 상태와 동작과 방향과 오류의 네 인자로 받는다`() {
+        val function = Class.forName("com.a207.runkk.app.ui.avatar.TrackRunAvatarFigureKt")
+            .declaredMethods.single { it.name == "TrackRunAvatarFigure" }
+        val actual = function.parameterTypes.filterNot {
+            it.name == "androidx.compose.runtime.Composer" || it == Integer.TYPE
+        }
+        assertEquals(4, actual.size)
+        assertEquals("RunFigureState", actual.first().simpleName)
+    }
+
+    @Test
     fun `시간 초과 대체 그림은 늦은 Ready 뒤 비트맵을 읽는 동안에도 남는다`() {
         compose.mainClock.autoAdvance = false
         var readies = 0

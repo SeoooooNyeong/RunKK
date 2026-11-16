@@ -135,27 +135,23 @@ fun RunkkTrackCard(
         // 상대가 트랙 밖일 때도 보이지 않게 미리 그려 둔다. 트랙에 들어오는 순간 자리 표시 그림이 잠깐 보이는 것을 막는다.
         if (otherTag != null) {
             Runner(
-                isMine = false,
+                geometry = TrackRunnerGeometry(scene.otherSize.dp, scene.runnerScale, TrackRunnerShadow.OTHER),
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .offset(x = width * otherX - scene.otherSize.dp / 2, y = -(maxHeight - scene.otherFootY.dp))
                     .then(if (onTrack != null) Modifier.testTag(TRACK_OTHER_TAG) else Modifier.clearAndSetSemantics {})
                     .alpha(if (onTrack != null && !isOtherLoading) 1f else PRELOAD_ALPHA),
-                size = scene.otherSize.dp,
-                scale = scene.runnerScale,
                 isMoving = false,
                 onLoading = { isOtherLoading = it },
                 avatar = otherAvatar
             )
         }
         Runner(
-            isMine = true,
+            geometry = TrackRunnerGeometry(scene.mySize.dp, scene.runnerScale, TrackRunnerShadow.MINE),
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .offset(x = width * layout.myX - scene.mySize.dp / 2, y = -(maxHeight - scene.myFootY.dp))
                 .testTag(TRACK_ME_TAG),
-            size = scene.mySize.dp,
-            scale = scene.runnerScale,
             isMoving = isMoving && !reduceMotion,
             onLoading = {},
             avatar = myAvatar
@@ -185,13 +181,13 @@ fun RunkkTrackCard(
             Modifier.offset(x = width * layout.myX - scene.mySize.dp / 2, y = scene.myTagY.dp)
                 .size(scene.mySize.dp, scene.tagHeight.dp).testTag(TRACK_ME_NAME_TAG),
             contentAlignment = Alignment.Center
-        ) { NameTag(myTag, myPace, true, myFace, scene.runnerScale) }
+        ) { NameTag(TrackRunnerLabel(myTag, myPace, true), myFace, scene.runnerScale) }
         if (onTrack != null && otherTag != null && !isOtherLoading) {
             Box(
                 Modifier.offset(x = width * otherX - scene.otherSize.dp / 2, y = scene.otherTagY.dp)
                     .size(scene.otherSize.dp, scene.tagHeight.dp).testTag(TRACK_OTHER_NAME_TAG),
                 contentAlignment = Alignment.Center
-            ) { NameTag(otherTag, otherPace, false, otherFace, scene.runnerScale) }
+            ) { NameTag(TrackRunnerLabel(otherTag, otherPace, false), otherFace, scene.runnerScale) }
         }
     }
 }
@@ -199,21 +195,20 @@ fun RunkkTrackCard(
 /** 트랙 밖 상대를 미리 그릴 때의 불투명도. 0이면 그리기를 건너뛰어 준비가 안 될 수 있다. */
 private const val PRELOAD_ALPHA = 0.01f
 
-/** 달리는 사람 한 명: 보이는 키 [size], 발이 칸 바닥. 이름표는 모든 캐릭터를 그린 뒤 따로 얹는다. */
+/** 달리는 사람 한 명. 발은 칸 바닥에, 이름표는 모든 캐릭터 위에 놓는다. */
 @Composable
 private fun Runner(
-    isMine: Boolean,
-    modifier: Modifier,
-    size: Dp,
-    scale: Float,
+    geometry: TrackRunnerGeometry,
     isMoving: Boolean,
     onLoading: (Boolean) -> Unit,
-    avatar: @Composable () -> Unit
+    avatar: @Composable () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val scale = geometry.scale
     Box(
-        modifier.size(size).drawBehind {
-            val shadowWidth = (if (isMine) 61.dp else 51.dp).toPx() * scale
-            val shadowHeight = (if (isMine) 11.dp else 9.dp).toPx() * scale
+        modifier.size(geometry.size).drawBehind {
+            val shadowWidth = geometry.shadow.width.toPx() * scale
+            val shadowHeight = geometry.shadow.height.toPx() * scale
             drawOval(
                 Color.Black.copy(alpha = 0.22f),
                 topLeft = Offset((this.size.width - shadowWidth) / 2, this.size.height - shadowHeight / 2),
@@ -243,9 +238,9 @@ private fun Runner(
 
 /** 이름표: 높이 28, 얼굴 원 22, 이름 12, 페이스 11. 작은 카드에서는 주자와 같은 비율로 줄인다. */
 @Composable
-private fun NameTag(name: String, pace: String?, isMine: Boolean, face: (@Composable () -> Unit)?, scale: Float) {
-    val background = if (isMine) RunkkColors.LimeFill else RunkkColors.Surface
-    val content = if (isMine) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
+private fun NameTag(label: TrackRunnerLabel, face: (@Composable () -> Unit)?, scale: Float) {
+    val background = if (label.isMine) RunkkColors.LimeFill else RunkkColors.Surface
+    val content = if (label.isMine) RunkkColors.OnLimeFill else RunkkColors.TextPrimary
     Row(
         modifier = Modifier
             .requiredWidthIn(max = TAG_MAX_WIDTH * scale)
@@ -259,22 +254,22 @@ private fun NameTag(name: String, pace: String?, isMine: Boolean, face: (@Compos
         if (face != null) {
             Box(
                 Modifier.size(TAG_FACE * scale).clip(CircleShape)
-                    .border(2.dp * scale, if (isMine) RunkkColors.OnLimeFill else TRACK_PURPLE, CircleShape)
+                    .border(2.dp * scale, if (label.isMine) RunkkColors.OnLimeFill else TRACK_PURPLE, CircleShape)
             ) { face() }
         }
         Text(
-            name,
+            label.name,
             style = RunkkTextStyles.text(12, FontWeight.Bold).copy(fontSize = (12 * scale).sp),
             color = content,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)
         )
-        if (pace != null) {
+        if (label.pace != null) {
             Text(
-                pace,
+                label.pace,
                 style = RunkkTextStyles.text(11).copy(fontSize = (11 * scale).sp),
-                color = if (isMine) TRACK_TAG_SECONDARY else RunkkColors.TextSecondary,
+                color = if (label.isMine) TRACK_TAG_SECONDARY else RunkkColors.TextSecondary,
                 maxLines = 1
             )
         }

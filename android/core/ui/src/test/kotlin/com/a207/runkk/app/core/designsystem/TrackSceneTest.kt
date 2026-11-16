@@ -77,4 +77,13 @@ class TrackSceneTest {
         assertEquals(7f, TrackScene.advanceTravel(7f, 1f, Float.NaN, isMoving = true, reduceMotion = false))
         assertEquals(7f, TrackScene.advanceTravel(7f, 1f, -1f, isMoving = true, reduceMotion = false))
     }
+
+    @Test
+    fun `속도 0과 양쪽 무한대와 음수 시간에는 이동하지 않는다`() {
+        listOf(0f, Float.POSITIVE_INFINITY, Float.NEGATIVE_INFINITY).forEach { speed ->
+            assertEquals(7f, TrackScene.advanceTravel(7f, 1f, speed, isMoving = true, reduceMotion = false))
+        }
+        assertEquals(7f, TrackScene.advanceTravel(7f, -1f, 3f, isMoving = true, reduceMotion = false))
+        assertEquals(7f, TrackScene.advanceTravel(7f, 0f, 3f, isMoving = true, reduceMotion = false))
+    }
 }
