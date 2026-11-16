@@ -110,6 +110,7 @@ public class CrewPostService {
         if (draft.repeat() == CrewRunRepeat.WEEKLY) {
             repeater.start(post, now());
         }
+        crewRunService.scheduleChanged(post); // 열린 크루런 목록 신호, 푸시 설정과 따로(설계 05-32, U-36)
         NavigationTarget target =
                 new NavigationTarget(Screen.CREW_RUN_RECRUIT, String.valueOf(post.getId()));
         crew.activeMemberIds().stream()
@@ -197,14 +198,14 @@ public class CrewPostService {
         boolean deletesAny = crewAccess.allows(crew, memberId, CrewAction.DELETE_ANY_CONTENT);
         PostQuery bounded =
                 query.page().size() == null
-                        ? new PostQuery(
-                                query.kinds(),
-                                query.pinnedOnly(),
-                                new PageCursor(query.page().cursor(), PageCursor.MAX_SIZE))
+                        ? query.withPage(new PageCursor(query.page().cursor(), PageCursor.MAX_SIZE))
                         : query;
+        List<CrewPost> found = crewPostRepository.findVisible(crewId, bounded);
+        // 날짜순(설계 05-32 4.5)은 저장소가 기준 행 뒤부터 size + 1개를 읽었다. 최신순은 기존처럼 커서를 걸러 나눈다
         PageCursor.Slice<CrewPost> slice =
-                bounded.page()
-                        .slice(crewPostRepository.findVisible(crewId, bounded), CrewPost::getId);
+                bounded.order() == PostOrder.SCHEDULED_ASC
+                        ? PageCursor.firstPage(found, bounded.page().size(), CrewPost::getId)
+                        : bounded.page().slice(found, CrewPost::getId);
         List<PostSummary> summaries =
                 slice.items().stream().map(post -> post.summary(memberId)).toList();
         Map<Long, MemberSummary> authors =
@@ -257,6 +258,9 @@ public class CrewPostService {
                         throw new BusinessRuleException(ReasonCode.TARGET_INVALID);
                     }
                     AttendanceView view = schedule.answer(memberId, answer, now());
+                    if (schedule instanceof CrewRunPost run) {
+                        crewRunService.scheduleChanged(run); // 참석 변경 신호(설계 05-32 SCHEDULE)
+                    }
                     crewPostRepository.save(post);
                     return view;
                 });

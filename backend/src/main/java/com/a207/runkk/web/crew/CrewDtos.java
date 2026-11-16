@@ -36,11 +36,13 @@ import com.a207.runkk.crew.LobbyView;
 import com.a207.runkk.crew.MeetupDraft;
 import com.a207.runkk.crew.MyCrewView;
 import com.a207.runkk.crew.NoticeDraft;
+import com.a207.runkk.crew.ParticipationView;
 import com.a207.runkk.crew.PollDraft;
 import com.a207.runkk.crew.PollMethod;
 import com.a207.runkk.crew.PollResultView;
 import com.a207.runkk.crew.PostKind;
 import com.a207.runkk.crew.PostListView;
+import com.a207.runkk.crew.PostOrder;
 import com.a207.runkk.crew.PostQuery;
 import com.a207.runkk.crew.PostSummary;
 import com.a207.runkk.crew.RaceStatusView;
@@ -838,7 +840,7 @@ final class CrewDtos {
     }
 
     /**
-     * 크루런 대기실.
+     * 크루런 대기실(설계 05-32 5.2: 기존 항목 보존 + 추가 항목).
      *
      * @param postId 게시글 ID
      * @param scheduledAt 모집희망일시
@@ -846,6 +848,16 @@ final class CrewDtos {
      * @param remainingSeconds 남은 시간
      * @param status 크루런 상태
      * @param participants 참가자 준비 상태
+     * @param crewId 크루 ID(05-32)
+     * @param revision 변경 순번(05-32, CrewRunChanged.revision과 견준다)
+     * @param phase LOBBY | COUNTDOWN | RUNNING | FINISHED | CANCELLED(05-32, 투표 중도 LOBBY)
+     * @param countdownToken 출발 예약 식별값, 예약 전이면 null(05-32)
+     * @param startAt 측정 시작 절대 시각(예약 시각 + 3초, 앱은 다시 3초를 더하지 않는다), 예약 전이면 null(05-32)
+     * @param countdownParticipantIds 출발 후보(카운트다운 중 남은 후보, 출발 뒤 함께 출발한 사람)(05-32)
+     * @param canStartNow 열람자가 「지금 시작」을 누를 수 있다(05-32)
+     * @param canJoin 열람자가 중간 참여할 수 있다(05-32)
+     * @param meRunner 열람자가 진행 참가자다(05-32)
+     * @param measurementRecordId 열람자 본인의 측정 기록 ID(진행 참가자일 때만), 없으면 null(05-32)
      */
     record LobbyResponse(
             long postId,
@@ -853,7 +865,17 @@ final class CrewDtos {
             Long distanceMeters,
             long remainingSeconds,
             String status,
-            List<Participant> participants) {
+            List<Participant> participants,
+            long crewId,
+            long revision,
+            String phase,
+            String countdownToken,
+            OffsetDateTime startAt,
+            List<Long> countdownParticipantIds,
+            boolean canStartNow,
+            boolean canJoin,
+            boolean meRunner,
+            String measurementRecordId) {
 
         /**
          * @param faceKeys 참가자 얼굴 키(AvatarQuery.faceKeysOf). 얼굴을 고르지 않은 회원은 없다
@@ -882,7 +904,17 @@ final class CrewDtos {
                                                     faceKeys.get(p.memberId()),
                                                     p.shownGender(),
                                                     looks.get(p.memberId())))
-                            .toList());
+                            .toList(),
+                    v.crewId(),
+                    v.revision(),
+                    v.phase().name(),
+                    v.countdownToken(),
+                    v.startAt() == null ? null : at(v.startAt()),
+                    v.countdownParticipantIds(),
+                    v.canStartNow(),
+                    v.canJoin(),
+                    v.meRunner(),
+                    v.measurementRecordId());
         }
 
         /**
@@ -932,7 +964,8 @@ final class CrewDtos {
             List<Participant> participants,
             String myRecordId,
             boolean firstCrewRun,
-            long raceContributionMeters) {
+            long raceContributionMeters,
+            long revision) {
 
         /**
          * @param faceKeys 참가자 얼굴 키(AvatarQuery.faceKeysOf). 얼굴을 고르지 않았거나 탈퇴한 참가자는 없다
@@ -951,7 +984,8 @@ final class CrewDtos {
                             .toList(),
                     v.myRecordId(),
                     v.firstCrewRun(),
-                    v.crewContribution().meters());
+                    v.crewContribution().meters(),
+                    v.revision());
         }
 
         /**
@@ -992,6 +1026,71 @@ final class CrewDtos {
                         l.shownGender());
             }
         }
+    }
+
+    /**
+     * 멱등 준비 본문(설계 05-32, PUT /crew-runs/{id}/lobby/ready). 같은 값을 다시 보내도 결과가 같다.
+     *
+     * @param ready 준비 완료(true) 또는 준비 취소(false)
+     */
+    record ReadyRequest(@NotNull Boolean ready) {}
+
+    /**
+     * 중간 참여 결과(설계 05-32 5.2, POST /crew-runs/{id}/join). 다시 불러도 본인 joinedAt과 measurementRecordId가
+     * 같다. 다른 사람의 기록 ID는 싣지 않는다.
+     *
+     * @param postId 게시글 ID
+     * @param crewId 크루 ID
+     * @param revision 변경 순번
+     * @param joinedAt 본인 측정 시작 절대 시각(중간 참여자는 승인 시각, 출발 후보는 출발 시각)
+     * @param measurementRecordId 본인 측정 기록 ID(서버 예약 UUID, 앱 RunStartSpec.recordId로 쓴다. 저장 성공 증거가 아님)
+     * @param alreadyJoined 이미 진행 참가자였다(재요청)
+     * @param participants 진행 참가자(참여 순)
+     */
+    record ParticipationResponse(
+            long postId,
+            long crewId,
+            long revision,
+            OffsetDateTime joinedAt,
+            String measurementRecordId,
+            boolean alreadyJoined,
+            List<Runner> participants) {
+
+        static ParticipationResponse of(ParticipationView v, long viewerId) {
+            return new ParticipationResponse(
+                    v.postId(),
+                    v.crewId(),
+                    v.revision(),
+                    at(v.joinedAt()),
+                    v.measurementRecordId(),
+                    v.alreadyJoined(),
+                    v.runners().stream()
+                            .map(
+                                    r ->
+                                            new Runner(
+                                                    r.memberId(),
+                                                    displayOf(r.name()),
+                                                    at(r.joinedAt()),
+                                                    r.ended(),
+                                                    r.memberId() == viewerId))
+                            .toList());
+        }
+
+        /**
+         * 진행 참가자 한 명(공개 값).
+         *
+         * @param memberId 회원 ID
+         * @param displayName 표시명
+         * @param joinedAt 개인 측정 시작 절대 시각
+         * @param ended 자기 크루런을 끝냈다
+         * @param me 열람자 본인
+         */
+        record Runner(
+                long memberId,
+                String displayName,
+                OffsetDateTime joinedAt,
+                boolean ended,
+                boolean me) {}
     }
 
     /**
@@ -1193,11 +1292,20 @@ final class CrewDtos {
      * @param kinds 글 종류(쉼표 또는 반복), 없으면 전부
      * @param kind v0.10 단수 종류(호환), kinds와 함께 오면 합친다
      * @param pinnedOnly 고정 공지만
-     * @param cursor 다음 페이지 커서
+     * @param cursor 다음 페이지 커서(앞 페이지 마지막 글 ID)
      * @param size 페이지 크기(없으면 전부)
+     * @param order NEWEST(기본, ID 내림차순) 또는 SCHEDULED_ASC(크루런 예정일시 오름차순, kinds=CREW_RUN만, 설계 05-32
+     *     4.5)
+     * @param activeOnly 진행 중인 크루런만(VOTING·LOBBY_OPEN·RUNNING, kinds=CREW_RUN만)
      */
     record PostListQuery(
-            Set<PostKind> kinds, PostKind kind, Boolean pinnedOnly, Long cursor, Integer size) {
+            Set<PostKind> kinds,
+            PostKind kind,
+            Boolean pinnedOnly,
+            Long cursor,
+            Integer size,
+            PostOrder order,
+            Boolean activeOnly) {
 
         PostQuery toQuery() {
             Set<PostKind> all = EnumSet.noneOf(PostKind.class);
@@ -1208,7 +1316,11 @@ final class CrewDtos {
                 all.add(kind);
             }
             return new PostQuery(
-                    all, Boolean.TRUE.equals(pinnedOnly), new PageCursor(cursor, size));
+                    all,
+                    Boolean.TRUE.equals(pinnedOnly),
+                    new PageCursor(cursor, size),
+                    order,
+                    Boolean.TRUE.equals(activeOnly));
         }
     }
 
