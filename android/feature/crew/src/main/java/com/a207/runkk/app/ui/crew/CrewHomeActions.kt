@@ -25,6 +25,10 @@ data class CrewHomeActions(
     val onAttendanceWithdraw: (PostList.Item) -> Unit = {},
     val onWriteSchedule: () -> Unit = {},
     val onLobby: (PostList.Item) -> Unit = {},
+    /** 달리는 크루런 「중간 참여하기」(설계 05-32 흐름 2): 대기실 화면으로 가서 바로 참여한다. */
+    val onJoinRun: (PostList.Item) -> Unit = {},
+    /** 당겨서 새로고침(설계 05-32). */
+    val onPullRefresh: () -> Unit = {},
     /** 크루런 일정 상세 열기(강조 카드 제목·날짜 줄, 피그마 F-11 → F-13). */
     val onRunOpen: (PostList.Item) -> Unit = {},
     /** "지난 크루런 ›"(피그마 F-11b, Routes.CrewPastRuns). */

@@ -3,21 +3,34 @@ package com.a207.runkk.app.ui.crew
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.navigation.CrewRunReturnReceipt
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.account.myAvatar
+import com.a207.runkk.app.domain.crew.CrewChange
 import com.a207.runkk.app.domain.crew.CrewRepository
+import com.a207.runkk.app.domain.crew.CrewRunCompletion
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunResult
+import com.a207.runkk.app.domain.crew.CrewRunSignals
+import com.a207.runkk.app.domain.crew.CrewRunState
+import com.a207.runkk.app.domain.crew.MyRecordUpload
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.time.Instant
 import javax.inject.Inject
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -33,6 +46,12 @@ import kotlinx.coroutines.launch
  * 뒤 같은 간격 규칙을 잇는다. 상한 [RUNNING_WATCH_MILLIS]는 처음 읽은 때부터의 실제 경과([timeSource])로 센다.
  *
  * 가운데 내 아바타는 홈과 같은 출처(본인 요약의 얼굴·배경, AccountRepository.myAvatar)로 한 번 읽는다([myAvatar]).
+ *
+ * 「확인」(설계 05-32 [임시:D-성-888]·[임시:D-성-890], TC-11016·11044): 이 화면이 방금 끝낸 내 측정의 기록(조정자 Finished.recordId)만
+ * 기다린다. 서버가 받았다(STORED·ALREADY_STORED, 또는 결과 응답이 그 기록을 이었다)고 확인되면 바로 복귀 값(내 유효 거리)과 함께 나간다.
+ * 다른 크루원의 종료·업로드나 크루 집계는 기다리지 않는다. 내 전송 실패는 다시 보내기, 서버 거부·기기 저장 실패는 안내 뒤 복귀 값
+ * 없이 나간다. 기록이 없으면(측정 전 끝·기록 미생성, 지난 결과 열람) 기다리지 않고 나간다. 기존 결과 다시 읽기는 그대로다.
+ * 크루런 결과 변경 신호(RESULT)를 받으면 결과를 한 번 더 읽는다(기존 다시 읽기와 별도, 화면이 보일 때만).
  */
 @HiltViewModel
 class CrewRunResultViewModel internal constructor(
@@ -42,6 +61,16 @@ class CrewRunResultViewModel internal constructor(
     private val myAvatar: suspend () -> MyAvatar? = { null },
     /** 첫 그림의 내 아바타(기기에 남긴 마지막 모습, 없으면 null). */
     lastAvatar: () -> MyAvatar? = { null },
+    /** 내 기록 저장·업로드 단계(CrewRunCompletion.observe: 내 기록 ID, 결과 응답이 이은 내 기록 ID). */
+    private val observeUpload: (
+        String,
+        Flow<String?>
+    ) -> Flow<MyRecordUpload> = { _, _ -> flowOf(MyRecordUpload.Waiting) },
+    /** 내 기록 다시 보내기(CrewRunCompletion.retry). */
+    private val retryUpload: (String) -> Unit = {},
+    /** 크루런 변경 신호(CrewRunSignals.changes). */
+    private val changes: () -> Flow<CrewChange> = { emptyFlow() },
+    private val now: () -> Instant = Instant::now,
     private val details: CrewRunDetailSource
 ) : ViewModel() {
     @Inject
@@ -49,8 +78,31 @@ class CrewRunResultViewModel internal constructor(
         crews: CrewRepository,
         coordinator: CrewRunCoordinator,
         details: CrewRunDetailSource,
-        account: AccountRepository
-    ) : this(crews, coordinator, TimeSource.Monotonic, { account.myAvatar() }, account::lastMyAvatar, details)
+        account: AccountRepository,
+        completion: CrewRunCompletion,
+        signals: CrewRunSignals
+    ) : this(
+        crews,
+        coordinator,
+        TimeSource.Monotonic,
+        { account.myAvatar() },
+        account::lastMyAvatar,
+        completion::observe,
+        completion::retry,
+        signals::changes,
+        Instant::now,
+        details
+    )
+
+    private val _events = Channel<CrewRunResultEvent>(Channel.BUFFERED)
+
+    /** 화면 이동(「확인」 뒤 복귀). */
+    val events: Flow<CrewRunResultEvent> = _events.receiveAsFlow()
+
+    /** 이 화면이 방금 끝낸 내 측정의 기록 ID. 이 결과로 들어오며 조정자 Finished에서 읽는다. 없으면 기다릴 기록이 없다. */
+    private var ownRecordId: String? = null
+    private var confirmJob: Job? = null
+    private var signalJob: Job? = null
 
     // 기기에 남긴 마지막 내 아바타(AccountRepository.lastMyAvatar)를 첫 값으로 그려 기본 아바타가 보였다가 바뀌지 않게 한다.
     private val _state = MutableStateFlow(CrewRunResultUiState(myAvatar = lastAvatar()))
@@ -75,6 +127,10 @@ class CrewRunResultViewModel internal constructor(
 
     fun load(postId: Long, isForced: Boolean = false) {
         if (!isForced && loaded == postId) return
+        // 결과를 읽으면 조정자가 Idle로 돌아가므로 먼저 내 기록 ID를 잡아 둔다.
+        (coordinator.state.value as? CrewRunState.Finished)?.takeIf { it.postId == postId }?.recordId?.let {
+            ownRecordId = it
+        }
         loaded = postId
         rereads = 0
         watchStart = null
@@ -95,16 +151,98 @@ class CrewRunResultViewModel internal constructor(
         }
     }
 
+    /**
+     * 「확인」: 내 기록이 서버에 저장될 때까지 기다린 뒤 복귀 값과 함께 나간다(설계 05-32 2.4). 다시 보낼 수 있는 실패면 다시
+     * 보내고 기다린다. 다시 보내도 안 되는 실패를 안내한 뒤 또 누르면 복귀 값 없이 나간다.
+     */
+    fun onConfirm() {
+        val recordId = ownRecordId
+        when (_state.value.confirm) {
+            ConfirmState.WAITING -> return
+
+            ConfirmState.BLOCKED -> {
+                leave(receipt = null)
+                return
+            }
+
+            ConfirmState.RETRYABLE -> recordId?.let(retryUpload)
+
+            ConfirmState.IDLE -> Unit
+        }
+        if (recordId == null) {
+            leave(receipt = null)
+            return
+        }
+        _state.update { it.copy(confirm = ConfirmState.WAITING) }
+        confirmJob?.cancel()
+        confirmJob = viewModelScope.launch {
+            var isDone = false
+            observeUpload(recordId, _state.map { it.result?.myRecordId }).collect { upload ->
+                // 나간 뒤 상태 변화로 다시 오는 값은 버린다(복귀 값은 한 번만).
+                if (isDone) return@collect
+                when (upload) {
+                    is MyRecordUpload.Stored -> {
+                        isDone = true
+                        leave(receiptOf(recordId, upload))
+                        confirmJob?.cancel()
+                    }
+
+                    is MyRecordUpload.Retryable -> _state.update {
+                        it.copy(confirm = ConfirmState.RETRYABLE, error = CrewErrorText.of(upload.error))
+                    }
+
+                    MyRecordUpload.Blocked -> _state.update { it.copy(confirm = ConfirmState.BLOCKED) }
+
+                    MyRecordUpload.Waiting -> _state.update { it.copy(confirm = ConfirmState.WAITING, error = null) }
+                }
+            }
+        }
+    }
+
+    /** 내 기록이 저장됐다: 내 유효 거리(유효하지 않으면 0)를 담은 복귀 값. receiptId는 기록 ID라 같은 기록을 두 번 강조하지 않는다. */
+    private fun receiptOf(recordId: String, stored: MyRecordUpload.Stored): CrewRunReturnReceipt {
+        val mine = _state.value.result?.participants?.firstOrNull { it.isMe }?.distance
+        val meters = if (stored.isValid) (stored.distance ?: mine)?.meters ?: 0 else 0
+        return CrewRunReturnReceipt(
+            receiptId = recordId,
+            postId = loaded ?: 0,
+            myRecordId = recordId,
+            ownDistanceMeters = meters,
+            uploadedAt = now()
+        )
+    }
+
+    private fun leave(receipt: CrewRunReturnReceipt?) {
+        _state.update { it.copy(confirm = ConfirmState.IDLE) }
+        _events.trySend(CrewRunResultEvent.Leave(receipt))
+    }
+
     /** 화면이 다시 보인다. 가려져 멈췄던 다시 읽기를 바로 한 번 읽고 잇는다. */
     fun onStart() {
+        listenResultChanges()
         val postId = loaded ?: return
         if (!isPaused || job?.isActive == true) return
         isPaused = false
         watch(postId)
     }
 
+    /** 이 크루런의 결과 변경 신호(RESULT)를 받으면 결과를 한 번 더 읽는다(보이는 동안만, 설계 05-32 5.3). */
+    private fun listenResultChanges() {
+        if (signalJob?.isActive == true) return
+        signalJob = viewModelScope.launch {
+            changes().collect { change ->
+                val postId = loaded
+                if (postId != null && change.postId == postId && change.resource == CrewChange.Resource.RESULT) {
+                    read(postId)
+                }
+            }
+        }
+    }
+
     /** 화면이 가려졌다(다른 화면을 위에 쌓음·백그라운드). 다시 읽기를 멈춘다. */
     fun onStop() {
+        signalJob?.cancel()
+        signalJob = null
         if (job?.isActive != true) return
         job?.cancel()
         isPaused = true

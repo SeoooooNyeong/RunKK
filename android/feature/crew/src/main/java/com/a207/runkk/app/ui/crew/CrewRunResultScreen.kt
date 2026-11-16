@@ -37,9 +37,12 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -74,6 +77,7 @@ import com.a207.runkk.app.core.designsystem.resultSheetTop
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
+import com.a207.runkk.app.core.navigation.LocalRunReturnReceipts
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.MyAvatar
@@ -95,6 +99,18 @@ fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltVie
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
+    val receipts = LocalRunReturnReceipts.current
+    // 「확인」: 내 기록이 저장되면 복귀 값을 탐색 소유자에게 맡기고 크루 일정으로 돌아간다(설계 05-32 2.1, 대기실은 결과를 열 때 뺐다).
+    LaunchedEffect(viewModel, navigator, receipts) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is CrewRunResultEvent.Leave -> {
+                    event.receipt?.let { receipts?.deliver(it) }
+                    navigator.back()
+                }
+            }
+        }
+    }
     CrewRunResultScreen(
         state = state,
         // 공유: 내 기록이 올라갔으면 그 기록 카드, 아니면 기록 목록(기존 동작).
@@ -108,9 +124,9 @@ fun CrewRunResultRoute(postId: Long, viewModel: CrewRunResultViewModel = hiltVie
                 navigator.navigate(Routes.RECORDS)
             }
         },
-        // 확인: 크루 일정으로 돌아간다(대기실은 결과를 열 때 백 스택에서 뺐다).
-        onHome = navigator::back,
-        onRetry = { viewModel.load(postId, isForced = true) }
+        onHome = viewModel::onConfirm,
+        onRetry = { viewModel.load(postId, isForced = true) },
+        onBack = navigator::back
     )
 }
 
@@ -126,7 +142,9 @@ fun CrewRunResultScreen(
     onHome: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    pagerState: PagerState = rememberPagerState { RESULT_PAGES }
+    pagerState: PagerState = rememberPagerState { RESULT_PAGES },
+    /** 위 뒤로 단추(복귀 값 없이 나간다). 「확인」은 [onHome]이다. */
+    onBack: () -> Unit = onHome
 ) {
     val result = state.result
     // 배경은 홈과 같다: 아바타 꾸미기가 열렸으면 내 배경 키, 아니면 기본 무대.
@@ -162,9 +180,10 @@ fun CrewRunResultScreen(
                 RunkkTopBar(
                     title = stringResource(R.string.crew_run_result_title),
                     modifier = Modifier.onSizeChanged { topBarHeight = with(density) { it.height.toDp() } },
-                    onBack = if (isSummary) onHome else null
+                    onBack = if (isSummary) onBack else null
                 )
             }
+            ConfirmLine(state)
             Row(
                 Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -176,13 +195,40 @@ fun CrewRunResultScreen(
                     modifier = Modifier.weight(1f)
                 )
                 RunkkButton(
-                    stringResource(R.string.crew_run_result_home),
+                    stringResource(
+                        if (state.confirm == ConfirmState.RETRYABLE) {
+                            R.string.crew_result_upload_retry
+                        } else {
+                            R.string.crew_run_result_home
+                        }
+                    ),
                     onClick = onHome,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    isLoading = state.confirm == ConfirmState.WAITING
                 )
             }
         }
     }
+}
+
+/** 「확인」 뒤 내 기록 저장·업로드 안내 한 줄(기다림·다시 보낼 실패·멈춘 실패). 누르기 전에는 없다. */
+@Composable
+private fun ConfirmLine(state: CrewRunResultUiState) {
+    val text = when (state.confirm) {
+        ConfirmState.IDLE -> return
+        ConfirmState.WAITING -> stringResource(R.string.crew_result_saving)
+        ConfirmState.RETRYABLE -> stringResource(R.string.crew_result_upload_failed)
+        ConfirmState.BLOCKED -> stringResource(R.string.crew_result_upload_rejected)
+    }
+    Text(
+        text,
+        style = RunkkTextStyles.Caption,
+        color = if (state.confirm == ConfirmState.WAITING) RunkkColors.TextSecondary else RunkkColors.Lavender,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 8.dp).semantics {
+            liveRegion = LiveRegionMode.Polite
+        }
+    )
 }
 
 @Composable

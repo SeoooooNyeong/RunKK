@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunDetail
 import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunJoin
 import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
@@ -24,6 +25,7 @@ import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
+import com.a207.runkk.app.domain.crew.LobbyPhase
 import com.a207.runkk.app.domain.crew.Meetup
 import com.a207.runkk.app.domain.crew.MyCrew
 import com.a207.runkk.app.domain.crew.Notice
@@ -338,7 +340,28 @@ internal fun LobbyResponse.toDomain(): Lobby = Lobby(
         )
     },
     ServerTime.parse(scheduledAt),
-    distanceMeters?.let(::Distance)
+    distanceMeters?.let(::Distance),
+    crewId = crewId,
+    revision = revision,
+    phase = enumByName<LobbyPhase>(phase),
+    countdownToken = countdownToken,
+    startAt = startAt?.let(ServerTime::parse),
+    countdownParticipantIds = countdownParticipantIds,
+    canStartNow = canStartNow,
+    canJoin = canJoin,
+    isMeRunner = meRunner,
+    measurementRecordId = measurementRecordId
+)
+
+/** 중간 참여 승인. 내 줄(me)이 끝났으면 isEnded다. */
+internal fun ParticipationResponse.toDomain(): CrewRunJoin = CrewRunJoin(
+    postId = postId,
+    crewId = crewId,
+    revision = revision,
+    joinedAt = ServerTime.parse(joinedAt),
+    measurementRecordId = measurementRecordId,
+    isAlreadyJoined = alreadyJoined,
+    isEnded = participants.firstOrNull { it.me }?.ended == true
 )
 
 internal fun CrewRunResultResponse.toDomain(): CrewRunResult {

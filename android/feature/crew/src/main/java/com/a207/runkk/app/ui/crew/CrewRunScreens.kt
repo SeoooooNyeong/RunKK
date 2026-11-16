@@ -56,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.AvatarStageBackdrop
@@ -65,6 +66,7 @@ import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.ProgressDot
 import com.a207.runkk.app.core.designsystem.RunPermissionEffect
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
+import com.a207.runkk.app.core.designsystem.RunkkBottomSheet
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
@@ -78,6 +80,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkMeMap
 import com.a207.runkk.app.core.designsystem.RunkkPauseScrim
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
+import com.a207.runkk.app.core.designsystem.RunkkPullToRefresh
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
 import com.a207.runkk.app.core.designsystem.RunkkRunDistance
 import com.a207.runkk.app.core.designsystem.RunkkRunLabel
@@ -85,6 +88,8 @@ import com.a207.runkk.app.core.designsystem.RunkkRunStat
 import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.RunkkShapes
+import com.a207.runkk.app.core.designsystem.RunkkStatusChip
+import com.a207.runkk.app.core.designsystem.RunkkStatusChipTone
 import com.a207.runkk.app.core.designsystem.RunkkStopSquare
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
@@ -127,6 +132,11 @@ import kotlin.math.abs
 @Composable
 fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltViewModel()) {
     LaunchedEffect(key) { viewModel.bind(key) }
+    // 보이는 동안만 변경 신호를 받고, 가려졌다 돌아오면 대기실을 다시 읽는다(설계 05-32 [임시:FR-성-372]).
+    LifecycleStartEffect(viewModel) {
+        viewModel.onStart()
+        onStopOrDispose { viewModel.onStop() }
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     // 진행 알림·신체 활동(걸음 센서 케이던스) 권한을 출발 카운트다운에서 한 번 묻는다. 진행 중에 다시 들어온 경우도 묻는다.
     RunPermissionEffect(shouldAsk = state.phase == CrewRunPhase.COUNTDOWN || state.phase == CrewRunPhase.RUNNING)
@@ -152,7 +162,11 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
             onResume = viewModel::onResume,
             onClose = viewModel::onBack,
             onBack = viewModel::onBack,
-            onViewModeChange = viewModel::onViewModeChange
+            onViewModeChange = viewModel::onViewModeChange,
+            onStartNow = viewModel::onStartNow,
+            onJoin = viewModel::onJoin,
+            onJoinLeave = viewModel::onJoinDismissed,
+            onPullRefresh = viewModel::onPullRefresh
         )
     }
     CrewRunScreen(state = state, actions = actions)
@@ -172,7 +186,15 @@ data class CrewRunActions(
     /** 시스템 뒤로 가기·"돌아가기". 단계별 처리는 CrewRunViewModel.onBack. */
     val onBack: () -> Unit = {},
     /** 「트랙 | 지도」 전환([임시:FR-성-28]). */
-    val onViewModeChange: (RunViewMode) -> Unit = {}
+    val onViewModeChange: (RunViewMode) -> Unit = {},
+    /** 모집자 「지금 시작」(설계 05-32). */
+    val onStartNow: () -> Unit = {},
+    /** 출발 시트 「함께 뛰기」. */
+    val onJoin: () -> Unit = {},
+    /** 출발 시트 「나가기」. */
+    val onJoinLeave: () -> Unit = {},
+    /** 대기실 당겨서 새로고침. */
+    val onPullRefresh: () -> Unit = {}
 )
 
 /**
@@ -188,7 +210,11 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
 
             CrewRunPhase.LOBBY -> LobbyContent(state, actions)
 
-            CrewRunPhase.COUNTDOWN -> CountdownBody(state)
+            // 카운트다운은 대기실 틀 위 링이다(설계 05-32 흐름 1). 대기실 응답 없이 받았으면 큰 숫자만 보인다.
+            CrewRunPhase.COUNTDOWN -> if (state.lobby != null) LobbyContent(state, actions) else CountdownBody(state)
+
+            // 출발 뒤 참여하지 않은 입장자: 대기실 위에 출발 시트(「함께 뛰기」·「나가기」).
+            CrewRunPhase.JOIN_CHOICE -> LobbyContent(state, actions)
 
             CrewRunPhase.RUNNING, CrewRunPhase.FINISHED -> RunningContent(state, actions)
 
@@ -200,6 +226,7 @@ fun CrewRunScreen(state: CrewRunUiState, actions: CrewRunActions, modifier: Modi
         }
     }
     if (state.isConfirmingQuit) CrewQuitDialog(onConfirm = actions.onQuitConfirm, onDismiss = actions.onQuitDismiss)
+    if (state.phase == CrewRunPhase.JOIN_CHOICE) DepartureSheet(state, actions)
 }
 
 /** 대기실에 들어가는 중: 읽는 중이거나 오류. 열리지 않음·이미 시작 같은 거부는 다시 해도 같으니 "돌아가기"를 준다. */
@@ -266,6 +293,7 @@ private fun CrewRunChip(distance: Distance?, isDistanceKnown: Boolean) {
 private fun LobbyContent(state: CrewRunUiState, actions: CrewRunActions) {
     val lobby = state.lobby ?: return
     val isCancelled = state.phase == CrewRunPhase.CANCELLED
+    val isCountdown = state.phase == CrewRunPhase.COUNTDOWN
     Column(Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp),
@@ -279,12 +307,145 @@ private fun LobbyContent(state: CrewRunUiState, actions: CrewRunActions) {
                 isEnabled = isCancelled || !state.isLeaving
             )
         }
-        Column(
-            Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, top = 3.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        // 당겨서 새로고침(설계 05-32): 놓친 변경을 맞춘다. 취소된 대기실은 다시 읽지 않는다.
+        RunkkPullToRefresh(
+            isRefreshing = state.isRefreshing,
+            onRefresh = actions.onPullRefresh,
+            modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
-            LobbyUntilStart(state, lobby)
-            Participants(lobby, state.mateFaces)
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 3.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (isCountdown) LobbyCountdown(state, lobby) else LobbyUntilStart(state, lobby)
+                Participants(lobby, state.mateFaces)
+                state.error?.takeIf { state.phase != CrewRunPhase.JOIN_CHOICE }?.let {
+                    Text(
+                        it.asString(),
+                        style = RunkkTextStyles.Caption,
+                        color = RunkkColors.Lavender,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    )
+                }
+            }
+        }
+        val bottom = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp)
+        when {
+            isCancelled -> RunkkButton(
+                stringResource(R.string.crew_run_cancelled_to_schedule),
+                onClick = actions.onClose,
+                modifier = bottom
+            )
+
+            // 출발 시트가 아래를 덮는다.
+            state.phase == CrewRunPhase.JOIN_CHOICE -> Spacer(bottom.height(52.dp))
+
+            // 카운트다운 중 준비를 풀면 출발 후보에서만 빠지고 대기실에 남는다([임시:D-성-882]).
+            isCountdown && state.isReady -> RunkkButton(
+                stringResource(R.string.crew_run_countdown_cancel),
+                onClick = actions.onReady,
+                modifier = bottom,
+                style = RunkkButtonStyle.Outline,
+                isLoading = state.isBusy
+            )
+
+            state.canStartNow -> Column(bottom, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RunkkButton(
+                    stringResource(R.string.crew_run_start_now),
+                    onClick = actions.onStartNow,
+                    modifier = Modifier.fillMaxWidth(),
+                    isLoading = state.isStarting
+                )
+                LobbyReadyButton(state, actions, Modifier.fillMaxWidth())
+            }
+
+            else -> LobbyReadyButton(state, actions, bottom)
+        }
+    }
+}
+
+/**
+ * 전원 준비·지금 시작의 출발 카운트다운(설계 05-32 흐름 1, 피그마 62514:2897): 모집 시각(12), 「모두 준비됐어요」(20 Bold), 남은 초를
+ * 담은 라임 링(지름 132, 두께 10, 남은 몫만큼 채운다), 「초 뒤 출발」. 남은 초는 측정 시작 절대시각(startAt)까지다.
+ */
+@Composable
+private fun LobbyCountdown(state: CrewRunUiState, lobby: Lobby) {
+    val seconds = state.countdown ?: COUNTDOWN_SECONDS
+    val spoken = stringResource(R.string.crew_run_countdown_spoken, seconds.toInt())
+    val track = RunkkColors.SurfaceHigh
+    val fill = RunkkColors.LimeFill
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).clearAndSetSemantics {
+            contentDescription = spoken
+            liveRegion = LiveRegionMode.Polite
+        },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(lobbyMeetLabel(lobby.meetAt), style = RunkkTextStyles.Caption, color = RunkkColors.TextPrimary)
+        Text(
+            stringResource(R.string.crew_run_countdown_all_ready),
+            style = RunkkTextStyles.Title,
+            color = RunkkColors.TextPrimary
+        )
+        Box(
+            modifier = Modifier.size(COUNTDOWN_RING).drawBehind {
+                val stroke = COUNTDOWN_STROKE.toPx()
+                val inset = stroke / 2
+                val arc = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke)
+                val topLeft = androidx.compose.ui.geometry.Offset(inset, inset)
+                drawArc(track, 0f, FULL_SWEEP, useCenter = false, topLeft, arc, style = Stroke(stroke))
+                val share = (seconds.toFloat() / COUNTDOWN_SECONDS).coerceIn(0f, 1f)
+                drawArc(fill, START_ANGLE, FULL_SWEEP * share, useCenter = false, topLeft, arc, style = Stroke(stroke))
+            },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                seconds.toString(),
+                style = RunkkTextStyles.display(64, lineHeightRatio = 1f),
+                color = RunkkColors.TextPrimary
+            )
+        }
+        Text(
+            stringResource(R.string.crew_run_countdown_seconds_left),
+            style = RunkkTextStyles.text(13, FontWeight.Bold, lineHeight = 16),
+            color = RunkkColors.TextPrimary
+        )
+    }
+}
+
+/**
+ * 출발 시트(설계 05-32 흐름 2, 피그마 62514:2914): 준비하지 않은 입장자에게 출발을 알린다. 「달리는 중」 칩, 「크루런이 시작됐어요」,
+ * 「준비한 n명이 출발했어요. 지금 함께 뛰면 지금부터 기록해요.」, 「함께 뛰기」(라임)와 「나가기」(테두리). 바깥 누름·뒤로 가기도 나가기다.
+ */
+@Composable
+private fun DepartureSheet(state: CrewRunUiState, actions: CrewRunActions) {
+    RunkkBottomSheet(onDismissRequest = actions.onJoinLeave, hasDragHandle = true, hasCloseButton = false) {
+        DepartureSheetContent(state, actions)
+    }
+}
+
+/** 출발 시트의 내용(시트 창 없이 스냅샷으로도 그린다). */
+@Composable
+internal fun DepartureSheetContent(state: CrewRunUiState, actions: CrewRunActions) {
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            RunkkStatusChip(stringResource(R.string.crew_run_departed_chip), RunkkStatusChipTone.Lime)
+            Text(
+                stringResource(R.string.crew_run_departed_title),
+                style = RunkkTextStyles.SheetTitle,
+                color = RunkkColors.TextPrimary,
+                modifier = Modifier.semantics { heading() }
+            )
+            Text(
+                stringResource(R.string.crew_run_departed_body, state.departedCount),
+                style = RunkkTextStyles.Body,
+                color = RunkkColors.TextSecondary
+            )
             state.error?.let {
                 Text(
                     it.asString(),
@@ -294,15 +455,20 @@ private fun LobbyContent(state: CrewRunUiState, actions: CrewRunActions) {
                 )
             }
         }
-        val bottom = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 32.dp)
-        if (isCancelled) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             RunkkButton(
-                stringResource(R.string.crew_run_cancelled_to_schedule),
-                onClick = actions.onClose,
-                modifier = bottom
+                stringResource(R.string.crew_run_join_together),
+                onClick = actions.onJoin,
+                modifier = Modifier.fillMaxWidth(),
+                isLoading = state.isJoining
             )
-        } else {
-            LobbyReadyButton(state, actions, bottom)
+            RunkkButton(
+                stringResource(R.string.crew_run_lobby_leave),
+                onClick = actions.onJoinLeave,
+                modifier = Modifier.fillMaxWidth(),
+                style = RunkkButtonStyle.Outline,
+                isEnabled = !state.isJoining
+            )
         }
     }
 }
@@ -897,6 +1063,13 @@ internal const val LOBBY_FACE_SEAT_TAG = "crew-run-seat-face"
 internal const val LOBBY_EMPTY_SEAT_TAG = "crew-run-seat-empty"
 
 private const val LOBBY_COLUMNS = 3
+
+/** 출발 카운트다운 초(서버 예약 시각 + 3초가 측정 시작, [임시:D-성-881]). */
+private const val COUNTDOWN_SECONDS = 3L
+private val COUNTDOWN_RING = 132.dp
+private val COUNTDOWN_STROKE = 10.dp
+private const val FULL_SWEEP = 360f
+private const val START_ANGLE = -90f
 private const val SECONDS_PER_MINUTE = 60L
 private const val SECONDS_PER_HOUR = 3_600L
 private val LOBBY_SEAT = 66.dp

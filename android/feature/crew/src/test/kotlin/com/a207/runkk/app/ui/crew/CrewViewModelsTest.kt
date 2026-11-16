@@ -533,7 +533,7 @@ class CrewHomeViewModelTest {
     }
 
     @Test
-    fun `탭과 크루원 쪽은 처음 열 때 한 번만 읽는다`() {
+    fun `크루원 쪽은 처음 열 때 한 번만 읽고, 탭은 다시 고를 때마다 읽는다(TC-11017 재진입 읽기)`() {
         val vm = vm()
         vm.onPage(CrewHomePage.MEMBERS)
         vm.onPage(CrewHomePage.HOME)
@@ -543,7 +543,10 @@ class CrewHomeViewModelTest {
         vm.onTab(CrewTab.SCHEDULE)
         vm.onTab(CrewTab.RACE)
         vm.onTab(CrewTab.SCHEDULE)
-        assertEquals(1, repo.calls.count { it == "posts:CREW_RUN" }, repo.calls.toString())
+        assertEquals(2, repo.calls.count { it == "posts:CREW_RUN" }, repo.calls.toString())
+        assertEquals(2, repo.calls.count { it == "race" }, "처음(bind)과 레이스 재진입: ${repo.calls}")
+        vm.onTab(CrewTab.SCHEDULE)
+        assertEquals(2, repo.calls.count { it == "posts:CREW_RUN" }, "같은 탭을 다시 눌러도 이미 읽었으면 읽지 않는다")
     }
 
     @Test

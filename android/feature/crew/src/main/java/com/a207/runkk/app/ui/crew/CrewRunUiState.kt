@@ -35,6 +35,14 @@ data class CrewRunUiState(
     val isLeaving: Boolean = false,
     val hint: UiText? = null,
     val isBusy: Boolean = false,
+    /** 모집자 「지금 시작」을 보내는 중. */
+    val isStarting: Boolean = false,
+    /** 「함께 뛰기」·「중간 참여하기」 참여를 보내는 중(측정이 시작되면 거짓). */
+    val isJoining: Boolean = false,
+    /** 당겨서 새로고침 중(대기실). */
+    val isRefreshing: Boolean = false,
+    /** 출발한 크루런의 확정 후보 수(출발 시트 문구 「준비한 n명이 출발했어요」). */
+    val departedCount: Int = 0,
     val error: UiText? = null,
     /**
      * 대기실에 들어가지 못한 오류([error])를 다시 시도해 볼 만한지. 업무 규칙 거부(열리지 않음·이미 시작·참가자 아님 등)는
@@ -56,6 +64,9 @@ data class CrewRunUiState(
     val myAvatar: MyAvatar? = null
 ) {
     val isPaused: Boolean get() = mine.isPaused
+
+    /** 모집자가 「지금 시작」을 누를 수 있다(서버 canStartNow, 준비자 2명 이상·예약 없음). */
+    val canStartNow: Boolean get() = phase == CrewRunPhase.LOBBY && lobby?.canStartNow == true
 
     /** "함께 달리는 크루원 n명": 나를 빼고 아직 끝내지 않은 크루원 수. */
     val runningMates: Int get() = relay.count { !it.isMe && it.isRunning }

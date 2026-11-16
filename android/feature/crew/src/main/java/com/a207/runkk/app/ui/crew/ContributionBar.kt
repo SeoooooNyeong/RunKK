@@ -11,15 +11,24 @@ import java.time.temporal.TemporalAdjusters
 /**
  * 기여도 보드의 막대 하나(FR-140): 표시명, 기여 거리, 가장 많이 달린 크루원 대비 막대 길이(0~1), 본인 여부. 순위 숫자는 두지 않는다.
  */
-data class ContributionBar(val displayName: String, val distance: Distance, val fraction: Float, val isMe: Boolean)
+data class ContributionBar(
+    val displayName: String,
+    val distance: Distance,
+    val fraction: Float,
+    val isMe: Boolean,
+    /** 회원 ID(레이스 강조 줄 찾기, 설계 05-32). 월간 랭킹·탈퇴면 null. */
+    val memberId: Long? = null
+)
 
 /** 기여 거리 내림차순 막대(FR-140, TC-7497). 같은 거리는 받은 순서대로 둔다. */
 internal fun contributionBars(race: RaceStatus): List<ContributionBar> {
     val sorted = race.contributors.sortedByDescending { it.distance.meters }
     val max = sorted.firstOrNull()?.distance?.meters?.takeIf { it > 0 } ?: return sorted.map {
-        ContributionBar(it.displayName, it.distance, 0f, it.isMe)
+        ContributionBar(it.displayName, it.distance, 0f, it.isMe, it.memberId)
     }
-    return sorted.map { ContributionBar(it.displayName, it.distance, it.distance.meters.toFloat() / max, it.isMe) }
+    return sorted.map {
+        ContributionBar(it.displayName, it.distance, it.distance.meters.toFloat() / max, it.isMe, it.memberId)
+    }
 }
 
 /** 월간 기여도 막대(와이어 E2): 크루 랭킹 응답을 거리 내림차순 막대로. 본인은 표시명이 [meName]과 같은 줄이다. */

@@ -27,6 +27,10 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -57,6 +61,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSegmented
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.RaceStatus
@@ -75,7 +80,13 @@ internal fun ColumnScope.RaceTab(state: CrewHomeUiState, actions: CrewHomeAction
         return
     }
     if (state.isCelebrationBannerShown) CelebrationBanner(race, onOpen = actions.onCelebrationOpen)
-    GoalCard(race, canSetGoal = state.canSetGoal, onEdit = actions.onGoalEdit)
+    val highlight = state.raceHighlight
+    GoalCard(
+        race,
+        canSetGoal = state.canSetGoal,
+        onEdit = actions.onGoalEdit,
+        isHighlighted = highlight?.isGoal == true
+    )
     RunningBoard(state, race, isWeekOnly = state.isCelebrationBannerShown, onPeriod = actions.onPeriod)
 }
 
@@ -111,7 +122,7 @@ private fun CelebrationBanner(race: RaceStatus, onOpen: () -> Unit) {
  * 「목표 정하기」(크루장, 밑줄), 큰 숫자(Bold 30) + 「/ 80 km」 + 진행률(100을 넘어도 그대로), 8 두께 두 겹 막대, 참여 인원과 내 기여율.
  */
 @Composable
-private fun GoalCard(race: RaceStatus, canSetGoal: Boolean, onEdit: () -> Unit) {
+private fun GoalCard(race: RaceStatus, canSetGoal: Boolean, onEdit: () -> Unit, isHighlighted: Boolean = false) {
     val goal = race.goal
     val progress = goalProgressLabel(race)
     val total = RunkkFormat.kmShort(race.total)
@@ -121,7 +132,12 @@ private fun GoalCard(race: RaceStatus, canSetGoal: Boolean, onEdit: () -> Unit) 
             .fillMaxWidth()
             .clip(shape)
             .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.Border, shape)
+            // 새로 반영된 거리는 2초 라임 테두리로 강조한다(설계 05-32 [임시:D-성-889]).
+            .border(
+                if (isHighlighted) 2.dp else 1.dp,
+                if (isHighlighted) RunkkColors.Lime else RunkkColors.Border,
+                shape
+            )
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -360,18 +376,52 @@ private fun RunningBoard(
             color = RunkkColors.TextSecondary
         )
     }
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { bars.forEach { ContributionRow(it) } }
+    val highlight = state.raceHighlight.takeIf { isWeekly }
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        bars.forEach { bar ->
+            val key = contributorKey(bar.memberId, bar.displayName)
+            ContributionRow(
+                bar,
+                isHighlighted = highlight?.rows?.contains(key) == true,
+                added = highlight?.added?.get(key)
+            )
+        }
+    }
 }
 
-/** 러닝 보드 한 줄: 원(프로필 자리), 이름, 막대, 거리. */
+/**
+ * 러닝 보드 한 줄: 원(프로필 자리), 이름, 막대, 거리. 새로 반영된 줄([isHighlighted])은 2초 동안 옅은 라임 바탕이고, 늘어난 거리
+ * [added]가 있으면 거리 아래에 「+0.84」를 보인다(설계 05-32 흐름 4).
+ */
 @Composable
-private fun ContributionRow(bar: ContributionBar) {
+private fun ContributionRow(bar: ContributionBar, isHighlighted: Boolean = false, added: Distance? = null) {
     val name = if (bar.isMe) stringResource(R.string.crew_contribution_me) else bar.displayName
     val km = RunkkFormat.kmShort(bar.distance)
-    val description = stringResource(R.string.crew_contribution_row_description, name, km)
+    val addedLabel = added?.let { stringResource(R.string.crew_race_added, RunkkFormat.kmShort(it)) }
+    val description = stringResource(R.string.crew_contribution_row_description, name, km) +
+        addedLabel.orEmpty().let { if (it.isEmpty()) "" else ", $it" }
     val barShape = RoundedCornerShape(5.6.dp)
+    val highlightColor = RunkkColors.LimeContainer
     Row(
-        Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = description },
+        Modifier
+            .fillMaxWidth()
+            // 줄 바깥으로 조금 넓힌 옅은 라임 바탕(내용을 자르지 않는다).
+            .then(
+                if (isHighlighted) {
+                    Modifier.drawBehind {
+                        val inset = HIGHLIGHT_OUTSET.toPx()
+                        drawRoundRect(
+                            highlightColor,
+                            topLeft = Offset(-inset, -inset / 2),
+                            size = Size(size.width + inset * 2, size.height + inset),
+                            cornerRadius = CornerRadius(HIGHLIGHT_CORNER.toPx())
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
+            .clearAndSetSemantics { contentDescription = description },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -395,14 +445,23 @@ private fun ContributionRow(bar: ContributionBar) {
                 )
             }
         }
-        Text(
-            stringResource(R.string.crew_contribution_km, km),
-            style = RunkkTextStyles.text(13, FontWeight.Bold),
-            color = RunkkColors.TextPrimary,
-            textAlign = TextAlign.End,
-            maxLines = 1,
-            modifier = Modifier.width(52.dp)
-        )
+        Column(Modifier.width(52.dp), horizontalAlignment = Alignment.End) {
+            Text(
+                stringResource(R.string.crew_contribution_km, km),
+                style = RunkkTextStyles.text(13, FontWeight.Bold),
+                color = RunkkColors.TextPrimary,
+                textAlign = TextAlign.End,
+                maxLines = 1
+            )
+            addedLabel?.let {
+                Text(
+                    it,
+                    style = RunkkTextStyles.text(11, FontWeight.Bold),
+                    color = RunkkColors.TextPrimary,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }
 
@@ -435,6 +494,10 @@ private const val JONGSEONG_COUNT = 28
 
 /** 축하 팝업 뒤 딤(피그마 rgba(23,27,18,0.45)). */
 private const val CELEBRATION_DIM = 0.45f
+
+/** 강조 줄 바탕을 줄 밖으로 넓히는 폭과 모서리. */
+private val HIGHLIGHT_OUTSET = 8.dp
+private val HIGHLIGHT_CORNER = 12.dp
 
 /** 주간·월간 고르기 폭(피그마 작은 세그먼트 두 칸). */
 private val PERIOD_WIDTH = 140.dp

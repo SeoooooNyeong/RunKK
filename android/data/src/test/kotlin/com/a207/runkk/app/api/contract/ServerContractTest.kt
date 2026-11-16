@@ -65,11 +65,13 @@ import com.a207.runkk.app.api.crew.LeaderRequest
 import com.a207.runkk.app.api.crew.LobbyResponse
 import com.a207.runkk.app.api.crew.ManagerResponse
 import com.a207.runkk.app.api.crew.MyCrewResponse
+import com.a207.runkk.app.api.crew.ParticipationResponse
 import com.a207.runkk.app.api.crew.PastCrewRunsResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
 import com.a207.runkk.app.api.crew.RaceStatusResponse
+import com.a207.runkk.app.api.crew.ReadyRequest
 import com.a207.runkk.app.api.notification.InboxResponse
 import com.a207.runkk.app.api.notification.PushTokenRequest
 import com.a207.runkk.app.api.notification.TITLES
@@ -113,6 +115,7 @@ import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.LobbyPhase
 import com.a207.runkk.app.domain.crew.PollMethod
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.live.CrewChatRemoved
@@ -224,6 +227,9 @@ class ServerContractTest {
         assertEquals(enumNames("PlacementStatus"), names(PlacementStatus.entries))
         // TC-5942 배치고사 판 셈 상태(05-03 5.7.3.1)
         assertEquals(enumNames("PlacementRoundState"), names(PlacementRoundState.entries))
+        // 설계 05-32 대기실 논리 단계(crew.CrewRunPhase), 실시간 변경 자원·크루런 탭 정렬
+        assertEquals(enumNames("CrewRunPhase"), names(LobbyPhase.entries))
+        assertTrue("SCHEDULED_ASC" in enumNames("PostOrder"), "크루런 탭 날짜순 정렬")
     }
 
     @Test
@@ -326,6 +332,8 @@ class ServerContractTest {
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
         request(com.a207.runkk.app.api.crew.CrewRunEditRequest.serializer(), "CrewScheduleDtos.CrewRunEditRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
+        // 설계 05-32 멱등 준비(PUT /crew-runs/{id}/lobby/ready)
+        request(ReadyRequest.serializer(), "CrewDtos.ReadyRequest")
         request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
         request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
         request(SocialLinkRequest.serializer(), "AuthController.SocialLinkRequest")
@@ -389,6 +397,9 @@ class ServerContractTest {
         response(RaceStatusResponse.serializer(), "CrewDtos.RaceStatusResponse")
         response(PostListResponse.serializer(), "CrewDtos.PostListResponse")
         response(LobbyResponse.serializer(), "CrewDtos.LobbyResponse")
+        // 설계 05-32 중간 참여(POST /crew-runs/{id}/join)
+        response(ParticipationResponse.serializer(), "CrewDtos.ParticipationResponse")
+        response(ParticipationResponse.Runner.serializer(), "CrewDtos.ParticipationResponse.Runner")
         response(
             com.a207.runkk.app.api.crew.CrewRunDetailResponse.serializer(),
             "CrewScheduleDtos.CrewRunDetailResponse"
@@ -440,6 +451,21 @@ class ServerContractTest {
             RecordBattleStartResponse.serializer() to ("BattleDtos.RecordBattleStartResponse" to setOf("opponentLook")),
             CandidatesResponse.Candidate.serializer() to ("BattleDtos.Candidate" to setOf("look")),
             LobbyResponse.Participant.serializer() to ("CrewDtos.LobbyResponse.Participant" to setOf("look")),
+            // 설계 05-32 대기실 추가 항목(옛 서버 호환으로 앱은 선택 항목이다)
+            LobbyResponse.serializer() to (
+                "CrewDtos.LobbyResponse" to setOf(
+                    "crewId",
+                    "revision",
+                    "phase",
+                    "countdownToken",
+                    "startAt",
+                    "countdownParticipantIds",
+                    "canStartNow",
+                    "canJoin",
+                    "meRunner",
+                    "measurementRecordId"
+                )
+                ),
             RunnerLookJson.serializer() to
                 ("AvatarLook" to setOf("gender", "equipped", "bodyVariant", "runAmount", "faceKey")),
             BattleHistoryResponse.Entry.serializer() to
