@@ -138,9 +138,7 @@ private fun RunnerRunAvatar(subject: RunAvatarSubject, resolver: RunnerLookResol
 private fun RunAvatarFigure(state: RunFigureState, pose: AvatarSlotPose, facing: Boolean, onError: () -> Unit) {
     if (LocalTrackAvatarViewport.current) {
         TrackRunAvatarFigure(
-            look = (state as? RunFigureState.Ready)?.look,
-            isFailed = state is RunFigureState.Failed,
-            character = (state as? RunFigureState.Failed)?.character ?: LocalAvatarCharacter.current,
+            state = state,
             pose = pose,
             facingLeft = facing,
             onError = onError
@@ -178,7 +176,7 @@ private fun RunAvatarFigure(state: RunFigureState, pose: AvatarSlotPose, facing:
     }
 }
 
-private sealed interface RunFigureState {
+internal sealed interface RunFigureState {
     data object Loading : RunFigureState
     data class Ready(val look: RiveAvatarLook) : RunFigureState
     data class Failed(val character: AvatarCharacter) : RunFigureState
