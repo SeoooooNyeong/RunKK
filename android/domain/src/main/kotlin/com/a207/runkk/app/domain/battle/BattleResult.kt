@@ -4,6 +4,7 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
 import com.a207.runkk.app.domain.live.MatchFound
@@ -39,7 +40,9 @@ data class BattleResult(
     val opponentGender: Gender? = null,
     val celebrityFigure: String? = null,
     val placementRound: Int? = null,
-    val placementState: PlacementRoundState? = null
+    val placementState: PlacementRoundState? = null,
+    /** 상대 모습([임시:D-성-252]). 배치고사·고스트·셀럽·옛 서버면 null이다(성별 기본 모습). */
+    val opponentLook: RunnerLook? = null
 ) {
     data class Row(val item: String, val mine: String, val theirs: String)
 

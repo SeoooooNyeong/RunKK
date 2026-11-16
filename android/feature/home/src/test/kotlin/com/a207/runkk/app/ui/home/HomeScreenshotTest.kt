@@ -102,6 +102,17 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }
     }
 
+    /** 크루런 결과 「확인」 뒤 이번 주 막대: 라임 테두리와 「+0.8km 크루런」(2초, 설계 05-32 흐름 4). */
+    @Test
+    fun homeCrewRunAdded() = compose.captureRunkkScreen("A4_home_crew_run_added") {
+        HomeShell { HomeScreen(loaded.copy(weeklyHighlight = Distance(800)), HomeActions(), it) }
+    }
+
+    @Test
+    fun homeCrewRunAddedLight() = compose.captureRunkkScreen("A4_home_crew_run_added_light", isDarkTheme = false) {
+        HomeShell { HomeScreen(loaded.copy(weeklyHighlight = Distance(800)), HomeActions(), it) }
+    }
+
     @Test
     fun homeLoading() = compose.captureRunkkScreen("A4_home_loading") {
         HomeShell { HomeScreen(HomeUiState(), HomeActions(), it) }
@@ -196,7 +207,18 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }
     }
 
-    /** 가이드 1단계(자유런 카드, 1/8). */
+    /** 가이드 시작 카드(FR-성-35). */
+    @Test
+    fun guideStartCard() = compose.captureRunkkScreen("J0_guide_start_card") {
+        GuideStartOn()
+    }
+
+    @Test
+    fun guideStartCardLight() = compose.captureRunkkScreen("J0_guide_start_card_light", isDarkTheme = false) {
+        GuideStartOn()
+    }
+
+    /** 가이드 1단계(자유런 카드, 1 / 4). */
     @Test
     fun guideFirstStep() = compose.captureRunkkScreen("J1_guide_free_run") {
         GuideOn(GuideStep.FREE_RUN, index = 0)
@@ -207,27 +229,36 @@ class HomeScreenshotTest {
         GuideOn(GuideStep.FREE_RUN, index = 0)
     }
 
-    /** 가이드 마이 탭 단계(7/8). */
+    /** 가이드 2단계(배틀런 카드, 2 / 4): 「건너뛰기」, 「이전」, 「다음」. */
     @Test
-    fun guideLastStep() = compose.captureRunkkScreen("J7_guide_me") {
-        GuideOn(GuideStep.ME, index = 6)
+    fun guideBattleStepLight() = compose.captureRunkkScreen("J2_guide_battle_run_light", isDarkTheme = false) {
+        GuideOn(GuideStep.BATTLE_RUN, index = 1)
+    }
+
+    /** 가이드 3단계(기록런 탭, 3 / 4). */
+    @Test
+    fun guideRecordRunStepLight() = compose.captureRunkkScreen("J3_guide_record_run_light", isDarkTheme = false) {
+        GuideOn(GuideStep.RECORD_RUN, index = 2)
+    }
+
+    /** 가이드 마지막 단계(내 러너, 4 / 4): 「이전」, 「시작하기」. */
+    @Test
+    fun guideMyRunnerStep() = compose.captureRunkkScreen("J4_guide_my_runner") {
+        GuideOn(GuideStep.MY_RUNNER, index = 3)
     }
 
     @Test
-    fun guideLastStepLight() = compose.captureRunkkScreen("J7_guide_me_light", isDarkTheme = false) {
-        GuideOn(GuideStep.ME, index = 6)
+    fun guideMyRunnerStepLight() = compose.captureRunkkScreen("J4_guide_my_runner_light", isDarkTheme = false) {
+        GuideOn(GuideStep.MY_RUNNER, index = 3)
     }
 
-    /** 가이드 마지막 포인트 단계(J-8, 8/8, S15P31A207-250): 잔액과 알림함을 강조하고 "시작하기"만. */
-    @Test
-    fun guidePointStepLight() = compose.captureRunkkScreen("J8_guide_point_light", isDarkTheme = false) {
-        GuideOn(GuideStep.POINT, index = 7)
-    }
-
-    /** 가이드 크루 탭 단계(J-4, 4/8, S15P31A207-249). */
-    @Test
-    fun guideCrewStepLight() = compose.captureRunkkScreen("J4_guide_crew_light", isDarkTheme = false) {
-        GuideOn(GuideStep.CREW, index = 3)
+    /** 홈과 하단 탭 위에 시작 카드를 덮는다. */
+    @Composable
+    private fun GuideStartOn() {
+        Box(Modifier.fillMaxSize()) {
+            HomeShell { HomeScreen(loaded, HomeActions(), it) }
+            FirstRunGuideStartCard(stepCount = GuideStep.visibleIn(RELEASE_SCOPE).size, onStart = {}, onSkip = {})
+        }
     }
 
     /** 홈과 하단 탭을 그리고, 화면 요소가 적은 [step]의 앵커로 가이드 막을 덮는다. */
@@ -243,7 +274,8 @@ class HomeScreenshotTest {
                     stepCount = GuideStep.visibleIn(RELEASE_SCOPE).size,
                     anchor = anchors[step],
                     onNext = {},
-                    onSkip = {}
+                    onPrevious = {},
+                    onBack = {}
                 )
             }
         }

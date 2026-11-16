@@ -6,6 +6,7 @@ import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.member.MemberSummary;
 import com.a207.runkk.member.ProfileVisibility;
+import com.a207.runkk.running.RunQueryService;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -59,5 +60,12 @@ public final class BattleFixtures {
                 ref,
                 OpponentTrack.uniform(d, arrival),
                 ComparisonValues.undisclosed());
+    }
+
+    /** 모습을 주지 않는 OpponentLooks(모습과 무관한 시험용). 지금 모습도 기록의 모습도 비어 있다. */
+    public static OpponentLooks noLooks() {
+        return new OpponentLooks(
+                memberId -> java.util.Optional.empty(),
+                org.mockito.Mockito.mock(RunQueryService.class));
     }
 }

@@ -42,8 +42,9 @@ class PlacementContractTest {
                 "web.battle.BattleDtos$MatchAcceptanceResponse"
                         + "|waiting,distanceMeters,defaultDistanceMeters|placementRound,battleId",
                 "web.battle.BattleDtos$BattleResultResponse"
-                        + "|battleId,celebrityFigure|placementRound,placementState",
-                "web.battle.BattleDtos$ActiveBattleResponse|battleId,celebrityFigure|placementRound",
+                        + "|battleId,celebrityFigure,placementRound|placementState,opponentLook",
+                "web.battle.BattleDtos$ActiveBattleResponse"
+                        + "|battleId,celebrityFigure,placementRound|opponentLook",
                 "web.battle.BattleDtos$Entry"
                         + "|battleId,sourceLabel|placementRound,opponentMemberId",
                 // + look: 랭킹 줄 회원 모습(S15P31A207-300), publicTier 뒤에 붙이기만 한다

@@ -144,6 +144,7 @@ object Routes {
      * [opponentGender]는 상대 성별 이름(MALE·FEMALE, 지도 위 상대 그림을 고른다)이고 셀럽·과거의 나·모르면 null이다.
      * [celebrityFigure]는 셀럽런의 셀럽 그림 키(서버 celebrityFigure, 카운트다운·지도 위 셀럽 그림을 고른다)이고 없으면 공통 그림이다.
      * [placementRound]는 배치고사 판 번호(MatchFound.placementRound)이고 있으면 지도 위 상대를 점선 원 「?」로 그린다(FR-276).
+     * [opponentLook]은 상대 아바타 모습(트랙 보기의 상대, [임시:D-성-252])이고 배치고사·고스트·셀럽·옛 서버면 null이다.
      */
     @Serializable
     data class BattleRunning(
@@ -157,16 +158,31 @@ object Routes {
         val myBestSeconds: Long? = null,
         val opponentGender: String? = null,
         val celebrityFigure: String? = null,
-        val placementRound: Int? = null
+        val placementRound: Int? = null,
+        val opponentLook: SlotRunnerLook? = null
     ) : NavKey
 
     /** 친구 대결 초대 대기(C-10, D-269). 배틀런 화면 친구 분절에서 고른 거리로 초대를 만들고 기다린다. */
     @Serializable
     data class FriendInviteWait(val distanceMeters: Long) : NavKey
 
+    /**
+     * 가이드 다시 보기 신호([임시:FR-성-36], [임시:D-성-312]). 화면이 아니라 값이다: 설정이 `selectTab(HOME)` 뒤에 이 경로를 올리면
+     * 홈 기능(ui.home)이 첫 사용 가이드를 1단계부터 다시 열고 이 경로를 뺀다.
+     */
+    @Serializable
+    data object GuideReplay : NavKey
+
     /** 받은 친구 대결 초대의 참가 확인(C-12, D-272·D-273). 초대 링크로 앱을 열면 홈 위에 연다. */
     @Serializable
     data class FriendInviteJoin(val token: String) : NavKey
+
+    /**
+     * 크루 초대 링크로 연 가입 확인([임시:FR-성-38], [임시:D-성-243], ui.crew CrewInviteJoinScreen). [code]는 초대 코드(대문자·숫자 6자)다.
+     * 초대 링크나 카카오톡 메시지의 단추로 앱을 열면 홈 위에 연다.
+     */
+    @Serializable
+    data class CrewInviteJoin(val code: String) : NavKey
 
     /**
      * 홈의 배틀런 시작(FR-080): 홈 배틀런 탭에서 고른 대결 거리(1·3·5·10km, 처음엔 기본 대결 거리 FR-109)로 바로 매칭을 요청한다.
@@ -236,9 +252,12 @@ object Routes {
     @Serializable
     data class CrewPastRuns(val crewId: Long) : NavKey
 
-    /** 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). 크루런 거리는 대기실 응답이 준다. */
+    /**
+     * 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). 크루런 거리는 대기실 응답이 준다. [join]이 참이면
+     * 크루런 탭의 「중간 참여하기」로 왔다: 달리는 크루런이면 묻지 않고 바로 참여한다(설계 05-32 [임시:D-성-884]).
+     */
     @Serializable
-    data class CrewRunLobby(val postId: Long) : NavKey
+    data class CrewRunLobby(val postId: Long, val join: Boolean = false) : NavKey
 
     /** 크루런 결과(FR-191). */
     @Serializable

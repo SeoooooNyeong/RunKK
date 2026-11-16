@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.battle.BattleRunCoordinator
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.battle.MyProgress
@@ -41,7 +44,8 @@ import kotlinx.coroutines.launch
 class BattleRunningViewModel @Inject constructor(
     private val coordinator: BattleRunCoordinator,
     private val clock: Clock,
-    private val screens: OpenBattleScreen
+    private val screens: OpenBattleScreen,
+    private val account: AccountRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(BattleRunningUiState())
     val state: StateFlow<BattleRunningUiState> = _state.asStateFlow()
@@ -85,8 +89,18 @@ class BattleRunningViewModel @Inject constructor(
             myBest = key.myBestSeconds?.let(Duration::ofSeconds),
             opponentGender = Gender.entries.firstOrNull { it.name == key.opponentGender },
             celebrityFigure = key.celebrityFigure,
-            placementRound = key.placementRound
+            placementRound = key.placementRound,
+            // 배치고사 상대는 모습이 와도 그리지 않는다(물음표 유지, [임시:D-성-253]).
+            opponentLook = key.opponentLook?.takeIf { key.placementRound == null }?.toRunnerLook(),
+            myAvatar = account.lastMyAvatar()
         )
+        bindJobs += viewModelScope.launch {
+            val saved = account.runViewMode()
+            _state.update { it.copy(viewMode = saved) }
+        }
+        bindJobs += viewModelScope.launch {
+            account.myAvatar()?.let { mine -> _state.update { it.copy(myAvatar = mine) } }
+        }
         bindJobs += viewModelScope.launch { coordinator.state.collect(::onCoordinator) }
         bindJobs += viewModelScope.launch {
             // 폴링으로 이어진 동안은 메시지가 오가므로 끊김으로 보지 않는다.
@@ -113,6 +127,16 @@ class BattleRunningViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    /**
+     * 「트랙 | 지도」 전환([임시:FR-성-28]): 고른 보기를 바로 보이고 기기에 저장해 다음 대결과 크루런에서도 쓴다. 저장에 실패해도 이
+     * 화면에서는 고른 보기를 그대로 둔다. 지도 오류로 트랙만 보일 때는 화면이 이 함수를 부르지 않아 저장값이 그대로다.
+     */
+    fun onViewModeChange(mode: RunViewMode) {
+        if (_state.value.viewMode == mode) return
+        _state.update { it.copy(viewMode = mode) }
+        viewModelScope.launch { account.saveRunViewMode(mode) }
     }
 
     /** 그만두기 짧게 누름: 길게 눌러야 한다는 안내만(D-49). */

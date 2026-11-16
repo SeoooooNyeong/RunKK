@@ -114,7 +114,9 @@ class CrewRunPostTest {
     }
 
     @Test
-    @DisplayName("출발: READY 2명 이상이면 RUNNING(희망일시 + 3초), 준비 안 한 참가자는 빠진다")
+    @DisplayName(
+            "출발: 희망일시에 READY 2명 이상이면 후보를 고정해 3초 뒤로 예약하고(05-32 U-33), 그 시각에 RUNNING(희망일시 + 3초), 준비 안"
+                    + " 한 참가자는 빠진다")
     void depart_started() {
         CrewRunPost post = lobby();
         post.enterLobby(LEADER, AT.minusMinutes(1), RULE);
@@ -125,14 +127,19 @@ class CrewRunPostTest {
 
         assertThat(post.depart(AT.minusSeconds(1), RULE).kind())
                 .isEqualTo(DepartureOutcome.Kind.NONE);
-        DepartureOutcome outcome = post.depart(AT, RULE);
+        DepartureOutcome planned = post.depart(AT, RULE);
+        assertThat(planned.kind()).isEqualTo(DepartureOutcome.Kind.PLANNED);
+        assertThat(planned.startAt()).isEqualTo(AT.plusSeconds(3));
+        assertThat(post.status()).isEqualTo(CrewRunStatus.LOBBY_OPEN);
+        DepartureOutcome outcome = post.depart(AT.plusSeconds(3), RULE);
 
         assertThat(outcome.kind()).isEqualTo(DepartureOutcome.Kind.STARTED);
         assertThat(outcome.startAt()).isEqualTo(AT.plusSeconds(3));
         assertThat(outcome.memberIds()).containsExactlyInAnyOrder(LEADER, A);
         assertThat(post.status()).isEqualTo(CrewRunStatus.RUNNING);
         assertThat(post.runners()).containsExactlyInAnyOrder(LEADER, A);
-        assertThat(post.depart(AT, RULE).kind()).isEqualTo(DepartureOutcome.Kind.NONE);
+        assertThat(post.depart(AT.plusSeconds(3), RULE).kind())
+                .isEqualTo(DepartureOutcome.Kind.NONE);
     }
 
     @Test
@@ -161,6 +168,7 @@ class CrewRunPostTest {
             post.toggleReady(m);
         }
         post.depart(AT, RULE);
+        post.depart(AT.plusSeconds(3), RULE);
         return post;
     }
 

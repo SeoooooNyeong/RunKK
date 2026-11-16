@@ -124,8 +124,8 @@ class AvatarServicesTest {
                 .containsValue(ReasonCode.ITEM_NOT_OWNED);
         assertThat(service.equip(ALICE, List.of(EquipChange.takeOff(ItemSlot.HAT))).equipped())
                 .isEmpty();
-        assertThat(new AvatarQuery(avatars).faceKey(ALICE)).contains("default:FOX");
-        assertThat(new AvatarQuery(avatars).faceKey(99)).isEmpty();
+        assertThat(new AvatarQuery(avatars, null).faceKey(ALICE)).contains("default:FOX");
+        assertThat(new AvatarQuery(avatars, null).faceKey(99)).isEmpty();
     }
 
     @Test
@@ -233,7 +233,7 @@ class AvatarServicesTest {
         new AvatarWithdrawalListener(avatars, images)
                 .onMemberWithdrawn(new MemberWithdrawn(ALICE, NOW));
         assertThat(images.saved).isEmpty();
-        assertThat(new AvatarQuery(avatars).faceKey(ALICE)).isEmpty();
+        assertThat(new AvatarQuery(avatars, null).faceKey(ALICE)).isEmpty();
         assertThat(Optional.of(avatars.findOrCreate(ALICE).creationCount())).contains(0);
     }
 }

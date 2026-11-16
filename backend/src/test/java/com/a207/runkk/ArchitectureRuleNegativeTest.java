@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import archfixture.ArchFixtureEntityWithSetter;
 import com.a207.runkk.analysis.RankingService;
 import com.a207.runkk.audit.ArchFixtureAuditUsesWeb;
+import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.battle.live.ArchFixtureLiveMessage;
 import com.a207.runkk.common.ArchFixtureCommonPort;
 import com.a207.runkk.crew.ArchFixtureCrewImplementsReportPort;
@@ -12,7 +13,9 @@ import com.a207.runkk.crew.ArchFixtureCrewUsesChat;
 import com.a207.runkk.crew.ArchFixtureCrewUsesReportTarget;
 import com.a207.runkk.crew.CrewPostService;
 import com.a207.runkk.crew.PostKind;
+import com.a207.runkk.crew.chat.ArchFixtureChatUsesAvatar;
 import com.a207.runkk.crew.chat.ArchFixtureChatUsesRealtime;
+import com.a207.runkk.crew.chat.ArchFixtureChatUsesRunimal;
 import com.a207.runkk.crew.chat.ChatCursor;
 import com.a207.runkk.crew.chat.CrewChatMessageRepository;
 import com.a207.runkk.crew.chat.CrewChatService;
@@ -31,6 +34,7 @@ import com.a207.runkk.report.ReportedContentPort;
 import com.a207.runkk.report.target.ChatReportAdapter;
 import com.a207.runkk.report.target.CrewPostReportAdapter;
 import com.a207.runkk.reward.ArchFixtureRewardUsesBattleEntity;
+import com.a207.runkk.runimal.RunimalQuery;
 import com.a207.runkk.web.admin.ArchFixtureAdminUsesRanking;
 import com.a207.runkk.web.admin.ranking.RankingAdminController;
 import com.a207.runkk.web.admin.setting.ArchFixtureSettingUsesRepository;
@@ -194,6 +198,25 @@ class ArchitectureRuleNegativeTest {
                                 ArchitectureTest.RULE_1_ONLY_LISTED_DEPENDENCIES,
                                 ArchFixtureCrewUsesChat.class,
                                 ChatCursor.class))
+                .isTrue();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "설계 5.31 [임시:D-성-231]: crew.chat → avatar만 새로 허용되고 다른 새 화살표(crew.chat → runimal)는 규칙 1"
+                    + " 위반이다")
+    void rule01_allowsChatToAvatarOnly() {
+        assertThat(
+                        violates(
+                                ArchitectureTest.RULE_1_ONLY_LISTED_DEPENDENCIES,
+                                ArchFixtureChatUsesAvatar.class,
+                                AvatarQuery.class))
+                .isFalse();
+        assertThat(
+                        violates(
+                                ArchitectureTest.RULE_1_ONLY_LISTED_DEPENDENCIES,
+                                ArchFixtureChatUsesRunimal.class,
+                                RunimalQuery.class))
                 .isTrue();
     }
 

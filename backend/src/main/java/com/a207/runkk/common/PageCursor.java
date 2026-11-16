@@ -43,6 +43,18 @@ public record PageCursor(Long cursor, Integer size) {
         return new Slice<>(page, idOf.applyAsLong(page.get(page.size() - 1)));
     }
 
+    /**
+     * 저장소가 이미 기준 행 뒤부터 size + 1개까지 읽은 목록을 한 페이지로 자른다(날짜순 목록, 설계 05-32 4.5). 더 남았으면 nextCursor가 이
+     * 페이지 마지막 항목 ID다. size가 null이면 전부다.
+     */
+    public static <T> Slice<T> firstPage(List<T> ordered, Integer size, ToLongFunction<T> idOf) {
+        if (size == null || ordered.size() <= size) {
+            return new Slice<>(List.copyOf(ordered), null);
+        }
+        List<T> page = List.copyOf(ordered.subList(0, size));
+        return new Slice<>(page, idOf.applyAsLong(page.get(page.size() - 1)));
+    }
+
     /** cursor 항목 뒤의 항목들. cursor 항목이 지워져 없으면 ID가 cursor보다 작은 항목들이다(코드 리뷰 3차 B-M4). */
     private <T> List<T> afterCursor(List<T> newestFirst, ToLongFunction<T> idOf) {
         int at = indexOfCursor(newestFirst, idOf);

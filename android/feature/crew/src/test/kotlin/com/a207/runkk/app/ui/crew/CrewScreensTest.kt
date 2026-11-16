@@ -16,10 +16,14 @@ import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
@@ -29,22 +33,31 @@ import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.TRACK_DOT_MINE_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_DOT_OTHER_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_OTHER_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_RULER_TAG
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.core.designsystem.viewModeTag
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRunProgress
+import com.a207.runkk.app.domain.crew.CrewRunStanding
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PostList
+import com.a207.runkk.app.domain.live.CrewRunRelay
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -410,10 +423,40 @@ class CrewScreensTest {
 
     @Test
     fun `크루런 탭 - 모집 일시가 지났으면 대기실이 닫혔다고 보이고 누를 수 없다`() {
-        showCrewRuns(LobbyAvailability.Closed, CrewRunStatus.RUNNING)
+        showCrewRuns(LobbyAvailability.Closed, CrewRunStatus.LOBBY_OPEN)
         compose.onNodeWithText("대기실 입장하기").assertDoesNotExist()
         compose.onNodeWithText("대기실이 닫혔어요").assertIsNotEnabled().performClick()
         assertEquals(emptyList(), calls)
+    }
+
+    @Test
+    fun `TC-11028 크루런 탭 - 달리는 크루런은 달리는 중과 중간 참여하기를 보이고 누르면 참여로 간다`() {
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewHomeScreen(
+                    CrewHomeUiState(
+                        crewId = 11,
+                        detail = crewDetail(),
+                        tab = CrewTab.SCHEDULE,
+                        crewRuns = PostList(
+                            listOf(
+                                crewRunPosts.posts[0].copy(
+                                    crewRun = crewRunVoting.copy(status = CrewRunStatus.RUNNING)
+                                )
+                            )
+                        ),
+                        lobbyEntries = mapOf(31L to LobbyAvailability.Closed),
+                        scheduleNow = crewRunVoting.scheduledAt.plusSeconds(240)
+                    ),
+                    CrewHomeActions(onJoinRun = { calls += "join:${it.postId}" })
+                )
+            }
+        }
+        compose.onNodeWithText("달리는 중").assertExists()
+        compose.onNodeWithText("대기실이 닫혔어요").assertDoesNotExist()
+        compose.onNodeWithText("중간 참여하기").performClick()
+        assertEquals(listOf("join:31"), calls)
+        compose.onAllNodesWithText("새로").assertCountEquals(0)
     }
 
     @Test
@@ -455,15 +498,90 @@ class CrewScreensTest {
     }
 
     @Test
-    fun `크루런 진행 - 함께 달리는 크루원 수(나·끝낸 사람 빼고)와 내 거리·지표를 보인다(F-15)`() {
+    fun `크루런 진행 - 순위와 인원, 가장 가까운 크루원과의 차이와 내 거리·지표를 보인다(F-15, FR-성-30)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewRunScreen(runningState(), CrewRunActions())
             }
         }
-        compose.onNodeWithText("함께 달리는 크루원 2명").assertExists()
+        // 나 3,220 m: 앞 180 m에 바람처럼(화면 밖), 뒤 240 m에 멈춘 달빛, 끝낸 거북은 후보가 아니지만 순위에는 센다
+        compose.onNodeWithTag(CREW_STANDING_TAG).assertTextEquals("4명 중 2위, 바로 앞 바람처럼과 180 m")
+        compose.onNodeWithText("함께 달리는 크루원", substring = true).assertDoesNotExist()
+        compose.onNodeWithTag(CREW_TRACK_TAG).assertExists()
+        compose.onAllNodesWithTag(TRACK_OTHER_TAG).assertCountEquals(0)
+        compose.onNodeWithText("바람처럼 180 m ›").assertExists()
+        compose.onNodeWithText("‹ 뒤 2명").assertExists()
+        compose.onAllNodesWithTag(TRACK_DOT_OTHER_TAG).assertCountEquals(3)
+        compose.onAllNodesWithTag(TRACK_DOT_MINE_TAG).assertCountEquals(1)
+        compose.onNodeWithText("3.22 / 5 km").assertExists()
+        compose.onNodeWithText("남은 거리 1.78 km").assertExists()
+        // 지도를 띄울 수 없는 환경(시험)에서는 전환을 숨기고 트랙만 보인다.
+        compose.onAllNodesWithTag(viewModeTag(RunViewMode.MAP)).assertCountEquals(0)
         compose.onNodeWithContentDescription("3.22킬로미터").assertExists()
         compose.onNodeWithText("크루런 5km", useUnmergedTree = true).assertExists()
+    }
+
+    @Test
+    fun `크루런 트랙 - 가장 가까운 크루원이 창 안이면 위 레인에 그리고 나머지는 앞뒤 인원 칩이다(FR-성-30)`() {
+        val mates = listOf(
+            CrewRunStanding.Mate(1, "한강달림", 3_212, CrewRunRelay.State.RUNNING),
+            CrewRunStanding.Mate(2, "바람처럼", 3_900, CrewRunRelay.State.RUNNING),
+            CrewRunStanding.Mate(3, "달빛", 3_600, CrewRunRelay.State.RUNNING),
+            CrewRunStanding.Mate(4, "거북", 1_200, CrewRunRelay.State.RUNNING)
+        )
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                CrewRunScreen(runningState().copy(standing = CrewRunStanding.of(3_220, mates)), CrewRunActions())
+            }
+        }
+        compose.onNodeWithTag(TRACK_OTHER_TAG).assertExists()
+        compose.onNodeWithText("한강달림").assertExists()
+        compose.onNodeWithText("앞 2명 ›").assertExists()
+        compose.onNodeWithText("‹ 뒤 1명").assertExists()
+        compose.onNodeWithTag(TRACK_RULER_TAG).assertTextEquals("8 m")
+        compose.onNodeWithTag(CREW_STANDING_TAG).assertTextEquals("5명 중 3위, 바로 뒤 한강달림과 8 m")
+    }
+
+    @Test
+    fun `크루런 트랙 - 혼자면 순위와 인원만 적고 목표 거리가 없으면 가장 앞선 사람이 진행 막대 끝이다(FR-성-30)`() {
+        val alone = runningState().copy(relay = emptyList(), standing = CrewRunStanding.ALONE)
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) { CrewRunScreen(alone, CrewRunActions()) }
+        }
+        compose.onNodeWithTag(CREW_STANDING_TAG).assertTextEquals("1명 중 1위")
+        compose.onAllNodesWithTag(TRACK_OTHER_TAG).assertCountEquals(0)
+
+        val free = runningState().copy(distance = null)
+        val dots = progressDots(free)
+        assertEquals(1f, dots.maxOf { it.fraction }, "가장 앞선 사람(3,400 m)이 오른쪽 끝")
+        assertEquals(3_220f / 3_400f, dots.single { it.isMine }.fraction)
+        assertEquals(4, dots.size, "끝낸 사람도 점으로 찍는다")
+    }
+
+    @Test
+    fun `순위 문장은 받침에 맞는 조사를 쓰고 가운뎃점이 없다`() {
+        fun standing(name: String, gap: Int) = CrewRunStanding.of(
+            1_000,
+            listOf(CrewRunStanding.Mate(1, name, 1_000 + gap, CrewRunRelay.State.RUNNING))
+        )
+        val sentences = mutableListOf<String>()
+        compose.setContent {
+            sentences += standingSentence(standing("한강달림", -12))
+            sentences += standingSentence(standing("새벽곰", 5))
+            sentences += standingSentence(standing("바람처럼", 7))
+            sentences += standingSentence(standing("달리기", 0))
+        }
+        compose.waitForIdle()
+        assertEquals(
+            listOf(
+                "2명 중 1위, 바로 뒤 한강달림과 12 m",
+                "2명 중 2위, 바로 앞 새벽곰과 5 m",
+                "2명 중 2위, 바로 앞 바람처럼과 7 m",
+                "2명 중 1위, 달리기와 나란히"
+            ),
+            sentences.take(4)
+        )
+        assertTrue(sentences.none { "·" in it })
     }
 
     @Test
@@ -547,6 +665,14 @@ private fun runningState() = CrewRunUiState(
         elapsed = Duration.ofSeconds(1_125),
         currentPace = Pace(324),
         averagePace = Pace(331)
+    ),
+    standing = CrewRunStanding.of(
+        3_220,
+        listOf(
+            CrewRunStanding.Mate(1, "바람처럼", 3_400, CrewRunRelay.State.RUNNING),
+            CrewRunStanding.Mate(2, "달빛", 2_980, CrewRunRelay.State.PAUSED),
+            CrewRunStanding.Mate(3, "거북", 1_200, CrewRunRelay.State.ENDED)
+        )
     )
 )
 
@@ -953,6 +1079,109 @@ class CrewScreenshotTest {
             {},
             pagerState = androidx.compose.foundation.pager.PagerState(currentPage = 1) { 2 }
         )
+    }
+
+    // ---------- 설계 05-32 크루런 실시간 반영(흐름 1·2·4) ----------
+
+    /** 전원 준비 카운트다운(링, 「모두 준비됐어요」, 「준비 취소하고 기다리기」). */
+    private val countdownLobby = readyLobby.copy(
+        phase = CrewRunPhase.COUNTDOWN,
+        countdown = 3,
+        lobby = readyLobby.lobby?.copy(
+            participants = readyLobby.lobby!!.participants.map { it.copy(isEntered = true, isReady = true) },
+            phase = com.a207.runkk.app.domain.crew.LobbyPhase.COUNTDOWN
+        )
+    )
+
+    @Test
+    fun countdownRing() = compose.captureRunkkScreen("G9_crew_run_countdown_ring") {
+        CrewRunScreen(countdownLobby, CrewRunActions())
+    }
+
+    @Test
+    fun countdownRingLight() = compose.captureRunkkScreen("G9_crew_run_countdown_ring_light", isDarkTheme = false) {
+        CrewRunScreen(countdownLobby, CrewRunActions())
+    }
+
+    /** 모집자 대기실: 준비자 2명 이상이라 「지금 시작」. */
+    private val hostLobby = readyLobby.copy(lobby = readyLobby.lobby?.copy(canStartNow = true))
+
+    @Test
+    fun hostStartNow() = compose.captureRunkkScreen("G9_crew_run_host_start") {
+        CrewRunScreen(hostLobby, CrewRunActions())
+    }
+
+    @Test
+    fun hostStartNowLight() = compose.captureRunkkScreen("G9_crew_run_host_start_light", isDarkTheme = false) {
+        CrewRunScreen(hostLobby, CrewRunActions())
+    }
+
+    /** 출발 시트(준비하지 않은 입장자): 시트 창 없이 대기실 위에 시트 내용을 그린다. */
+    private val departed = readyLobby.copy(
+        phase = CrewRunPhase.JOIN_CHOICE,
+        isReady = false,
+        untilStart = Duration.ZERO,
+        departedCount = 2
+    )
+
+    @Composable
+    private fun DepartureOverLobby() {
+        Box(Modifier.fillMaxSize()) {
+            CrewRunScreen(departed.copy(phase = CrewRunPhase.LOBBY), CrewRunActions())
+            InviteSheetSurface { DepartureSheetContent(departed, CrewRunActions()) }
+        }
+    }
+
+    @Test
+    fun departureSheet() = compose.captureRunkkScreen("G9_crew_run_departure_sheet") { DepartureOverLobby() }
+
+    @Test
+    fun departureSheetLight() = compose.captureRunkkScreen("G9_crew_run_departure_sheet_light", isDarkTheme = false) {
+        DepartureOverLobby()
+    }
+
+    /** 크루런 탭: 가장 가까운 크루런이 달리는 중이면 「달리는 중」과 「중간 참여하기」. */
+    private val joinHome = crewRunsHome.copy(
+        crewRuns = crewRunsHome.crewRuns?.let { list ->
+            list.copy(
+                posts = list.posts.map {
+                    if (it.postId == 31L) {
+                        it.copy(
+                            crewRun = it.crewRun?.copy(status = com.a207.runkk.app.domain.crew.CrewRunStatus.RUNNING)
+                        )
+                    } else {
+                        it
+                    }
+                }
+            )
+        }
+    )
+
+    @Test
+    fun joinCard() = compose.captureRunkkScreen("G9_crew_run_join_card") { CrewHomeScreen(joinHome, CrewHomeActions()) }
+
+    @Test
+    fun joinCardLight() = compose.captureRunkkScreen("G9_crew_run_join_card_light", isDarkTheme = false) {
+        CrewHomeScreen(joinHome, CrewHomeActions())
+    }
+
+    /** 레이스 탭: 결과 복귀 뒤 새로 반영된 거리 2초 강조(목표 카드 테두리, 늘어난 줄과 「+0.80」). */
+    private val highlightedRace = home.copy(
+        raceHighlight = RaceHighlight(
+            isGoal = true,
+            rows = setOf(contributorKey(null, "나")),
+            added = mapOf(contributorKey(null, "나") to Distance(800))
+        )
+    )
+
+    @Test
+    fun raceHighlight() = compose.captureRunkkScreen("G9_crew_race_highlight") {
+        CrewHomeScreen(highlightedRace, CrewHomeActions())
+    }
+
+    @Test
+    fun raceHighlightLight() = compose.captureRunkkScreen("G9_crew_race_highlight_light", isDarkTheme = false) {
+        CrewHomeScreen(highlightedRace, CrewHomeActions())
     }
 }
 

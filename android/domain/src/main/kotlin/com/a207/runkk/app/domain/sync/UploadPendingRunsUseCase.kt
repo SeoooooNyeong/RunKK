@@ -4,6 +4,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.run.CompletedRun
 import com.a207.runkk.app.domain.run.LateHeartRates
+import com.a207.runkk.app.domain.run.OwnRunUploads
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.UploadState
 import javax.inject.Inject
@@ -21,8 +22,14 @@ class UploadPendingRunsUseCase
 @Inject
 constructor(
     private val pendingRuns: PendingRunRepository,
-    private val remote: RunUploadRemote
+    private val remote: RunUploadRemote,
+    /** 기록별 서버 응답을 알릴 곳(설계 05-32 OwnRunUploadPort: 크루런 결과 「확인」이 내 기록만 기다린다). */
+    private val ownUploads: OwnRunUploads
 ) {
+    /** 응답을 따로 모으지 않는 조립(시험). */
+    constructor(pendingRuns: PendingRunRepository, remote: RunUploadRemote) :
+        this(pendingRuns, remote, OwnRunUploads())
+
     /** 보관 기록 결과(Sent·AlreadySaved·Failed) 뒤에 늦은 심박 항목 결과를 붙인다. 보관함을 읽지 못하면 실패 하나로 끝낸다(D-80). */
     suspend operator fun invoke(): List<UploadOutcome> {
         val runs =
@@ -39,6 +46,7 @@ constructor(
                 is Outcome.Failure -> return failed(run, uploaded.error)
                 is Outcome.Success -> uploaded.value
             }
+        ownUploads.onStored(run.recordId, receipt.isValid)
         // receipt.isAlreadySaved는 여기서 한 번만 본다(D-80). 늦게 붙은 심박을 보내지 못하면 보관함에 남겨 다음 재전송 때 다시 보낸다.
         val done: UploadOutcome =
             if (receipt.isAlreadySaved) UploadOutcome.AlreadySaved(run.recordId) else UploadOutcome.Sent(run.recordId)
@@ -54,6 +62,7 @@ constructor(
 
     /** 거부(4xx)면 사유와 함께 남겨 자동 재전송을 멈춘다. 남기지 못하면 저장 실패로 돌려 다음 실행에 다시 본다. */
     private suspend fun failed(run: CompletedRun, error: AppError): UploadOutcome.Failed {
+        ownUploads.onFailed(run.recordId, error)
         if (error is AppError.Rejected) {
             val marked = pendingRuns.markRejected(run, error.code)
             if (marked is Outcome.Failure) return UploadOutcome.Failed(run.recordId, marked.error)

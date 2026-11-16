@@ -1,6 +1,8 @@
 package com.a207.runkk.app.api.chat
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
+import com.a207.runkk.app.api.core.FaceImageSource
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.chat.ChatPage
@@ -16,7 +18,12 @@ import javax.inject.Inject
  */
 internal class ChatRepositoryImpl
 @Inject
-constructor(private val api: ChatApi) : ChatRepository {
+constructor(private val api: ChatApi, private val faces: FaceImageSource) :
+    ChatRepository {
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+
+    override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
+
     override suspend fun post(crewId: Long, clientMessageId: String, content: String): Outcome<ChatMessage> =
         ApiErrorMapper.call { api.post(crewId, ChatPostRequest(clientMessageId, content)).toDomain() }
 

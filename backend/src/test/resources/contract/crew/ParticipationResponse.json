@@ -1,0 +1,12 @@
+{
+  "postId": 101,
+  "crewId": 7,
+  "revision": 22,
+  "joinedAt": "2026-11-16T19:05:12.345+09:00",
+  "measurementRecordId": "0b7e9c55-1d2f-4a6b-8c3e-5f9a7d1e2c40",
+  "alreadyJoined": false,
+  "participants": [
+    {"memberId": 11, "displayName": "러너가", "joinedAt": "2026-11-16T19:00:03+09:00", "ended": false, "me": false},
+    {"memberId": 13, "displayName": "러너다", "joinedAt": "2026-11-16T19:05:12.345+09:00", "ended": false, "me": true}
+  ]
+}

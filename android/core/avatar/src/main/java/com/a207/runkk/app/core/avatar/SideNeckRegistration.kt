@@ -13,7 +13,7 @@ internal enum class SideNeckRegistration(
     val centerX: Float
 ) {
     MALE(AvatarGender.MALE, 858f, 930f, 582f),
-    FEMALE(AvatarGender.FEMALE, 792f, 864f, 651f);
+    FEMALE(AvatarGender.FEMALE, 791f, 863f, 651f);
 
     val offsetY: Float get() = (endY - startY) * SHRINK
 

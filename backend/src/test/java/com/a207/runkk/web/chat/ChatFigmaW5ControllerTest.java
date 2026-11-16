@@ -7,12 +7,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.a207.runkk.member.ShownGender;
 import com.a207.runkk.running.LocationPoint;
 import com.a207.runkk.running.RunFixtures;
 import com.a207.runkk.web.WebTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -118,6 +120,67 @@ class ChatFigmaW5ControllerTest extends WebTestSupport {
         assertThat(lines.get(0).get("authorRole").asText()).isEqualTo("LEADER");
         assertThat(lines.get(1).get("authorRole").asText()).isEqualTo("MEMBER");
         assertThat(lines.get(1).get("messageKind").asText()).isEqualTo("TEXT");
+    }
+
+    @Test
+    @DisplayName(
+            "설계 5.31 A: 채팅 목록·폴링(after)·보내기 응답 끝에 authorFaceKey·authorShownGender, 반응자 줄 끝에"
+                    + " faceKey·shownGender가 실린다")
+    void authorAndReactorFaces() throws Exception {
+        Session leader = signUp();
+        Session a = signUp();
+        long crewId = crewOf(leader, a);
+        call(leader, post("/api/v1/avatar/default"), Map.of("characterId", "FOX"))
+                .andExpect(status().isOk());
+        String leaderGender = ShownGender.fallbackOf(leader.memberId()).name();
+        String aGender = ShownGender.fallbackOf(a.memberId()).name();
+
+        long first = say(a, crewId, "먼저");
+        JsonNode posted =
+                json(
+                        call(
+                                        leader,
+                                        post("/api/v1/crews/" + crewId + "/chat/messages"),
+                                        Map.of(
+                                                "clientMessageId",
+                                                UUID.randomUUID().toString(),
+                                                "content",
+                                                "공지"))
+                                .andExpect(status().isCreated()));
+        assertThat(posted.get("authorFaceKey").asText()).isEqualTo("default:FOX");
+        assertThat(posted.get("authorShownGender").asText()).isEqualTo(leaderGender);
+
+        JsonNode lines = history(a, crewId);
+        assertThat(lines.get(0).has("authorFaceKey")).as("키는 항상 있고 값만 null").isTrue();
+        assertThat(lines.get(0).get("authorFaceKey").isNull()).isTrue();
+        assertThat(lines.get(0).get("authorShownGender").asText()).isEqualTo(aGender);
+        assertThat(lines.get(1).get("authorFaceKey").asText()).isEqualTo("default:FOX");
+        List<String> keys = new ArrayList<>();
+        lines.get(1).fieldNames().forEachRemaining(keys::add);
+        assertThat(keys.subList(keys.size() - 3, keys.size()))
+                .containsExactly("runDistanceMeters", "authorFaceKey", "authorShownGender");
+
+        JsonNode polled =
+                json(call(a, get("/api/v1/crews/" + crewId + "/chat/messages?after=" + first), null)
+                                .andExpect(status().isOk()))
+                        .get("messages");
+        assertThat(polled).hasSize(1);
+        assertThat(polled.get(0).get("authorFaceKey").asText()).isEqualTo("default:FOX");
+        assertThat(polled.get(0).get("authorShownGender").asText()).isEqualTo(leaderGender);
+
+        call(leader, put("/api/v1/chat-messages/" + first + "/reactions/LIKE"), null)
+                .andExpect(status().isOk());
+        JsonNode reactor =
+                json(call(a, get("/api/v1/chat-messages/" + first + "/reactions"), null)
+                                .andExpect(status().isOk()))
+                        .get("reactors")
+                        .get(0);
+        assertThat(reactor.get("faceKey").asText()).isEqualTo("default:FOX");
+        assertThat(reactor.get("shownGender").asText()).isEqualTo(leaderGender);
+        List<String> reactorKeys = new ArrayList<>();
+        reactor.fieldNames().forEachRemaining(reactorKeys::add);
+        assertThat(reactorKeys.subList(reactorKeys.size() - 3, reactorKeys.size()))
+                .containsExactly("me", "faceKey", "shownGender");
     }
 
     @Test

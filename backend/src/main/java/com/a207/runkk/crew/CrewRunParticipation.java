@@ -57,6 +57,21 @@ public class CrewRunParticipation {
     @Column(name = "linked_record_id", length = 36)
     private String linkedRecordId;
 
+    /**
+     * 출발 카운트다운이 시작될 때 준비했던 출발 후보(설계 05-32 [임시:D-성-882]). 준비 취소·퇴장·참석 철회 때만 빠지고 새 입장·재준비로 다시 들어오지
+     * 않는다. 출발 뒤에는 카운트다운에서 함께 출발한 사람이다.
+     */
+    @Column(name = "countdown_candidate", nullable = false)
+    private boolean countdownCandidate;
+
+    /** 개인 측정 시작 시각(출발 후보는 출발 시각, 중간 참여자는 참여 승인 시각, [임시:D-성-884]). 옛 진행 참가자는 비어 있다. */
+    @Column(name = "joined_at")
+    private LocalDateTime joinedAt;
+
+    /** 서버가 한 번 예약한 이 참여의 측정 기록 ID(UUID, [임시:D-성-884]). 저장 성공의 증거가 아니다. 옛 진행 참가자는 비어 있다. */
+    @Column(name = "measurement_record_id", length = 36)
+    private String measurementRecordId;
+
     protected CrewRunParticipation() {}
 
     CrewRunParticipation(long memberId, AttendanceAnswer answer, LocalDateTime now) {
@@ -70,28 +85,76 @@ public class CrewRunParticipation {
         this.votedAt = now;
     }
 
-    /** 대기실 입장: ENTERING. */
+    /** 대기실 입장: ENTERING. 출발 후보였으면 빠진다(준비가 풀린다). */
     void enter() {
         readiness = Readiness.ENTERING;
+        countdownCandidate = false;
     }
 
-    /** ENTERING ↔ READY. 입장하지 않았으면 IllegalStateException. */
+    /** ENTERING ↔ READY. 입장하지 않았으면 IllegalStateException. 준비를 풀면 출발 후보에서 빠진다. */
     public Readiness toggleReady() {
         if (readiness == Readiness.NOT_ENTERED) {
             throw new IllegalStateException("대기실에 들어오지 않은 참가자");
         }
-        readiness = readiness == Readiness.READY ? Readiness.ENTERING : Readiness.READY;
+        return changeReady(readiness != Readiness.READY);
+    }
+
+    /**
+     * 멱등 준비(설계 05-32 [임시:D-성-879]): 입장자의 준비를 ready로 둔다. 같은 값이면 아무것도 바꾸지 않는다. 준비를 풀면 출발 후보에서 빠지고 다시
+     * 준비해도 후보로 돌아오지 않는다. 입장하지 않았으면 IllegalStateException.
+     */
+    Readiness changeReady(boolean ready) {
+        if (readiness == Readiness.NOT_ENTERED) {
+            throw new IllegalStateException("대기실에 들어오지 않은 참가자");
+        }
+        readiness = ready ? Readiness.READY : Readiness.ENTERING;
+        if (!ready) {
+            countdownCandidate = false;
+        }
         return readiness;
     }
 
-    /** 대기실 나가기: NOT_ENTERED. */
+    /** 대기실 나가기: NOT_ENTERED. 출발 후보에서 빠진다. */
     void leave() {
         readiness = Readiness.NOT_ENTERED;
+        countdownCandidate = false;
     }
 
-    /** 출발 때 READY였으면 진행 참가자가 된다. */
-    void markRunner() {
+    /** 카운트다운 시작 때 준비한 입장자를 출발 후보로 고정한다. */
+    void markCandidate() {
+        countdownCandidate = true;
+    }
+
+    /** 출발 후보에서만 뺀다(참석 철회). */
+    void dropCandidate() {
+        countdownCandidate = false;
+    }
+
+    /**
+     * 진행 참가자가 된다(출발 후보는 출발 때, 그 밖은 중간 참여 때). 개인 측정 시작 시각과 측정 기록 ID를 한 번만 정하고 이미 진행 참가자면 바꾸지 않는다.
+     */
+    void markRunner(LocalDateTime startAt, String recordId) {
+        if (runner) {
+            return;
+        }
         runner = true;
+        joinedAt = startAt;
+        measurementRecordId = recordId;
+    }
+
+    /** 시작 시각과 측정 기록 ID 없이 진행 참가자가 된다(05-32 전 출발과 같은 모양, 시험과 옛 자료 재현용). */
+    void markRunner() {
+        markRunner(null, null);
+    }
+
+    /** 옛 진행 참가자(측정 기록 ID 없음)에게 쓰기 경로에서 한 번 채운다. 연결된 기록이 있으면 그 ID를 쓴다. */
+    void fillMeasurement(LocalDateTime fallbackStart, String newRecordId) {
+        if (joinedAt == null) {
+            joinedAt = fallbackStart;
+        }
+        if (measurementRecordId == null) {
+            measurementRecordId = linkedRecordId != null ? linkedRecordId : newRecordId;
+        }
     }
 
     /** 자기 크루런 끝내기(합산 방식). 거리·경과가 있으면 남긴다. 이미 끝냈으면 아무것도 바꾸지 않고 false(재시도 안전). */
@@ -134,6 +197,26 @@ public class CrewRunParticipation {
 
     public boolean isRunner() {
         return runner;
+    }
+
+    /** 출발 후보(카운트다운 시작 때 준비했고 취소·퇴장하지 않은 사람, 출발 뒤에는 함께 출발한 사람). */
+    public boolean isCountdownCandidate() {
+        return countdownCandidate;
+    }
+
+    /** 대기실에 들어와 있다(ENTERING 또는 READY). */
+    boolean hasEntered() {
+        return readiness != Readiness.NOT_ENTERED;
+    }
+
+    /** 개인 측정 시작 시각, 옛 진행 참가자나 진행 참가자가 아니면 비어 있다. */
+    public Optional<LocalDateTime> joinedAt() {
+        return Optional.ofNullable(joinedAt);
+    }
+
+    /** 서버가 예약한 측정 기록 ID, 없으면 비어 있다. */
+    public Optional<String> measurementRecordId() {
+        return Optional.ofNullable(measurementRecordId);
     }
 
     boolean isGoing() {

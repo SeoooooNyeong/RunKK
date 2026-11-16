@@ -16,6 +16,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.GuideCopy
 import com.a207.runkk.app.domain.settings.ScreenTheme
@@ -154,6 +155,24 @@ class DataStoreSettingsRepository internal constructor(
         }
     }
 
+    /** 보기 선호([임시:D-성-264]). refresh가 덮지 않고 [clear]가 지운다. 없거나 못 읽거나 모르는 이름이면 트랙이다. */
+    override suspend fun runViewMode(): RunViewMode = try {
+        val stored = dataStore.data.first()[RUN_VIEW_MODE]
+        RunViewMode.entries.firstOrNull { it.name == stored } ?: RunViewMode.TRACK
+    } catch (e: IOException) {
+        Timber.w(e, "보기 선호 읽기 실패")
+        RunViewMode.TRACK
+    }
+
+    override suspend fun saveRunViewMode(mode: RunViewMode): Outcome<Unit> = writing.withLock {
+        try {
+            dataStore.edit { it[RUN_VIEW_MODE] = mode.name }
+            Outcome.Success(Unit)
+        } catch (e: IOException) {
+            Outcome.Failure(AppError.Storage)
+        }
+    }
+
     /** 배치고사 완료 화면을 본 마지막 판(PL2-A2). 가이드 사본과 같이 refresh가 덮지 않고 [clear]가 지운다. 못 읽으면 사본 없음이다. */
     override suspend fun placementCompleteSeen(): Long? = try {
         dataStore.data.first()[PLACEMENT_COMPLETE_SEEN]
@@ -240,11 +259,13 @@ class DataStoreSettingsRepository internal constructor(
     }
 
     private fun MutablePreferences.write(s: SettingsSnapshot) {
-        // 가이드 사본, 배치고사 완료 사본, 본 이벤트 사본은 서버 설정 응답에 없으므로 덮어쓰지 않고 남긴다.
+        // 가이드 사본, 배치고사 완료 사본, 본 이벤트 사본, 보기 선호는 서버 설정 응답에 없으므로 덮어쓰지 않고 남긴다.
         val guide = this[GUIDE]
         val placementSeen = this[PLACEMENT_COMPLETE_SEEN]
         val seenEvents = this[SEEN_EVENTS]
+        val viewMode = this[RUN_VIEW_MODE]
         clear()
+        viewMode?.let { this[RUN_VIEW_MODE] = it }
         guide?.let { this[GUIDE] = it }
         placementSeen?.let { this[PLACEMENT_COMPLETE_SEEN] = it }
         seenEvents?.let { this[SEEN_EVENTS] = it }
@@ -303,6 +324,9 @@ class DataStoreSettingsRepository internal constructor(
 
         /** 배치고사 완료 화면을 본 마지막 판 대결 ID(PL2-A2). */
         val PLACEMENT_COMPLETE_SEEN = longPreferencesKey("placement_complete_seen")
+
+        /** 대결·크루런 진행 화면의 보기 선호(RunViewMode 이름, [임시:D-성-264]). */
+        val RUN_VIEW_MODE = stringPreferencesKey("run_view_mode")
 
         /** 본 이벤트 ID(문자열 집합). */
         val SEEN_EVENTS = stringSetPreferencesKey("seen_event_ids")

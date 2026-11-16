@@ -18,6 +18,8 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBottomSheet
 import com.a207.runkk.app.core.designsystem.RunkkChipTone
@@ -27,6 +29,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPersonRow
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.chat.ReactionKind
 import com.a207.runkk.app.domain.chat.Reactor
 
@@ -77,7 +80,9 @@ internal fun ReactorsSheet(state: ChatUiState, actions: ChatActions) {
                 )
             }
 
-            else -> Column { state.visibleReactors.forEach { ReactorRow(it) } }
+            else -> Column {
+                state.visibleReactors.forEach { ReactorRow(it, it.faceKey?.let(state.faces::get).orEmpty()) }
+            }
         }
     }
 }
@@ -96,15 +101,23 @@ private fun ReactorTab(label: String, spoken: String, kind: ReactionKind?, isSel
     )
 }
 
-/** 반응한 사람 한 줄(높이 52, 아래 구분선 1): 아바타 32, 닉네임 15, 오른쪽 반응 아이콘 18. */
+/** 반응한 사람 한 줄(높이 52, 아래 구분선 1): 그 사람의 아바타 얼굴 32([임시:FR-성-24]), 닉네임 15, 오른쪽 반응 아이콘 18. */
 @Composable
-private fun ReactorRow(reactor: Reactor) {
+private fun ReactorRow(reactor: Reactor, layers: List<FaceLayer>) {
     val kindName = stringResource(reactor.kind.labelRes())
     val description = stringResource(R.string.chat_reactor_row, reactor.displayName, kindName)
     RunkkPersonRow(
         name = reactor.displayName,
         modifier = Modifier.clearAndSetSemantics { contentDescription = description },
-        avatar = { RunkkAvatarCircle(32.dp) },
+        avatar = {
+            RunkkAvatarCircle(
+                faceKey = reactor.faceKey,
+                size = 32.dp,
+                faceLayers = layers,
+                // 내 줄은 내 성별이다: 표시 성별은 성별 비공개면 대체값이라 내 얼굴이 다른 성별로 보인다
+                character = if (reactor.isMe) LocalAvatarCharacter.current else AvatarCharacter.of(reactor.shownGender)
+            )
+        },
         trailing = {
             Icon(
                 reactor.kind.icon(),

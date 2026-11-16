@@ -4,6 +4,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.run.RunProgress
 
 data class RunUiState(
@@ -29,7 +30,9 @@ data class RunUiState(
     val splitBanner: UiText? = null,
     /** 취소(기록을 남기지 않는 종료)를 눌러 확인을 묻는 중. */
     val isDiscardConfirming: Boolean = false,
-    val error: UiText? = null
+    val error: UiText? = null,
+    /** 내 아바타(지도 위 내 위치의 얼굴 원, [임시:FR-성-31]). 읽기 전이거나 못 읽으면 null(기본 얼굴)이다. */
+    val myAvatar: MyAvatar? = null
 ) {
     /** 일시정지 중(PAUSED, FR-194). 진행값의 정지 여부를 그대로 보인다. */
     val isPaused: Boolean get() = progress.isPaused

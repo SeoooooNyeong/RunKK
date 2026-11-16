@@ -1,5 +1,6 @@
 package com.a207.runkk.running;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DomainEventPublisher;
 import com.a207.runkk.common.GeoPoint;
@@ -31,6 +32,7 @@ public class RunUploadService {
     private final PersonalRecordBookRepository personalRecordBookRepository;
     private final WeatherGateway weatherGateway;
     private final MemberQueryService memberQueryService;
+    private final AvatarLookSource avatarLookSource;
     private final DomainEventPublisher eventPublisher;
     private final TransactionTemplate transaction;
     private final Clock clock;
@@ -40,6 +42,7 @@ public class RunUploadService {
             PersonalRecordBookRepository personalRecordBookRepository,
             WeatherGateway weatherGateway,
             MemberQueryService memberQueryService,
+            AvatarLookSource avatarLookSource,
             DomainEventPublisher eventPublisher,
             PlatformTransactionManager transactionManager,
             Clock clock) {
@@ -47,6 +50,7 @@ public class RunUploadService {
         this.personalRecordBookRepository = personalRecordBookRepository;
         this.weatherGateway = weatherGateway;
         this.memberQueryService = memberQueryService;
+        this.avatarLookSource = avatarLookSource;
         this.eventPublisher = eventPublisher;
         this.transaction = new TransactionTemplate(transactionManager);
         this.clock = clock;
@@ -54,7 +58,9 @@ public class RunUploadService {
 
     /**
      * 같은 recordId면 alreadyStored. 수신 → 유효 판정 → 날씨(경로 있을 때, coarsen(2)) → [트랜잭션: 장부 행 잠금 → 순번 = 유효
-     * 기록 수 + 1(무효면 0) → 최고 기록 갱신 → 저장 → RunRecordSaved 발행]. 심박 동의가 없으면 심박은 저장하지 않는다(NFR-023).
+     * 기록 수 + 1(무효면 0) → 최고 기록 갱신 → 저장 → RunRecordSaved 발행]. 심박 동의가 없으면 심박은 저장하지 않는다(NFR-023). 저장
+     * 직전에 회원의 지금 아바타 모습을 읽어 기록에 붙인다(설계 5.31 [임시:D-성-250]). 폰·워치·늦은 오프라인 기록이 모두 이 길을 지나고, 읽다가 실패하면
+     * 모습 없이 저장한다.
      */
     public UploadResult upload(long memberId, RunUploadCommand command) {
         RunUpload upload = command.toUpload();
@@ -75,6 +81,7 @@ public class RunUploadService {
                 .firstPoint()
                 .flatMap(p -> weatherAt(p, record))
                 .ifPresent(record::attachWeather);
+        lookOf(memberId).ifPresent(record::attachLook);
         return transaction.execute(status -> store(memberId, record));
     }
 
@@ -130,6 +137,16 @@ public class RunUploadService {
         personalRecordBookRepository.save(book);
         eventPublisher.publish(RunRecordSaved.of(record, ordinal, savedAt));
         return UploadResult.stored(record.getRecordId(), record.isValid());
+    }
+
+    /** 회원의 지금 모습. 저장 트랜잭션 밖에서 읽고, 실패해도 기록 저장을 막지 않는다(로그만 남긴다). */
+    private Optional<AvatarLook> lookOf(long memberId) {
+        try {
+            return avatarLookSource.currentLookOf(memberId);
+        } catch (RuntimeException e) {
+            log.warn("run_look_read_failed error={}", e.getClass().getSimpleName());
+            return Optional.empty();
+        }
     }
 
     private Optional<Weather> weatherAt(GeoPoint firstPoint, RunRecord record) {

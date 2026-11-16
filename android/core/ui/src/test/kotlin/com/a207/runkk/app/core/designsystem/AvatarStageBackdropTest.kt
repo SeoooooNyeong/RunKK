@@ -13,11 +13,20 @@ class AvatarStageBackdropTest {
 
     @Test
     fun `도시 키는 도시 그림, 그림 없는 키는 화면 전체 배경과 같은 단계 그림이다`() {
-        assertEquals(R.drawable.avatar_backdrop_chuncheon, avatarStageBackdropRes("CHUNCHEON", isDark = true))
+        assertEquals(R.drawable.avatar_backdrop_chuncheon, avatarStageBackdropRes("CHUNCHEON", isDark = false))
         assertEquals(R.drawable.avatar_backdrop_tokyo, avatarStageBackdropRes("TOKYO", isDark = false))
         assertEquals(
             R.drawable.avatar_backdrop_intercontinental,
             avatarStageBackdropRes("LM_9", "INTERCONTINENTAL", false)
+        )
+    }
+
+    @Test
+    fun `다크면 도시 그림과 단계 그림도 같은 이름의 밤 그림이다(D-성-308)`() {
+        assertEquals(R.drawable.avatar_backdrop_chuncheon_night, avatarStageBackdropRes("CHUNCHEON", isDark = true))
+        assertEquals(
+            R.drawable.avatar_backdrop_intercontinental_night,
+            avatarStageBackdropRes("LM_9", "INTERCONTINENTAL", true)
         )
     }
 

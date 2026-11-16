@@ -2,6 +2,8 @@ package com.a207.runkk.crew;
 
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.crew.live.CrewRunCancelled;
+import com.a207.runkk.crew.live.CrewRunChanged;
+import com.a207.runkk.crew.live.CrewRunDeparture;
 import com.a207.runkk.crew.live.CrewRunEnded;
 import com.a207.runkk.crew.live.CrewRunStart;
 import com.a207.runkk.member.MemberQueryService;
@@ -11,17 +13,24 @@ import com.a207.runkk.notification.NotificationRequest;
 import com.a207.runkk.notification.NotificationService;
 import com.a207.runkk.notification.NotificationType;
 import com.a207.runkk.notification.Screen;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 /**
  * 크루런 시계가 알릴 것을 보낸다(CrewRunService.tick·quit의 알림·실시간 메시지·세션 관리, SQ-09). 실시간 메시지와 세션 생성·삭제는 커밋 뒤에
- * 한다(AfterCommit). CrewRunService의 생성자 의존을 Fan-Out 7 안에 두려고 뗀 패키지 전용 보조다.
+ * 한다(AfterCommit). CrewRunService의 생성자 의존을 Fan-Out 7 안에 두려고 뗀 패키지 전용 보조다. 설계 05-32: 확정한 변경을 현재
+ * 크루원에게 CrewRunChanged로 알리고(changed), 출발 사실을 대기실 입장자 전원에게 CrewRunDeparture로 보내며(started), 중간 참여자를
+ * 세션에 더한다(joined).
  */
 @Component
 class CrewRunAnnouncer {
@@ -39,18 +48,59 @@ class CrewRunAnnouncer {
     private final CrewRunLiveService crewRunLiveService;
     private final MemberQueryService memberQueryService;
     private final NotificationService notificationService;
+    private final CrewRepository crewRepository;
+    private final Clock clock;
 
     CrewRunAnnouncer(
             CrewRunMessenger crewRunMessenger,
             CrewLiveSessionStore crewLiveSessionStore,
             CrewRunLiveService crewRunLiveService,
             MemberQueryService memberQueryService,
-            NotificationService notificationService) {
+            NotificationService notificationService,
+            CrewRepository crewRepository,
+            Clock clock) {
         this.crewRunMessenger = crewRunMessenger;
         this.crewLiveSessionStore = crewLiveSessionStore;
         this.crewRunLiveService = crewRunLiveService;
         this.memberQueryService = memberQueryService;
         this.notificationService = notificationService;
+        this.crewRepository = crewRepository;
+        this.clock = clock;
+    }
+
+    /**
+     * 확정한 변경 알림(설계 05-32 [임시:D-성-878], [임시:D-성-891]): 글 행 잠금 안에서 변경 순번을 하나 올리고, 지금 그 크루의 현재 크루원에게
+     * 바뀐 자료마다 CrewRunChanged를 커밋 뒤에 보낸다. 롤백되면 보내지 않는다(AfterCommit). 받는 사람은 발송 직전 소속으로 정하며 임의 crewId
+     * 구독은 없다. 같은 트랜잭션에서 여러 번 부르면 순번이 그만큼 오른다.
+     */
+    void changed(CrewRunPost post, CrewRunChanged.Resource... resources) {
+        long revision = post.markChanged();
+        long crewId = post.crewId();
+        long postId = post.getId();
+        LocalDateTime at = LocalDateTime.now(clock);
+        Set<CrewRunChanged.Resource> distinct = EnumSet.noneOf(CrewRunChanged.Resource.class);
+        distinct.addAll(List.of(resources));
+        List<Long> recipients =
+                crewRepository.findById(crewId).map(Crew::activeMemberIds).orElse(List.of());
+        if (recipients.isEmpty()) {
+            return;
+        }
+        for (CrewRunChanged.Resource resource : distinct) {
+            CrewRunChanged message = CrewRunChanged.of(crewId, postId, resource, revision, at);
+            AfterCommit.run(() -> crewRunMessenger.sendAll(recipients, message));
+        }
+    }
+
+    /** 목록에 보이는 값이 바뀌었다: SCHEDULE, 대기실이 열려 있으면 LOBBY, 진행 중이면 PROGRESS도(설계 05-32 5.3). */
+    void scheduleChanged(CrewRunPost post) {
+        List<CrewRunChanged.Resource> resources = new ArrayList<>();
+        resources.add(CrewRunChanged.Resource.SCHEDULE);
+        if (post.status() == CrewRunStatus.LOBBY_OPEN) {
+            resources.add(CrewRunChanged.Resource.LOBBY);
+        } else if (post.status() == CrewRunStatus.RUNNING) {
+            resources.add(CrewRunChanged.Resource.PROGRESS);
+        }
+        changed(post, resources.toArray(CrewRunChanged.Resource[]::new));
     }
 
     /** 10분 전 알림(CREW_RUN_SOON): 갈래요 참가자에게 대기실 안내(FR-193). */
@@ -68,7 +118,10 @@ class CrewRunAnnouncer {
                                                 target)));
     }
 
-    /** 출발: 진행 참가자에게 CrewRunStart, 세션을 연다(커밋 뒤). */
+    /**
+     * 출발(설계 05-32 [임시:D-성-883]): 세션을 열고, 그때 대기실 입장자 전원(준비하지 않은 사람 포함)에게 CrewRunDeparture, 확정 진행
+     * 참가자에게만 기존 CrewRunStart(옛 앱 호환)를 보낸다(커밋 뒤). 진행 참가자가 0명이어도 세션을 연다(늦은 참여를 받는다).
+     */
     void started(CrewRunPost post, DepartureOutcome outcome) {
         Map<Long, DisplayName> names = namesOf(outcome.memberIds());
         CrewRunStart start =
@@ -78,8 +131,35 @@ class CrewRunAnnouncer {
                         outcome.memberIds().stream().map(names::get).toList());
         CrewRunLiveSession session =
                 CrewRunLiveSession.open(post.getId(), names, outcome.startAt());
+        long crewId = post.crewId();
+        long postId = post.getId();
         AfterCommit.run(() -> crewLiveSessionStore.save(session));
-        AfterCommit.run(() -> crewRunMessenger.sendAll(outcome.memberIds(), start));
+        // 순번은 커밋 뒤에 읽는다(같은 트랜잭션의 changed가 올린 값)
+        AfterCommit.run(
+                () ->
+                        crewRunMessenger.sendAll(
+                                outcome.notifiedIds(),
+                                new CrewRunDeparture(
+                                        crewId,
+                                        postId,
+                                        post.revision(),
+                                        outcome.countdownToken(),
+                                        outcome.startAt(),
+                                        outcome.memberIds())));
+        if (!outcome.memberIds().isEmpty()) {
+            AfterCommit.run(() -> crewRunMessenger.sendAll(outcome.memberIds(), start));
+        }
+    }
+
+    /**
+     * 중간 참여자를 세션에 더하고 중계한다(커밋 뒤, 설계 05-32 [임시:D-성-885]). 실패해도 1초 시계가 누락 참가자를 보충한다(ensureSession).
+     */
+    void joined(CrewRunPost post, long memberId) {
+        long postId = post.getId();
+        LocalDateTime departedAt = post.departedAt().orElseThrow();
+        LocalDateTime joinedAt = joinedAtOf(post, memberId, departedAt);
+        DisplayName name = namesOf(List.of(memberId)).get(memberId);
+        AfterCommit.run(() -> crewRunLiveService.join(postId, memberId, name, joinedAt));
     }
 
     /** 취소: 갈래요 참가자에게 CrewRunCancelled(커밋 뒤). 문구의 인원은 [minReady](운영 기준값)로 채운다. */
@@ -141,20 +221,56 @@ class CrewRunAnnouncer {
      * "끝냄"을 되살려 중계 합산과 상태가 DB와 같게 한다(MR !91 BR-2). 1초 시계가 RUNNING 크루런마다 부른다.
      */
     void ensureSession(CrewRunPost post) {
-        if (post.status() != CrewRunStatus.RUNNING
-                || crewLiveSessionStore.load(post.getId()).isPresent()) {
+        if (post.status() != CrewRunStatus.RUNNING) {
             return;
         }
         List<Long> runners = post.runners();
         LocalDateTime departedAt = post.departedAt().orElseThrow();
-        CrewRunLiveSession session =
-                CrewRunLiveSession.open(post.getId(), namesOf(runners), departedAt);
+        Optional<CrewRunLiveSession> existing = crewLiveSessionStore.load(post.getId());
+        if (existing.isPresent()) {
+            supplementMissing(post, existing.get(), runners, departedAt);
+            return;
+        }
+        Map<Long, DisplayName> names = namesOf(runners);
+        CrewRunLiveSession session = CrewRunLiveSession.open(post.getId(), Map.of(), departedAt);
         for (long memberId : runners) {
+            session.join(memberId, names.get(memberId), joinedAtOf(post, memberId, departedAt));
             post.participationOf(memberId)
                     .filter(CrewRunParticipation::hasEnded)
                     .ifPresent(p -> session.markEnded(memberId, finalProgressOf(p, departedAt)));
         }
         crewLiveSessionStore.save(session);
+    }
+
+    /**
+     * 세션은 있는데 DB의 진행 참가자가 빠졌으면(중간 참여 커밋 뒤 Redis 반영 실패, 설계 05-32 TC-11046) 개인 측정 시작 시각으로 보충한다. 이미 있는
+     * 참가자의 거리와 시작 시각은 건드리지 않는다.
+     */
+    private void supplementMissing(
+            CrewRunPost post,
+            CrewRunLiveSession session,
+            List<Long> runners,
+            LocalDateTime departedAt) {
+        List<Long> missing =
+                runners.stream().filter(id -> !session.participants().contains(id)).toList();
+        if (missing.isEmpty()) {
+            return;
+        }
+        Map<Long, DisplayName> names = namesOf(missing);
+        for (long memberId : missing) {
+            crewRunLiveService.join(
+                    post.getId(),
+                    memberId,
+                    names.get(memberId),
+                    joinedAtOf(post, memberId, departedAt));
+        }
+    }
+
+    private static LocalDateTime joinedAtOf(
+            CrewRunPost post, long memberId, LocalDateTime departedAt) {
+        return post.participationOf(memberId)
+                .flatMap(CrewRunParticipation::joinedAt)
+                .orElse(departedAt);
     }
 
     /** 참여에 남은 마감 값(거리가 없으면 null, 경과가 없으면 0). */

@@ -4,6 +4,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunViewMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -80,6 +81,14 @@ interface AccountRepository {
     suspend fun placementCompleteSeen(): Long? = null
 
     suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> = Outcome.Success(Unit)
+
+    /**
+     * 대결·크루런 진행 화면의 보기 선호([임시:D-성-264], [임시:FR-성-28]). 처음 값은 트랙이다. 구현(data)은 설정 기기 사본
+     * (SettingsRepository)에 맡겨 로그아웃·탈퇴 때 함께 지운다. 기본 구현은 늘 트랙·저장 무시다.
+     */
+    suspend fun runViewMode(): RunViewMode = RunViewMode.TRACK
+
+    suspend fun saveRunViewMode(mode: RunViewMode): Outcome<Unit> = Outcome.Success(Unit)
 
     /** 프로필 편집(PATCH /me/profile, FR-007, D-287). 성향 태그(D-91)와 사진은 편집 항목이 아니다. */
     suspend fun editProfile(edit: ProfileEdit): Outcome<Unit>

@@ -17,6 +17,7 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -78,6 +80,30 @@ public class CrewRunPost extends SchedulePost {
     /** 10분 전 알림(CREW_RUN_SOON)을 보냈는가(한 번만, FR-193). */
     @Column(name = "reminded")
     private boolean reminded;
+
+    /** 출발 카운트다운 예약 식별값(설계 05-32 [임시:D-성-881]). 한 크루런에 한 번만 정하고 바꾸지 않는다. 예약 전이면 null. */
+    @Column(name = "countdown_token", length = 40)
+    private String countdownToken;
+
+    /** 카운트다운을 예약한 서버 시각. */
+    @Column(name = "countdown_planned_at")
+    private LocalDateTime countdownPlannedAt;
+
+    /** 측정 시작 절대 시각 = 예약 시각 + 3초(앱은 다시 3초를 더하지 않는다, [임시:D-성-881]). */
+    @Column(name = "countdown_start_at")
+    private LocalDateTime countdownStartAt;
+
+    /** 카운트다운을 연 계기(전원 준비, 모집자 지금 시작, 예약 시각). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "start_reason", length = 12)
+    private StartReason startReason;
+
+    /**
+     * 변경 순번(설계 05-32 4.1, [임시:D-성-878]). 대기실, 출발, 참여, 결과, 모집 변경을 알릴 때 글 행 잠금 안에서 올린다. 부모 JPA
+     * version과 따로 둔다.
+     */
+    @Column(name = "change_revision")
+    private Long changeRevision = 0L;
 
     protected CrewRunPost() {}
 
@@ -196,7 +222,12 @@ public class CrewRunPost extends SchedulePost {
         }
         participationOf(memberId)
                 .ifPresentOrElse(
-                        p -> p.changeAnswer(answer, now),
+                        p -> {
+                            p.changeAnswer(answer, now);
+                            if (answer != AttendanceAnswer.GOING) {
+                                p.dropCandidate(); // 참석 철회는 출발 후보에서만 뺀다(U-33)
+                            }
+                        },
                         () -> participations.add(new CrewRunParticipation(memberId, answer, now)));
         return AttendanceView.of(getId() == null ? 0 : getId(), answer, counts());
     }
@@ -258,6 +289,10 @@ public class CrewRunPost extends SchedulePost {
         if (!p.isGoing()) {
             p.changeAnswer(AttendanceAnswer.GOING, now);
         }
+        // 옛 앱은 대기실 화면에 들어올 때마다 enter를 다시 부른다. 카운트다운 후보가 그 재호출로 빠지면 출발 신호를 못 받는다.
+        if (hasCountdown() && p.isCountdownCandidate()) {
+            return;
+        }
         p.enter();
     }
 
@@ -271,6 +306,106 @@ public class CrewRunPost extends SchedulePost {
         return participationOf(memberId)
                 .orElseThrow(() -> new IllegalStateException("대기실에 들어오지 않은 참가자"))
                 .toggleReady();
+    }
+
+    /**
+     * 멱등 준비(설계 05-32 [임시:D-성-879], PUT /lobby/ready): 대기실(LOBBY_OPEN, 카운트다운 중 포함)의 입장자만. 같은 값이면 바뀐
+     * 것이 없어 false. 카운트다운 중 준비를 풀면 출발 후보에서 빠지고 다시 준비해도 후보로 돌아오지 않는다. 대기실이 아니면
+     * IllegalStateException(409 INVALID_STATE), 입장하지 않았으면 NOT_PARTICIPANT.
+     */
+    public boolean setReady(long memberId, boolean ready) {
+        requireLobby();
+        CrewRunParticipation p =
+                participationOf(memberId)
+                        .filter(CrewRunParticipation::hasEntered)
+                        .orElseThrow(() -> new BusinessRuleException(ReasonCode.NOT_PARTICIPANT));
+        Readiness before = p.readiness();
+        return p.changeReady(ready) != before;
+    }
+
+    /**
+     * 전원 준비 출발(FR-성-357, U-25, U-33): 대기실이고 아직 예약이 없을 때 입장자(GOING이고 들어와 있는 사람)가 최소 준비 인원 이상이고 모두
+     * 준비했으면 지금 준비자를 출발 후보로 고정하고 now + 3초 출발을 예약한다. 예약했으면 true. 참석만 하고 들어오지 않은 사람은 분모에서 빠진다.
+     */
+    public boolean planIfAllReady(LocalDateTime now, CrewRunRule rule) {
+        if (!isVisible() || status != CrewRunStatus.LOBBY_OPEN || hasCountdown()) {
+            return false;
+        }
+        List<CrewRunParticipation> in = entrants();
+        if (in.size() < rule.minReady()
+                || !in.stream().allMatch(p -> p.readiness() == Readiness.READY)) {
+            return false;
+        }
+        plan(now, StartReason.ALL_READY);
+        return true;
+    }
+
+    /**
+     * 모집자 「지금 시작」(FR-성-358): 모집자(작성자)만, 아니면 PermissionDeniedException. 이미 예약이 있으면(카운트다운 중, 출발 뒤)
+     * 인원을 다시 보지 않고 그 예약을 그대로 두어 false. 최초 예약만 준비자가 최소 준비 인원 이상이어야 하고 아니면 CREW_RUN_NOT_READY. 대기실이
+     * 지났으면 ALREADY_STARTED. 새로 예약했으면 true(같은 3초 규칙과 후보 고정).
+     */
+    public boolean startNow(long memberId, LocalDateTime now, CrewRunRule rule) {
+        requireNotDeleted();
+        if (!Objects.equals(authorId(), memberId)) {
+            throw new PermissionDeniedException("모집자만 지금 시작할 수 있다");
+        }
+        if (hasCountdown()
+                && (status == CrewRunStatus.LOBBY_OPEN || status == CrewRunStatus.RUNNING)) {
+            return false;
+        }
+        if (status == CrewRunStatus.VOTING) {
+            throw new BusinessRuleException(ReasonCode.CREW_RUN_NOT_READY);
+        }
+        if (status != CrewRunStatus.LOBBY_OPEN) {
+            throw new BusinessRuleException(ReasonCode.ALREADY_STARTED);
+        }
+        if (readyEntrants().size() < rule.minReady()) {
+            throw new BusinessRuleException(ReasonCode.CREW_RUN_NOT_READY);
+        }
+        plan(now, StartReason.HOST);
+        return true;
+    }
+
+    /** 「지금 시작」 단추를 보일까: 모집자이고 예약 전 대기실에 준비자가 최소 준비 인원 이상. */
+    public boolean canStartNow(long memberId, CrewRunRule rule) {
+        return isVisible()
+                && Objects.equals(authorId(), memberId)
+                && status == CrewRunStatus.LOBBY_OPEN
+                && !hasCountdown()
+                && readyEntrants().size() >= rule.minReady();
+    }
+
+    /** 지금 준비자를 후보로 고정하고 예약한다. 시각은 밀리초까지만 둔다(DB 왕복에도 같은 값). */
+    private void plan(LocalDateTime now, StartReason reason) {
+        LocalDateTime at = now.truncatedTo(ChronoUnit.MILLIS);
+        readyEntrants().forEach(CrewRunParticipation::markCandidate);
+        long revision = markChanged();
+        countdownToken = getId() + "-" + revision;
+        countdownPlannedAt = at;
+        countdownStartAt = at.plusSeconds(COUNTDOWN_SECONDS);
+        startReason = reason;
+    }
+
+    /** 출발 예약이 있다(카운트다운 중이거나 그 예약으로 출발했다). */
+    public boolean hasCountdown() {
+        return countdownToken != null;
+    }
+
+    /** 대기실 입장자: GOING이고 들어와 있는 참여(입장 순). */
+    private List<CrewRunParticipation> entrants() {
+        return participations.stream()
+                .filter(p -> p.isGoing() && p.hasEntered() && p.memberId().isPresent())
+                .toList();
+    }
+
+    private List<CrewRunParticipation> readyEntrants() {
+        return entrants().stream().filter(p -> p.readiness() == Readiness.READY).toList();
+    }
+
+    /** 지금 대기실 입장자 회원 ID(출발 통지 대상, [임시:D-성-883]). */
+    public List<Long> entrantIds() {
+        return entrants().stream().flatMap(p -> p.memberId().stream()).toList();
     }
 
     /** NOT_ENTERED. */
@@ -306,23 +441,90 @@ public class CrewRunPost extends SchedulePost {
     }
 
     /**
-     * LOBBY_OPEN이고 now ≥ scheduledAt일 때: READY ≥ 2명이면 RUNNING, departedAt = scheduledAt + 3초,
-     * READY가 아닌 참가자는 빠진다. 아니면 CANCELLED. 조건이 아니면 NONE(A-13).
+     * 1초 시계의 출발 판정(FR-성-357~359, U-33). LOBBY_OPEN일 때만 본다. 예약이 없고 now ≥ scheduledAt이면 준비자가 최소 준비 인원
+     * 이상일 때 후보를 고정하고 now + 3초로 예약하고(PLANNED), 아니면 CANCELLED(최초 예약 전 부족만 취소). 예약이 있고 now ≥ startAt이면
+     * 남은 후보로 RUNNING(0명, 1명이어도 같은 시각), departedAt = startAt, 후보마다 측정 시작 시각과 측정 기록 ID를 한 번
+     * 정한다(STARTED). 다시 세거나 재예약하지 않는다. 그 밖은 NONE.
      */
     public DepartureOutcome depart(LocalDateTime now, CrewRunRule rule) {
-        if (status != CrewRunStatus.LOBBY_OPEN || now.isBefore(scheduledAt())) {
+        if (status != CrewRunStatus.LOBBY_OPEN) {
             return DepartureOutcome.NONE;
         }
-        List<CrewRunParticipation> ready =
-                participations.stream().filter(p -> p.readiness() == Readiness.READY).toList();
-        if (ready.size() < rule.minReady()) {
-            status = CrewRunStatus.CANCELLED;
-            return DepartureOutcome.cancelled(participantsToRemind());
+        if (!hasCountdown()) {
+            if (now.isBefore(scheduledAt())) {
+                return DepartureOutcome.NONE;
+            }
+            if (readyEntrants().size() < rule.minReady()) {
+                status = CrewRunStatus.CANCELLED;
+                return DepartureOutcome.cancelled(participantsToRemind());
+            }
+            plan(now, StartReason.SCHEDULED);
+            return DepartureOutcome.planned(
+                    countdownStartAt, countdownParticipantIds(), countdownToken);
         }
-        ready.forEach(CrewRunParticipation::markRunner);
-        departedAt = scheduledAt().plusSeconds(COUNTDOWN_SECONDS);
+        if (now.isBefore(countdownStartAt)) {
+            return DepartureOutcome.NONE;
+        }
+        participations.stream()
+                .filter(CrewRunParticipation::isCountdownCandidate)
+                .forEach(p -> p.markRunner(countdownStartAt, newRecordId()));
+        departedAt = countdownStartAt;
         status = CrewRunStatus.RUNNING;
-        return DepartureOutcome.started(departedAt, runners());
+        List<Long> notified = new ArrayList<>(entrantIds());
+        runners().stream().filter(id -> !notified.contains(id)).forEach(notified::add);
+        return DepartureOutcome.started(departedAt, runners(), notified, countdownToken);
+    }
+
+    /**
+     * 중간 참여(FR-성-361, FR-성-362, U-26): 이미 진행 참가자면 그 참여를 그대로 두고 false(같은 측정 시작 시각과 측정 기록 ID, 옛 진행
+     * 참가자는 출발 시각과 연결 기록으로 한 번 채운다). 아니면 RUNNING이고 now &lt; 종료 기준 시각일 때만 받아 now부터 재는 진행 참가자로 등록하고
+     * true. 응답이 없거나 불참이어도 GOING으로 바꾼다. 출발 전, 종료, 취소, 종료 기준 시각 뒤면 IllegalStateException(409
+     * INVALID_STATE). 소속 검사는 서비스가 먼저 한다.
+     */
+    public boolean join(long memberId, LocalDateTime now, CrewRunRule rule) {
+        Optional<CrewRunParticipation> existing = runnerOf(memberId);
+        if (existing.isPresent()) {
+            existing.get().fillMeasurement(departedAt, newRecordId());
+            return false;
+        }
+        if (!isVisible() || status != CrewRunStatus.RUNNING || !now.isBefore(closesAt(rule))) {
+            throw new IllegalStateException("진행 중인 크루런이 아니다: " + status);
+        }
+        CrewRunParticipation p =
+                participationOf(memberId)
+                        .orElseGet(
+                                () -> {
+                                    CrewRunParticipation added =
+                                            new CrewRunParticipation(
+                                                    memberId, AttendanceAnswer.GOING, now);
+                                    participations.add(added);
+                                    return added;
+                                });
+        if (!p.isGoing()) {
+            p.changeAnswer(AttendanceAnswer.GOING, now);
+        }
+        p.markRunner(now.truncatedTo(ChronoUnit.MILLIS), newRecordId());
+        return true;
+    }
+
+    /** 중간 참여 단추를 보일까: RUNNING이고 종료 기준 시각 전이며 아직 진행 참가자가 아니다. */
+    public boolean canJoin(long memberId, LocalDateTime now, CrewRunRule rule) {
+        return isVisible()
+                && status == CrewRunStatus.RUNNING
+                && now.isBefore(closesAt(rule))
+                && runnerOf(memberId).isEmpty();
+    }
+
+    /** 종료 기준 시각(출발 + 거리 × km당 분, 제한 없음은 하프 기준). 출발 전이면 IllegalStateException. */
+    private LocalDateTime closesAt(CrewRunRule rule) {
+        if (departedAt == null) {
+            throw new IllegalStateException("출발하지 않았다");
+        }
+        return rule.closesAt(departedAt, distance == null ? UNLIMITED_CLOSE_BASIS : distance);
+    }
+
+    private static String newRecordId() {
+        return UUID.randomUUID().toString();
     }
 
     /**
@@ -357,14 +559,16 @@ public class CrewRunPost extends SchedulePost {
         return participationOf(memberId).map(p -> p.link(recordId)).orElse(false);
     }
 
-    /** RUNNING이고 진행 참가자가 모두 끝냈거나 now ≥ departedAt + 거리 × km당 분(CREW_RUN_END_RULE). */
+    /** RUNNING이고 진행 참가자(1명 이상)가 모두 끝냈거나 now ≥ departedAt + 거리 × km당 분(CREW_RUN_END_RULE). */
     public boolean shouldClose(LocalDateTime now, CrewRunRule rule) {
         if (status != CrewRunStatus.RUNNING) {
             return false;
         }
-        boolean allEnded = runnerParticipations().stream().allMatch(CrewRunParticipation::hasEnded);
-        StandardDistance basis = distance == null ? UNLIMITED_CLOSE_BASIS : distance;
-        return allEnded || !now.isBefore(rule.closesAt(departedAt, basis));
+        // 진행 참가자가 0명이면(후보가 모두 빠진 출발, U-33) 전원 종료로 보지 않고 늦은 참여를 기다린다
+        List<CrewRunParticipation> runners = runnerParticipations();
+        boolean allEnded =
+                !runners.isEmpty() && runners.stream().allMatch(CrewRunParticipation::hasEnded);
+        return allEnded || !now.isBefore(closesAt(rule));
     }
 
     /**
@@ -406,7 +610,7 @@ public class CrewRunPost extends SchedulePost {
         return baseSummary(viewerId).withCrewRun(run);
     }
 
-    /** READY로 출발한 회원. */
+    /** 진행 참가자(출발한 후보와 중간 참여자), 참여 순. */
     public List<Long> runners() {
         return runnerParticipations().stream().flatMap(p -> p.memberId().stream()).toList();
     }
@@ -473,5 +677,53 @@ public class CrewRunPost extends SchedulePost {
 
     public Optional<LocalDateTime> departedAt() {
         return Optional.ofNullable(departedAt);
+    }
+
+    /**
+     * 화면의 논리 단계(설계 05-32 2.3): 투표 중과 대기실은 LOBBY, 예약이 있는 대기실은 COUNTDOWN, 그 밖은 상태 그대로. 상태 enum은 그대로
+     * 둔다(LOBBY_OPEN 유지).
+     */
+    public CrewRunPhase phase() {
+        return switch (status) {
+            case VOTING -> CrewRunPhase.LOBBY;
+            case LOBBY_OPEN -> hasCountdown() ? CrewRunPhase.COUNTDOWN : CrewRunPhase.LOBBY;
+            case RUNNING -> CrewRunPhase.RUNNING;
+            case FINISHED -> CrewRunPhase.FINISHED;
+            case CANCELLED -> CrewRunPhase.CANCELLED;
+        };
+    }
+
+    /** 출발 예약 식별값, 예약 전이면 비어 있다. */
+    public Optional<String> countdownToken() {
+        return Optional.ofNullable(countdownToken);
+    }
+
+    /** 측정 시작 절대 시각: 예약이 있으면 예약 시각 + 3초, 옛 출발이면 departedAt, 아니면 비어 있다. */
+    public Optional<LocalDateTime> startAt() {
+        return Optional.ofNullable(countdownStartAt != null ? countdownStartAt : departedAt);
+    }
+
+    /** 예약 계기, 예약 전이면 비어 있다. */
+    public Optional<StartReason> startReason() {
+        return Optional.ofNullable(startReason);
+    }
+
+    /** 출발 후보(카운트다운 중에는 남은 후보, 출발 뒤에는 함께 출발한 사람) 회원 ID, 참여 순. */
+    public List<Long> countdownParticipantIds() {
+        return participations.stream()
+                .filter(CrewRunParticipation::isCountdownCandidate)
+                .flatMap(p -> p.memberId().stream())
+                .toList();
+    }
+
+    /** 변경 순번(실시간 변경 신호와 조회 응답의 revision). */
+    public long revision() {
+        return changeRevision == null ? 0 : changeRevision;
+    }
+
+    /** 변경을 알리기 전에 글 행 잠금 안에서 순번을 하나 올린다(CrewRunAnnouncer.changed). */
+    long markChanged() {
+        changeRevision = revision() + 1;
+        return changeRevision;
     }
 }

@@ -48,6 +48,7 @@ public class BattleStartService {
     private final LiveSessionStore liveSessionStore;
     private final Clock clock;
     private final BattleTransactions transactions;
+    private final OpponentLooks opponentLooks;
 
     public BattleStartService(
             BattleRepository battleRepository,
@@ -56,7 +57,8 @@ public class BattleStartService {
             BattleMessenger battleMessenger,
             LiveSessionStore liveSessionStore,
             Clock clock,
-            BattleTransactions transactions) {
+            BattleTransactions transactions,
+            OpponentLooks opponentLooks) {
         this.battleRepository = battleRepository;
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
@@ -64,6 +66,7 @@ public class BattleStartService {
         this.liveSessionStore = liveSessionStore;
         this.clock = clock;
         this.transactions = transactions;
+        this.opponentLooks = opponentLooks;
     }
 
     /**
@@ -142,7 +145,9 @@ public class BattleStartService {
                 battle.getDistance(),
                 myBest,
                 standard.flatMap(each -> bestTime(rivalId, each)).orElse(null),
-                ANIMATION_SECONDS);
+                ANIMATION_SECONDS,
+                null,
+                opponentLooks.of(battle, memberId));
     }
 
     private Optional<Duration> bestTime(long memberId, StandardDistance distance) {

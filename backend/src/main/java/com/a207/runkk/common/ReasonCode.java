@@ -188,6 +188,8 @@ public enum ReasonCode {
     ALREADY_STARTED("이미 시작했거나 취소된 크루런"),
     /** 크루런 참가자가 아니거나 진행 중이 아님(FR-192). */
     NOT_PARTICIPANT("크루런 참가자 아님"),
+    /** 모집자 지금 시작의 최초 예약에 준비한 참가자가 최소 준비 인원보다 적음(설계 05-32 5.1, FR-성-358). */
+    CREW_RUN_NOT_READY("준비한 참가자가 부족함"),
 
     // v0.11 (설계 F.2.3, 06-01 ReasonCode: TOO_LARGE 413·UNSUPPORTED_IMAGE 422 외 모두 409)
     /** 이미 소셜 계정을 연동한 회원의 연동 요청(FR-198). */

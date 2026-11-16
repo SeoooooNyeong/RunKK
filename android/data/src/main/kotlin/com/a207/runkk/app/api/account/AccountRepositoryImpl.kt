@@ -9,6 +9,7 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.core.model.map
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.GuestSession
@@ -226,6 +227,11 @@ constructor(
         }
         return saved
     }
+
+    /** 보기 선호는 서버가 아니라 설정 기기 사본에 둔다([임시:D-성-264]). */
+    override suspend fun runViewMode(): RunViewMode = settings.runViewMode()
+
+    override suspend fun saveRunViewMode(mode: RunViewMode): Outcome<Unit> = settings.saveRunViewMode(mode)
 
     override suspend fun settings(): Outcome<MemberSettings> = ApiErrorMapper.call { me.settings().toMemberSettings() }
 

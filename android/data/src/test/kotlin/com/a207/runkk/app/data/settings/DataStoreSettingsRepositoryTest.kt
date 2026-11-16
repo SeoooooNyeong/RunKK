@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.domain.settings.GuidanceSettings
 import com.a207.runkk.app.domain.settings.GuideCopy
 import com.a207.runkk.app.domain.settings.ScreenTheme
@@ -299,6 +300,22 @@ class DataStoreSettingsRepositoryTest {
         assertEquals(GuideCopy.SEEN_UNSENT, reopened.guideCopy())
         reopened.clear()
         assertEquals(GuideCopy.NONE, reopened.guideCopy())
+    }
+
+    @Test
+    fun `보기 선호는 처음에 트랙이고 refresh가 덮지 않고 다시 열어도 남으며 clear가 지운다(D-성-264)`() = runTest {
+        val first = open()
+        assertEquals(RunViewMode.TRACK, first.runViewMode())
+        assertEquals(Outcome.Success(Unit), first.saveRunViewMode(RunViewMode.MAP))
+        remote.next += Outcome.Success(CONSENTED)
+        first.refresh()
+        assertEquals(RunViewMode.MAP, first.runViewMode())
+        closeAll()
+
+        val reopened = open()
+        assertEquals(RunViewMode.MAP, reopened.runViewMode())
+        reopened.clear()
+        assertEquals(RunViewMode.TRACK, reopened.runViewMode(), "로그아웃·탈퇴 뒤에는 처음 값이다")
     }
 
     @Test

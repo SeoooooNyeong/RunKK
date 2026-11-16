@@ -7,6 +7,7 @@ import com.a207.runkk.common.Pace;
 import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
+import com.a207.runkk.policy.CrewRunRule;
 import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunSummary;
 import java.time.Duration;
@@ -43,8 +44,11 @@ class CrewRunViews {
         this.crewPostRepository = crewPostRepository;
     }
 
-    /** 게시글ID + 모집희망일시 + 크루런거리 + 남은시간 + {갈래요 참가자 표시명 + 준비상태}(srs.md 6.3 5.7.1). */
-    LobbyView lobby(CrewRunPost post, LocalDateTime now) {
+    /**
+     * 게시글ID + 모집희망일시 + 크루런거리 + 남은시간 + {갈래요 참가자 표시명 + 준비상태}(srs.md 6.3 5.7.1) + 단계, 순번, 출발 예약, 열람자의
+     * 지금 시작·중간 참여·진행 참가 여부와 본인 측정 기록 ID(설계 05-32 5.2). 읽기만 하고 아무것도 바꾸지 않는다.
+     */
+    LobbyView lobby(CrewRunPost post, long viewerId, LocalDateTime now, CrewRunRule rule) {
         List<CrewRunParticipation> going =
                 post.participations().stream()
                         .filter(
@@ -56,12 +60,26 @@ class CrewRunViews {
         Map<Long, MemberSummary> names = memberQueryService.summaries(ids);
         Map<Long, Gender> genders = memberQueryService.shownGendersOf(ids);
         Duration remaining = Duration.between(now, post.scheduledAt());
+        Optional<CrewRunParticipation> mine =
+                post.participationOf(viewerId).filter(CrewRunParticipation::isRunner);
         return new LobbyView(
                 post.getId(),
+                post.crewId(),
                 post.scheduledAt(),
                 post.distance(),
                 remaining.isNegative() ? Duration.ZERO : remaining,
                 post.status(),
+                post.phase(),
+                post.revision(),
+                post.countdownToken().orElse(null),
+                post.startAt().orElse(null),
+                post.countdownParticipantIds(),
+                post.canStartNow(viewerId, rule),
+                post.canJoin(viewerId, now, rule),
+                mine.isPresent(),
+                mine.flatMap(CrewRunParticipation::measurementRecordId)
+                        .or(() -> mine.flatMap(CrewRunParticipation::linkedRecordId))
+                        .orElse(null),
                 going.stream()
                         .map(
                                 p -> {
@@ -71,6 +89,44 @@ class CrewRunViews {
                                             nameOf(names, id),
                                             p.readiness(),
                                             genderOf(genders, id));
+                                })
+                        .toList());
+    }
+
+    /**
+     * 중간 참여 결과(설계 05-32 5.2): 열람자 본인의 측정 시작 시각과 측정 기록 ID, 진행 참가자 공개 줄(표시명, 개인 측정 시작 시각, 끝냄). 옛 진행
+     * 참가자의 시작 시각은 출발 시각이다.
+     */
+    ParticipationView participation(CrewRunPost post, long viewerId, boolean alreadyJoined) {
+        LocalDateTime departedAt = post.departedAt().orElseThrow();
+        List<CrewRunParticipation> runners =
+                post.participations().stream()
+                        .filter(CrewRunParticipation::isRunner)
+                        .filter(p -> p.memberId().isPresent())
+                        .toList();
+        Map<Long, MemberSummary> names =
+                memberQueryService.summaries(
+                        runners.stream().map(p -> p.memberId().orElseThrow()).toList());
+        CrewRunParticipation me =
+                post.participationOf(viewerId)
+                        .filter(CrewRunParticipation::isRunner)
+                        .orElseThrow(() -> new IllegalStateException("진행 참가자가 아니다"));
+        return new ParticipationView(
+                post.getId(),
+                post.crewId(),
+                post.revision(),
+                me.joinedAt().orElse(departedAt),
+                me.measurementRecordId().orElse(null),
+                alreadyJoined,
+                runners.stream()
+                        .map(
+                                p -> {
+                                    long id = p.memberId().orElseThrow();
+                                    return new ParticipationView.Runner(
+                                            id,
+                                            nameOf(names, id),
+                                            p.joinedAt().orElse(departedAt),
+                                            p.hasEnded());
                                 })
                         .toList());
     }
@@ -111,7 +167,8 @@ class CrewRunViews {
                         .flatMap(CrewRunParticipation::linkedRecordId)
                         .orElse(null),
                 isFirstCrewRun(post, viewerId),
-                contribution);
+                contribution,
+                post.revision());
     }
 
     /** 연결된 기록이 있으면 그 거리·시간·페이스, 없으면 끝낼 때 남긴 값, 그것도 없고 아직 달리는 중이면 마지막 중계 값(AN-3), 모두 없으면 거리 0. */

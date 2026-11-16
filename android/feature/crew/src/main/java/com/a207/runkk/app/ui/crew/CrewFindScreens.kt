@@ -1,5 +1,6 @@
 package com.a207.runkk.app.ui.crew
 
+import android.app.Activity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -65,13 +66,19 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewList
 import com.a207.runkk.app.domain.crew.CrewPreview
 import com.a207.runkk.app.domain.crew.MyCrew
+import com.a207.runkk.app.ui.share.CrewInviteMessage
+import com.a207.runkk.app.ui.share.KakaoShareOutcome
 
 /**
  * 크루 탭: 들어올 때마다 내 크루(GET /crews/me)를 확인해 크루가 있으면 내 크루 홈을 이 자리에 보이고(뒤로 단추 없음),
  * 없으면 크루 찾기·상세·초대 코드·대기 중인 내 가입 신청을 보인다. 검색과 만들기는 다른 화면(Routes.CREW_SEARCH·CREW_CREATE)이다.
  */
 @Composable
-fun CrewFindRoute(initialTab: CrewTab? = null, viewModel: CrewFindViewModel = hiltViewModel()) {
+fun CrewFindRoute(
+    initialTab: CrewTab? = null,
+    shareToKakao: suspend (Activity, CrewInviteMessage) -> KakaoShareOutcome = { _, _ -> KakaoShareOutcome.FAILED },
+    viewModel: CrewFindViewModel = hiltViewModel()
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     // 크루 만들기·검색 등에서 돌아오면 소속을 다시 확인한다(처음 들어올 때는 ViewModel init이 확인한다).
@@ -87,7 +94,8 @@ fun CrewFindRoute(initialTab: CrewTab? = null, viewModel: CrewFindViewModel = hi
                 Routes.CrewHome(mine.crewId),
                 isAtTabRoot = initialTab == null,
                 initialTab = initialTab ?: CrewTab.RACE,
-                onLeft = viewModel::onLeftCrew
+                onLeft = viewModel::onLeftCrew,
+                shareToKakao = shareToKakao
             )
             return
         }

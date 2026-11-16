@@ -42,7 +42,8 @@ internal fun CandidatesResponse.toDomain(): RecordBattleCandidates = RecordBattl
             sourceLabel = it.sourceLabel,
             isEstimated = it.estimated,
             myBest = it.myBestSeconds?.let(Duration::ofSeconds),
-            celebrityFigure = it.celebrityFigure.figureKey()
+            celebrityFigure = it.celebrityFigure.figureKey(),
+            look = it.look?.toDomain()
         )
     }
 )
@@ -54,7 +55,8 @@ internal fun RecordBattleStartResponse.toDomain(): RecordBattleStart = RecordBat
     distance = Distance(distanceMeters),
     track = track.toOpponentTrack(),
     cardKind = enumByName<CardKind>(cardKind) ?: CardKind.SELF_RUN,
-    celebrityFigure = celebrityFigure.figureKey()
+    celebrityFigure = celebrityFigure.figureKey(),
+    opponentLook = opponentLook?.toDomain()
 )
 
 /** 미리 받는 상대 기록 한 줄. 종류는 응답에 없어 질의한 [kind]를 싣는다. 구간 기록은 기록 대결 시작과 같은 길로 바꾼다(M39). */
@@ -82,7 +84,8 @@ internal fun ActiveBattleResponse.toDomain(): ActiveBattle = ActiveBattle(
     startAt = startAt?.let(ServerTime::parse),
     opponentGender = enumByName<Gender>(opponentGender),
     celebrityFigure = celebrityFigure.figureKey(),
-    placementRound = placementRound
+    placementRound = placementRound,
+    opponentLook = opponentLook?.toDomain()
 )
 
 internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
@@ -103,7 +106,8 @@ internal fun BattleResultResponse.toDomain(): BattleResult = BattleResult(
     celebrityFigure = celebrityFigure.figureKey(),
     placementRound = placementRound,
     // 모르는 상태 값(새 서버)은 모르는 것으로 둔다: 판 결과 화면이 정리 중으로 다시 읽는다.
-    placementState = enumByName<PlacementRoundState>(placementState)
+    placementState = enumByName<PlacementRoundState>(placementState),
+    opponentLook = opponentLook?.toDomain()
 )
 
 /** 셀럽 그림 키는 문자열 그대로 넘긴다(그림 고르기는 화면 몫). 빈 값은 없음으로 본다. */
