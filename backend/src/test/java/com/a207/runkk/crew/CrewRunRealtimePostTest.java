@@ -139,6 +139,22 @@ class CrewRunRealtimePostTest {
     }
 
     @Test
+    @DisplayName("카운트다운 중 후보가 옛 앱으로 대기실에 다시 들어와도(enter 재호출) 준비와 출발 후보가 그대로다")
+    void countdown_reEnterKeepsCandidate() {
+        CrewRunPost post = lobby(LEADER, A);
+        post.setReady(LEADER, true);
+        post.setReady(A, true);
+        assertThat(post.planIfAllReady(LOBBY_TIME, RULE)).isTrue();
+
+        post.enterLobby(A, LOBBY_TIME.plusSeconds(1), RULE);
+
+        assertThat(post.participationOf(A).orElseThrow().readiness()).isEqualTo(Readiness.READY);
+        assertThat(post.countdownParticipantIds()).containsExactly(LEADER, A);
+        assertThat(post.depart(post.startAt().orElseThrow(), RULE).memberIds())
+                .containsExactly(LEADER, A);
+    }
+
+    @Test
     @DisplayName(
             "[임시:TC-성-11025] 지금 시작: 모집자만(아니면 403), 최초 예약만 준비 2명 검사(부족 CREW_RUN_NOT_READY), 같은 3초와"
                     + " 후보 고정, 재요청은 같은 예약")

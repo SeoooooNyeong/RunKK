@@ -289,6 +289,10 @@ public class CrewRunPost extends SchedulePost {
         if (!p.isGoing()) {
             p.changeAnswer(AttendanceAnswer.GOING, now);
         }
+        // 옛 앱은 대기실 화면에 들어올 때마다 enter를 다시 부른다. 카운트다운 후보가 그 재호출로 빠지면 출발 신호를 못 받는다.
+        if (hasCountdown() && p.isCountdownCandidate()) {
+            return;
+        }
         p.enter();
     }
 
