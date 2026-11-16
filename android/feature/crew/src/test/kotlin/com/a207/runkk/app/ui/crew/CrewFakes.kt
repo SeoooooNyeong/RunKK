@@ -811,7 +811,14 @@ class FakeCrewRepository : CrewRepository {
 
     var resultState = crewRunResult
 
-    override suspend fun crewRunResult(postId: Long) = answer("result:$postId", resultState)
+    /** 있으면 결과 읽기가 이것이 끝날 때까지 기다린다(겹치는 읽기 시험). */
+    var resultGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    override suspend fun crewRunResult(postId: Long): Outcome<CrewRunResult> {
+        calls += "result:$postId"
+        resultGate?.await()
+        return fail["result"]?.let { Outcome.Failure(it) } ?: Outcome.Success(resultState)
+    }
 
     /** 받아 둔 얼굴 그림(faceKey → 층). 없는 키는 null이라 [faceLayers]로 받는다. */
     val cachedFaces = mutableMapOf<String, List<FaceLayer>>()
@@ -828,7 +835,10 @@ class FakeCrewRepository : CrewRepository {
 class FakeLiveChannels : LiveChannelProvider {
     val channel = FakeLiveChannel()
 
-    override fun open(): LiveChannel = channel
+    /** 빌려 간 임대 수. */
+    var opened = 0
+
+    override fun open(): LiveChannel = channel.also { opened++ }
 }
 
 class FakeLiveChannel : LiveChannel {

@@ -542,6 +542,78 @@ class CrewRealtimeViewModelTest {
             assertEquals(4_870L, assertIs<CrewRunResultEvent.Leave>(awaitItem()).receipt?.ownDistanceMeters)
         }
     }
+
+    // ---------- 리뷰 결함 ----------
+
+    @Test
+    fun `리뷰1 끝났거나 취소된 크루런 대기실을 열면 조정자 회를 열지 않는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.lobbyApi = true
+        w.crews.lobbyState = lobby.copy(phase = LobbyPhase.CANCELLED)
+        lobbyVm(w, vms)
+        assertEquals(CrewRunState.Idle, w.coordinator.state.value)
+        assertEquals(0, w.channels.opened, "/ws 임대를 빌리지 않는다")
+    }
+
+    @Test
+    fun `리뷰1 열린 대기실이 다시 읽어 취소로 바뀌면 조정자 회를 닫는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.readyLobby()
+        val vm = lobbyVm(w, vms)
+        assertIs<CrewRunState.Lobby>(w.coordinator.state.value)
+        w.crews.lobbyState = w.crews.lobbyState.copy(phase = LobbyPhase.CANCELLED)
+        vm.onPullRefresh()
+        runCurrent()
+        assertEquals(CrewRunPhase.CANCELLED, vm.state.value.phase)
+        assertEquals(CrewRunState.Idle, w.coordinator.state.value)
+        assertTrue(w.channels.channel.closed > 0)
+    }
+
+    @Test
+    fun `리뷰2 GET 대기실이 404·405면 옛 서버로 보고 enter로 들어가고 PUT 준비가 NOT_FOUND면 토글한다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.lobbyApi = true
+        w.crews.fail["lobby"] = AppError.Rejected("HTTP_405")
+        w.crews.fail["setReady"] = AppError.Rejected("NOT_FOUND")
+        val vm = lobbyVm(w, vms)
+        assertTrue("enter:31" in w.crews.calls, w.crews.calls.toString())
+        assertEquals(CrewRunPhase.LOBBY, vm.state.value.phase)
+        vm.onReadyToggle()
+        runCurrent()
+        assertTrue("ready:31" in w.crews.calls, "옛 토글: ${w.crews.calls}")
+    }
+
+    @Test
+    fun `리뷰3 결과를 읽는 중 온 결과 신호는 겹쳐 읽지 않고 끝난 뒤 한 번만 더 읽는다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        w.crews.resultGate = gate
+        val vm = vms.track(
+            CrewRunResultViewModel(
+                w.crews,
+                w.coordinator,
+                timeSource = testScheduler.timeSource,
+                changes = { signals },
+                now = { start }
+            ) { Outcome.Failure(AppError.Network) }
+        )
+        vm.load(31)
+        vm.onStart()
+        runCurrent()
+        fun reads() = w.crews.calls.count { it == "result:31" }
+        assertEquals(1, reads())
+        signals.emit(change(31, CrewChange.Resource.RESULT, 2))
+        signals.emit(change(31, CrewChange.Resource.RESULT, 3))
+        runCurrent()
+        assertEquals(1, reads(), "읽는 중에는 겹쳐 보내지 않는다")
+        w.crews.resultGate = null
+        gate.complete(Unit)
+        runCurrent()
+        assertEquals(2, reads(), "후속 한 번")
+        advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
+        assertEquals(3, reads(), "기존 3초 다시 읽기는 그대로")
+    }
 }
 
 /** 북쪽 15m(위도 차). */
