@@ -60,6 +60,7 @@ internal object CrewErrorText {
         "LOBBY_NOT_OPEN" to R.string.crew_error_lobby_not_open,
         "ALREADY_STARTED" to R.string.crew_error_already_started,
         "NOT_PARTICIPANT" to R.string.crew_error_not_participant,
+        "CREW_RUN_NOT_READY" to R.string.crew_error_crew_run_not_ready,
         "MANAGER_LIMIT" to R.string.crew_error_manager_limit,
         "PIN_LIMIT" to R.string.crew_error_pin_limit,
         "POLL_CLOSED" to R.string.crew_error_poll_closed,

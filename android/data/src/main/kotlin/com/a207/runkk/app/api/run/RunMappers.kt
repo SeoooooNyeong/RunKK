@@ -84,7 +84,8 @@ internal fun HeartRateSample.toRequest(): RunUploadRequest.HeartRate =
 internal fun UploadResponse.toDomain(): UploadReceipt = UploadReceipt(
     recordId = recordId,
     isAlreadySaved =
-        status == ALREADY_STORED
+        status == ALREADY_STORED,
+    isValid = valid
 )
 
 /** 앱이 모르는 파기 종류는 null(건너뛴다. 확인을 보내지 않으므로 서버가 다음에 다시 준다). */

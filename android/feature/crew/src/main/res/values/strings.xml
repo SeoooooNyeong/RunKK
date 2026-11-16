@@ -508,4 +508,23 @@
     <string name="crew_run_time_hour">%1$s시</string>
     <string name="crew_run_time_minute">%1$s분</string>
     <string name="crew_run_wheel_selected">선택됨</string>
+    <!-- 크루런 실시간 반영(설계 05-32) -->
+    <string name="crew_run_start_now">지금 시작</string>
+    <string name="crew_run_countdown_all_ready">모두 준비됐어요</string>
+    <string name="crew_run_countdown_seconds_left">초 뒤 출발</string>
+    <string name="crew_run_countdown_spoken">모두 준비됐어요, %1$d초 뒤 출발</string>
+    <string name="crew_run_countdown_cancel">준비 취소하고 기다리기</string>
+    <string name="crew_run_departed_chip">달리는 중</string>
+    <string name="crew_run_departed_title">크루런이 시작됐어요</string>
+    <string name="crew_run_departed_body">준비한 %1$d명이 출발했어요. 지금 함께 뛰면 지금부터 기록해요.</string>
+    <string name="crew_run_join_together">함께 뛰기</string>
+    <string name="crew_home_run_join">중간 참여하기</string>
+    <string name="crew_home_run_running">달리는 중</string>
+    <string name="crew_home_run_join_description">%1$s, %2$s</string>
+    <string name="crew_error_crew_run_not_ready">준비한 크루원이 2명 이상일 때 시작할 수 있어요</string>
+    <string name="crew_result_saving">기록을 올리는 중이에요</string>
+    <string name="crew_result_upload_failed">기록을 아직 올리지 못했어요</string>
+    <string name="crew_result_upload_retry">다시 올리기</string>
+    <string name="crew_result_upload_rejected">기록을 올리지 못했어요. 설정에서 다시 보낼 수 있어요</string>
+    <string name="crew_race_added">+%1$s</string>
 </resources>

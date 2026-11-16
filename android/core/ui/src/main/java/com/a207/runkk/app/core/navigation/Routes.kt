@@ -252,9 +252,12 @@ object Routes {
     @Serializable
     data class CrewPastRuns(val crewId: Long) : NavKey
 
-    /** 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). 크루런 거리는 대기실 응답이 준다. */
+    /**
+     * 크루런 대기실 → 카운트다운 → 진행 중 중계(한 화면, CrewRunCoordinator 상태). 크루런 거리는 대기실 응답이 준다. [join]이 참이면
+     * 크루런 탭의 「중간 참여하기」로 왔다: 달리는 크루런이면 묻지 않고 바로 참여한다(설계 05-32 [임시:D-성-884]).
+     */
     @Serializable
-    data class CrewRunLobby(val postId: Long) : NavKey
+    data class CrewRunLobby(val postId: Long, val join: Boolean = false) : NavKey
 
     /** 크루런 결과(FR-191). */
     @Serializable

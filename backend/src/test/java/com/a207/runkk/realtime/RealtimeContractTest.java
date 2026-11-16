@@ -28,6 +28,8 @@ import com.a207.runkk.crew.chat.live.CrewChatPosted;
 import com.a207.runkk.crew.chat.live.CrewChatReactionChanged;
 import com.a207.runkk.crew.chat.live.CrewChatRemoved;
 import com.a207.runkk.crew.live.CrewRunCancelled;
+import com.a207.runkk.crew.live.CrewRunChanged;
+import com.a207.runkk.crew.live.CrewRunDeparture;
 import com.a207.runkk.crew.live.CrewRunEnded;
 import com.a207.runkk.crew.live.CrewRunRelay;
 import com.a207.runkk.crew.live.CrewRunStart;
@@ -434,6 +436,75 @@ class RealtimeContractTest {
             assertThat(actual).as("표본 " + e.getKey()).isEqualTo(expected);
             assertThat(e.getValue().type()).isEqualTo(e.getKey());
         }
+    }
+
+    /** 설계 05-32 5.3 표본과 같은 값의 크루런 실시간 반영 메시지(표본 이름 → 메시지). */
+    private static Map<String, CrewRunMessage> realtimeMessages() {
+        Map<String, CrewRunMessage> messages = new LinkedHashMap<>();
+        messages.put(
+                "CrewRunChanged",
+                CrewRunChanged.of(
+                        7,
+                        101,
+                        CrewRunChanged.Resource.LOBBY,
+                        18,
+                        LocalDateTime.of(2026, 11, 16, 19, 0)));
+        messages.put(
+                "CrewRunChanged-schedule",
+                CrewRunChanged.of(
+                        7,
+                        101,
+                        CrewRunChanged.Resource.SCHEDULE,
+                        3,
+                        LocalDateTime.of(2026, 11, 16, 18, 30, 0, 250_000_000)));
+        messages.put(
+                "CrewRunDeparture",
+                new CrewRunDeparture(
+                        7,
+                        101,
+                        20,
+                        "101-18",
+                        LocalDateTime.of(2026, 11, 16, 19, 0, 3),
+                        List.of(11L)));
+        messages.put(
+                "CrewRunDeparture-empty",
+                new CrewRunDeparture(
+                        7,
+                        102,
+                        9,
+                        "102-7",
+                        LocalDateTime.of(2026, 11, 16, 7, 0, 3, 500_000_000),
+                        List.of()));
+        return messages;
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "[임시:TC-성-11042] 크루런 실시간 반영 메시지 2종(CrewRunChanged·CrewRunDeparture, 표본 4개)을 설계 05-32"
+                    + " 5.3 표본과 같은 JSON으로 직렬화한다(시각은 오프셋 없는 서버 시간대, 밀리초는 있을 때만, 정산 메시지 없음)")
+    void crewRunRealtimeMessages_matchSamples() throws IOException {
+        for (Map.Entry<String, CrewRunMessage> e : realtimeMessages().entrySet()) {
+            JsonNode expected = JSON.readTree(sample(e.getKey() + ".json"));
+            JsonNode actual = JSON.readTree(serializer.serialize(e.getValue()));
+            assertThat(actual).as("표본 " + e.getKey()).isEqualTo(expected);
+            assertThat(e.getKey()).startsWith(e.getValue().type());
+            assertThat(keysOf(actual))
+                    .noneMatch(k -> LOCATION_KEYS.contains(k.toLowerCase()))
+                    .noneMatch(k -> k.toLowerCase().contains("settlement"));
+        }
+        assertThat(
+                        realtimeMessages().values().stream()
+                                .map(m -> m.forRecipient(11))
+                                .map(serializer::serialize)
+                                .toList())
+                .as("받는 사람마다 같은 내용")
+                .isEqualTo(
+                        realtimeMessages().values().stream().map(serializer::serialize).toList());
+        assertThat(
+                        java.util.Arrays.stream(CrewRunChanged.Resource.values())
+                                .map(Enum::name)
+                                .toList())
+                .containsExactly("SCHEDULE", "LOBBY", "PROGRESS", "RESULT");
     }
 
     @Test

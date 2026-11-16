@@ -2,6 +2,7 @@ package com.a207.runkk.crew;
 
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.ReasonCode;
+import com.a207.runkk.crew.live.CrewRunChanged.Resource;
 import com.a207.runkk.policy.CrewRunRule;
 import com.a207.runkk.policy.OperationPolicy;
 import com.a207.runkk.running.RunRecordDeleted;
@@ -10,9 +11,10 @@ import com.a207.runkk.running.SavedRun;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
@@ -20,7 +22,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * 크루런 대기실·출발·결과 유스케이스(설계 6.1.7, SQ-09, srs.md 6.3 5.7). 모집글은 낙관적 잠금이라 1초 시계·러닝 연결·그만두기가 겹치면 다시 읽어
- * 재시도한다(5.3). 실시간 메시지는 커밋 뒤에 보낸다.
+ * 재시도한다(5.3). 실시간 메시지는 커밋 뒤에 보낸다. 설계 05-32(크루런 실시간 반영): 준비·입장·이탈·지금 시작·시계·중간 참여·종료를 같은 글 행 잠금으로 줄
+ * 세워 출발 예약을 하나만 만들고([임시:D-성-881]), 확정한 변경마다 현재 크루원에게 CrewRunChanged를 보낸다([임시:D-성-878]). 대기실 GET은 읽기
+ * 전용이다([임시:D-성-879]).
  */
 @Service
 public class CrewRunService {
@@ -52,51 +56,134 @@ public class CrewRunService {
 
     /**
      * check(RESPOND) → CrewRunPost.enterLobby(memberId, now, rule)(FR-147). 응답 없음·미정·불참이어도 입장하면
-     * GOING이 되어 참가자다(D-152).
+     * GOING이 되어 참가자다(D-152). 카운트다운 중에도 들어올 수 있으나 출발 후보에는 들지 않는다(U-33).
      */
     public LobbyView enterLobby(long memberId, long postId) {
-        LocalDateTime now = LocalDateTime.now(clock);
-        CrewRunRule rule = operationPolicy.crewRunRule();
         return lobbyChange(
                 memberId,
                 postId,
-                post -> {
-                    post.enterLobby(memberId, now, rule);
-                    return post;
-                });
+                (post, now) -> {
+                    post.enterLobby(memberId, now, operationPolicy.crewRunRule());
+                    return true;
+                },
+                Resource.LOBBY,
+                Resource.SCHEDULE);
     }
 
-    /** check(RESPOND) → CrewRunPost.toggleReady(memberId). */
+    /** check(RESPOND) → CrewRunPost.toggleReady(memberId). 옛 앱 호환 토글(자동 재시도 금지, 05-32 5.1). */
     public LobbyView toggleReady(long memberId, long postId) {
         return lobbyChange(
                 memberId,
                 postId,
-                post -> {
+                (post, now) -> {
                     post.toggleReady(memberId);
-                    return post;
-                });
+                    return true;
+                },
+                Resource.LOBBY);
     }
 
-    /** CrewRunPost.leaveLobby(memberId). */
+    /**
+     * 멱등 준비(설계 05-32 [임시:D-성-879], PUT /lobby/ready): check(RESPOND) → CrewRunPost.setReady. 같은 값이면
+     * 순번과 신호가 없다.
+     */
+    public LobbyView setReady(long memberId, long postId, boolean ready) {
+        return lobbyChange(
+                memberId, postId, (post, now) -> post.setReady(memberId, ready), Resource.LOBBY);
+    }
+
+    /** CrewRunPost.leaveLobby(memberId). 카운트다운 중이면 출발 후보에서만 빠진다. */
     public LobbyView leaveLobby(long memberId, long postId) {
         return lobbyChange(
                 memberId,
                 postId,
-                post -> {
+                (post, now) -> {
+                    boolean entered =
+                            post.readinessOf(memberId)
+                                    .filter(r -> r != Readiness.NOT_ENTERED)
+                                    .isPresent();
                     post.leaveLobby(memberId);
-                    return post;
-                });
+                    return entered;
+                },
+                Resource.LOBBY);
     }
 
-    private LobbyView lobbyChange(
-            long memberId, long postId, Function<CrewRunPost, CrewRunPost> change) {
+    /**
+     * 안전한 대기실 읽기(설계 05-32 [임시:D-성-879], GET /lobby): check(VIEW_CREW_INTERNAL) → 현황만. 준비·참가·순번을 바꾸지
+     * 않고 출발·종료 뒤에도 현황을 준다.
+     */
+    @Transactional(readOnly = true)
+    public LobbyView readLobby(long memberId, long postId) {
+        CrewRunPost post = load(postId);
+        crewAccess.check(memberId, post.crewId(), CrewAction.VIEW_CREW_INTERNAL);
+        return views.lobby(post, memberId, LocalDateTime.now(clock), operationPolicy.crewRunRule());
+    }
+
+    /**
+     * 모집자 「지금 시작」(FR-성-358): 글 행 잠금 → check(RESPOND) → CrewRunPost.startNow. 이미 예약이 있으면 같은 예약을 그대로
+     * 돌려준다.
+     */
+    public LobbyView startNow(long memberId, long postId) {
+        return lobbyChange(
+                memberId,
+                postId,
+                (post, now) -> post.startNow(memberId, now, operationPolicy.crewRunRule()),
+                Resource.LOBBY);
+    }
+
+    /**
+     * 중간 참여(FR-성-361~363): 글 행 잠금 → check(RESPOND, 현재 크루원) → CrewRunPost.join(서버 잠금 시각). 새로 참여했으면
+     * 커밋 뒤 세션에 더하고(개인 측정 시작 시각) 진행·결과 변경을 알린다. 이미 진행 참가자면 같은 측정 시작 시각과 측정 기록 ID를 돌려준다.
+     */
+    public ParticipationView join(long memberId, long postId) {
         return transactions.retrying(
                 () -> {
                     CrewRunPost post = locked(postId);
                     crewAccess.check(memberId, post.crewId(), CrewAction.RESPOND);
-                    crewPostRepository.save(change.apply(post));
-                    return views.lobby(post, LocalDateTime.now(clock));
+                    LocalDateTime now = LocalDateTime.now(clock);
+                    boolean joined = post.join(memberId, now, operationPolicy.crewRunRule());
+                    if (joined) {
+                        announcer.changed(post, Resource.PROGRESS, Resource.RESULT);
+                        announcer.joined(post, memberId);
+                    }
+                    crewPostRepository.save(post);
+                    return views.participation(post, memberId, !joined);
                 });
+    }
+
+    /**
+     * 대기실 변경 공통: 글 행 잠금 → check(RESPOND) → 변경 → 전원 준비면 출발 예약(U-25) → 바뀌었으면 순번을 올리고 커밋 뒤 신호 → 열람자
+     * 현황.
+     */
+    private LobbyView lobbyChange(
+            long memberId, long postId, LobbyChange change, Resource... resources) {
+        return transactions.retrying(
+                () -> {
+                    CrewRunPost post = locked(postId);
+                    crewAccess.check(memberId, post.crewId(), CrewAction.RESPOND);
+                    LocalDateTime now = LocalDateTime.now(clock);
+                    CrewRunRule rule = operationPolicy.crewRunRule();
+                    boolean changed = change.apply(post, now);
+                    boolean planned = post.planIfAllReady(now, rule);
+                    if (changed || planned) {
+                        announcer.changed(post, resources);
+                    }
+                    crewPostRepository.save(post);
+                    return views.lobby(post, memberId, now, rule);
+                });
+    }
+
+    /** 대기실 변경 하나. 바뀐 것이 있으면 true. */
+    @FunctionalInterface
+    private interface LobbyChange {
+        boolean apply(CrewRunPost post, LocalDateTime now);
+    }
+
+    /**
+     * 모집, 수정, 참석, 삭제처럼 목록에 보이는 값이 바뀌었을 때(설계 05-32 [임시:D-성-878]): 순번을 올리고 커밋 뒤 SCHEDULE을, 대기실이 열려
+     * 있으면 LOBBY도 알린다. 부르는 쪽이 글 행 잠금(또는 새 글) 트랜잭션 안에서 부른다.
+     */
+    public void scheduleChanged(CrewRunPost post) {
+        announcer.scheduleChanged(post);
     }
 
     /**
@@ -120,18 +207,40 @@ public class CrewRunService {
     private Boolean step(long postId, LocalDateTime now, CrewRunRule rule) {
         CrewRunPost post = locked(postId);
         announcer.ensureSession(post);
-        post.openLobby(now, rule);
+        Set<Resource> changes = EnumSet.noneOf(Resource.class);
+        if (post.openLobby(now, rule)) {
+            changes.addAll(List.of(Resource.SCHEDULE, Resource.LOBBY));
+        }
         if (post.markReminded(now, rule)) {
             announcer.remind(post);
         }
+        if (post.planIfAllReady(now, rule)) {
+            changes.add(Resource.LOBBY);
+        }
         DepartureOutcome outcome = post.depart(now, rule);
+        switch (outcome.kind()) {
+            case PLANNED -> changes.add(Resource.LOBBY);
+            case STARTED ->
+                    changes.addAll(List.of(Resource.LOBBY, Resource.SCHEDULE, Resource.PROGRESS));
+            case CANCELLED -> changes.addAll(List.of(Resource.LOBBY, Resource.SCHEDULE));
+            case NONE -> {
+                // 바뀐 것 없음
+            }
+        }
+        boolean closed = post.shouldClose(now, rule);
+        if (closed) {
+            post.close(now, announcer.lastProgress(postId));
+            changes.addAll(List.of(Resource.PROGRESS, Resource.SCHEDULE, Resource.RESULT));
+        }
+        if (!changes.isEmpty()) {
+            announcer.changed(post, changes.toArray(Resource[]::new));
+        }
         if (outcome.kind() == DepartureOutcome.Kind.STARTED) {
             announcer.started(post, outcome);
         } else if (outcome.kind() == DepartureOutcome.Kind.CANCELLED) {
             announcer.cancelled(post, outcome.memberIds(), rule.minReady());
         }
-        if (post.shouldClose(now, rule)) {
-            post.close(now, announcer.lastProgress(postId));
+        if (closed) {
             announcer.ended(post);
         }
         crewPostRepository.save(post);
@@ -199,11 +308,38 @@ public class CrewRunService {
         return post.participationOf(memberId).map(p -> p.linkedRecordId().isEmpty()).orElse(false);
     }
 
-    /** 수신자(onRunSaved)와 보정(relink)이 같은 저장 기록 형식 SavedRun으로 부른다(코드 리뷰 3차 B-M3). */
+    /**
+     * 수신자(onRunSaved)와 보정(relink)이 같은 저장 기록 형식 SavedRun으로 부른다(코드 리뷰 3차 B-M3). 새로 이었으면 결과 변경을 알린다(설계
+     * 05-32 RESULT).
+     */
     private boolean link(CrewRunPost post, SavedRun run) {
         boolean linked = post.linkRun(run.memberId(), run.recordId());
+        if (linked) {
+            announcer.changed(post, Resource.RESULT);
+        }
         crewPostRepository.save(post);
         return linked;
+    }
+
+    /**
+     * 크루런 기록의 크루 주간 기여가 더해지면(RaceContributionAdded) 그 기록을 이은 크루런의 결과 변경을 알린다(설계 05-32 4.5: 기록 연결과
+     * 기여 도착 순서가 달라도 나중 통지가 순번을 올린다). 아직 잇지 않았으면 뒤따르는 연결이 알린다. 실패는 로그만 남긴다(결과 기존 폴링, 당기기, 재진입으로 읽을 수
+     * 있다).
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onContributed(RaceContributionAdded e) {
+        transactions.afterCommit(
+                "crew_run_result_signal",
+                e.recordId(),
+                () ->
+                        crewPostRepository
+                                .findCrewRunIdByLinkedRecord(e.recordId())
+                                .flatMap(crewPostRepository::findCrewRunByIdForUpdate)
+                                .ifPresent(
+                                        post -> {
+                                            announcer.changed(post, Resource.RESULT);
+                                            crewPostRepository.save(post);
+                                        }));
     }
 
     /**
@@ -212,6 +348,7 @@ public class CrewRunService {
      * 지우지 않는다.
      */
     public void endByDeletion(CrewRunPost post) {
+        announcer.scheduleChanged(post);
         announcer.deleted(post);
     }
 
@@ -251,6 +388,7 @@ public class CrewRunService {
                     if (!ended) {
                         return;
                     }
+                    announcer.changed(post, Resource.PROGRESS, Resource.RESULT);
                     crewPostRepository.save(post);
                     if (post.status() == CrewRunStatus.RUNNING) {
                         announcer.ender(postId, memberId, last);

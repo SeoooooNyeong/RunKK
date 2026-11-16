@@ -7,13 +7,17 @@ import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
+import com.a207.runkk.app.core.navigation.CrewRunReturnReceipt
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CelebrationCard
 import com.a207.runkk.app.domain.crew.CrewCelebrationStore
+import com.a207.runkk.app.domain.crew.CrewChange
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
+import com.a207.runkk.app.domain.crew.CrewReadSession
 import com.a207.runkk.app.domain.crew.CrewRepository
+import com.a207.runkk.app.domain.crew.CrewRunSignals
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
@@ -46,6 +50,12 @@ import timber.log.Timber
  * 크루런은 끝까지 내리면 다음 쪽(nextCursor)을 이어 받는다. 크루런 모집글의 대기실 단추는 서버 시각 추정(ServerClock)으로
  * 열림 30분 전·모집 일시를 따져 열고 닫는다(FR-133·FR-147). 버튼 노출은 detail.myRole(3.0.3)로 정하고 권한은 서버가 다시 검사한다.
  * 공동 목표는 주간 공동 목표 화면(M8, CrewGoalSetViewModel)에서 정하고, 달성한 주의 축하 카드는 ui.share 방식으로 공유한다(FR-141).
+ *
+ * 실시간 반영(설계 05-32): 크루런 탭은 진행 중인 크루런만 날짜순(order=SCHEDULED_ASC, activeOnly)으로 읽는다. 화면이 보이는 동안 이
+ * 크루의 목록 변경 신호(CrewRunChanged SCHEDULE)를 받으면 크루런 탭이 열려 있을 때만 읽은 범위를 다시 읽는다(CrewReadSession으로
+ * 합친다, 「새로」 표식 없음). 탭을 다시 고르면 그 탭을 늘 다시 읽고(레이스 재진입, TC-11017), 당겨서 새로고침은 지금 값을 둔 채 읽는다.
+ * 레이스는 결과·기여 신호로 스스로 다시 읽지 않는다([임시:FR-성-370]). 레이스를 새로 읽으면 직전 성공 조회보다 늘어난 확정 거리를
+ * 2초 강조하고, 직전 값이 없을 때는 결과 복귀 값이 있으면 목표 카드와 내 줄만 강조한다(증가량은 추정하지 않는다, [임시:D-성-889]).
  */
 @HiltViewModel
 class CrewHomeViewModel @Inject constructor(
@@ -54,7 +64,9 @@ class CrewHomeViewModel @Inject constructor(
     private val celebration: CelebrationSharer,
     private val visibility: ProfileVisibilitySaver,
     /** 축하 팝업을 그 주에 본 기록(D-655). 시험은 기본 메모리 구현을 쓴다. */
-    private val celebrationStore: CrewCelebrationStore = CrewCelebrationStore.inMemory()
+    private val celebrationStore: CrewCelebrationStore = CrewCelebrationStore.inMemory(),
+    /** 크루런 변경 신호(설계 05-32). 시험에서 없으면 신호를 받지 않는다. */
+    private val signals: CrewRunSignals? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow(CrewHomeUiState())
     val state: StateFlow<CrewHomeUiState> = _state.asStateFlow()
@@ -72,6 +84,31 @@ class CrewHomeViewModel @Inject constructor(
             ) { runs, isScheduleShown, resumed -> runs to (isScheduleShown && resumed) }
                 .distinctUntilChanged()
                 .collectLatest { (runs, isTicking) -> watchLobbies(runs, isTicking) }
+        }
+    }
+
+    /** 크루런 탭 목록 다시 읽기(신호를 합친다). */
+    private val scheduleReads = CrewReadSession(viewModelScope) { reloadPosts() }
+
+    /** 결과 「확인」 뒤 아직 레이스에 쓰지 않은 복귀 값(직전 값이 없을 때의 강조 근거). */
+    private var pendingReturn: CrewRunReturnReceipt? = null
+    private var highlightJob: Job? = null
+
+    init {
+        // 화면이 보이는 동안만 변경 신호를 받는다(임대 반납은 수집 취소가 한다).
+        viewModelScope.launch {
+            isResumed.collectLatest { resumed ->
+                if (resumed) signals?.changes()?.collect(::onChange)
+            }
+        }
+    }
+
+    /** 이 크루의 목록 변경이면 크루런 탭이 보일 때만 다시 읽는다. 레이스·결과 신호로는 읽지 않는다. */
+    private fun onChange(change: CrewChange) {
+        val s = _state.value
+        val isScheduleShown = s.tab == CrewTab.SCHEDULE && s.page == CrewHomePage.HOME
+        if (change.crewId == s.crewId && change.resource == CrewChange.Resource.SCHEDULE && isScheduleShown) {
+            scheduleReads.refresh()
         }
     }
 
@@ -107,8 +144,12 @@ class CrewHomeViewModel @Inject constructor(
 
     private var resumedOnce = false
 
-    /** 화면에 돌아올 때(관리·모집에서 복귀) 크루 정보와 지금 탭을 다시 읽는다. 처음 표시는 bind가 읽는다. */
-    fun onResumed() {
+    /**
+     * 화면에 돌아올 때(관리·모집·결과에서 복귀) 크루 정보와 지금 탭을 다시 읽는다. 처음 표시는 bind가 읽는다. [receipt]는 크루런 결과
+     * 「확인」의 복귀 값이다(레이스 강조 근거, 설계 05-32 [임시:D-성-888]).
+     */
+    fun onResumed(receipt: CrewRunReturnReceipt? = null) {
+        receipt?.let { pendingReturn = it }
         isResumed.value = true
         if (resumedOnce && bound != null) {
             loadDetail()
@@ -138,20 +179,59 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    /** 탭을 옮긴다. 옮길 때마다 크루 정보(역할)를 다시 읽어, 그 사이 크루장이 되면 바로 「목표 정하기」를 보인다(DV-성 9(b)). */
+    /**
+     * 탭을 옮긴다. 옮길 때마다 크루 정보(역할)를 다시 읽어, 그 사이 크루장이 되면 바로 「목표 정하기」를 보인다(DV-성 9(b)). 레이스·
+     * 크루런 탭은 고를 때마다 다시 읽는다(재진입 읽기, 설계 05-32 [임시:FR-성-372], TC-11017). 이미 읽은 값은 읽는 동안 그대로 보인다.
+     */
     fun onTab(tab: CrewTab) {
-        if (tab != _state.value.tab) loadDetail()
+        val isChanged = tab != _state.value.tab
+        if (isChanged) loadDetail()
         _state.update { it.copy(tab = tab) }
+        // 채팅 탭은 ChatTabContent가 방을 열어 스스로 읽는다(D-653).
+        if (tab != CrewTab.CHAT && (isChanged || isTabEmpty(tab))) refresh()
+    }
+
+    private fun isTabEmpty(tab: CrewTab): Boolean = when (tab) {
+        CrewTab.RACE -> _state.value.race == null
+        CrewTab.SCHEDULE -> _state.value.crewRuns == null
+        CrewTab.CHAT -> false
+    }
+
+    /**
+     * 당겨서 새로고침(설계 05-32 [임시:FR-성-366], TC-11034): 지금 쪽·탭을 다시 읽는다. 실패하면 지금 값을 그대로 두고 안내 줄로
+     * 알린다(읽은 값이 없을 때만 오류 화면).
+     */
+    fun onPullRefresh() {
         val s = _state.value
-        val loaded = when (tab) {
-            CrewTab.RACE -> s.race != null
+        if (s.isRefreshing) return
+        _state.update { it.copy(isRefreshing = true) }
+        viewModelScope.launch {
+            val error = when {
+                s.page == CrewHomePage.MEMBERS -> loadMembers(s)
 
-            CrewTab.SCHEDULE -> s.crewRuns != null
+                s.tab == CrewTab.RACE -> loadRace(s)
 
-            // 채팅 탭은 ChatTabContent가 방을 열어 스스로 읽는다(D-653).
-            CrewTab.CHAT -> true
+                s.tab == CrewTab.CHAT -> null
+
+                else -> {
+                    _state.update { it.copy(scheduleNow = serverClock.now()) }
+                    readCovering()
+                }
+            }
+            _state.update { st ->
+                val hasValue = when {
+                    s.page == CrewHomePage.MEMBERS -> st.members != null
+                    s.tab == CrewTab.RACE -> st.race != null
+                    else -> st.crewRuns != null
+                }
+                val text = error?.let(CrewErrorText::of)
+                st.copy(
+                    isRefreshing = false,
+                    message = if (hasValue && text != null) text else st.message,
+                    error = if (!hasValue) text else null
+                )
+            }
         }
-        if (!loaded) refresh()
     }
 
     /**
@@ -187,28 +267,56 @@ class CrewHomeViewModel @Inject constructor(
 
                 s.tab == CrewTab.CHAT -> null
 
-                // 크루런 탭은 크루런 일정만 보인다(피그마 F-11).
+                // 크루런 탭은 진행 중인 크루런 일정만 날짜순으로 보인다(피그마 F-11, 설계 05-32 4.5).
                 else -> {
                     _state.update { it.copy(scheduleNow = serverClock.now()) }
-                    loadPosts(s.crewId, PostList.Kind.CREW_RUN)
+                    if (_state.value.crewRuns == null) loadPosts(s.crewId) else readCovering()
                 }
             }
-            _state.update { it.copy(isLoading = false, error = error?.let(CrewErrorText::of)) }
+            // 이미 읽은 값이 있으면 그대로 두고 안내 줄로 알린다(탭 재진입·복귀 읽기 실패, 설계 05-32 TC-11034).
+            _state.update { st ->
+                val hasValue = when {
+                    s.page == CrewHomePage.MEMBERS -> st.members != null
+                    s.tab == CrewTab.RACE -> st.race != null
+                    s.tab == CrewTab.SCHEDULE -> st.crewRuns != null
+                    else -> false
+                }
+                val text = error?.let(CrewErrorText::of)
+                if (hasValue && text != null) {
+                    st.copy(isLoading = false, message = text)
+                } else {
+                    st.copy(isLoading = false, error = text)
+                }
+            }
         }
     }
 
-    /** 레이스 탭: 레이스와 크루 랭킹. */
+    /** 레이스 탭: 레이스와 크루 랭킹. 새로 읽은 레이스가 직전 성공 조회보다 늘었으면 2초 강조한다(설계 05-32 [임시:D-성-889]). */
     private suspend fun loadRace(s: CrewHomeUiState): AppError? {
         val race = crews.race(s.crewId, null)
         val ranking = crews.crewRanking(s.crewId, s.period)
+        val latest = (race as? Outcome.Success)?.value
+        val highlight = latest?.let { raceHighlightOf(_state.value.race, it, hasReturn = pendingReturn != null) }
+        if (latest != null) pendingReturn = null
         _state.update {
             it.copy(
-                race = (race as? Outcome.Success)?.value ?: it.race,
+                race = latest ?: it.race,
                 ranking = (ranking as? Outcome.Success)?.value ?: it.ranking
             )
         }
-        (race as? Outcome.Success)?.value?.let { celebrateOnce(s.crewId, it) }
+        highlight?.let(::showHighlight)
+        latest?.let { celebrateOnce(s.crewId, it) }
         return (race as? Outcome.Failure)?.error ?: (ranking as? Outcome.Failure)?.error
+    }
+
+    /** 늘어난 거리를 처음 그린 때부터 2초 보이고 지운다(TC-11037). 새 강조가 오면 앞 강조를 바꾼다. */
+    private fun showHighlight(highlight: RaceHighlight) {
+        highlightJob?.cancel()
+        _state.update { it.copy(raceHighlight = highlight) }
+        highlightJob = viewModelScope.launch {
+            delay(HIGHLIGHT_MILLIS)
+            _state.update { it.copy(raceHighlight = null) }
+        }
     }
 
     /** 이번 주 공동 목표를 달성했고 이 기기에서 그 주에 아직 팝업을 보지 않았으면 한 번 띄운다(피그마 F-08b, D-655). */
@@ -259,15 +367,14 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadPosts(crewId: Long, kind: PostList.Kind): AppError? =
-        when (val r = crews.posts(crewId, kind)) {
-            is Outcome.Success -> {
-                _state.update { it.copy(crewRuns = r.value) }
-                null
-            }
-
-            is Outcome.Failure -> r.error
+    private suspend fun loadPosts(crewId: Long): AppError? = when (val r = crews.activeCrewRuns(crewId)) {
+        is Outcome.Success -> {
+            _state.update { it.copy(crewRuns = r.value) }
+            null
         }
+
+        is Outcome.Failure -> r.error
+    }
 
     fun onPeriod(period: CrewRanking.Period) {
         if (period == _state.value.period) return
@@ -332,7 +439,7 @@ class CrewHomeViewModel @Inject constructor(
             when (val r = crews.deletePost(item.postId)) {
                 is Outcome.Success -> {
                     _state.update { it.copy(isBusy = false, message = uiText(R.string.crew_home_post_deleted)) }
-                    reloadPosts(item.kind)
+                    reloadPosts()
                 }
 
                 is Outcome.Failure -> _state.update { it.copy(isBusy = false, message = CrewErrorText.of(r.error)) }
@@ -353,7 +460,7 @@ class CrewHomeViewModel @Inject constructor(
                     _state.update { st ->
                         st.crewRuns?.let { st.copy(crewRuns = it.withAnswer(item.postId, answer)) } ?: st
                     }
-                    reloadPosts(item.kind)
+                    reloadPosts()
                 }
 
                 is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
@@ -372,7 +479,7 @@ class CrewHomeViewModel @Inject constructor(
                     _state.update { st ->
                         st.crewRuns?.let { st.copy(crewRuns = it.withAnswer(item.postId, null)) } ?: st
                     }
-                    reloadPosts(item.kind)
+                    reloadPosts()
                 }
 
                 is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
@@ -384,12 +491,11 @@ class CrewHomeViewModel @Inject constructor(
     fun onLoadMore() {
         val s = _state.value
         if (s.tab != CrewTab.SCHEDULE || s.page != CrewHomePage.HOME) return
-        val kind = PostList.Kind.CREW_RUN
         val cursor = s.crewRuns?.nextCursor ?: return
         if (s.isLoading || s.isLoadingMore) return
         _state.update { it.copy(isLoadingMore = true) }
         moreJob = viewModelScope.launch {
-            when (val r = crews.posts(s.crewId, kind, cursor)) {
+            when (val r = crews.activeCrewRuns(s.crewId, cursor)) {
                 is Outcome.Success -> _state.update { st ->
                     val current = st.crewRuns ?: r.value
                     val known = current.posts.map { it.postId }.toSet()
@@ -398,8 +504,12 @@ class CrewHomeViewModel @Inject constructor(
                     st.copy(crewRuns = merged).copy(isLoadingMore = false)
                 }
 
-                is Outcome.Failure -> _state.update {
-                    it.copy(isLoadingMore = false, message = CrewErrorText.of(r.error))
+                // 기준 글이 사라져 커서를 이어 읽지 못하면(400) 첫 쪽부터 읽은 범위를 다시 읽는다(설계 05-32 4.5).
+                is Outcome.Failure -> if (r.error == AppError.Rejected(BAD_REQUEST)) {
+                    _state.update { it.copy(isLoadingMore = false) }
+                    reloadPosts()
+                } else {
+                    _state.update { it.copy(isLoadingMore = false, message = CrewErrorText.of(r.error)) }
                 }
             }
         }
@@ -738,19 +848,35 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    /** 응답·삭제·글쓰기 뒤 갱신. 이어 받아 둔 범위까지 다시 읽는다(postsCovering). */
-    private suspend fun reloadPosts(kind: PostList.Kind) {
+    /** 응답·삭제·글쓰기·변경 신호 뒤 갱신. 이어 받아 둔 범위까지 다시 읽는다(postsCovering). 실패하면 지금 목록을 두고 안내한다. */
+    private suspend fun reloadPosts() {
+        readCovering()?.let { error -> _state.update { it.copy(message = CrewErrorText.of(error)) } }
+    }
+
+    /** 크루런 탭의 읽은 범위를 첫 쪽부터 다시 읽어 바꾼다(날짜순, 중복 없음). 실패면 그 오류. */
+    private suspend fun readCovering(): AppError? {
         moreJob?.cancel()
         _state.update { it.copy(isLoadingMore = false) }
+        val crewId = _state.value.crewId
         val loaded = _state.value.crewRuns?.posts?.size ?: 0
-        when (val r = crews.postsCovering(_state.value.crewId, kind, loaded)) {
-            is Outcome.Success -> _state.update { it.copy(crewRuns = r.value) }
-            is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
+        return when (val r = coveringPages(loaded) { cursor -> crews.activeCrewRuns(crewId, cursor) }) {
+            is Outcome.Success -> {
+                _state.update { it.copy(crewRuns = r.value) }
+                null
+            }
+
+            is Outcome.Failure -> r.error
         }
     }
 
     private companion object {
         const val LOBBY_TICK_MILLIS = 1_000L
+
+        /** 새로 반영된 거리 강조 시간(설계 05-32 [임시:D-성-889]). */
+        const val HIGHLIGHT_MILLIS = 2_000L
+
+        /** 서버 400(커서 기준을 복원할 수 없음). */
+        const val BAD_REQUEST = "BAD_REQUEST"
     }
 }
 

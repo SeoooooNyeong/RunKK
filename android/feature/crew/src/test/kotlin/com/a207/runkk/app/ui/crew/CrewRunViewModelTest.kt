@@ -16,7 +16,9 @@ import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.Lobby
+import com.a207.runkk.app.domain.crew.LobbyPhase
 import com.a207.runkk.app.domain.live.CrewRunCancelled
+import com.a207.runkk.app.domain.live.CrewRunDeparture
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
@@ -122,8 +124,13 @@ class CrewRunViewModelTest {
     fun `출발 신호 → 카운트다운 → 합산 중계(입장 순·함께 달리는 크루원 수) → 종료면 결과로`() = main.runVmTest { vms ->
         val w = crewWorld()
         val vm = lobbyVm(w, vms)
+        // 출발 사실을 받으면 대기실을 다시 읽어 진행 참가자임을 확인하고 참여 값(startAt = 측정 시작 절대시각)부터 잰다.
+        val startAt = w.clock.now.plusSeconds(3)
+        w.crews.lobbyApi = true
+        w.crews.lobbyRead = lobby.copy(phase = LobbyPhase.RUNNING, isMeRunner = true, startAt = startAt)
+        w.crews.joinState = w.crews.joinState.copy(joinedAt = startAt)
         vm.events.test {
-            w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("바람처럼", "나")))
+            w.channels.channel.push(CrewRunDeparture(11, 31, 9, "31-8", startAt, listOf(7)))
             runCurrent()
             assertEquals(CrewRunPhase.COUNTDOWN, vm.state.value.phase)
             assertEquals(3L, vm.state.value.countdown)
@@ -329,17 +336,41 @@ class CrewRunViewModelTest {
     }
 
     @Test
-    fun `뒤로 가기 - 출발 카운트다운부터는 나가지 않고 그만두기 안내만 한다`() = main.runVmTest { vms ->
+    fun `뒤로 가기 - 측정을 시작한 뒤에는 나가지 않고 그만두기 안내만 한다`() = main.runVmTest { vms ->
         val w = crewWorld()
         val vm = lobbyVm(w, vms)
-        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("나")))
+        w.crews.lobbyApi = true
+        w.crews.lobbyRead = lobby.copy(phase = LobbyPhase.RUNNING, isMeRunner = true)
+        w.crews.joinState = w.crews.joinState.copy(joinedAt = w.clock.now)
+        w.channels.channel.push(CrewRunDeparture(11, 31, 9, "31-8", w.clock.now, listOf(7)))
         runCurrent()
+        assertEquals(CrewRunPhase.RUNNING, vm.state.value.phase)
         vm.events.test {
             vm.onBack()
             expectNoEvents()
         }
         assertEquals(UiText.Res(R.string.crew_run_quit_hint), vm.state.value.hint)
         assertFalse(w.crews.calls.any { it.startsWith("leaveLobby") })
+    }
+
+    @Test
+    fun `TC-11024 뒤로 가기 - 출발 카운트다운(측정 전)에는 대기실을 나가 출발 후보에서 빠진다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.lobbyApi = true
+        w.crews.lobbyState = lobby.copy(
+            participants = lobby.participants.map { if (it.isMe) it.copy(isReady = true) else it },
+            phase = LobbyPhase.COUNTDOWN,
+            startAt = w.clock.now.plusSeconds(3),
+            countdownParticipantIds = listOf(1, 7)
+        )
+        val vm = lobbyVm(w, vms)
+        assertEquals(CrewRunPhase.COUNTDOWN, vm.state.value.phase)
+        vm.events.test {
+            vm.onBack()
+            runCurrent()
+            assertEquals(CrewRunEvent.Left, awaitItem())
+        }
+        assertTrue("leaveLobby:31" in w.crews.calls)
     }
 
     @Test

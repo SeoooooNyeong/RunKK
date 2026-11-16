@@ -20,7 +20,11 @@ data class CrewHomeUiState(
     /** ⋯ 메뉴로 연 쪽(피그마 F-17·F-24). HOME이면 탭 화면이다. */
     val page: CrewHomePage = CrewHomePage.HOME,
     val isLoading: Boolean = false,
+    /** 당겨서 새로고침 중(설계 05-32). 지금 값은 그대로 보인다. */
+    val isRefreshing: Boolean = false,
     val race: RaceStatus? = null,
+    /** 레이스 탭에 새로 반영된 거리 강조(2초). 없으면 null. */
+    val raceHighlight: RaceHighlight? = null,
     val period: CrewRanking.Period = CrewRanking.Period.WEEKLY,
     val ranking: CrewRanking? = null,
     /** 크루런 탭의 크루런 일정(피그마 F-11). */

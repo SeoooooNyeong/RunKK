@@ -238,8 +238,11 @@ class CrewThreadIntegrationTest {
                                 new CrewRunDraft(
                                         "10명 크루런", scheduledAt, StandardDistance.KM3, null))
                         .postId();
+        // 05-32 U-25/U-33: 입장자 전원이 준비하는 순간 후보를 고정하므로 10명이 먼저 모두 들어온 뒤 준비한다
         for (long m : runners) {
             crewRuns.enterLobby(m, postId);
+        }
+        for (long m : runners) {
             crewRuns.toggleReady(m, postId);
         }
 

@@ -23,6 +23,7 @@ import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunDetail
 import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunJoin
 import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
@@ -527,6 +528,7 @@ val crewRunResult = CrewRunResult(
 )
 
 /** 크루 REST 가짜. 부른 연산을 [calls]에 남긴다. 결과는 [fail]에 코드로 넣으면 그 연산이 거부된다. */
+
 class FakeCrewRepository : CrewRepository {
     val calls = mutableListOf<String>()
     val fail = mutableMapOf<String, AppError>()
@@ -690,7 +692,10 @@ class FakeCrewRepository : CrewRepository {
         return answer("ranking:$period", rankingByPeriod[period] ?: ranking)
     }
 
-    override suspend fun race(crewId: Long, weekStart: LocalDate?) = answer("race", race)
+    /** 레이스 응답(바꿔 가며 다시 읽기 강조를 본다). */
+    var raceState: RaceStatus = race
+
+    override suspend fun race(crewId: Long, weekStart: LocalDate?) = answer("race", raceState)
 
     override suspend fun posts(crewId: Long, kind: PostList.Kind?, cursor: Long?): Outcome<PostList> {
         if (cursor != null) {
@@ -773,6 +778,31 @@ class FakeCrewRepository : CrewRepository {
     }
 
     override suspend fun leaveLobby(postId: Long) = answer("leaveLobby:$postId", lobbyState)
+
+    /** 설계 05-32 새 대기실 API(GET·PUT·start·join)가 있는 서버인가. 거짓이면 옛 서버처럼 없다(enter·토글로 들어간다). */
+    var lobbyApi = false
+
+    /** GET 대기실이 돌려줄 값(없으면 [lobbyState]). 출발 확인 읽기를 바꿀 때 쓴다. */
+    var lobbyRead: Lobby? = null
+
+    /** POST join 응답. */
+    var joinState = CrewRunJoin(31, 11, 1, start, "rec-31-7", isAlreadyJoined = false)
+
+    private fun <T> newApi(op: String, value: () -> T): Outcome<T> =
+        if (lobbyApi) answer(op, value()) else Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    override suspend fun lobby(postId: Long) = newApi("lobby:$postId") { lobbyRead ?: lobbyState }
+
+    override suspend fun setReady(postId: Long, ready: Boolean): Outcome<Lobby> = newApi("setReady:$postId:$ready") {
+        lobbyState = lobbyState.copy(
+            participants = lobbyState.participants.map { if (it.isMe) it.copy(isReady = ready) else it }
+        )
+        lobbyState
+    }
+
+    override suspend fun startNow(postId: Long) = newApi("startNow:$postId") { lobbyState }
+
+    override suspend fun join(postId: Long) = newApi("join:$postId") { joinState }
 
     override suspend fun quit(postId: Long, distanceMeters: Long?, elapsed: Duration?) =
         answer("quit:$postId:${distanceMeters ?: "-"}", Unit)
@@ -930,3 +960,6 @@ class CrewWorld(scope: CoroutineScope, val clock: MutableClock = MutableClock())
             CrewWorld(CoroutineScope(StandardTestDispatcher(testScheduler) + Job(backgroundScope.coroutineContext.job)))
     }
 }
+
+/** 새 API가 없는 옛 서버의 응답 코드(구현 없음). */
+private const val NOT_IMPLEMENTED = 501

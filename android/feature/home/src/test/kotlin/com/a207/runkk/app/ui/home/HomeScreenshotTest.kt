@@ -102,6 +102,17 @@ class HomeScreenshotTest {
         HomeShell { HomeScreen(loaded, HomeActions(), it) }
     }
 
+    /** 크루런 결과 「확인」 뒤 이번 주 막대: 라임 테두리와 「+0.8km 크루런」(2초, 설계 05-32 흐름 4). */
+    @Test
+    fun homeCrewRunAdded() = compose.captureRunkkScreen("A4_home_crew_run_added") {
+        HomeShell { HomeScreen(loaded.copy(weeklyHighlight = Distance(800)), HomeActions(), it) }
+    }
+
+    @Test
+    fun homeCrewRunAddedLight() = compose.captureRunkkScreen("A4_home_crew_run_added_light", isDarkTheme = false) {
+        HomeShell { HomeScreen(loaded.copy(weeklyHighlight = Distance(800)), HomeActions(), it) }
+    }
+
     @Test
     fun homeLoading() = compose.captureRunkkScreen("A4_home_loading") {
         HomeShell { HomeScreen(HomeUiState(), HomeActions(), it) }

@@ -11,6 +11,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -68,10 +69,12 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -110,6 +113,8 @@ import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLimePill
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkStatusChip
+import com.a207.runkk.app.core.designsystem.RunkkStatusChipTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.TierBadge
@@ -121,6 +126,7 @@ import com.a207.runkk.app.core.designsystem.media.rememberSoundEffects
 import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.LocalRunReturnReceipts
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
@@ -133,9 +139,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    // 러닝 결과·다른 화면에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다).
-    LifecycleResumeEffect(viewModel) {
-        viewModel.onResumed()
+    // 러닝 결과·다른 화면에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다). 크루런 결과 「확인」의 복귀 값이 있으면 함께 넘긴다.
+    val receipts = LocalRunReturnReceipts.current
+    LifecycleResumeEffect(viewModel, receipts) {
+        viewModel.onResumed(receipts?.takeHome())
         onPauseOrDispose {}
     }
     val navigator = LocalRunkkNavigator.current
@@ -582,16 +589,21 @@ private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Un
     val spoken = goal?.let { stringResource(R.string.home_week_spoken, actual, it) }
         ?: stringResource(R.string.home_week_spoken_no_goal, actual)
     val streak = stringResource(R.string.home_streak, state.streakWeeks)
+    // 크루런 결과 「확인」 뒤 막 더해진 내 거리(2초): 라임 테두리와 「+0.80km 크루런」(설계 05-32 흐름 4).
+    val added = state.weeklyHighlight?.let { stringResource(R.string.home_week_added_crew_run, compactKm(it)) }
+    val pillShape = RoundedCornerShape(24.dp)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(pillShape)
                 .background(RunkkColors.Surface)
+                .then(if (added != null) Modifier.border(2.dp, RunkkColors.Lime, pillShape) else Modifier)
                 // 이번 주 막대를 누르면 주간 목표를 정하는 목표·러닝 코치로 간다
                 .clickable(role = Role.Button, onClickLabel = openGoal, onClick = onGoal)
                 .clearAndSetSemantics {
-                    contentDescription = "$spoken, $streak"
+                    contentDescription = listOfNotNull(spoken, added, streak).joinToString(", ")
+                    if (added != null) liveRegion = LiveRegionMode.Polite
                     role = Role.Button
                     onClick(label = openGoal) {
                         onGoal()
@@ -617,7 +629,11 @@ private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Un
                 maxLines = 1
             )
             RunkkProgressBar(progress = state.weeklyProgress, height = 6.dp, modifier = Modifier.weight(1f))
-            Text(streak, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary, maxLines = 1)
+            if (added != null) {
+                RunkkStatusChip(added, RunkkStatusChipTone.Lime)
+            } else {
+                Text(streak, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary, maxLines = 1)
+            }
         }
         CircleIconButton(
             icon = RunkkIcons.Settings,

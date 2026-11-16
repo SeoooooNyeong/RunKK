@@ -38,7 +38,7 @@ ENUMS = {
     'running': ['CardKind', 'RunMode', 'SignalState', 'DisposalKind', 'StartDevice'],
     'runimal': ['RunimalType'],
     'crew': ['CrewVisibility', 'JoinPolicy', 'AttendanceAnswer', 'PostKind', 'CrewRole', 'CrewRunStatus', 'Readiness',
-             'JoinRequestStatus', 'PollMethod', 'CrewRunRepeat'],
+             'JoinRequestStatus', 'PollMethod', 'CrewRunRepeat', 'CrewRunPhase', 'PostOrder'],
     'crew.chat': ['ReactionKind', 'ChatMessageKind'],
     'crew.chat.live': ['ChatRemovalReason'],
     'report': ['ReportTargetKind', 'ReportReason', 'ReportStatus'],

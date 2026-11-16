@@ -50,9 +50,11 @@ import com.a207.runkk.app.core.designsystem.media.RunkkBackgroundMusic
 import com.a207.runkk.app.core.navigation.BattleReturnRequest
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalBattleReturnRequest
+import com.a207.runkk.app.core.navigation.LocalRunReturnReceipts
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.RunReturnReceipts
 import com.a207.runkk.app.core.navigation.RunkkNavigator
 import com.a207.runkk.app.core.navigation.collectSlots
 import java.time.Instant
@@ -129,6 +131,8 @@ fun RunkkNavHost(
     var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
     val guideAnchors = remember { GuideAnchors() }
     val slots = remember(featureEntries) { featureEntries.collectSlots() }
+    // 크루런 결과 「확인」의 복귀 값(설계 05-32): 결과 화면이 넣고 홈·크루 홈이 다음에 보일 때 꺼낸다.
+    val returnReceipts = remember { RunReturnReceipts() }
     // 기능이 앱 전체에 내려 주는 값(예: 아바타 기능의 내 얼굴 그을림, D-852)
     val featureLocals = featureEntries.flatMap { it.providedLocals() }
     CompositionLocalProvider(
@@ -136,6 +140,7 @@ fun RunkkNavHost(
         LocalReleaseScope provides releaseScope,
         LocalGuideAnchors provides guideAnchors,
         LocalSlots provides slots,
+        LocalRunReturnReceipts provides returnReceipts,
         *featureLocals.toTypedArray()
     ) {
         Scaffold(

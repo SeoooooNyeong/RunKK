@@ -52,12 +52,14 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkIconButton
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
+import com.a207.runkk.app.core.designsystem.RunkkPullToRefresh
 import com.a207.runkk.app.core.designsystem.RunkkSegmented
 import com.a207.runkk.app.core.designsystem.RunkkSegmentedSelection
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.navigation.LocalRunReturnReceipts
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlotCrewId
 import com.a207.runkk.app.core.navigation.LocalSlots
@@ -89,8 +91,10 @@ fun CrewHomeRoute(
 ) {
     LaunchedEffect(key) { viewModel.bind(key, initialTab) }
     // 관리·일정·목표 화면에서 돌아오면 크루 정보와 지금 탭을 다시 읽는다. 멈추면 크루런 1초 갱신을 멈춘다.
-    LifecycleResumeEffect(viewModel) {
-        viewModel.onResumed()
+    // 크루런 결과 「확인」의 복귀 값이 있으면 함께 넘긴다(레이스 강조, 설계 05-32).
+    val receipts = LocalRunReturnReceipts.current
+    LifecycleResumeEffect(viewModel, receipts) {
+        viewModel.onResumed(receipts?.takeCrew())
         onPauseOrDispose { viewModel.onPaused() }
     }
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -173,6 +177,7 @@ internal fun CrewHomeActions.withNavigation(crewId: Long, navigate: (NavKey) -> 
     onRunOpen = { post -> navigate(Routes.CrewRunDetail(post.postId)) },
     onPastRuns = { navigate(Routes.CrewPastRuns(crewId)) },
     onLobby = { post -> navigate(Routes.CrewRunLobby(post.postId)) },
+    onJoinRun = { post -> navigate(Routes.CrewRunLobby(post.postId, join = true)) },
     onResult = { post -> navigate(Routes.CrewRunResult(post.postId)) },
     onGoalEdit = { navigate(Routes.CrewGoalSet(crewId)) },
     onPastGoals = { navigate(Routes.CrewPastGoals(crewId)) }
@@ -206,6 +211,7 @@ private fun crewHomeActions(vm: CrewHomeViewModel, onReport: (PostList.Item) -> 
     onPage = vm::onPage,
     onPeriod = vm::onPeriod,
     onRetry = vm::refresh,
+    onPullRefresh = vm::onPullRefresh,
     onDeleteAsk = vm::onDeleteAsk,
     onDeleteDismiss = vm::onDeleteDismiss,
     onDeleteConfirm = vm::onDeleteConfirm,
@@ -314,13 +320,20 @@ private fun HomeTabs(
             chatContent(Modifier.weight(1f).fillMaxWidth().padding(top = 12.dp))
             return@Column
         }
-        LazyColumn(
-            state = list,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        // 당겨서 새로고침(설계 05-32 [임시:FR-성-366]): 크루런 목록과 레이스 탭. 실패해도 지금 값을 둔다.
+        RunkkPullToRefresh(
+            isRefreshing = state.isRefreshing,
+            onRefresh = actions.onPullRefresh,
+            modifier = Modifier.weight(1f).fillMaxWidth()
         ) {
-            homeTabItems(state, actions)
+            LazyColumn(
+                state = list,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                homeTabItems(state, actions)
+            }
         }
     }
 }

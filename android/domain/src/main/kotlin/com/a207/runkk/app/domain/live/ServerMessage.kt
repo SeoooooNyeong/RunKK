@@ -8,7 +8,7 @@ import java.time.Instant
 
 /**
  * 서버 → 앱 실시간 메시지(5.7.2, F.3.2). 서버는 type() 이름으로 직렬화하고(D-06), data.live.ServerMessageDecoder가
- * type 필드를 보고 아래 16종 가운데 하나로 해독한다. 항목 이름은 서버 battle.live·crew.live record와 같다(H-17 계약 시험).
+ * type 필드를 보고 아래 18종 가운데 하나로 해독한다(크루런 변경·출발 2종 설계 05-32). 항목 이름은 서버 battle.live·crew.live record와 같다(H-17 계약 시험).
  */
 sealed interface ServerMessage
 
@@ -81,8 +81,45 @@ data class FriendInviteDeclined(val inviteId: Long) : ServerMessage
 /** 아무도 참가하지 않아 초대가 만료됐다(초대한 쪽에만 온다, D-269). */
 data class FriendInviteExpired(val inviteId: Long) : ServerMessage
 
-/** 크루런 출발(모집 일시, 3초 카운트다운 뒤 시작, FR-148). */
+/**
+ * 크루런 출발 확정(옛 메시지, 확정 후보에게만, 설계 05-32 5.3). [startAt]은 측정 시작 절대시각이다(서버가 이미 3초를 더했다). 새 앱은
+ * 이 값에 다시 3초를 더하지 않고 [CrewRunDeparture]처럼 대기실을 다시 읽어 확인한다([임시:D-성-881]).
+ */
 data class CrewRunStart(val postId: Long, val startAt: Instant, val participantNames: List<String>) : ServerMessage
+
+/**
+ * 크루런 변경 사실(설계 05-32 5.3, [임시:D-성-878]). 값은 담지 않고 [resource] 화면의 원본을 다시 읽으라는 신호다. 모르는 자원 이름의
+ * 메시지는 data.live가 버린다. [revision]은 글 단위 변경 순번이다.
+ */
+data class CrewRunChanged(
+    val crewId: Long,
+    val postId: Long,
+    val resource: Resource,
+    val revision: Long,
+    val eventId: String,
+    val occurredAt: Instant
+) : ServerMessage {
+    /** 다시 읽을 화면: 크루런 목록, 대기실, 진행 현황, 결과. */
+    enum class Resource {
+        SCHEDULE,
+        LOBBY,
+        PROGRESS,
+        RESULT
+    }
+}
+
+/**
+ * 크루런 출발 사실(설계 05-32 5.3, [임시:D-성-883]). 대기실 입장자 전원에게 온다. [participantIds]는 확정 후보(빈 목록일 수 있다)이고
+ * [startAt]은 측정 시작 절대시각이다. 앱은 대기실을 다시 읽어 RUNNING·meRunner로 확인한 뒤 한 번만 측정한다.
+ */
+data class CrewRunDeparture(
+    val crewId: Long,
+    val postId: Long,
+    val revision: Long,
+    val countdownToken: String,
+    val startAt: Instant,
+    val participantIds: List<Long>
+) : ServerMessage
 
 /** 크루런 취소. */
 data class CrewRunCancelled(val postId: Long, val reason: String) : ServerMessage

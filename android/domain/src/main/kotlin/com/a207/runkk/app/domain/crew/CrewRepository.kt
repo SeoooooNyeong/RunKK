@@ -97,6 +97,29 @@ interface CrewRepository {
     suspend fun leaveLobby(postId: Long): Outcome<Lobby>
 
     /**
+     * 대기실 다시 읽기(GET /crew-runs/{id}/lobby, 설계 05-32 [임시:D-성-879]). 준비·참여를 바꾸지 않는다(enter를 다시 부르면 READY가
+     * 풀린다). 출발·종료 뒤에도 현황을 준다. 구현이 없으면 실패다.
+     */
+    suspend fun lobby(postId: Long): Outcome<Lobby> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 멱등 준비(PUT /crew-runs/{id}/lobby/ready). 같은 값을 다시 보내도 바뀌지 않는다. 카운트다운 중 false는 출발 후보에서만 빠진다. */
+    suspend fun setReady(postId: Long, ready: Boolean): Outcome<Lobby> =
+        Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 모집자 「지금 시작」(POST /crew-runs/{id}/start). 준비자 2명 이상일 때 최초 예약, 다시 부르면 같은 예약을 돌려준다. */
+    suspend fun startNow(postId: Long): Outcome<Lobby> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /** 달리는 크루런 중간 참여(POST /crew-runs/{id}/join). 다시 불러도 같은 joinedAt·measurementRecordId다. */
+    suspend fun join(postId: Long): Outcome<CrewRunJoin> = Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    /**
+     * 크루런 탭 목록(GET /crews/{id}/posts?kind=CREW_RUN&order=SCHEDULED_ASC&activeOnly=true, 설계 05-32 4.5): 투표 중·대기실·진행 중인
+     * 크루런을 예정 일시, 같은 일시는 postId 오름차순으로 준다. [cursor]는 앞 쪽 마지막 글 ID다. 구현이 없으면 기존 최신순 목록이다.
+     */
+    suspend fun activeCrewRuns(crewId: Long, cursor: Long? = null): Outcome<PostList> =
+        posts(crewId, PostList.Kind.CREW_RUN, cursor)
+
+    /**
      * 내 크루런 끝내기(POST /crew-runs/{id}/quit, 합산 방식). [distanceMeters]·[elapsed]는 끝낼 때의 내 진행값이다(모르면 null,
      * 서버가 마지막 중계 값을 쓴다). CrewRunCoordinator.quit이 부른다.
      */

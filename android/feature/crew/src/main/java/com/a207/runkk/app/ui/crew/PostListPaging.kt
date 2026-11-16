@@ -15,15 +15,19 @@ internal fun PostList?.append(next: PostList): PostList {
  * 응답·삭제·고정 뒤 갱신(A4): 첫 쪽부터 다시 읽되 지금 받아 둔 글 수([loaded])만큼 다음 쪽을 이어 읽어, 이어 받았던 뒤쪽이
  * 사라지지 않게 한다. 첫 쪽이 실패하면 그 실패를, 뒤쪽이 실패하면 거기까지 읽은 목록(커서는 그 쪽 것이라 끝까지 내리면 이어 받는다)을 준다.
  */
-internal suspend fun CrewRepository.postsCovering(crewId: Long, kind: PostList.Kind?, loaded: Int): Outcome<PostList> {
-    var list = when (val first = posts(crewId, kind)) {
+internal suspend fun CrewRepository.postsCovering(crewId: Long, kind: PostList.Kind?, loaded: Int): Outcome<PostList> =
+    coveringPages(loaded) { cursor -> posts(crewId, kind, cursor) }
+
+/** [postsCovering]의 쪽 읽기를 [page](커서 → 한 쪽)로 받는다. 크루런 탭 날짜순 목록(activeCrewRuns)도 같은 규칙으로 덮는다. */
+internal suspend fun coveringPages(loaded: Int, page: suspend (Long?) -> Outcome<PostList>): Outcome<PostList> {
+    var list = when (val first = page(null)) {
         is Outcome.Success -> first.value
         is Outcome.Failure -> return first
     }
     var pages = 1
     while (list.posts.size < loaded && pages < COVER_PAGES_MAX) {
         val cursor = list.nextCursor ?: break
-        val next = posts(crewId, kind, cursor) as? Outcome.Success ?: break
+        val next = page(cursor) as? Outcome.Success ?: break
         pages++
         val grown = list.append(next.value)
         // 새 글이 없거나 커서가 그대로면(서버 이상) 더 읽지 않는다: 같은 쪽을 끝없이 다시 읽지 않게.
