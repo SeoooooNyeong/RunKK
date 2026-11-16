@@ -46,7 +46,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -104,7 +103,6 @@ import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIconButton
@@ -120,6 +118,7 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.guideAnchor
 import com.a207.runkk.app.core.designsystem.media.rememberSoundEffects
+import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -145,9 +144,8 @@ fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         navigator.navigate(Routes.RUN)
     }
-    var isBatteryPromptShown by rememberSaveable { mutableStateOf(false) }
-    var isBatteryPromptVisible by rememberSaveable { mutableStateOf(false) }
-    val startRun = {
+    // 자유런 출발 전 절전 모드 안내([임시:D-성-902]): 절전 모드가 켜져 있으면 위치 권한·러닝 화면 이동을 보류한다.
+    val startRun = rememberRunPowerSaveStart {
         if (LOCATION_PERMISSIONS.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
             navigator.navigate(Routes.RUN)
         } else {
@@ -158,34 +156,9 @@ fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
         viewModel.events.collect { event ->
             when (event) {
                 is HomeEvent.Navigate -> navigator.navigate(event.key)
-
-                HomeEvent.StartRun -> {
-                    if (!isBatteryPromptShown && shouldOfferRunBatterySettings(context)) {
-                        isBatteryPromptShown = true
-                        isBatteryPromptVisible = true
-                    } else {
-                        startRun()
-                    }
-                }
+                HomeEvent.StartRun -> startRun()
             }
         }
-    }
-    if (isBatteryPromptVisible) {
-        RunkkConfirmDialog(
-            title = stringResource(R.string.home_run_battery_title),
-            message = stringResource(R.string.home_run_battery_message),
-            confirmLabel = stringResource(R.string.home_run_battery_open_settings),
-            dismissLabel = stringResource(R.string.home_run_battery_skip),
-            onConfirm = {
-                isBatteryPromptVisible = false
-                if (!openRunBatterySettings(context)) startRun()
-            },
-            onDismiss = {
-                isBatteryPromptVisible = false
-                startRun()
-            },
-            onDismissRequest = { isBatteryPromptVisible = false }
-        )
     }
     HomeScreen(
         state = state,

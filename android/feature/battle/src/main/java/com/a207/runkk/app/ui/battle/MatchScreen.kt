@@ -53,6 +53,7 @@ import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.designsystem.tierName
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GpsReadiness
@@ -69,6 +70,7 @@ import kotlinx.coroutines.launch
 /**
  * 매칭 대기·초대 대기·참가 확인·성사(C-2·C-3·C-10·C-12). 측정이 시작되면 대결 진행으로 바뀐다. 초대 공유(ShareInvite)는 Activity가
  * 필요해 이 화면이 [sharer]로 보낸다. 참가하기는 OS 위치 권한이 없으면 권한 창을 먼저 띄운다(D-267, 거절은 진행 화면이 안내한다).
+ * 매칭·초대 요청과 참가하기 전에는 절전 모드 안내를 거친다([임시:FR-성-380]).
  */
 @Composable
 fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewModel = hiltViewModel()) {
@@ -76,12 +78,28 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
     val navigator = LocalRunkkNavigator.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    LaunchedEffect(viewModel, start) {
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        viewModel.onAccept()
+    }
+    // 출발 전 절전 모드 안내([임시:D-성-902]): 랜덤·배치 매칭 요청과 친구 초대 만들기, 받은 초대 수락보다 먼저 묻는다.
+    // 매칭 전 안내를 닫으면 앞 화면으로 돌아가고, 받은 초대는 참가 확인 화면에 남는다.
+    val powerSaveStart = rememberRunPowerSaveStart(
+        onCancel = { if (start !is MatchStart.Join) navigator.back() }
+    ) {
         when (start) {
             is MatchStart.Quick -> viewModel.startQuick(start.distance)
+
             is MatchStart.Invite -> viewModel.startInvite(start.distance)
-            is MatchStart.Join -> viewModel.startJoin(start.token)
+
+            is MatchStart.Join -> {
+                val granted =
+                    LOCATION_PERMISSIONS.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+                if (granted) viewModel.onAccept() else permission.launch(LOCATION_PERMISSIONS)
+            }
         }
+    }
+    LaunchedEffect(viewModel, start) {
+        if (start is MatchStart.Join) viewModel.startJoin(start.token) else powerSaveStart()
     }
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -100,13 +118,6 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
             }
         }
     }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
-        viewModel.onAccept()
-    }
-    val accept = {
-        val granted = LOCATION_PERMISSIONS.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
-        if (granted) viewModel.onAccept() else permission.launch(LOCATION_PERMISSIONS)
-    }
     // 대기 중 뒤로가기는 나가기 확인을 띄우고([임시:FR-성-32]), 성사 뒤에는 자동 출발이라 막는다(FR-087).
     BackHandler { viewModel.onBackPressed() }
     // 랜덤 매칭 대기 중이나 성사 뒤 출발 전에 앱이 뒤로 가면 대기를 접고 홈으로 간다(S15P31A207-278). 화면 상태가 저장되기 전에
@@ -118,7 +129,7 @@ fun MatchRoute(start: MatchStart, sharer: InviteSharer, viewModel: MatchViewMode
             onCancel = viewModel::onCancel,
             onForfeit = viewModel::onForfeit,
             onResend = viewModel::onResend,
-            onAccept = accept,
+            onAccept = powerSaveStart,
             onDecline = viewModel::onDecline,
             onInviteEndedConfirmed = viewModel::onInviteEndedConfirmed,
             onNoticeConfirmed = viewModel::onNoticeConfirmed,

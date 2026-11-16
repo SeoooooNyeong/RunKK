@@ -62,6 +62,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import java.time.Duration
@@ -91,7 +92,7 @@ fun RecordRunRoute(initialSegment: Int = SELF_SEGMENT) {
     }
 }
 
-/** 나와의 대결(D-1, FR-096). */
+/** 나와의 대결(D-1, FR-096). 시작 전에 절전 모드 안내를 거친다([임시:D-성-902]). */
 @Composable
 fun SelfBattleRoute(viewModel: SelfBattleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -99,13 +100,13 @@ fun SelfBattleRoute(viewModel: SelfBattleViewModel = hiltViewModel()) {
     SelfBattleScreen(
         state = state,
         onSelect = viewModel::onSelect,
-        onStart = viewModel::onStart,
+        onStart = rememberRunPowerSaveStart(onStart = viewModel::onStart),
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
 }
 
-/** 셀럽런(E-1, FR-097·FR-100). */
+/** 셀럽런(E-1, FR-097·FR-100). 시작 전에 절전 모드 안내를 거친다([임시:D-성-902]). */
 @Composable
 fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -114,7 +115,7 @@ fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
         state = state,
         onFilter = viewModel::onFilter,
         onSelect = viewModel::onSelect,
-        onStart = viewModel::onStart,
+        onStart = rememberRunPowerSaveStart(onStart = viewModel::onStart),
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )

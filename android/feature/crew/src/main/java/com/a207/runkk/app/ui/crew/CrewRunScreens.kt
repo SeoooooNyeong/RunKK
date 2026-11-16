@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -97,6 +98,7 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
@@ -139,9 +141,10 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
             }
         }
     }
-    val actions = remember(viewModel) {
+    val onReady = rememberCrewRunReady(viewModel, isLobby = state.phase == CrewRunPhase.LOBBY)
+    val actions = remember(viewModel, onReady) {
         CrewRunActions(
-            onReady = viewModel::onReadyToggle,
+            onReady = onReady,
             onRefresh = viewModel::enter,
             onLeave = viewModel::onLeaveLobby,
             onQuitTap = viewModel::onQuitTapped,
@@ -156,6 +159,25 @@ fun CrewRunRoute(key: Routes.CrewRunLobby, viewModel: CrewRunViewModel = hiltVie
         )
     }
     CrewRunScreen(state = state, actions = actions)
+}
+
+/**
+ * 준비 완료 단추 처리([임시:FR-성-380], [임시:D-성-902]). 준비 전이면 절전 모드 안내를 거쳐 준비하고, 준비를 풀 때는 묻지 않는다.
+ * 이미 준비한 채 대기실에 다시 들어오면([isLobby]가 처음 참이 될 때) 한 번 확인하되 준비 상태는 뒤집지 않는다.
+ */
+@Composable
+private fun rememberCrewRunReady(viewModel: CrewRunViewModel, isLobby: Boolean): () -> Unit {
+    val readyStart = rememberRunPowerSaveStart { if (!viewModel.state.value.isReady) viewModel.onReadyToggle() }
+    var isEntryChecked by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(isLobby) {
+        if (isLobby && !isEntryChecked) {
+            isEntryChecked = true
+            if (viewModel.state.value.isReady) readyStart()
+        }
+    }
+    return remember(viewModel, readyStart) {
+        { if (viewModel.state.value.isReady) viewModel.onReadyToggle() else readyStart() }
+    }
 }
 
 data class CrewRunActions(

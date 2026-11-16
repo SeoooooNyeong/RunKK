@@ -192,4 +192,9 @@
     <string name="track_view_track">트랙</string>
     <string name="track_view_map">지도</string>
     <string name="map_recenter">내 위치로</string>
+    <!-- 러닝 출발 전 절전 모드 안내([임시:NFR-성-20]): 제목, 한 문장 본문, 두 단추 -->
+    <string name="core_run_power_save_title">절전 모드를 꺼 주세요</string>
+    <string name="core_run_power_save_message">화면을 끄면 기록이 끊길 수 있어요.</string>
+    <string name="core_run_power_save_settings">설정 열기</string>
+    <string name="core_run_power_save_start">그냥 시작</string>
 </resources>
