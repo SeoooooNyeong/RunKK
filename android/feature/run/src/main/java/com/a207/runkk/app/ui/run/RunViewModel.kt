@@ -10,6 +10,9 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.model.getOrNull
+import com.a207.runkk.app.domain.account.AccountRepository
+import com.a207.runkk.app.domain.account.MyAvatar
+import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.FinishOutcome
 import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
@@ -42,12 +45,24 @@ import kotlinx.coroutines.launch
  * 경로선(RunTracker.routeLine)은 지도 타일 없이 RouteCanvas로 그린다(D-261).
  */
 @HiltViewModel
-class RunViewModel @Inject constructor(
+class RunViewModel internal constructor(
     private val tracker: RunTracker,
     private val records: RecordRepository,
-    private val goals: FreeRunGoalUseCase
+    private val goals: FreeRunGoalUseCase,
+    /** 내 아바타(홈과 같은 출처, AccountRepository.myAvatar). 지도 위 내 위치의 얼굴 원에 쓴다([임시:FR-성-31]). */
+    private val myAvatar: suspend () -> MyAvatar? = { null },
+    lastAvatar: () -> MyAvatar? = { null }
 ) : ViewModel() {
-    private val _state = MutableStateFlow(RunUiState())
+    @Inject
+    constructor(
+        tracker: RunTracker,
+        records: RecordRepository,
+        goals: FreeRunGoalUseCase,
+        account: AccountRepository
+    ) : this(tracker, records, goals, { account.myAvatar() }, account::lastMyAvatar)
+
+    // 기기에 남긴 마지막 내 아바타를 첫 값으로 그려 기본 얼굴이 보였다가 바뀌지 않게 한다.
+    private val _state = MutableStateFlow(RunUiState(myAvatar = lastAvatar()))
     val state: StateFlow<RunUiState> = _state.asStateFlow()
 
     private val _events = Channel<RunEvent>(Channel.BUFFERED)
@@ -68,6 +83,7 @@ class RunViewModel @Inject constructor(
     private var lastSplitKm: Long? = null
 
     init {
+        viewModelScope.launch { myAvatar()?.let { mine -> _state.update { it.copy(myAvatar = mine) } } }
         viewModelScope.launch { tracker.progress.collect(::onProgress) }
         viewModelScope.launch { tracker.routeLine.collect { route -> _state.update { it.copy(route = route) } } }
         viewModelScope.launch {

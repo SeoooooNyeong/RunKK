@@ -194,7 +194,9 @@ class RunkkAvatarPortraitTest {
             fun alpha(x: Int, y: Int) = android.graphics.Color.alpha(bitmap.getPixel(x, y))
             val crown = (0 until size).first { y -> (0 until size).any { alpha(it, y) >= 128 } }
             // 목을 늘리지 않고 머리를 내렸다(사용자 요청 2026-11-12): 정수리가 위 끝에서 조금 내려와 원 안에 든다.
-            assertTrue(crown in (size * .01f).toInt()..(size * .05f).toInt(), "$character 정수리가 원 안 위쪽이다: $crown")
+            // 여자는 남자와 같은 얼굴 배율을 쓴다(S15P31A207-306). 둥근 정수리가 남자 삐친 머리보다 낮아 조금 더 내려온다.
+            val crownMax = if (character == AvatarCharacter.FEMALE) .10f else .05f
+            assertTrue(crown in (size * .01f).toInt()..(size * crownMax).toInt(), "$character 정수리가 원 안 위쪽이다: $crown")
             assertTrue(alpha(size / 2, size - 1) >= 200, "$character 목이 아래 끝까지 이어진다")
             // 아래 끝 가운데는 목(피부색)이다(여자 긴 머리는 목 옆까지 내려와 폭으로는 가리지 않는다).
             assertTrue(android.graphics.Color.red(bitmap.getPixel(size / 2, size - 1)) > 200, "$character 아래 끝 가운데는 목")

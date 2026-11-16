@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.chat
 
+import com.a207.runkk.app.core.model.Gender
 import java.time.Instant
 
 /**
@@ -11,5 +12,8 @@ data class Reactor(
     val displayName: String,
     val kind: ReactionKind,
     val reactedAt: Instant,
-    val isMe: Boolean
+    val isMe: Boolean,
+    /** 아바타 얼굴 키와 표시 성별(공개 판정은 서버). 옛 서버·얼굴 없음이면 null. */
+    val faceKey: String? = null,
+    val shownGender: Gender? = null
 )

@@ -1,0 +1,22 @@
+{
+  "postId": 101,
+  "scheduledAt": "2026-11-16T19:10:00+09:00",
+  "distanceMeters": 5000,
+  "remainingSeconds": 597,
+  "status": "RUNNING",
+  "participants": [
+    {"memberId": 11, "displayName": "러너가", "readiness": "READY", "ready": true, "me": true, "faceKey": null, "shownGender": "MALE", "look": null},
+    {"memberId": 12, "displayName": "러너나", "readiness": "ENTERING", "ready": false, "me": false, "faceKey": null, "shownGender": "FEMALE", "look": null},
+    {"memberId": 13, "displayName": "러너다", "readiness": "ENTERING", "ready": false, "me": false, "faceKey": null, "shownGender": "FEMALE", "look": null}
+  ],
+  "crewId": 7,
+  "revision": 20,
+  "phase": "RUNNING",
+  "countdownToken": "101-18",
+  "startAt": "2026-11-16T19:00:03+09:00",
+  "countdownParticipantIds": [11],
+  "canStartNow": false,
+  "canJoin": false,
+  "meRunner": true,
+  "measurementRecordId": "6f1c2a0e-3b7d-4c55-9a8e-2f4b1d0c9e71"
+}

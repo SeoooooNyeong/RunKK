@@ -87,6 +87,23 @@ class RecordViewModelsTest {
     }
 
     @Test
+    fun `카드를 읽으면 고른 배경 키를 상태에 담고 못 읽으면 기본 무대다(FR-성-34)`() {
+        val vm = cardViewModel(shared = true)
+        vm.load("r1")
+        eventually { !vm.state.value.isLoading }
+        assertEquals("INCHEON", vm.state.value.backgroundKey)
+
+        avatars.backgroundResult = com.a207.runkk.app.core.model.Outcome.Failure(
+            com.a207.runkk.app.core.model.AppError.Network
+        )
+        val other = cardViewModel(shared = true)
+        other.load("r1")
+        eventually { !other.state.value.isLoading }
+        assertEquals(null, other.state.value.backgroundKey)
+        assertNotNull(other.state.value.card)
+    }
+
+    @Test
     fun `코스 지도 공유가 꺼져 있으면 뒷면 공유를 막고 이유를 보인다(FR-069)`() {
         val target = CountingTarget()
         records.cardResult = Outcome.Success(runCard(shared = false))

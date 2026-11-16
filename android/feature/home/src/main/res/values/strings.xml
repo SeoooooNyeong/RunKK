@@ -27,7 +27,13 @@
     <string name="home_guide_skip">건너뛰기</string>
     <string name="home_guide_next">다음</string>
     <string name="home_guide_start">시작하기</string>
-    <string name="home_guide_page">%1$d/%2$d</string>
+    <string name="home_guide_page">%1$d / %2$d</string>
+    <string name="home_guide_previous">이전</string>
+    <!-- 첫 사용 가이드 시작 카드(FR-성-35). 본문의 숫자는 보이는 단계 수다(닫힌 기능의 단계는 뺀다) -->
+    <string name="home_guide_start_title">런크크가 처음이신가요?</string>
+    <string name="home_guide_start_body">달리기를 시작하는 법 %1$d가지를 30초 안에 알려 드릴게요.</string>
+    <string name="home_guide_start_tour">둘러보기</string>
+    <string name="home_guide_start_hint">설정 > 가이드 다시 보기에서 언제든 다시 볼 수 있어요</string>
     <string name="home_resend_reminder">올리지 못한 기록이 있어요. 인터넷에 연결해 주세요</string>
     <string name="home_header_level">Lv.%1$s</string>
     <!-- 홈 「내 기록 요약」(FR-287, 피그마 61338:2049·61342:2228·61343:2552). -->
@@ -76,8 +82,6 @@
     <string name="home_entry_tier_spoken">%1$s 티어</string>
     <string name="home_entry_friend">친구 대결</string>
     <string name="home_entry_friend_caption">카톡으로 친구를 불러 함께</string>
-    <string name="home_run_battery_title">화면을 꺼도 러닝을 기록하려면</string>
-    <string name="home_run_battery_message">설정에서 런크크의 배터리 최적화를 해제하거나 제한 없음을 선택해 주세요. 설정을 마치면 돌아와 자유런을 다시 눌러 주세요.</string>
-    <string name="home_run_battery_open_settings">배터리 설정 열기</string>
-    <string name="home_run_battery_skip">지금 시작</string>
+    <!-- 크루런 결과 복귀 강조(설계 05-32) -->
+    <string name="home_week_added_crew_run">+%1$skm 크루런</string>
 </resources>

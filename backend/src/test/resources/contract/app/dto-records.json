@@ -291,6 +291,25 @@
     } ],
     "file" : "web/avatar/AvatarDtos.java"
   },
+  "AvatarLook" : {
+    "components" : [ {
+      "name" : "gender",
+      "kind" : "leaf"
+    }, {
+      "name" : "equipped",
+      "kind" : "map"
+    }, {
+      "name" : "bodyVariant",
+      "kind" : "leaf"
+    }, {
+      "name" : "runAmount",
+      "kind" : "leaf"
+    }, {
+      "name" : "faceKey",
+      "kind" : "leaf"
+    } ],
+    "file" : "common/AvatarLook.java"
+  },
   "BattleDtos.ActiveBattleResponse" : {
     "components" : [ {
       "name" : "battleId",
@@ -319,6 +338,10 @@
     }, {
       "name" : "placementRound",
       "kind" : "leaf"
+    }, {
+      "name" : "opponentLook",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -409,6 +432,10 @@
     }, {
       "name" : "placementState",
       "kind" : "leaf"
+    }, {
+      "name" : "opponentLook",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -440,6 +467,10 @@
     }, {
       "name" : "celebrityFigure",
       "kind" : "leaf"
+    }, {
+      "name" : "look",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -582,6 +613,10 @@
     }, {
       "name" : "celebrityFigure",
       "kind" : "leaf"
+    }, {
+      "name" : "opponentLook",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -765,6 +800,12 @@
     }, {
       "name" : "runDistanceMeters",
       "kind" : "leaf"
+    }, {
+      "name" : "authorFaceKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "authorShownGender",
+      "kind" : "leaf"
     } ],
     "file" : "web/chat/ChatController.java"
   },
@@ -819,6 +860,12 @@
       "kind" : "leaf"
     }, {
       "name" : "me",
+      "kind" : "leaf"
+    }, {
+      "name" : "faceKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
       "kind" : "leaf"
     } ],
     "file" : "web/chat/ChatController.java"
@@ -1164,6 +1211,9 @@
     }, {
       "name" : "raceContributionMeters",
       "kind" : "leaf"
+    }, {
+      "name" : "revision",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -1335,6 +1385,36 @@
       "name" : "participants",
       "kind" : "list",
       "ref" : "CrewDtos.LobbyResponse.Participant"
+    }, {
+      "name" : "crewId",
+      "kind" : "leaf"
+    }, {
+      "name" : "revision",
+      "kind" : "leaf"
+    }, {
+      "name" : "phase",
+      "kind" : "leaf"
+    }, {
+      "name" : "countdownToken",
+      "kind" : "leaf"
+    }, {
+      "name" : "startAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "countdownParticipantIds",
+      "kind" : "list-leaf"
+    }, {
+      "name" : "canStartNow",
+      "kind" : "leaf"
+    }, {
+      "name" : "canJoin",
+      "kind" : "leaf"
+    }, {
+      "name" : "meRunner",
+      "kind" : "leaf"
+    }, {
+      "name" : "measurementRecordId",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -1360,6 +1440,10 @@
     }, {
       "name" : "shownGender",
       "kind" : "leaf"
+    }, {
+      "name" : "look",
+      "kind" : "record",
+      "ref" : "AvatarLook"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -1400,6 +1484,51 @@
       "kind" : "leaf"
     }, {
       "name" : "requestedAt",
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
+  "CrewDtos.ParticipationResponse" : {
+    "components" : [ {
+      "name" : "postId",
+      "kind" : "leaf"
+    }, {
+      "name" : "crewId",
+      "kind" : "leaf"
+    }, {
+      "name" : "revision",
+      "kind" : "leaf"
+    }, {
+      "name" : "joinedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "measurementRecordId",
+      "kind" : "leaf"
+    }, {
+      "name" : "alreadyJoined",
+      "kind" : "leaf"
+    }, {
+      "name" : "participants",
+      "kind" : "list",
+      "ref" : "CrewDtos.ParticipationResponse.Runner"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
+  "CrewDtos.ParticipationResponse.Runner" : {
+    "components" : [ {
+      "name" : "memberId",
+      "kind" : "leaf"
+    }, {
+      "name" : "displayName",
+      "kind" : "leaf"
+    }, {
+      "name" : "joinedAt",
+      "kind" : "leaf"
+    }, {
+      "name" : "ended",
+      "kind" : "leaf"
+    }, {
+      "name" : "me",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
@@ -1505,6 +1634,12 @@
       "kind" : "leaf"
     }, {
       "name" : "size",
+      "kind" : "leaf"
+    }, {
+      "name" : "order",
+      "kind" : "leaf"
+    }, {
+      "name" : "activeOnly",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
@@ -1793,6 +1928,14 @@
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
+  "CrewDtos.ReadyRequest" : {
+    "components" : [ {
+      "name" : "ready",
+      "required" : true,
+      "kind" : "leaf"
+    } ],
+    "file" : "web/crew/CrewDtos.java"
+  },
   "CrewGoalHistoryController.GoalHistoryResponse" : {
     "components" : [ {
       "name" : "goals",
@@ -1882,6 +2025,12 @@
       "kind" : "leaf"
     }, {
       "name" : "genderVisibility",
+      "kind" : "leaf"
+    }, {
+      "name" : "faceKey",
+      "kind" : "leaf"
+    }, {
+      "name" : "shownGender",
       "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewMembersAssembler.java"

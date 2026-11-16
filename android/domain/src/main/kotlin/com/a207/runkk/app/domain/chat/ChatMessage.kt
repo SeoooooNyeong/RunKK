@@ -1,6 +1,7 @@
 package com.a207.runkk.app.domain.chat
 
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import java.time.Instant
 
 /**
@@ -10,6 +11,7 @@ import java.time.Instant
  * - [sendState]: 내가 보낸 메시지의 전송 상태. 실패면 ChatRoom.retry로 같은 clientMessageId로 다시 보낸다(D-160 (3)).
  * - [kind]: 보통 글(TEXT) 또는 러닝 완료 시스템 메시지(RUN_FINISHED, contract-W5). 시스템 메시지는 [runDistance]가 있다.
  * - [authorRole]: 작성자의 지금 크루 역할. 탈퇴했거나 크루를 떠났으면 null(크루장 배지, C7).
+ * - [authorFaceKey]·[authorShownGender]: 작성자의 아바타 얼굴 키와 표시 성별. 공개 판정은 서버가 한다. 탈퇴한 작성자·옛 서버는 둘 다 null.
  */
 data class ChatMessage(
     val messageId: Long?,
@@ -26,7 +28,9 @@ data class ChatMessage(
     val sendState: SendState = SendState.SENT,
     val kind: ChatMessageKind = ChatMessageKind.TEXT,
     val authorRole: ChatAuthorRole? = null,
-    val runDistance: Distance? = null
+    val runDistance: Distance? = null,
+    val authorFaceKey: String? = null,
+    val authorShownGender: Gender? = null
 ) {
     /** 러닝 완료 같은 서버 시스템 메시지인가. */
     val isSystem: Boolean get() = kind != ChatMessageKind.TEXT

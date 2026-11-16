@@ -1,5 +1,6 @@
 package com.a207.runkk.battle;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.Distance;
 import java.time.Duration;
 import java.time.LocalDate;
@@ -28,6 +29,8 @@ public record RecordBattleCandidates(List<Candidate> candidates) {
      * @param estimated 구간 기록 없이 평균 페이스로 추정(A-006)
      * @param myBest 그 거리 내 최고 기록, 없으면 null
      * @param figureKey 유명인 캐릭터 그림 키, 없으면 null(2026-10-31 결정)
+     * @param look 나와의 싸움 후보의 모습(그 기록을 달린 날의 나, 옛 기록이면 지금 모습). 기록이 없는 후보와 유명인 후보는 null(설계 5.31
+     *     [임시:D-성-251])
      */
     public record Candidate(
             Long celebrityId,
@@ -38,7 +41,32 @@ public record RecordBattleCandidates(List<Candidate> candidates) {
             Source source,
             boolean estimated,
             Duration myBest,
-            String figureKey) {
+            String figureKey,
+            AvatarLook look) {
+
+        /** 모습이 없는 후보(유명인). */
+        public Candidate(
+                Long celebrityId,
+                String displayName,
+                Distance distance,
+                Duration finishTime,
+                LocalDate recordedOn,
+                Source source,
+                boolean estimated,
+                Duration myBest,
+                String figureKey) {
+            this(
+                    celebrityId,
+                    displayName,
+                    distance,
+                    finishTime,
+                    recordedOn,
+                    source,
+                    estimated,
+                    myBest,
+                    figureKey,
+                    null);
+        }
 
         /** 캐릭터 그림 키가 없는 후보. */
         public Candidate(

@@ -21,6 +21,9 @@ internal data class CrewMembersResponse(val members: List<Member> = emptyList())
         val gender: String? = null,
         /** 본인 줄만(PUBLIC·PRIVATE). */
         val ageBandVisibility: String? = null,
-        val genderVisibility: String? = null
+        val genderVisibility: String? = null,
+        /** 아바타 얼굴 키와 표시 성별(MALE·FEMALE). 옛 서버면 없다. */
+        val faceKey: String? = null,
+        val shownGender: String? = null
     )
 }

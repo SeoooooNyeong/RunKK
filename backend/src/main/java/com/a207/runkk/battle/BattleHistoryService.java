@@ -29,14 +29,17 @@ public class BattleHistoryService {
     private final BattleRepository battleRepository;
     private final MemberQueryService memberQueryService;
     private final CelebrityRecordRepository celebrityRecordRepository;
+    private final OpponentLooks opponentLooks;
 
     public BattleHistoryService(
             BattleRepository battleRepository,
             MemberQueryService memberQueryService,
-            CelebrityRecordRepository celebrityRecordRepository) {
+            CelebrityRecordRepository celebrityRecordRepository,
+            OpponentLooks opponentLooks) {
         this.battleRepository = battleRepository;
         this.memberQueryService = memberQueryService;
         this.celebrityRecordRepository = celebrityRecordRepository;
+        this.opponentLooks = opponentLooks;
     }
 
     /**
@@ -164,7 +167,8 @@ public class BattleHistoryService {
                                         OpponentGenders.nameFor(battle, memberId),
                                         battle.getStartAt().orElse(null),
                                         battle.getOpponentFigure().orElse(null),
-                                        BattleResultService.placementRoundOf(battle)));
+                                        BattleResultService.placementRoundOf(battle),
+                                        opponentLooks.of(battle, memberId)));
     }
 
     private Map<Long, MemberSummary> rivalNames(Battle battle, long memberId) {

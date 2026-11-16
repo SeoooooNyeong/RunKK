@@ -35,10 +35,18 @@ data class MatchUiState(
     /** 배치고사 판 번호(MatchFound.placementRound). 있으면 상대를 점선 원 「?」로 그리고 상대 티어를 숨긴다(FR-276, J24-3). */
     val placementRound: Int? = null,
     /** 성사 화면의 GPS 예열 상태(W55). 예열하지 않으면(위치 권한 없음 등) null이고 그리지 않는다. */
-    val gps: GpsReadiness? = null
+    val gps: GpsReadiness? = null,
+    /**
+     * 대기 화면에서 뒤로 가기를 눌러 띄운 나가기 확인 창([임시:D-성-270], [임시:FR-성-32]). 요청 중·대기·초대 대기에서만 켜지고 상대가
+     * 정해지거나 대기가 끝나면 꺼진다.
+     */
+    val isLeaveConfirmVisible: Boolean = false
 ) {
     /** 상대 티어·그림을 숨기는가(배치고사 상대). */
     val isOpponentHidden: Boolean get() = placementRound != null
+
+    /** 친구 초대 대기인가(나가기 확인과 상시 안내가 「초대가 취소돼요」로 바뀐다, [임시:D-성-271]). */
+    val isInviteWaiting: Boolean get() = opponentKind == OpponentKind.FRIEND
 
     /** 초대가 끝난 까닭. 만료는 "다시 초대하기", 거절은 "확인"으로 친구 대결 거리 고르기에 돌아간다(D-271). */
     enum class InviteEnd { EXPIRED, DECLINED }

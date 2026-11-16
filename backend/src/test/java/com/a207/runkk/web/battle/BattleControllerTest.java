@@ -192,6 +192,75 @@ class BattleControllerTest extends WebTestSupport {
     }
 
     @Test
+    @DisplayName(
+            "대결 조회와 결과에 opponentLook이 실린다: 나와의 싸움 후보(look)·시작·진행 중 조회·결과가 기록을 달린 날의 내 모습을"
+                    + " 싣는다(설계 5.31 B)")
+    void 대결_조회와_결과에_opponentLook이_실린다() throws Exception {
+        Session s = signUp();
+        mvc.perform(
+                        as(s, post("/api/v1/avatar/default"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(Map.of("characterId", "FOX"))))
+                .andExpect(status().isOk());
+        upload(s, 5_000, 1_500);
+
+        mvc.perform(as(s, get("/api/v1/battles/self/candidates")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.candidates[0]").value(hasKey("look")))
+                .andExpect(
+                        jsonPath("$.candidates[?(@.distanceMeters == 10000)].look")
+                                .value(org.hamcrest.Matchers.contains(nullValue())))
+                .andExpect(
+                        jsonPath("$.candidates[?(@.distanceMeters == 5000)].look.faceKey")
+                                .value(org.hamcrest.Matchers.contains("default:FOX")))
+                .andExpect(
+                        jsonPath("$.candidates[?(@.distanceMeters == 5000)].look.gender")
+                                .value(
+                                        org.hamcrest.Matchers.everyItem(
+                                                org.hamcrest.Matchers.oneOf("MALE", "FEMALE"))))
+                .andExpect(
+                        jsonPath("$.candidates[?(@.distanceMeters == 5000)].look.bodyVariant")
+                                .value(org.hamcrest.Matchers.contains(0)))
+                .andExpect(
+                        jsonPath("$.candidates[?(@.distanceMeters == 5000)].look.runAmount")
+                                .value(org.hamcrest.Matchers.contains(0)));
+        mvc.perform(as(s, get("/api/v1/battles/celebrity/candidates")))
+                .andExpect(status().isOk())
+                .andExpect(
+                        jsonPath("$.candidates[*].look")
+                                .value(org.hamcrest.Matchers.everyItem(nullValue())));
+
+        String started =
+                mvc.perform(
+                                as(s, post("/api/v1/battles/self"))
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(distance(5_000)))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.opponentLook.faceKey").value("default:FOX"))
+                        .andExpect(jsonPath("$.opponentLook.equipped").isMap())
+                        .andExpect(jsonPath("$.opponentLook.bodyVariant").value(0))
+                        .andReturn()
+                        .getResponse()
+                        .getContentAsString();
+        long battleId = body(started).get("battleId").asLong();
+
+        mvc.perform(as(s, get("/api/v1/battles/active")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.battleId").value(battleId))
+                .andExpect(jsonPath("$.opponentGender").value(nullValue()))
+                .andExpect(jsonPath("$.opponentLook.faceKey").value("default:FOX"));
+        mvc.perform(as(s, post("/api/v1/battles/" + battleId + "/started")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(s, post("/api/v1/battles/" + battleId + "/forfeit")))
+                .andExpect(status().isNoContent());
+        mvc.perform(as(s, get("/api/v1/battles/" + battleId + "/result")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.opponentGender").value(nullValue()))
+                .andExpect(jsonPath("$.opponentLook.faceKey").value("default:FOX"))
+                .andExpect(jsonPath("$.opponentLook.runAmount").value(0));
+    }
+
+    @Test
     @DisplayName("나와의 싸움: 후보 → 기록 없음 거부 → 시작 → 시작 보고 → 포기 → 결과·이력")
     void selfBattle_flow() throws Exception {
         Session s = signUp();

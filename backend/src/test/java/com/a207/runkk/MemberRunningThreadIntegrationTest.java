@@ -179,6 +179,26 @@ class MemberRunningThreadIntegrationTest {
     }
 
     @Test
+    @org.junit.jupiter.api.DisplayName(
+            "탈퇴하면 기록의 모습도 사라진다: 저장 때 붙은 모습 열(V66)은 기록 행과 함께 지워진다(설계 5.31 [임시:D-성-249])")
+    void 탈퇴하면_기록의_모습도_사라진다() {
+        long m = newMember();
+        uploads.upload(m, new RunUploadCommand(upload(id(41), 5_000, 1_500)));
+        assertThat(
+                        count(
+                                "select count(*) from run_record where member_id = ? and"
+                                    + " look_gender is not null and look_body_variant is not null"
+                                    + " and look_run_amount is not null",
+                                m))
+                .as("실 PostgreSQL에서 저장 시점 모습이 붙는다")
+                .isEqualTo(1);
+
+        assertThat(withdrawals.withdraw(m).withdrawn()).isTrue();
+
+        assertThat(count("select count(*) from run_record where member_id = ?", m)).isZero();
+    }
+
+    @Test
     void t6_withdrawal_listenersWipeDomainData_thenPurgeAfterSevenDays() {
         long m = newMember();
         long other = newMember();

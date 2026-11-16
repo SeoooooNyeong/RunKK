@@ -14,6 +14,8 @@ import com.a207.runkk.app.domain.live.CrewChatPosted
 import com.a207.runkk.app.domain.live.CrewChatReactionChanged
 import com.a207.runkk.app.domain.live.CrewChatRemoved
 import com.a207.runkk.app.domain.live.CrewRunCancelled
+import com.a207.runkk.app.domain.live.CrewRunChanged
+import com.a207.runkk.app.domain.live.CrewRunDeparture
 import com.a207.runkk.app.domain.live.CrewRunEnded
 import com.a207.runkk.app.domain.live.CrewRunRelay
 import com.a207.runkk.app.domain.live.CrewRunStart
@@ -584,6 +586,8 @@ constructor(
             is MatchFound, is MatchFailed, is FriendInviteDeclined, is FriendInviteExpired -> Unit
 
             is CrewRunStart, is CrewRunCancelled, is CrewRunRelay, is CrewRunEnded -> Unit
+
+            is CrewRunChanged, is CrewRunDeparture -> Unit
 
             // 채팅은 같은 연결을 쓰는 ChatRoom이 받는다(D-103).
             is CrewChatPosted, is CrewChatRemoved, is CrewChatReactionChanged -> Unit

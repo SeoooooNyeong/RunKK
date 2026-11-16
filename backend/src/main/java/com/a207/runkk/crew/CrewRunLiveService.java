@@ -1,5 +1,6 @@
 package com.a207.runkk.crew;
 
+import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.ProgressReport;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -65,6 +66,14 @@ public class CrewRunLiveService {
     /** 일시정지 표시 → 모든 참가자에게 "멈춤"(합산 방식). 세션이 없거나 참가자가 아니면 무시한다. */
     public void markPaused(long memberId, long postId, Duration elapsedAt) {
         change(postId, session -> session.markPaused(memberId, elapsedAt));
+    }
+
+    /**
+     * 중간 참여자를 세션에 더하고 모든 참가자에게 중계한다(설계 05-32 [임시:D-성-885]). 세션이 없으면 아무 일도 없다(1초 시계가 진행 참가자로 다시 연다).
+     * 이미 참가자면 바꾸지 않는다. 누락 보충(CrewRunAnnouncer.ensureSession)도 이 연산을 쓴다.
+     */
+    public void join(long postId, long memberId, DisplayName name, LocalDateTime joinedAt) {
+        change(postId, session -> session.join(memberId, name, joinedAt));
     }
 
     /** 끝냄 표시(마지막 값 반영) → 모든 참가자에게 "끝냄"(합산 방식). */

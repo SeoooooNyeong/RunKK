@@ -1,6 +1,5 @@
 package com.a207.runkk.app.ui.crew
 
-import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,12 +20,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -41,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
@@ -53,9 +50,9 @@ import com.a207.runkk.app.core.designsystem.RunkkDialogMessage
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.tierName
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRole
-import kotlinx.coroutines.launch
 
 /**
  * 오른쪽 위 닫기 ✕가 있고 제목 줄이 없는 카드 대화상자(피그마 F-22b 크루원 정보): 흰 바탕, 모서리 [corner], 양옆 [side], 위 [top].
@@ -117,62 +114,17 @@ private fun CrewCloseableDialog(
 private const val DIALOG_DIM = 0.45f
 
 /**
- * 초대 코드 팝업(피그마 F-18b·F-25b, 크루장·크루원 같음): 제목 "초대 코드", surfaceHigh 코드 칸(높이 56, 모서리 14, 24 Bold 자간 4),
- * 라임 "복사" 하나(폭 가득), 오른쪽 위 ✕. 재발급·사용 기한은 없다(서버가 만료된 코드를 읽을 때 새로 발급한다, contract-W7).
- */
-@Composable
-internal fun InviteCodeDialog(code: String, actions: CrewHomeActions) {
-    val title = stringResource(R.string.crew_info_invite)
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-    val spoken = stringResource(R.string.crew_manage_invite_code_description, code.toList().joinToString(" "))
-    RunkkDialog(
-        title = title,
-        onDismissRequest = actions.onInviteClose,
-        onClose = actions.onInviteClose,
-        closeLabel = stringResource(R.string.crew_info_invite_close_description),
-        borderColor = RunkkColors.Border
-    ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(RunkkColors.SurfaceHigh)
-                .semantics { contentDescription = spoken },
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                code,
-                style = RunkkTextStyles.text(24, FontWeight.Bold, letterSpacingEm = CODE_LETTER_SPACING),
-                color = RunkkColors.TextPrimary,
-                textAlign = TextAlign.Center
-            )
-        }
-        RunkkButton(
-            stringResource(R.string.crew_manage_invite_copy),
-            onClick = {
-                scope.launch {
-                    clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(title, code)))
-                    actions.onInviteCopied()
-                }
-            },
-            size = RunkkButtonSize.Medium,
-            modifier = Modifier.padding(top = 10.dp).fillMaxWidth()
-        )
-    }
-}
-
-/** 초대 코드 자간(피그마 4 / 글자 24). */
-private const val CODE_LETTER_SPACING = 4f / 24f
-
-/**
  * 크루원 정보 팝업(피그마 F-22b·F-29b): 폭 310 카드(양옆 40, 모서리 24, 위 28), 가운데 80 원 사진, 닉네임 18 Bold, 크루장이면 배지,
  * 정보 다섯 줄(티어·레벨·나이·성별·가입일, 비공개는 "비공개"), 한 줄 소개 칸. 크루장이 다른 크루원을 열면 "크루장 넘기기"(외곽선)·
  * "내보내기"(보라)를 더 본다.
  */
 @Composable
-internal fun CrewMemberDialog(member: CrewMembers.Member, canManage: Boolean, actions: CrewHomeActions) {
+internal fun CrewMemberDialog(
+    member: CrewMembers.Member,
+    canManage: Boolean,
+    actions: CrewHomeActions,
+    faceLayers: List<FaceLayer> = emptyList()
+) {
     val name = member.displayName
     CrewCloseableDialog(
         paneTitle = name,
@@ -187,7 +139,13 @@ internal fun CrewMemberDialog(member: CrewMembers.Member, canManage: Boolean, ac
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            RunkkAvatarCircle(80.dp, borderColor = RunkkColors.Border)
+            RunkkAvatarCircle(
+                faceKey = member.faceKey,
+                size = 80.dp,
+                faceLayers = faceLayers,
+                character = AvatarCharacter.of(member.shownGender),
+                borderColor = RunkkColors.Border
+            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -287,7 +245,7 @@ internal fun CrewPill(text: String, description: String, isFilled: Boolean, isEn
 
 /**
  * 크루 정보·크루원 쪽 대화상자: 탈퇴 확인(F-19), 크루장 탈퇴 불가 안내(F-28, "닫기" 하나), 크루원 정보 팝업(F-22b·F-29b), 크루장
- * 넘기기(F-29c)·내보내기(F-29d)·크루 삭제(F-27) 확인, 초대 코드(F-18b). 확인은 W1 확인 대화상자(외곽선 취소 + 보라 확인)다.
+ * 넘기기(F-29c)·내보내기(F-29d)·크루 삭제(F-27) 확인, 초대 창([임시:FR-성-37]). 확인은 W1 확인 대화상자(외곽선 취소 + 보라 확인)다.
  */
 @Composable
 internal fun CrewInfoDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
@@ -313,7 +271,9 @@ internal fun CrewInfoDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
             )
         }
     }
-    state.openedMember?.let { CrewMemberDialog(it, state.canManage, actions) }
+    state.openedMember?.let {
+        CrewMemberDialog(it, state.canManage, actions, it.faceKey?.let(state.memberFaces::get).orEmpty())
+    }
     state.confirmTransfer?.let {
         RunkkConfirmDialog(
             title = stringResource(R.string.crew_manage_transfer_title, it.displayName),
@@ -341,6 +301,9 @@ internal fun CrewInfoDialogs(state: CrewHomeUiState, actions: CrewHomeActions) {
             onDismiss = actions.onCrewDeleteDismiss
         )
     }
-    val code = state.detail?.inviteCode
-    if (state.isInviteOpen && code != null) InviteCodeDialog(code, actions)
+    val detail = state.detail
+    val code = detail?.inviteCode
+    if (state.isInviteOpen && detail != null && code != null) {
+        CrewInviteSheet(code, detail.inviteCodeExpiresAt, detail.name, actions)
+    }
 }

@@ -23,6 +23,7 @@ import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunDetail
 import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunJoin
 import com.a207.runkk.app.domain.crew.CrewRunRepeat
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
@@ -527,6 +528,7 @@ val crewRunResult = CrewRunResult(
 )
 
 /** 크루 REST 가짜. 부른 연산을 [calls]에 남긴다. 결과는 [fail]에 코드로 넣으면 그 연산이 거부된다. */
+
 class FakeCrewRepository : CrewRepository {
     val calls = mutableListOf<String>()
     val fail = mutableMapOf<String, AppError>()
@@ -690,7 +692,10 @@ class FakeCrewRepository : CrewRepository {
         return answer("ranking:$period", rankingByPeriod[period] ?: ranking)
     }
 
-    override suspend fun race(crewId: Long, weekStart: LocalDate?) = answer("race", race)
+    /** 레이스 응답(바꿔 가며 다시 읽기 강조를 본다). */
+    var raceState: RaceStatus = race
+
+    override suspend fun race(crewId: Long, weekStart: LocalDate?) = answer("race", raceState)
 
     override suspend fun posts(crewId: Long, kind: PostList.Kind?, cursor: Long?): Outcome<PostList> {
         if (cursor != null) {
@@ -774,6 +779,31 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun leaveLobby(postId: Long) = answer("leaveLobby:$postId", lobbyState)
 
+    /** 설계 05-32 새 대기실 API(GET·PUT·start·join)가 있는 서버인가. 거짓이면 옛 서버처럼 없다(enter·토글로 들어간다). */
+    var lobbyApi = false
+
+    /** GET 대기실이 돌려줄 값(없으면 [lobbyState]). 출발 확인 읽기를 바꿀 때 쓴다. */
+    var lobbyRead: Lobby? = null
+
+    /** POST join 응답. */
+    var joinState = CrewRunJoin(31, 11, 1, start, "rec-31-7", isAlreadyJoined = false)
+
+    private fun <T> newApi(op: String, value: () -> T): Outcome<T> =
+        if (lobbyApi) answer(op, value()) else Outcome.Failure(AppError.Server(NOT_IMPLEMENTED))
+
+    override suspend fun lobby(postId: Long) = newApi("lobby:$postId") { lobbyRead ?: lobbyState }
+
+    override suspend fun setReady(postId: Long, ready: Boolean): Outcome<Lobby> = newApi("setReady:$postId:$ready") {
+        lobbyState = lobbyState.copy(
+            participants = lobbyState.participants.map { if (it.isMe) it.copy(isReady = ready) else it }
+        )
+        lobbyState
+    }
+
+    override suspend fun startNow(postId: Long) = newApi("startNow:$postId") { lobbyState }
+
+    override suspend fun join(postId: Long) = newApi("join:$postId") { joinState }
+
     override suspend fun quit(postId: Long, distanceMeters: Long?, elapsed: Duration?) =
         answer("quit:$postId:${distanceMeters ?: "-"}", Unit)
 
@@ -781,7 +811,19 @@ class FakeCrewRepository : CrewRepository {
 
     var resultState = crewRunResult
 
-    override suspend fun crewRunResult(postId: Long) = answer("result:$postId", resultState)
+    /** 있으면 결과 읽기가 이것이 끝날 때까지 기다린다(겹치는 읽기 시험). */
+    var resultGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    override suspend fun crewRunResult(postId: Long): Outcome<CrewRunResult> {
+        calls += "result:$postId"
+        resultGate?.await()
+        return fail["result"]?.let { Outcome.Failure(it) } ?: Outcome.Success(resultState)
+    }
+
+    /** 받아 둔 얼굴 그림(faceKey → 층). 없는 키는 null이라 [faceLayers]로 받는다. */
+    val cachedFaces = mutableMapOf<String, List<FaceLayer>>()
+
+    override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = cachedFaces[faceKey]
 
     /** 셀카 얼굴 키면 부위 그림 한 장, 아니면 빈 목록(FaceImageSource와 같은 규칙). */
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = answer(
@@ -793,7 +835,10 @@ class FakeCrewRepository : CrewRepository {
 class FakeLiveChannels : LiveChannelProvider {
     val channel = FakeLiveChannel()
 
-    override fun open(): LiveChannel = channel
+    /** 빌려 간 임대 수. */
+    var opened = 0
+
+    override fun open(): LiveChannel = channel.also { opened++ }
 }
 
 class FakeLiveChannel : LiveChannel {
@@ -925,3 +970,6 @@ class CrewWorld(scope: CoroutineScope, val clock: MutableClock = MutableClock())
             CrewWorld(CoroutineScope(StandardTestDispatcher(testScheduler) + Job(backgroundScope.coroutineContext.job)))
     }
 }
+
+/** 새 API가 없는 옛 서버의 응답 코드(구현 없음). */
+private const val NOT_IMPLEMENTED = 501

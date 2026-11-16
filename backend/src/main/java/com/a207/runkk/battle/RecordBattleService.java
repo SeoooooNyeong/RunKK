@@ -56,6 +56,7 @@ public class RecordBattleService {
     private final BattleRepository battleRepository;
     private final MatchQueue matchQueue;
     private final Clock clock;
+    private final OpponentLooks opponentLooks;
 
     public RecordBattleService(
             MemberQueryService memberQueryService,
@@ -63,16 +64,21 @@ public class RecordBattleService {
             CelebrityRecordRepository celebrityRecordRepository,
             BattleRepository battleRepository,
             MatchQueue matchQueue,
-            Clock clock) {
+            Clock clock,
+            OpponentLooks opponentLooks) {
         this.memberQueryService = memberQueryService;
         this.runQueryService = runQueryService;
         this.celebrityRecordRepository = celebrityRecordRepository;
         this.battleRepository = battleRepository;
         this.matchQueue = matchQueue;
         this.clock = clock;
+        this.opponentLooks = opponentLooks;
     }
 
-    /** 3·5·10km·하프 본인 최고 기록. 없으면 "아직 기록이 없어요". */
+    /**
+     * 3·5·10km·하프 본인 최고 기록. 없으면 "아직 기록이 없어요". 기록이 있는 후보는 그 기록을 달린 날의 내 모습을 싣고, 모습이 없는 옛 기록이면 지금
+     * 모습으로 대신한다(설계 5.31 [임시:D-성-251]).
+     */
     @Transactional(readOnly = true)
     public RecordBattleCandidates selfCandidates(long memberId) {
         List<RecordBattleCandidates.Candidate> candidates =
@@ -90,7 +96,16 @@ public class RecordBattleService {
         LocalDate on = best.map(BestEntry::achievedOn).orElse(null);
         String label = on == null ? NO_RECORD_YET : SELF_LABEL.format(on);
         return new RecordBattleCandidates.Candidate(
-                null, label, distance.distance(), time, on, null, false);
+                null,
+                label,
+                distance.distance(),
+                time,
+                on,
+                null,
+                false,
+                null,
+                null,
+                best.map(entry -> opponentLooks.selfLook(memberId, entry.recordId())).orElse(null));
     }
 
     /** 유명인 기록 목록과 출처, 거리 필터(FR-097, FR-100). 코치 기록만 보인다(D-851). */
@@ -154,7 +169,8 @@ public class RecordBattleService {
                 battle.getOpponentTrack().orElseThrow(),
                 null,
                 false,
-                null);
+                null,
+                opponentLooks.selfLook(memberId, best.recordId()));
     }
 
     /** 나와의 싸움 상대: 그 거리 최고 기록의 1초 표본, 표시명 "MM/dd의 나"(POST /battles/self와 워치 미리 받기가 함께 쓴다). */
@@ -184,7 +200,8 @@ public class RecordBattleService {
                 battle.getOpponentTrack().orElseThrow(),
                 celebrity.getSource(),
                 celebrity.isEstimated(),
-                battle.getOpponentFigure().orElse(null));
+                battle.getOpponentFigure().orElse(null),
+                null);
     }
 
     /**

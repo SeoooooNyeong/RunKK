@@ -27,9 +27,14 @@ public interface CrewPostRepository {
 
     /**
      * 삭제·숨김을 뺀 글, 최신순(ID 내림차순). 종류가 비면 전부, pinnedOnly면 고정 공지만. page.size가 있으면 cursor보다 작은 ID부터 size
-     * + 1개까지 읽는다(FR-212).
+     * + 1개까지 읽는다(FR-212). activeOnly면 VOTING·LOBBY_OPEN·RUNNING 크루런만. order가 SCHEDULED_ASC면 크루런을
+     * (예정일시, ID) 오름차순으로 cursor 글의 (예정일시, ID) 뒤부터 size + 1개까지 읽는다. 그 크루의 크루런 cursor 글이 없으면(복원 불가)
+     * IllegalArgumentException(설계 05-32 4.5).
      */
     List<CrewPost> findVisible(long crewId, PostQuery query);
+
+    /** 그 기록을 이은 참여가 있는 크루런 ID(설계 05-32 RESULT 신호). 없으면 비어 있다. */
+    Optional<Long> findCrewRunIdByLinkedRecord(String recordId);
 
     /** 보이는(삭제·숨김 아닌) 고정 공지 수(D-154). */
     int countPinnedNotices(long crewId);

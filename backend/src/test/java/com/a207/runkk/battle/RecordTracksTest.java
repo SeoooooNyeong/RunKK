@@ -57,7 +57,15 @@ class RecordTracksTest {
         when(members.hasConsent(anyLong(), eq(ConsentItem.LOCATION))).thenReturn(true);
         when(members.summaries(anyCollection()))
                 .thenReturn(Map.of(ALICE, BattleFixtures.summary(ALICE, Tier.GOLD)));
-        records = new RecordBattleService(members, runs, celebrities, battles, queue, clock);
+        records =
+                new RecordBattleService(
+                        members,
+                        runs,
+                        celebrities,
+                        battles,
+                        queue,
+                        clock,
+                        BattleFixtures.noLooks());
     }
 
     /** 그 거리 최고 기록 하나(기록 ID = "best-미터"), 표본은 시작·중간·도착 세 점. */

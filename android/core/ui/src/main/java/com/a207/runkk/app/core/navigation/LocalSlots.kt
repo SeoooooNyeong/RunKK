@@ -32,8 +32,17 @@ val LocalSlotAvatarFacingLeft = compositionLocalOf { false }
 /** 칸을 그리는 측정 화면이 아바타 칸에 넘기는 달리기 동작 빠르기(1 = 6:00/km, 빠를수록 크다). 칸 밖이면 1. */
 val LocalSlotAvatarRunSpeed = compositionLocalOf { 1f }
 
+/** 칸을 그리는 화면이 아바타 칸에 넘기는 대상([임시:D-성-259]). 칸 밖이거나 넘기지 않으면 내 아바타다. [RunAvatarSlot] 참고. */
+val LocalSlotAvatarRunSubject = compositionLocalOf { RunAvatarSubject.Mine }
+
 /** 전신 정지 그림 칸(SlotKey.AVATAR_STILL)에 넘기는 사람. 칸 밖이면 null이다. [AvatarStillSlot] 참고. */
 val LocalSlotAvatarStill = compositionLocalOf<AvatarStillSubject?> { null }
 
 /** 전신 정지 그림 칸을 부른 쪽의 지금 그림. 칸 내용이 그릴 수 없을 때(꾸미기 닫힘) 대신 그린다. 칸 밖이면 null이다. */
 val LocalSlotAvatarStillFallback = compositionLocalOf<(@Composable () -> Unit)?> { null }
+
+/**
+ * 전신 정지 그림 칸에 넘기는 준비 신호([임시:D-성-292]). 칸 내용이 그림(정지 그림 또는 대체 그림)을 보이면 한 번 부른다. 칸 밖이면 아무것도
+ * 하지 않는다.
+ */
+val LocalSlotAvatarStillOnReady = compositionLocalOf<() -> Unit> { {} }

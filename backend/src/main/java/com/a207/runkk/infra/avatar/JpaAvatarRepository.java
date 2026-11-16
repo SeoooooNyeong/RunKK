@@ -1,11 +1,19 @@
 package com.a207.runkk.infra.avatar;
 
 import com.a207.runkk.avatar.Avatar;
+import com.a207.runkk.avatar.AvatarFace;
 import com.a207.runkk.avatar.AvatarRepository;
+import com.a207.runkk.avatar.DefaultCharacter;
+import com.a207.runkk.avatar.Face;
+import com.a207.runkk.avatar.FacePart;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.util.Collection;
+import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 import org.springframework.stereotype.Repository;
@@ -27,6 +35,45 @@ public class JpaAvatarRepository implements AvatarRepository {
     public Avatar findOrCreate(long memberId) {
         Avatar found = entityManager.find(Avatar.class, memberId);
         return found != null ? found : Avatar.create(memberId);
+    }
+
+    @Override
+    public Map<Long, String> faceKeysOf(Collection<Long> memberIds) {
+        List<Long> ids = memberIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        List<Object[]> rows =
+                entityManager
+                        .createQuery(
+                                "select a.memberId, a.defaultCharacter, a.headJobId, key(p),"
+                                        + " value(p) from Avatar a left join a.facePartKeys p where"
+                                        + " a.memberId in :ids",
+                                Object[].class)
+                        .setParameter("ids", ids)
+                        .getResultList();
+        Map<Long, Object[]> faces = new LinkedHashMap<>();
+        Map<Long, Map<FacePart, String>> parts = new LinkedHashMap<>();
+        for (Object[] row : rows) {
+            Long id = (Long) row[0];
+            faces.putIfAbsent(id, row);
+            Map<FacePart, String> faceParts =
+                    parts.computeIfAbsent(id, key -> new EnumMap<>(FacePart.class));
+            if (row[3] != null) {
+                faceParts.put((FacePart) row[3], (String) row[4]);
+            }
+        }
+        Map<Long, String> result = new LinkedHashMap<>();
+        for (Long id : ids) {
+            Object[] row = faces.get(id);
+            if (row != null) {
+                new AvatarFace(id, (DefaultCharacter) row[1], (String) row[2], parts.get(id))
+                        .face()
+                        .map(Face::renderKey)
+                        .ifPresent(key -> result.put(id, key));
+            }
+        }
+        return result;
     }
 
     /**

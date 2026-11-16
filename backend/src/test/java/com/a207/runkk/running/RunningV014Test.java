@@ -55,6 +55,7 @@ class RunningV014Test {
                     books,
                     (point, at) -> Optional.empty(),
                     new MemberQueryService(members),
+                    memberId -> java.util.Optional.empty(),
                     published::add,
                     RunningServicesTest.NO_TX,
                     clock);

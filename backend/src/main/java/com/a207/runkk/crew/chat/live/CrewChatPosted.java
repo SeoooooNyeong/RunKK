@@ -19,6 +19,9 @@ import java.time.OffsetDateTime;
  * @param authorRole 작성자의 지금 크루 역할 이름(crew.CrewRole 상수 LEADER·MANAGER·MEMBER, live는 crew를 import하지
  *     않아 문자열로 싣는다), 탈퇴했거나 크루를 떠났으면 null
  * @param runDistanceMeters 러닝 완료 메시지의 거리(미터), 보통 메시지면 null
+ * @param authorFaceKey 작성자 아바타 얼굴 키, 얼굴을 안 골랐거나 탈퇴 작성자면 null(설계 5.31 [임시:D-성-229], 폴링
+ *     ChatMessageItem과 같은 항목)
+ * @param authorShownGender 작성자 표시 성별 이름(MALE | FEMALE), 탈퇴 작성자면 null
  */
 public record CrewChatPosted(
         long crewId,
@@ -30,7 +33,9 @@ public record CrewChatPosted(
         String clientMessageId,
         ChatMessageKind messageKind,
         String authorRole,
-        Long runDistanceMeters)
+        Long runDistanceMeters,
+        String authorFaceKey,
+        String authorShownGender)
         implements CrewChatSignal {
 
     @Override
