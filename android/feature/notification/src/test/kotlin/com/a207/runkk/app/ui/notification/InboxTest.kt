@@ -241,7 +241,8 @@ class InboxTest {
             constants
         )
         assertEquals(
-            V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS + W7_KEYS,
+            V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS + W7_KEYS +
+                GUIDE_REPLAY_KEYS + CREW_INVITE_KEYS,
             keys
         )
     }
@@ -376,6 +377,12 @@ class InboxTest {
 
         /** 피그마 맞춤 W7: 크루 관리(CrewManage)를 지우고 지난 목표를 더했다(지난 크루런 경로는 W6). */
         val W7_KEYS = setOf("CrewPastGoals")
+
+        /** 실기기 수정([임시:D-성-312]): 가이드 다시 보기 신호 경로. */
+        val GUIDE_REPLAY_KEYS = setOf("GuideReplay")
+
+        /** 실기기 수정([임시:D-성-243]): 크루 초대 링크의 가입 확인. */
+        val CREW_INVITE_KEYS = setOf("CrewInviteJoin")
 
         // W5(D-653): 채팅은 크루 홈 탭이 되어 CrewChat 경로를 지웠다.
         val V011_KEYS = setOf("CrewPollWrite", "CrewBoardWrite")

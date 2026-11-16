@@ -10,5 +10,7 @@ internal data class ReactorItem(
     val displayName: String,
     val kind: String,
     val reactedAt: String,
-    @SerialName("me") val isMe: Boolean = false
+    @SerialName("me") val isMe: Boolean = false,
+    val faceKey: String? = null,
+    val shownGender: String? = null
 )

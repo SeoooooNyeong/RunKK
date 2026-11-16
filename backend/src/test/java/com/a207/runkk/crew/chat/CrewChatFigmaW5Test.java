@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import com.a207.runkk.NoTransactions;
 import com.a207.runkk.audit.AuditService;
+import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
@@ -18,6 +19,8 @@ import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.crew.CrewMembershipReader;
 import com.a207.runkk.crew.CrewRelation;
 import com.a207.runkk.crew.CrewRole;
+import com.a207.runkk.member.DisclosureLevel;
+import com.a207.runkk.member.Gender;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberSummary;
 import java.time.Clock;
@@ -51,6 +54,7 @@ class CrewChatFigmaW5Test {
             new InMemoryChatRepositories.Reactions();
     private final CrewMembershipReader membership = mock(CrewMembershipReader.class);
     private final MemberQueryService memberQuery = mock(MemberQueryService.class);
+    private final AvatarQuery avatarQuery = mock(AvatarQuery.class);
     private final List<DomainEvent> events = new ArrayList<>();
     private final Map<Long, CrewRelation> relations = new HashMap<>();
     private CrewChatService service;
@@ -94,6 +98,7 @@ class CrewChatFigmaW5Test {
                         reactions,
                         membership,
                         memberQuery,
+                        new ChatAuthorFaces(memberQuery, avatarQuery),
                         mock(AuditService.class),
                         events::add,
                         NoTransactions.manager(),
@@ -314,12 +319,102 @@ class CrewChatFigmaW5Test {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    /** 모두 공개, 1번만 얼굴(head:1:ab12)을 골랐고 표시 성별은 홀수 MALE, 짝수 FEMALE. */
+    private void facesKnown() {
+        when(memberQuery.disclosureOf(anyLong(), anyCollection()))
+                .thenAnswer(
+                        inv -> {
+                            long viewer = inv.getArgument(0);
+                            Map<Long, DisclosureLevel> out = new HashMap<>();
+                            for (Long id : inv.<Collection<Long>>getArgument(1)) {
+                                out.put(
+                                        id,
+                                        id == viewer
+                                                ? DisclosureLevel.SELF
+                                                : DisclosureLevel.PUBLIC);
+                            }
+                            return out;
+                        });
+        when(avatarQuery.faceKeysOf(anyCollection()))
+                .thenAnswer(
+                        inv ->
+                                inv.<Collection<Long>>getArgument(0).contains(1L)
+                                        ? Map.of(1L, "head:1:ab12")
+                                        : Map.of());
+        when(memberQuery.shownGendersOf(anyCollection()))
+                .thenAnswer(
+                        inv -> {
+                            Map<Long, Gender> out = new HashMap<>();
+                            for (Long id : inv.<Collection<Long>>getArgument(0)) {
+                                out.put(id, id % 2 == 1 ? Gender.MALE : Gender.FEMALE);
+                            }
+                            return out;
+                        });
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "채팅 목록 항목이 작성자 얼굴을 싣는다: 얼굴 키와 표시 성별, 얼굴을 안 골랐으면 키만 null, 탈퇴 작성자는 둘 다 null")
+    void 채팅_목록_항목이_작성자_얼굴을_싣는다() {
+        facesKnown();
+        write(1, "첫 글");
+        write(2, "둘째 글");
+        write(4, "떠난 글");
+        messages.anonymizeAuthor(4);
+
+        List<ChatPage.Line> lines =
+                service.history(3, CREW, ChatCursor.of(null, null, 20)).messages();
+
+        assertThat(lines)
+                .extracting(ChatPage.Line::authorFaceKey, ChatPage.Line::authorShownGender)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("head:1:ab12", "MALE"),
+                        org.assertj.core.groups.Tuple.tuple(null, "FEMALE"),
+                        org.assertj.core.groups.Tuple.tuple(null, null));
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("폴링 after도 같은 필드: 메우기 조회 항목과 보내기 응답에도 작성자 얼굴이 실린다")
+    void 폴링_after도_같은_필드() {
+        facesKnown();
+        long first = write(2, "앞 글");
+        ChatPage.Line sentLine =
+                service.post(1, CREW, new ChatDraft(UUID.randomUUID().toString(), "뒤 글")).message();
+
+        List<ChatPage.Line> lines =
+                service.history(3, CREW, ChatCursor.of(null, first, 20)).messages();
+
+        assertThat(lines).hasSize(1);
+        assertThat(lines.get(0).authorFaceKey()).isEqualTo("head:1:ab12");
+        assertThat(lines.get(0).authorShownGender()).isEqualTo("MALE");
+        assertThat(sentLine.authorFaceKey()).isEqualTo("head:1:ab12");
+        assertThat(sentLine.authorShownGender()).isEqualTo("MALE");
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("반응자 목록 행이 얼굴을 싣는다: 얼굴 키와 표시 성별")
+    void 반응자_목록_행이_얼굴을_싣는다() {
+        facesKnown();
+        long id = write(3, "내일 7시");
+        reactions.add(ChatReaction.of(id, 1, ReactionKind.LIKE, NOW.minusMinutes(2)));
+        reactions.add(ChatReaction.of(id, 2, ReactionKind.LIKE, NOW.minusMinutes(1)));
+
+        List<ChatReactor> rows = service.reactors(3, id, Optional.empty());
+
+        assertThat(rows)
+                .extracting(ChatReactor::memberId, ChatReactor::faceKey, ChatReactor::shownGender)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(1L, "head:1:ab12", "MALE"),
+                        org.assertj.core.groups.Tuple.tuple(2L, null, "FEMALE"));
+    }
+
     private CrewChatService serviceOver(CrewChatMessageRepository repository) {
         return new CrewChatService(
                 repository,
                 reactions,
                 membership,
                 memberQuery,
+                new ChatAuthorFaces(memberQuery, avatarQuery),
                 mock(AuditService.class),
                 events::add,
                 NoTransactions.manager(),

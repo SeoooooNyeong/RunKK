@@ -252,7 +252,9 @@ class CrewScenarioTest {
         assertThat(result.totalDistance()).isEqualTo(Distance.ofMeters(200));
         assertThat(result.myRecordId()).isEqualTo("quit-record-000000000000000000000001");
         assertThat(result.title()).isEqualTo("둘이");
-        assertThat(result.startedAt()).isEqualTo(at.plusSeconds(3));
+        // 05-32 U-25: 입장자 둘이 모두 준비한 순간 예약(+3초)으로 출발했다(희망일시를 기다리지 않는다)
+        assertThat(result.startedAt()).isEqualTo(crewRuns.readLobby(a, run).startAt());
+        assertThat(result.startedAt()).isBefore(at);
         assertThat(sessions.load(run)).isEmpty();
         assertThat(race.contributionOf("quit-record-000000000000000000000001"))
                 .isEqualTo(Distance.ZERO);

@@ -482,7 +482,7 @@ class CrewW7ScreensTest {
     }
 
     @Test
-    fun `초대 코드 팝업은 복사와 닫기 ✕만 있고 재발급·기한은 없다(F-18b)`() {
+    fun `초대 창은 복사와 세 동작과 닫기가 있고 재발급은 없다(실기기 수정 ⑧, FR-성-37)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
@@ -491,9 +491,13 @@ class CrewW7ScreensTest {
                 )
             }
         }
+        compose.onNodeWithText("크루원 초대").assertExists()
         compose.onNodeWithText("복사").assertExists()
+        compose.onNodeWithText("카카오톡으로 보내기").assertExists()
+        compose.onNodeWithText("초대 링크 복사").assertExists()
+        compose.onNodeWithText("다른 앱으로 공유").assertExists()
         compose.onNodeWithText("새로 발급").assertDoesNotExist()
-        compose.onNodeWithContentDescription("초대 코드 닫기").performClick()
+        compose.onNodeWithText("닫기").performClick()
         assertEquals(listOf("close"), calls)
     }
 

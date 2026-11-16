@@ -41,6 +41,8 @@ dependencies {
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.robolectric)
+    // 절전 모드 안내 대화상자를 뒤로 가기로 닫는 시험(RunPowerSaveStartTest)
+    testImplementation(libs.androidx.espresso.core)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testFixturesImplementation(platform(libs.androidx.compose.bom))

@@ -12,6 +12,7 @@ import com.a207.runkk.crew.MeetupPost;
 import com.a207.runkk.crew.NoticePost;
 import com.a207.runkk.crew.PollPost;
 import com.a207.runkk.crew.PostKind;
+import com.a207.runkk.crew.PostOrder;
 import com.a207.runkk.crew.PostPhoto;
 import com.a207.runkk.crew.PostQuery;
 import jakarta.persistence.EntityManager;
@@ -86,6 +87,9 @@ public class JpaCrewPostRepository implements CrewPostRepository {
 
     @Override
     public List<CrewPost> findVisible(long crewId, PostQuery query) {
+        if (query.order() == PostOrder.SCHEDULED_ASC || query.activeOnly()) {
+            return List.copyOf(findCrewRuns(crewId, query));
+        }
         PageCursor page = query.page();
         String entity = query.pinnedOnly() ? "NoticePost" : "CrewPost";
         StringBuilder jpql =
@@ -120,6 +124,81 @@ public class JpaCrewPostRepository implements CrewPostRepository {
             q.setMaxResults(page.size() + 1);
         }
         return q.getResultList();
+    }
+
+    /** 크루런만(설계 05-32 4.5): 진행 중만 거르기와 (예정일시, ID) 오름차순 이어 읽기. */
+    private List<CrewRunPost> findCrewRuns(long crewId, PostQuery query) {
+        PageCursor page = query.page();
+        boolean ascending = query.order() == PostOrder.SCHEDULED_ASC;
+        StringBuilder jpql =
+                new StringBuilder(
+                        "select p from CrewRunPost p where p.crewId = :crew and p.deleted = false"
+                                + " and p.hidden = false");
+        if (query.activeOnly()) {
+            jpql.append(" and p.status in :active");
+        }
+        LocalDateTime cursorAt = null;
+        if (page.cursor() != null && ascending) {
+            cursorAt = scheduledAtOf(crewId, page.cursor());
+            jpql.append(
+                    " and (p.scheduledAt > :cursorAt or (p.scheduledAt = :cursorAt and p.id >"
+                            + " :cursor))");
+        } else if (page.cursor() != null) {
+            jpql.append(" and p.id < :cursor");
+        }
+        jpql.append(ascending ? " order by p.scheduledAt asc, p.id asc" : " order by p.id desc");
+        TypedQuery<CrewRunPost> q =
+                entityManager
+                        .createQuery(jpql.toString(), CrewRunPost.class)
+                        .setParameter("crew", crewId);
+        if (query.activeOnly()) {
+            q.setParameter(
+                    "active",
+                    List.of(CrewRunStatus.VOTING, CrewRunStatus.LOBBY_OPEN, CrewRunStatus.RUNNING));
+        }
+        if (page.cursor() != null) {
+            q.setParameter("cursor", page.cursor());
+        }
+        if (cursorAt != null) {
+            q.setParameter("cursorAt", cursorAt);
+        }
+        if (page.size() != null) {
+            q.setMaxResults(page.size() + 1);
+        }
+        return q.getResultList();
+    }
+
+    /**
+     * 날짜순 cursor 글의 예정일시. 지운 글도 행이 있으면 이어 읽는다. 그 크루의 크루런이 아니거나 없으면 IllegalArgumentException(400).
+     */
+    private LocalDateTime scheduledAtOf(long crewId, long cursor) {
+        List<LocalDateTime> found =
+                entityManager
+                        .createQuery(
+                                "select p.scheduledAt from CrewRunPost p where p.id = :id and"
+                                        + " p.crewId = :crew",
+                                LocalDateTime.class)
+                        .setParameter("id", cursor)
+                        .setParameter("crew", crewId)
+                        .getResultList();
+        if (found.isEmpty()) {
+            throw new IllegalArgumentException("날짜순 cursor 글을 찾을 수 없다: " + cursor);
+        }
+        return found.get(0);
+    }
+
+    @Override
+    public Optional<Long> findCrewRunIdByLinkedRecord(String recordId) {
+        return entityManager
+                .createQuery(
+                        "select p.id from CrewRunPost p join p.participations pa where"
+                                + " pa.linkedRecordId = :record",
+                        Long.class)
+                .setParameter("record", recordId)
+                .setMaxResults(1)
+                .getResultList()
+                .stream()
+                .findFirst();
     }
 
     private static Class<? extends CrewPost> typeOf(PostKind kind) {

@@ -130,7 +130,9 @@ public class ChatController {
                                                         r.displayName(),
                                                         r.kind(),
                                                         r.reactedAt(),
-                                                        r.me()))
+                                                        r.me(),
+                                                        r.faceKey(),
+                                                        r.shownGender()))
                                 .toList()));
     }
 
@@ -148,7 +150,9 @@ public class ChatController {
                 line.clientMessageId(),
                 line.kind(),
                 line.authorRoleName(),
-                line.runDistanceMeters());
+                line.runDistanceMeters(),
+                line.authorFaceKey(),
+                line.authorShownGender());
     }
 
     private static ReactionResponse reaction(ReactionView view) {
@@ -191,6 +195,8 @@ public class ChatController {
      * @param authorRole 작성자의 지금 크루 역할(crew.CrewRole 상수 LEADER·MANAGER·MEMBER), 탈퇴했거나 크루를 떠났으면
      *     null(크루장 배지, W5)
      * @param runDistanceMeters 러닝 완료 메시지의 거리(미터), 보통 메시지면 null(W5)
+     * @param authorFaceKey 작성자 아바타 얼굴 키, 얼굴을 안 골랐거나 탈퇴 작성자면 null(설계 5.31 A)
+     * @param authorShownGender 작성자 표시 성별(MALE | FEMALE), 탈퇴 작성자면 null
      */
     record ChatMessageItem(
             long messageId,
@@ -205,7 +211,9 @@ public class ChatController {
             String clientMessageId,
             ChatMessageKind messageKind,
             String authorRole,
-            Long runDistanceMeters) {}
+            Long runDistanceMeters,
+            String authorFaceKey,
+            String authorShownGender) {}
 
     /**
      * 리액션 결과.
@@ -233,11 +241,15 @@ public class ChatController {
      * @param kind 반응 종류
      * @param reactedAt 반응한 일시
      * @param me 요청자 본인
+     * @param faceKey 반응한 회원의 아바타 얼굴 키, 얼굴을 안 골랐으면 null(설계 5.31 A)
+     * @param shownGender 반응한 회원의 표시 성별(MALE | FEMALE)
      */
     record Reactor(
             long memberId,
             String displayName,
             ReactionKind kind,
             OffsetDateTime reactedAt,
-            boolean me) {}
+            boolean me,
+            String faceKey,
+            String shownGender) {}
 }

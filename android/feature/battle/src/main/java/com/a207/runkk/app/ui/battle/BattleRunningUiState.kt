@@ -5,6 +5,9 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
+import com.a207.runkk.app.core.model.RunViewMode
+import com.a207.runkk.app.core.model.RunnerLook
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
 import java.time.LocalDate
@@ -56,7 +59,13 @@ data class BattleRunningUiState(
     /** 셀럽 그림 키(카운트다운·지도 위 셀럽 그림). 없으면 공통 그림. */
     val celebrityFigure: String? = null,
     /** 배치고사 판 번호(Routes.BattleRunning.placementRound). 있으면 지도 위 상대를 점선 원 「?」로 그린다(FR-276, J24-3). */
-    val placementRound: Int? = null
+    val placementRound: Int? = null,
+    /** 상대 아바타 모습(트랙 보기, [임시:D-성-265]). 배치고사·고스트·셀럽이거나 받지 못했으면 null(성별 기본 모습)이다. */
+    val opponentLook: RunnerLook? = null,
+    /** 고른 보기(기기에 저장한 값, 처음은 트랙, [임시:D-성-264]). 지도를 띄울 수 없으면 화면이 트랙으로 그린다. */
+    val viewMode: RunViewMode = RunViewMode.TRACK,
+    /** 내 아바타(트랙 배경 키, 이름표와 지도 위 내 얼굴). 읽기 전이거나 못 읽으면 null(기본 배경·기본 얼굴)이다. */
+    val myAvatar: MyAvatar? = null
 ) {
     /** 측정 중인가(진행·종료 카운트다운). */
     val isMeasuring: Boolean get() = phase == BattlePhase.RUNNING || phase == BattlePhase.CLOSING

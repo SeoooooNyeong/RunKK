@@ -241,16 +241,7 @@ public class Avatar {
 
     /** 얼굴. 고르지 않았으면 비어 있다. */
     public Optional<Face> face() {
-        if (defaultCharacter != null) {
-            return Optional.of(new DefaultFace(defaultCharacter));
-        }
-        if (headJobId != null) {
-            return Optional.of(() -> "head:" + memberId + ":" + headJobId);
-        }
-        if (facePartKeys.size() == FacePart.values().length) {
-            return Optional.of(new SelfieFace(new SdFaceParts(facePartKeys)));
-        }
-        return Optional.empty();
+        return new AvatarFace(memberId, defaultCharacter, headJobId, facePartKeys).face();
     }
 
     /** 얼굴이 없으면 "기본 캐릭터를 고를 수 있다". 고른 배경 키(null = 기본 배경)를 싣는다(FR-162, FR-202). */

@@ -1,0 +1,106 @@
+package com.a207.runkk.app.ui.avatar
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.unit.Constraints
+import com.a207.runkk.app.core.avatar.AvatarStageFrame
+import com.a207.runkk.app.core.avatar.RiveAvatarStill
+import com.a207.runkk.app.core.avatar.RunkkRiveAvatar
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
+import com.a207.runkk.app.core.designsystem.LocalReduceMotion
+import com.a207.runkk.app.core.designsystem.LocalTrackAvatarLoading
+import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
+import com.a207.runkk.app.core.designsystem.TrackAvatarViewport
+import com.a207.runkk.app.core.navigation.AvatarSlotPose
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarRunSpeed
+import kotlin.math.roundToInt
+
+internal const val TRACK_RUN_AVATAR_PLACEHOLDER_TAG = "track-run-avatar-placeholder"
+
+/**
+ * 트랙 주자 칸의 아바타. 준비 중에는 아무것도 그리지 않고 카드에 알려([LocalTrackAvatarLoading]) 주자를 통째로 숨기게 한다.
+ * 실패했을 때만 같은 키의 성별 기본 정지 그림이다. 그림자는 트랙 카드가 한 번만 그린다.
+ */
+@Composable
+internal fun TrackRunAvatarFigure(
+    state: RunFigureState,
+    pose: AvatarSlotPose,
+    facingLeft: Boolean,
+    onError: () -> Unit
+) {
+    val look = (state as? RunFigureState.Ready)?.look
+    val isFailed = state is RunFigureState.Failed
+    val character = (state as? RunFigureState.Failed)?.character ?: LocalAvatarCharacter.current
+    val reduceMotion = LocalReduceMotion.current
+    // 자세가 바뀌어도 같은 그림이라 준비 상태를 지킨다.
+    TrackRunAvatarFrame(Triple(look, reduceMotion, isFailed), isFailed, character) { onReady ->
+        if (look != null && !isFailed) {
+            if (reduceMotion) {
+                RiveAvatarStill(look, Modifier.fillMaxSize(), onError = { onError() }, onReady = onReady)
+            } else {
+                AvatarStageFrame(modifier = Modifier.trackRiveViewport(), showShadow = false) {
+                    RunkkRiveAvatar(
+                        gender = look.gender,
+                        motion = pose.motion(),
+                        outfit = look.outfit,
+                        bodyShape = look.bodyShape,
+                        runningAmount = look.runningAmount,
+                        headLayers = look.headLayers,
+                        modifier = Modifier.fillMaxSize(),
+                        mirrored = facingLeft,
+                        runSpeed = LocalSlotAvatarRunSpeed.current,
+                        onReady = onReady,
+                        onError = { onError() }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun TrackRunAvatarFrame(
+    readyKey: Any?,
+    isFailed: Boolean,
+    character: AvatarCharacter,
+    content: @Composable (onReady: () -> Unit) -> Unit
+) {
+    var isReady by remember(readyKey) { mutableStateOf(false) }
+    val report = LocalTrackAvatarLoading.current
+    val isLoading = !isFailed && !isReady
+    DisposableEffect(isLoading, report) {
+        report(isLoading)
+        onDispose { report(false) }
+    }
+    Box(Modifier.fillMaxSize()) {
+        content { isReady = true }
+        if (isFailed) {
+            RunkkRunningFigure(
+                isMoving = false,
+                frameMillis = 0,
+                character = character,
+                modifier = Modifier.fillMaxSize().testTag(TRACK_RUN_AVATAR_PLACEHOLDER_TAG)
+            )
+        }
+    }
+}
+
+/** 보이는 몸 높이 칸에서 Rive 무대의 투명 여백만 밖으로 빼고 발끝을 칸 바닥에 맞춘다. */
+private fun Modifier.trackRiveViewport(): Modifier = layout { measurable, constraints ->
+    val viewport = TrackAvatarViewport.of(constraints.maxHeight.toFloat())
+    val slot = viewport.slotSize.roundToInt()
+    val placeable = measurable.measure(Constraints.fixed(slot, slot))
+    layout(constraints.maxWidth, constraints.maxHeight) {
+        placeable.place((constraints.maxWidth - slot) / 2, viewport.top.roundToInt())
+    }
+}

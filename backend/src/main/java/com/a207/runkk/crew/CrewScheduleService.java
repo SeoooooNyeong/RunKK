@@ -36,6 +36,7 @@ public class CrewScheduleService {
     private final MemberQueryService memberQueryService;
     private final CrewRunHistory history;
     private final CrewTransactions transactions;
+    private final CrewRunAnnouncer announcer;
     private final Clock clock;
 
     CrewScheduleService(
@@ -45,6 +46,7 @@ public class CrewScheduleService {
             MemberQueryService memberQueryService,
             CrewRunHistory history,
             CrewTransactions transactions,
+            CrewRunAnnouncer announcer,
             Clock clock) {
         this.crewPostRepository = crewPostRepository;
         this.crewAccess = crewAccess;
@@ -52,6 +54,7 @@ public class CrewScheduleService {
         this.memberQueryService = memberQueryService;
         this.history = history;
         this.transactions = transactions;
+        this.announcer = announcer;
         this.clock = clock;
     }
 
@@ -75,6 +78,7 @@ public class CrewScheduleService {
         CrewRunPost post = locked(postId);
         LocalDateTime now = LocalDateTime.now(clock);
         post.edit(memberId, edit, now);
+        announcer.scheduleChanged(post); // 열린 크루런 목록 신호(설계 05-32 SCHEDULE)
         crewPostRepository.save(post);
         repeater.apply(post, edit.repeat(), now);
         return view(post, crew, memberId, now);
@@ -94,6 +98,7 @@ public class CrewScheduleService {
                     }
                     CrewRunPost post = locked(postId);
                     AttendanceView view = post.withdraw(memberId, LocalDateTime.now(clock));
+                    announcer.scheduleChanged(post);
                     crewPostRepository.save(post);
                     return view;
                 });

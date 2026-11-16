@@ -251,7 +251,7 @@ class CrewFigmaTest {
     }
 
     @Test
-    fun `크루원도 크루 정보에서 초대 코드 팝업을 열고 복사한다(F-18b)`() {
+    fun `크루원도 크루 정보에서 초대 창을 열고 코드를 복사한다(F-18b, FR-성-37)`() {
         var state by mutableStateOf(
             CrewHomeUiState(crewId = 11, detail = crewDetail(role = CrewRole.MEMBER), page = CrewHomePage.INFO)
         )

@@ -21,6 +21,22 @@ import org.robolectric.annotation.GraphicsMode
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class SkinToneLayeringTest {
     @Test
+    fun `새 기본 여자 헤어는 옛 목 앞 가닥 영역도 원본대로 그린다`() {
+        val layers = SideHeadLayers(
+            face = png(1024, 1024) {},
+            eyes = png(1024, 1024) {},
+            hair = png(1024, 1024) { fill(it, 700..730, 800..830, HAIR) },
+            neckRegistration = SideNeckRegistration.FEMALE
+        )
+        val composed = decode(AvatarImages.composeSideHead(layers, amount = 0))
+        try {
+            assertEquals(HAIR, composed.getPixel(715, 815))
+        } finally {
+            composed.recycle()
+        }
+    }
+
+    @Test
     fun `측면 머리는 얼굴 피부만 어둡게 하고 눈·헤어 색은 그대로 얹는다`() {
         val layers = SideHeadLayers(
             face = png(64, 64) { fill(it, 0..63, 0..63, SKIN) },

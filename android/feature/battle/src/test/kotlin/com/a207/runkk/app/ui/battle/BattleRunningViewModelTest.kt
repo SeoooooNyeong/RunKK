@@ -7,8 +7,13 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.SlotRunnerLook
+import com.a207.runkk.app.domain.account.MySummary
 import com.a207.runkk.app.domain.battle.BattleRunState
 import com.a207.runkk.app.domain.live.BattleEnded
 import com.a207.runkk.app.domain.live.BattleGuidance
@@ -44,7 +49,7 @@ class BattleRunningViewModelTest {
         runCurrent()
         w.channels.channel.push(BattleStart(match.battleId, w.clock.now, opponentTrack = null))
         runCurrent()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         vm.bind(key)
         runCurrent()
         return vm
@@ -191,7 +196,7 @@ class BattleRunningViewModelTest {
         val w = world()
         w.permission.granted = false
         val match = matchFound()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         vm.bind(key)
         w.coordinator.onMatched(match)
         runCurrent()
@@ -205,7 +210,7 @@ class BattleRunningViewModelTest {
     fun `채널 연결이 실패하면 조정자 failure를 안내로 보이고 닫을 때 지운다`() = main.runVmTest { vms ->
         val w = world()
         w.channels.channel.connectFailure = AppError.Network
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         vm.bind(key)
         w.coordinator.onMatched(matchFound())
         runCurrent()
@@ -218,7 +223,7 @@ class BattleRunningViewModelTest {
     @Test
     fun `기록 대결 - 3초 카운트다운을 보인 뒤 측정으로`() = main.runVmTest { vms ->
         val w = world()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         w.coordinator.onRecordBattleStart(
             recordStart(Distance(5_000), com.a207.runkk.app.core.model.CardKind.SELF_RUN, "과거의 나")
         )
@@ -236,14 +241,14 @@ class BattleRunningViewModelTest {
     @Test
     fun `배치고사 판이면 진행 중 상대를 물음표로 그리고 아니면 상대 그림을 그린다(FR-276)`() = main.runVmTest { vms ->
         val w = world()
-        val placement = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val placement = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         placement.bind(key.copy(placementRound = 2))
         runCurrent()
         assertEquals(2, placement.state.value.placementRound)
         assertTrue(placement.state.value.isOpponentHidden)
         assertEquals("바람처럼", placement.state.value.opponentName, "표시명은 서버의 가상 닉네임 그대로다")
 
-        val plain = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val plain = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         plain.bind(key)
         runCurrent()
         assertNull(plain.state.value.placementRound)
@@ -264,7 +269,7 @@ class BattleRunningViewModelTest {
     @Test
     fun `조정자가 이 대결을 모르면 잠시 뒤 실패 화면으로 빠져나갈 수 있다`() = main.runVmTest { vms ->
         val w = world()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         vm.bind(key)
         runCurrent()
         assertEquals(BattlePhase.STARTING, vm.state.value.phase)
@@ -283,7 +288,7 @@ class BattleRunningViewModelTest {
         w.runTo(1, 0.0)
         w.runTo(20, 60.0)
         runCurrent()
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         vm.bind(key.copy(startAtEpochMillis = start.toEpochMilli()))
         runCurrent()
         assertEquals(Duration.ofSeconds(20), vm.state.value.elapsed)
@@ -295,7 +300,7 @@ class BattleRunningViewModelTest {
         vms: ViewModelCloser,
         kind: CardKind = CardKind.SELF_RUN
     ): BattleRunningViewModel {
-        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
         w.coordinator.onRecordBattleStart(recordStart(Distance(5_000), kind, "10월 2일의 나"))
         val opponent = if (kind == CardKind.SELF_RUN) OpponentKind.SELF else OpponentKind.CELEBRITY
         vm.bind(
@@ -310,6 +315,59 @@ class BattleRunningViewModelTest {
         )
         runCurrent()
         return vm
+    }
+
+    @Test
+    fun `상대 모습이 상태에 실린다`() = main.runVmTest { vms ->
+        val w = world()
+        val look = SlotRunnerLook(isFemale = true, topItemId = 12, shoesItemId = 31, bodyVariant = 1, runAmount = 42)
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
+
+        vm.bind(key.copy(opponentGender = "FEMALE", opponentLook = look))
+        runCurrent()
+
+        assertEquals(
+            RunnerLook(Gender.FEMALE, 12, null, 31, bodyVariant = 1, runAmount = 42, faceKey = null),
+            vm.state.value.opponentLook
+        )
+        assertEquals(look, vm.state.value.opponentLook?.toSlot(), "칸에 넘길 때 같은 값으로 돌아간다")
+    }
+
+    @Test
+    fun `모습을 받지 못하면 상태에 모습이 없다(성별 기본 모습으로 그린다)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
+
+        vm.bind(key.copy(opponentGender = "MALE"))
+        runCurrent()
+
+        assertEquals(null, vm.state.value.opponentLook)
+        assertEquals(Gender.MALE, vm.state.value.opponentGender)
+    }
+
+    @Test
+    fun `배치고사는 물음표를 유지한다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
+
+        vm.bind(key.copy(placementRound = 2, opponentLook = SlotRunnerLook(isFemale = false, topItemId = 12)))
+        runCurrent()
+
+        assertEquals(true, vm.state.value.isOpponentHidden)
+        assertEquals(null, vm.state.value.opponentLook, "배치고사 상대는 모습이 와도 그리지 않는다")
+    }
+
+    @Test
+    fun `내 아바타(배경 키와 얼굴)를 홈과 같은 본인 요약에서 읽는다`() = main.runVmTest { vms ->
+        val w = world()
+        w.accounts.summaryResult = Outcome.Success(MySummary("달리는곰", "GOLD", 3, "default:FOX", "SEOUL_NAMSAN", 12))
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
+
+        vm.bind(key)
+        runCurrent()
+
+        assertEquals("SEOUL_NAMSAN", vm.state.value.myAvatar?.backgroundKey)
+        assertEquals("default:FOX", vm.state.value.myAvatar?.faceKey)
     }
 
     @Test

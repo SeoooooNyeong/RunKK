@@ -18,5 +18,7 @@ data class SettingsActions(
     /** 로그아웃 확인 대화상자에서 "로그아웃". */
     val onLogout: () -> Unit = {},
     /** 못 올린 기록 "다시 보내기"(W40). */
-    val onResendRejected: () -> Unit = {}
+    val onResendRejected: () -> Unit = {},
+    /** 「가이드 다시 보기」([임시:FR-성-36]): 홈으로 가서 첫 사용 가이드를 1단계부터 다시 본다. */
+    val onReplayGuide: () -> Unit = {}
 )

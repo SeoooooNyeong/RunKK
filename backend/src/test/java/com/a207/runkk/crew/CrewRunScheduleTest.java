@@ -80,7 +80,8 @@ class CrewRunScheduleTest {
         post.enterLobby(OTHER, SAT.minusMinutes(10), RULE);
         post.toggleReady(LEADER);
         post.toggleReady(OTHER);
-        post.depart(SAT, RULE);
+        post.depart(SAT, RULE); // 05-32: 후보 고정, 3초 뒤 출발 예약
+        post.depart(SAT.plusSeconds(3), RULE);
         LocalDateTime departed = post.departedAt().orElseThrow();
         LocalDateTime closes = RULE.closesAt(departed, StandardDistance.HALF);
         assertThat(post.shouldClose(closes.minusSeconds(1), RULE)).isFalse();

@@ -5,6 +5,7 @@ import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewList
@@ -316,7 +317,8 @@ class CrewRepositoryImplTest {
         api.reply(
             """{"postId":77,"scheduledAt":"2026-10-25T06:00:00","distanceMeters":3000,"remainingSeconds":600,
                |"status":"LOBBY_OPEN","participants":[{"memberId":3,"displayName":"곰","readiness":"READY","ready":true,"me":false,
-               |"faceKey":"default:FOX","shownGender":"FEMALE"},
+               |"faceKey":"default:FOX","shownGender":"FEMALE",
+               |"look":{"gender":"FEMALE","equipped":{"BOTTOM":5},"bodyVariant":2,"runAmount":10,"faceKey":"default:FOX"}},
                |{"memberId":7,"displayName":"나","readiness":"ENTERING","ready":false,"me":true}]}
             """.trimMargin()
         )
@@ -346,7 +348,8 @@ class CrewRepositoryImplTest {
                         isMe = false,
                         isEntered = true,
                         faceKey = "default:FOX",
-                        shownGender = Gender.FEMALE
+                        shownGender = Gender.FEMALE,
+                        look = RunnerLook(Gender.FEMALE, null, 5, null, 2, 10, "default:FOX")
                     ),
                     Lobby.Participant("나", false, 7, isMe = true, isEntered = true)
                 ),

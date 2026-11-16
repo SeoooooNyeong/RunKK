@@ -34,18 +34,21 @@ public class CrewRunRepeater {
     private final CrewRepository crewRepository;
     private final NotificationService notificationService;
     private final CrewTransactions transactions;
+    private final CrewRunAnnouncer announcer;
 
     CrewRunRepeater(
             CrewRunSeriesRepository seriesRepository,
             CrewPostRepository crewPostRepository,
             CrewRepository crewRepository,
             NotificationService notificationService,
-            CrewTransactions transactions) {
+            CrewTransactions transactions,
+            CrewRunAnnouncer announcer) {
         this.seriesRepository = seriesRepository;
         this.crewPostRepository = crewPostRepository;
         this.crewRepository = crewRepository;
         this.notificationService = notificationService;
         this.transactions = transactions;
+        this.announcer = announcer;
     }
 
     /** 저장된 글(첫 회차)로 반복을 시작하고 글을 반복에 묶는다. 부르는 쪽 트랜잭션 안에서 쓴다. */
@@ -156,6 +159,7 @@ public class CrewRunRepeater {
         series.advance(next.getId(), slot);
         seriesRepository.save(series);
         announce(crew.get(), next);
+        announcer.scheduleChanged(next); // 열린 크루런 목록에 새 회차(설계 05-32 SCHEDULE)
         return true;
     }
 

@@ -1,6 +1,9 @@
 package com.a207.runkk.app.ui.crew
 
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
@@ -17,7 +20,9 @@ import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
 import com.a207.runkk.app.domain.crew.CrewRunProgress
+import com.a207.runkk.app.domain.crew.CrewRunStanding
 import com.a207.runkk.app.domain.crew.Lobby
+import com.a207.runkk.app.domain.live.CrewRunRelay
 import java.time.Duration
 import kotlin.test.assertEquals
 import org.junit.Rule
@@ -90,13 +95,18 @@ class CrewRunFigmaW2Test {
     }
 
     @Test
-    fun `진행 지도의 달리는 크루원은 이름표가 없고 멈춘 크루원만 멈춤 표시다(F-15, D-645)`() {
-        show(
-            runningState()
-        )
-        compose.onNodeWithText("바람처럼", useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithText("달빛 멈춤", useUnmergedTree = true).assertExists()
-        compose.onNodeWithText("나", useUnmergedTree = true).assertDoesNotExist()
+    fun `트랙의 가장 가까운 크루원은 이름표를 달고 멈춘 사람만 멈춤 표시다(FR-성-30, D-성-13)`() {
+        // 트랙 보기에서는 가장 가까운 한 명과 나만 이름표를 단다. 나머지 크루원은 그리지 않는다.
+        var state by mutableStateOf(runningState())
+        compose.setContent { RunkkTheme(reduceMotion = true) { CrewRunScreen(state, CrewRunActions()) } }
+        // 80 m 뒤의 바람처럼은 화면 밖이라 이름표 대신 가장자리 칩이다.
+        compose.onNodeWithText("‹ 바람처럼 80 m", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("달빛 멈춤", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("나", useUnmergedTree = true).assertExists()
+
+        state = runningState(nearestPaused = true)
+        compose.waitForIdle()
+        compose.onNodeWithText("바람처럼 멈춤", useUnmergedTree = true).assertExists()
     }
 
     @Test
@@ -174,7 +184,7 @@ private val route = RouteLine(
 )
 
 /** 진행 중(F-15): 나 0.40km, 앞선 크루원 하나, 멈춘 크루원 하나. */
-private fun runningState(isPaused: Boolean = false) = CrewRunUiState(
+private fun runningState(isPaused: Boolean = false, nearestPaused: Boolean = false) = CrewRunUiState(
     postId = 31,
     distance = Distance(5_000),
     phase = CrewRunPhase.RUNNING,
@@ -190,5 +200,18 @@ private fun runningState(isPaused: Boolean = false) = CrewRunUiState(
         averagePace = Pace(331),
         isPaused = isPaused,
         route = route
+    ),
+    // 나 400 m: 가장 가까운 사람은 80 m 뒤의 바람처럼(화면 밖이라 가장자리 칩), 그 뒤에 달빛
+    standing = CrewRunStanding.of(
+        400,
+        listOf(
+            CrewRunStanding.Mate(
+                1,
+                "바람처럼",
+                if (nearestPaused) 392 else 320,
+                if (nearestPaused) CrewRunRelay.State.PAUSED else CrewRunRelay.State.RUNNING
+            ),
+            CrewRunStanding.Mate(2, "달빛", 250, CrewRunRelay.State.PAUSED)
+        )
     )
 )

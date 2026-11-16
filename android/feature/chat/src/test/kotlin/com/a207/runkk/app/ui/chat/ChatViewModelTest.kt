@@ -4,6 +4,8 @@ package com.a207.runkk.app.ui.chat
 
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.chat.ChatMessageKind
@@ -11,6 +13,7 @@ import com.a207.runkk.app.domain.chat.ChatPage
 import com.a207.runkk.app.domain.chat.ChatRoom
 import com.a207.runkk.app.domain.chat.ReactionKind
 import com.a207.runkk.app.domain.chat.Reactor
+import com.a207.runkk.app.domain.live.CrewChatPosted
 import com.a207.runkk.app.domain.report.ReportReason
 import com.a207.runkk.app.domain.report.ReportTarget
 import com.a207.runkk.app.domain.report.ReportTargetKind
@@ -52,6 +55,74 @@ class ChatViewModelTest {
         assertEquals(1, live.channel.closes, "close 1회")
         assertEquals(listOf(CREW, CREW), registry.opened)
         assertEquals(listOf(CREW), registry.closed)
+    }
+
+    @Test
+    fun `작성자_얼굴을_키마다_한_번_받는다`() = runTest(main.dispatcher) {
+        chats.cachedFaces["selfie:9/z"] = listOf(FaceLayer(FacePart.HAIR, byteArrayOf(9)))
+        val vm = viewModel(
+            ChatPage(
+                listOf(
+                    chatMessage(101, authorFaceKey = "selfie:2/a"),
+                    chatMessage(102, authorFaceKey = "selfie:2/a"),
+                    chatMessage(103, authorFaceKey = "selfie:9/z"),
+                    chatMessage(104, isMine = true, authorFaceKey = "selfie:1/me"),
+                    chatMessage(105, authorFaceKey = null)
+                ),
+                hasMore = false
+            )
+        ).shown()
+        live.channel.messages.emit(
+            CrewChatPosted(CREW, 106, 2, "바람처럼", "또 왔어요", T0, null, authorFaceKey = "selfie:2/a")
+        )
+        live.channel.messages.emit(
+            CrewChatPosted(CREW, 107, 3, "새벽곰", "안녕", T0, null, authorFaceKey = "selfie:3/c")
+        )
+
+        assertEquals(listOf<String?>("selfie:2/a", "selfie:3/c"), chats.faceCalls, "내 메시지와 받아 둔 그림은 받지 않는다")
+        assertEquals(setOf("selfie:2/a", "selfie:3/c", "selfie:9/z"), vm.state.value.faces.keys)
+    }
+
+    @Test
+    fun `얼굴_받기_실패는_오류를_띄우지_않는다`() = runTest(main.dispatcher) {
+        chats.faceFailure = AppError.Network
+        val vm = viewModel(ChatPage(listOf(chatMessage(101, authorFaceKey = "selfie:2/a")), hasMore = false)).shown()
+
+        assertTrue(vm.state.value.faces.isEmpty())
+        assertNull(vm.state.value.message, "얼굴 그림을 못 받아도 안내를 띄우지 않는다")
+
+        chats.faceFailure = null
+        live.channel.messages.emit(CrewChatPosted(CREW, 102, 3, "새벽곰", "안녕", T0, null))
+
+        assertEquals(setOf("selfie:2/a"), vm.state.value.faces.keys, "다음 목록 갱신에 다시 받는다")
+    }
+
+    @Test
+    fun `얼굴_받기가_계속_실패하면_세_번까지만_받는다`() = runTest(main.dispatcher) {
+        chats.faceFailure = AppError.Network
+        viewModel(ChatPage(listOf(chatMessage(101, authorFaceKey = "selfie:2/a")), hasMore = false)).shown()
+
+        (102L..110L).forEach { id -> live.channel.messages.emit(CrewChatPosted(CREW, id, 3, "새벽곰", "안녕", T0, null)) }
+
+        assertEquals(3, chats.faceCalls.size)
+    }
+
+    @Test
+    fun `반응자_얼굴도_키마다_한_번_받는다`() = runTest(main.dispatcher) {
+        chats.reactorsResult = Outcome.Success(
+            listOf(
+                Reactor(4, "느긋한고래", ReactionKind.CHECK, T0, isMe = false, faceKey = "selfie:4/d"),
+                Reactor(4, "느긋한고래", ReactionKind.LIKE, T0, isMe = false, faceKey = "selfie:4/d"),
+                Reactor(5, "새벽곰", ReactionKind.LIKE, T0, isMe = false, faceKey = null)
+            )
+        )
+        val target = chatMessage(101, reactions = mapOf(ReactionKind.LIKE to 2, ReactionKind.CHECK to 1))
+        val vm = viewModel(ChatPage(listOf(target), hasMore = false)).shown()
+
+        vm.onOpenReactors(target, null)
+
+        assertEquals(listOf<String?>("selfie:4/d"), chats.faceCalls)
+        assertEquals(setOf("selfie:4/d"), vm.state.value.faces.keys)
     }
 
     @Test
