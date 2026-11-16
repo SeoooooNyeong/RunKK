@@ -8,6 +8,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.account.myAvatar
 import com.a207.runkk.app.domain.crew.CrewChange
+import com.a207.runkk.app.domain.crew.CrewReadSession
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunCompletion
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
@@ -125,6 +126,15 @@ class CrewRunResultViewModel internal constructor(
     /** 화면이 가려져 다시 읽기를 멈췄고 아직 더 읽어야 한다. */
     private var isPaused = false
 
+    /**
+     * 결과 읽기 하나로 합친다(리뷰 결함 3): 간격 다시 읽기와 결과 변경 신호가 같은 읽기를 부르고, 읽는 중에 온 요청은 끝난 뒤 한 번만
+     * 더 읽는다. [job]은 다음 간격 읽기 예약이다.
+     */
+    private val resultReads = CrewReadSession(viewModelScope) { readAndPlan() }
+
+    /** 이번 읽기가 간격 예약으로 왔다(간격 규칙의 위치를 한 칸 옮긴다). */
+    private var isTimerRead = false
+
     fun load(postId: Long, isForced: Boolean = false) {
         if (!isForced && loaded == postId) return
         // 결과를 읽으면 조정자가 Idle로 돌아가므로 먼저 내 기록 ID를 잡아 둔다.
@@ -136,7 +146,9 @@ class CrewRunResultViewModel internal constructor(
         watchStart = null
         isPaused = false
         _state.update { it.copy(isLoading = true, error = null) }
-        watch(postId)
+        job?.cancel()
+        resultReads.cancel()
+        resultReads.refresh()
         readMyAvatar()
     }
 
@@ -220,10 +232,9 @@ class CrewRunResultViewModel internal constructor(
     /** 화면이 다시 보인다. 가려져 멈췄던 다시 읽기를 바로 한 번 읽고 잇는다. */
     fun onStart() {
         listenResultChanges()
-        val postId = loaded ?: return
-        if (!isPaused || job?.isActive == true) return
+        if (loaded == null || !isPaused || job?.isActive == true) return
         isPaused = false
-        watch(postId)
+        resultReads.refresh()
     }
 
     /** 이 크루런의 결과 변경 신호(RESULT)를 받으면 결과를 한 번 더 읽는다(보이는 동안만, 설계 05-32 5.3). */
@@ -233,7 +244,7 @@ class CrewRunResultViewModel internal constructor(
             changes().collect { change ->
                 val postId = loaded
                 if (postId != null && change.postId == postId && change.resource == CrewChange.Resource.RESULT) {
-                    read(postId)
+                    resultReads.refresh()
                 }
             }
         }
@@ -243,25 +254,38 @@ class CrewRunResultViewModel internal constructor(
     fun onStop() {
         signalJob?.cancel()
         signalJob = null
-        if (job?.isActive != true) return
+        if (job?.isActive != true && !resultReads.isReading) return
         job?.cancel()
+        resultReads.cancel()
         isPaused = true
     }
 
-    private fun watch(postId: Long) {
-        job?.cancel()
+    /**
+     * 결과를 한 번 읽고 다음 간격 읽기를 정한다(기존 규칙 그대로: 처음 [REREADS]번 3초, 뒤로 두 배씩 최대 60초, 상한 [RUNNING_WATCH_MILLIS]).
+     * 신호로 읽었을 때 간격 예약이 남아 있으면 그 예약을 그대로 둔다(간격 규칙을 앞당기지 않는다).
+     */
+    private suspend fun readAndPlan() {
+        val postId = loaded ?: return
+        val wasTimer = isTimerRead
+        isTimerRead = false
+        val last = read(postId)
+        if (last == null) {
+            job?.cancel()
+            return
+        }
+        val start = watchStart ?: timeSource.markNow().also { watchStart = it }
+        if (!last.needsReread(rereads, start.elapsedNow().inWholeMilliseconds)) {
+            job?.cancel()
+            isPaused = false
+            return
+        }
+        if (job?.isActive == true && !wasTimer) return
+        val pause = rereadDelay(rereads)
+        rereads++
         job = viewModelScope.launch {
-            while (true) {
-                val last = read(postId) ?: return@launch
-                val start = watchStart ?: timeSource.markNow().also { watchStart = it }
-                if (!last.needsReread(rereads, start.elapsedNow().inWholeMilliseconds)) {
-                    isPaused = false
-                    return@launch
-                }
-                val pause = rereadDelay(rereads)
-                rereads++
-                delay(pause)
-            }
+            delay(pause)
+            isTimerRead = true
+            resultReads.refresh()
         }
     }
 

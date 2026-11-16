@@ -140,7 +140,7 @@ class CrewRunViewModel internal constructor(
 
     /**
      * 대기실 들어가기(또는 오류 뒤 다시 시도). 모집 일시 30분 전부터 열린다(FR-147). GET으로 먼저 읽고 아직 입장하지 않은 대기실일
-     * 때만 enter를 보낸다(설계 05-32 [임시:D-성-879]). GET이 없는 옛 서버(5xx·404)면 예전처럼 enter로 들어간다. 처음 들어오면 대기실
+     * 때만 enter를 보낸다(설계 05-32 [임시:D-성-879]). GET이 없는 옛 서버(5xx·404·405)면 예전처럼 enter로 들어간다. 처음 들어오면 대기실
      * 응답의 크루런 거리로 조정자 채널을 연다.
      */
     fun enter() {
@@ -149,7 +149,7 @@ class CrewRunViewModel internal constructor(
         viewModelScope.launch {
             val read = crews.lobby(s.postId)
             val entered = when {
-                read is Outcome.Failure && read.error is AppError.Server -> crews.enterLobby(s.postId)
+                read is Outcome.Failure && read.error.isMissingApi() -> crews.enterLobby(s.postId)
 
                 read is Outcome.Success && read.value.isEnterNeeded && read.value.isEnterable() -> crews.enterLobby(
                     s.postId
@@ -177,6 +177,8 @@ class CrewRunViewModel internal constructor(
      */
     private fun applyLobby(lobby: Lobby) {
         val first = _state.value.lobby == null
+        // 끝났거나 취소된 크루런은 조정자 회·실시간 임대를 열지 않고, 이미 열었으면 닫는다(리뷰 결함 1).
+        val isOver = lobby.phase == LobbyPhase.FINISHED || lobby.phase == LobbyPhase.CANCELLED
         _state.update {
             it.copy(
                 isBusy = false,
@@ -188,7 +190,8 @@ class CrewRunViewModel internal constructor(
                 phase = if (it.phase == CrewRunPhase.ENTERING) CrewRunPhase.LOBBY else it.phase
             )
         }
-        if (first) coordinator.onLobbyEntered(lobby.postId, lobby.distance)
+        if (first && !isOver) coordinator.onLobbyEntered(lobby.postId, lobby.distance)
+        if (isOver && !first) viewModelScope.launch { coordinator.dismiss(lobby.postId) }
         when (lobby.phase) {
             LobbyPhase.FINISHED -> if (first) _events.trySend(CrewRunEvent.Finished(lobby.postId))
 
@@ -198,7 +201,7 @@ class CrewRunViewModel internal constructor(
 
             else -> Unit
         }
-        coordinator.onLobby(lobby)
+        if (!isOver) coordinator.onLobby(lobby)
         if (joinOnEntry && lobby.phase == LobbyPhase.RUNNING && lobby.canJoin) {
             joinOnEntry = false
             onJoin()
@@ -289,7 +292,7 @@ class CrewRunViewModel internal constructor(
         viewModelScope.launch {
             val wanted = !s.isReady
             val sent = crews.setReady(s.postId, wanted).let { r ->
-                if (r is Outcome.Failure && r.error is AppError.Server) crews.toggleReady(s.postId) else r
+                if (r is Outcome.Failure && r.error.isMissingApi()) crews.toggleReady(s.postId) else r
             }
             when (sent) {
                 is Outcome.Success -> {
@@ -576,6 +579,15 @@ class CrewRunViewModel internal constructor(
 
 /** 입장(enter)을 보낼 수 있는 대기실 단계(옛 서버면 단계 없음). 출발 뒤에는 enter 대신 참여(join)다. */
 private fun Lobby.isEnterable(): Boolean = phase == null || phase == LobbyPhase.LOBBY || phase == LobbyPhase.COUNTDOWN
+
+/**
+ * 새 대기실 API가 없는 옛 서버의 실패인가: 서버 오류(5xx), 경로 없음(404 NOT_FOUND·HTTP_404), 메서드 없음(405). 이때만 옛 enter·토글로
+ * 되돌아간다. 업무 거부(409 등)는 그대로 안내한다.
+ */
+private fun AppError.isMissingApi(): Boolean =
+    this is AppError.Server || (this is AppError.Rejected && code in MISSING_API_CODES)
+
+private val MISSING_API_CODES = setOf("NOT_FOUND", "HTTP_404", "HTTP_405")
 
 /** 대기실 응답의 내 줄(me) 준비 여부. 내 줄이 없으면 null. */
 private fun Lobby.myReady(): Boolean? = participants.firstOrNull { it.isMe }?.isReady

@@ -355,11 +355,17 @@ constructor(
 
     /**
      * 세션 시작 시각. 크루런은 서버가 정한 개인 시작 절대시각(출발 startAt·참여 joinedAt)이 지금보다 앞이면 그 시각이고(설계 05-32
-     * 4.2, [임시:FR-성-362]), 그 밖에는 지금이다. 앞으로의 시각은 쓰지 않는다(아직 시작하지 않은 측정이 된다).
+     * 4.2, [임시:FR-성-362]), 그 밖에는 지금이다. 앞으로의 시각은 쓰지 않는다(아직 시작하지 않은 측정이 된다). 서버 시각과 기기 시계가
+     * 어긋나 경과가 부풀지 않게 소급은 [MAX_CREW_BACKDATE]까지다(리뷰 결함 4).
      */
     private fun startOf(spec: RunStartSpec, now: Instant): Instant {
         val planned = spec.crewParticipationStartAt?.takeIf { spec.mode == RunMode.CREW_RUN } ?: return now
-        return if (planned.isBefore(now)) planned else now
+        val earliest = now.minus(MAX_CREW_BACKDATE)
+        return when {
+            !planned.isBefore(now) -> now
+            planned.isBefore(earliest) -> earliest
+            else -> planned
+        }
     }
 
     /** 측정 중인 세션을 확정한다. 없으면 null. */
@@ -471,6 +477,9 @@ constructor(
     private companion object {
         /** 남긴 종료 결과를 꺼낼 수 있는 시간. 지나면 다시 붙은 러닝 화면이 결과로 옮기지 않는다. */
         val UNCLAIMED_TTL: Duration = Duration.ofMinutes(10)
+
+        /** 크루런 개인 시작 시각을 지금보다 앞으로 소급하는 상한(출발 카운트다운 3초, 리뷰 결함 4). */
+        val MAX_CREW_BACKDATE: Duration = Duration.ofSeconds(3)
     }
 
     private data class FinishedWindow(val recordId: String, val startedAt: Instant, val endedAt: Instant) {

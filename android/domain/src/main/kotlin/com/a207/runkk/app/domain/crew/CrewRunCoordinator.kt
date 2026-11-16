@@ -209,6 +209,7 @@ constructor(
                 val startAt = lobby.startAt
                 if (lobby.isMeCandidate && startAt != null) {
                     _state.value = CrewRunState.Countdown(run.postId, startAt)
+                    checkDepartureOnce(run, startAt)
                 } else if (isWaiting) {
                     _state.value = CrewRunState.Lobby(run.postId)
                 }
@@ -228,11 +229,30 @@ constructor(
     }
 
     /**
+     * 카운트다운이 startAt + [DEPARTURE_GRACE]가 지나도록 출발 사실을 받지 못했으면(신호 유실) 그 회에 한 번만 대기실을 다시 읽어
+     * RUNNING·진행 참가자면 시작한다(리뷰 결함 5). 주기 읽기가 아니다. 그 사이 출발 사실로 시작했거나 후보에서 빠졌으면 읽지 않는다.
+     */
+    private fun checkDepartureOnce(run: CrewRun, startAt: Instant) {
+        if (run.isDepartureCheckPlanned) return
+        run.isDepartureCheckPlanned = true
+        run.round.scope.launch {
+            val wait = Duration.between(clock.instant(), startAt).plus(DEPARTURE_GRACE)
+            if (!wait.isNegative) delay(wait.toMillis())
+            val isHandled = run.isScheduled || run.isDepartureSeen
+            if (isHandled || this@CrewRunCoordinator.run !== run || _state.value !is CrewRunState.Countdown) {
+                return@launch
+            }
+            (crewRepository.lobby(run.postId) as? Outcome.Success)?.let { apply(run, it.value) }
+        }
+    }
+
+    /**
      * 출발 사실(CrewRunDeparture·옛 CrewRunStart): 대기실을 다시 읽어 확인한다(설계 05-32 2.1). 읽기가 끝내 실패하면 출발 사실의 후보에
      * 내가 있을 때만(옛 메시지는 확정 후보에게만 온다) 그 시각부터 잰다. 측정 기록 ID는 앱이 만든다.
      */
     private suspend fun onDeparture(run: CrewRun, postId: Long, startAt: Instant, participantIds: List<Long>?) {
         if (postId != run.postId || run.isScheduled) return
+        run.isDepartureSeen = true
         var read = crewRepository.lobby(postId)
         var attempt = 1
         while (read is Outcome.Failure && read.error !is AppError.Rejected && attempt < READ_ATTEMPTS) {
@@ -475,6 +495,12 @@ constructor(
         @Volatile
         var myMemberId: Long? = null
 
+        /** 카운트다운 끝 확인 읽기를 이미 잡았다(회마다 한 번). 직렬 디스패처에서만 쓴다. */
+        var isDepartureCheckPlanned = false
+
+        /** 출발 사실을 받아 확인 중이다(카운트다운 끝 확인 읽기를 하지 않는다). 직렬 디스패처에서만 쓴다. */
+        var isDepartureSeen = false
+
         /** 참여 요청 중(직렬 디스패처에서만 쓴다). 같은 참여를 겹쳐 보내지 않는다. */
         var isJoining = false
 
@@ -504,6 +530,9 @@ constructor(
         /** 출발 확인 읽기(GET 대기실) 횟수와 간격(1·2초 뒤 다시). */
         const val READ_ATTEMPTS = 3
         const val READ_RETRY_MILLIS = 1_000L
+
+        /** 출발 예약 시각 뒤 출발 사실을 기다리는 여유(서버 1초 스케줄 지연). 지나면 한 번 대기실을 읽는다. */
+        val DEPARTURE_GRACE: Duration = Duration.ofSeconds(1)
 
         /** 서버 common.ReasonCode.ALREADY_STARTED와 같은 이름. */
         const val ALREADY_STARTED = "ALREADY_STARTED"

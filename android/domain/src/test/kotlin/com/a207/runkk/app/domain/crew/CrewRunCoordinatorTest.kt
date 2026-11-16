@@ -541,4 +541,55 @@ class CrewRunCoordinatorTest {
         assertEquals(0, host.stopped)
         assertEquals(1, live.opens)
     }
+
+    @Test
+    fun `리뷰4 서버 시작 시각이 기기 now보다 한참 앞서도 소급은 3초까지다`() = runTest {
+        val (tracker, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000))
+        runCurrent()
+        // 기기 시계가 서버보다 5분 빠르다: 승인 joinedAt이 기기 now보다 300초 앞으로 보인다.
+        clock.now = T0.plusSeconds(600)
+        joinedAt = T0.plusSeconds(300)
+        coordinator.onLobby(lobby(LobbyPhase.RUNNING, isMeRunner = true))
+        runCurrent()
+        tracker.runTo(610, 0.0)
+        runCurrent()
+        val running = assertIs<CrewRunState.Running>(coordinator.state.value)
+        assertEquals(Duration.ofSeconds(13), running.mine.elapsed, "now-3초부터 잰다(소급 상한 3초)")
+    }
+
+    @Test
+    fun `리뷰5 카운트다운이 끝났는데 출발 신호를 못 받으면 startAt 뒤 한 번만 대기실을 읽어 시작한다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000))
+        runCurrent()
+        coordinator.onLobby(lobby(LobbyPhase.COUNTDOWN, candidates = listOf(7), startAt = T0.plusSeconds(3)))
+        runCurrent()
+        lastStartAt = T0.plusSeconds(3)
+        advanceTimeBy(3_999)
+        assertEquals(0, reads.count { it == "lobby" }, "startAt + 1초 전에는 읽지 않는다")
+        clock.now = T0.plusSeconds(4)
+        advanceTimeBy(2)
+        runCurrent()
+        assertEquals(listOf("lobby", "join"), reads)
+        assertEquals(1, host.started)
+        advanceTimeBy(60_000)
+        assertEquals(1, reads.count { it == "lobby" }, "한 번뿐이다(주기 읽기 아님)")
+    }
+
+    @Test
+    fun `리뷰5 출발 신호를 먼저 받았으면 카운트다운 확인 읽기를 하지 않는다`() = runTest {
+        val (_, coordinator) = setUp()
+        coordinator.onLobbyEntered(11, Distance(3_000))
+        runCurrent()
+        coordinator.onLobby(lobby(LobbyPhase.COUNTDOWN, candidates = listOf(7), startAt = T0.plusSeconds(3)))
+        runCurrent()
+        clock.now = T0.plusSeconds(3)
+        advanceTimeBy(3_000)
+        departAt(T0.plusSeconds(3))
+        runCurrent()
+        advanceTimeBy(10_000)
+        assertEquals(1, reads.count { it == "lobby" })
+        assertEquals(1, host.started)
+    }
 }
