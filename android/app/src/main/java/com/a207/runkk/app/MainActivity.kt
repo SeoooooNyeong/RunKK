@@ -154,14 +154,18 @@ class MainActivity : ComponentActivity() {
 
     /** 새로 받은 초대 링크를 읽고(최근 앱에서 다시 연 실행은 빼고) 인텐트에서 링크를 비운다(AN8-7). */
     private fun takeInvite(intent: Intent): PendingInvite? {
-        val token = inviteLinks.readNew(intent) ?: return null
+        val link = inviteLinks.readNewLink(intent) ?: return null
         setIntent(InviteLinkReader.consumed(intent))
-        return PendingInvite(token, Instant.now())
+        return PendingInvite.of(link, Instant.now())
     }
 
+    /** 저장해 둔 보류 초대. 종류가 없으면(옛 저장 상태) 친구 대결 초대다. */
     private fun restoreInvite(saved: Bundle): PendingInvite? {
         val token = saved.getString(PENDING_INVITE) ?: return null
-        return PendingInvite(token, Instant.ofEpochMilli(saved.getLong(PENDING_INVITE_AT)))
+        val kind =
+            saved.getString(PENDING_INVITE_KIND)?.let { name -> InviteKind.entries.firstOrNull { it.name == name } }
+                ?: InviteKind.FRIEND_BATTLE
+        return PendingInvite(token, Instant.ofEpochMilli(saved.getLong(PENDING_INVITE_AT)), kind)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -169,11 +173,13 @@ class MainActivity : ComponentActivity() {
         pendingInvite?.let {
             outState.putString(PENDING_INVITE, it.token)
             outState.putLong(PENDING_INVITE_AT, it.receivedAt.toEpochMilli())
+            outState.putString(PENDING_INVITE_KIND, it.kind.name)
         }
     }
 
     private companion object {
         const val PENDING_INVITE = "runkk.pendingInvite"
         const val PENDING_INVITE_AT = "runkk.pendingInviteAt"
+        const val PENDING_INVITE_KIND = "runkk.pendingInviteKind"
     }
 }

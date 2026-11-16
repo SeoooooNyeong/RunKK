@@ -18,6 +18,7 @@ import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
+import com.a207.runkk.app.ui.share.KakaoShareOutcome
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -79,6 +80,9 @@ class CrewHomeViewModel @Inject constructor(
 
     private var bound: Long? = null
 
+    /** 이미 받았거나 받는 중인 크루원 얼굴 키(키마다 한 번 받는다). 실패한 키는 빼서 다음 갱신에 다시 받는다. */
+    private val requestedFaces = mutableSetOf<String>()
+
     /** 크루 로고 바이트(크루 홈 머리·크루 정보·정보 수정의 크루 이미지가 읽는다, DV-8). */
     suspend fun logo(url: String): Outcome<ByteArray> = crews.logo(url)
     private var refreshJob: Job? = null
@@ -91,6 +95,7 @@ class CrewHomeViewModel @Inject constructor(
     fun bind(key: Routes.CrewHome, initialTab: CrewTab = CrewTab.RACE) {
         if (bound == key.crewId) return
         bound = key.crewId
+        requestedFaces.clear()
         _state.value = CrewHomeUiState(
             crewId = key.crewId,
             tab = CrewTab.of(key.tab, initialTab),
@@ -223,8 +228,35 @@ class CrewHomeViewModel @Inject constructor(
     /** 크루원 목록. 줄마다 서버가 준 이 크루 누적 거리를 보인다(피그마 F-22, contract-W7 2장). */
     private suspend fun loadMembers(s: CrewHomeUiState): AppError? {
         val members = crews.members(s.crewId)
-        if (members is Outcome.Success) _state.update { it.copy(members = members.value) }
+        if (members is Outcome.Success) {
+            _state.update { it.copy(members = members.value) }
+            readMemberFaces(members.value)
+        }
         return (members as? Outcome.Failure)?.error
+    }
+
+    /**
+     * 크루원의 셀카 얼굴 부위 그림을 얼굴 키마다 한 번 받는다([임시:D-성-236], 크루런 대기실 readLobbyFaces와 같은 방식). 받아 둔
+     * 그림(캐시)은 목록과 함께 바로 그리고, 없는 것만 받는다. 받지 못하면 오류를 띄우지 않고 기본 얼굴로 두며 다음 목록 갱신에 다시
+     * 받는다([임시:FR-성-24]).
+     */
+    private fun readMemberFaces(members: CrewMembers) {
+        val keys = members.members.mapNotNull { it.faceKey }.distinct().filter { requestedFaces.add(it) }
+        val cached = keys.mapNotNull { key ->
+            crews.cachedFaceLayers(key)?.takeIf { it.isNotEmpty() }?.let { key to it }
+        }
+        if (cached.isNotEmpty()) _state.update { it.copy(memberFaces = it.memberFaces + cached) }
+        keys.filter { key -> cached.none { it.first == key } }.forEach { key ->
+            viewModelScope.launch {
+                when (val r = crews.faceLayers(key)) {
+                    is Outcome.Success -> r.value.takeIf { it.isNotEmpty() }?.let { layers ->
+                        _state.update { it.copy(memberFaces = it.memberFaces + (key to layers)) }
+                    }
+
+                    is Outcome.Failure -> requestedFaces.remove(key)
+                }
+            }
+        }
     }
 
     private suspend fun loadPosts(crewId: Long, kind: PostList.Kind): AppError? =
@@ -478,6 +510,24 @@ class CrewHomeViewModel @Inject constructor(
         it.copy(isInviteOpen = false, message = uiText(R.string.crew_manage_invite_copied))
     }
 
+    /** 초대 링크를 복사했다: 창을 닫고 안내한다(코드 복사와 같다). */
+    fun onInviteLinkCopied() = _state.update {
+        it.copy(isInviteOpen = false, message = uiText(R.string.crew_invite_link_copied))
+    }
+
+    /**
+     * 「카카오톡으로 보내기」의 결과([임시:FR-성-37]). 열지 못했으면 안내 이벤트를 보내고 창은 그대로 둔다(다른 방법을 고를 수 있게).
+     * 카카오톡이나 웹 공유를 열었으면 창을 그대로 둔다(돌아와서 닫는다).
+     */
+    fun onInviteKakaoResult(outcome: KakaoShareOutcome) {
+        if (outcome == KakaoShareOutcome.FAILED) _events.trySend(CrewHomeEvent.InviteKakaoFailed)
+    }
+
+    /** 「다른 앱으로 공유」의 공유 화면을 열지 못했다(공유할 앱 없음): 창은 그대로 두고 이벤트로 알린다. */
+    fun onInviteShareFailed() {
+        _events.trySend(CrewHomeEvent.InviteShareFailed)
+    }
+
     // ⋯ 메뉴(피그마 F-17·F-24)
 
     fun onMenuOpen() = _state.update { it.copy(isMenuOpen = true) }
@@ -662,7 +712,11 @@ class CrewHomeViewModel @Inject constructor(
 
     private suspend fun reloadMembers() {
         when (val r = crews.members(_state.value.crewId)) {
-            is Outcome.Success -> _state.update { it.copy(members = r.value) }
+            is Outcome.Success -> {
+                _state.update { it.copy(members = r.value) }
+                readMemberFaces(r.value)
+            }
+
             is Outcome.Failure -> _state.update { it.copy(message = CrewErrorText.of(r.error)) }
         }
     }

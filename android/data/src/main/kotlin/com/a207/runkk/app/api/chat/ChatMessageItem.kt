@@ -22,5 +22,8 @@ internal data class ChatMessageItem(
     val clientMessageId: String? = null,
     val messageKind: String = "TEXT",
     val authorRole: String? = null,
-    val runDistanceMeters: Long? = null
+    val runDistanceMeters: Long? = null,
+    /** 작성자 아바타 얼굴 키와 표시 성별(MALE·FEMALE). 탈퇴한 작성자·옛 서버면 null. */
+    val authorFaceKey: String? = null,
+    val authorShownGender: String? = null
 )

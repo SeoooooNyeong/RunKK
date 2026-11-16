@@ -3,10 +3,12 @@ package com.a207.runkk.app.ui.avatar
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,9 +26,12 @@ import com.a207.runkk.app.core.designsystem.LocalAvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.defaultAvatarOf
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillFallback
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarStillOnReady
+import com.a207.runkk.app.core.navigation.SlotRunnerLook
 import com.a207.runkk.app.domain.avatar.ItemSlot
 import kotlinx.coroutines.delay
 
@@ -42,27 +47,47 @@ internal const val AVATAR_STILL_READY_TIMEOUT_MS = RUN_AVATAR_READY_TIMEOUT_MS
  *
  * - 나: 내 아바타 저장소의 모습(의상·체형·러닝량·셀카 머리) 그대로다. 준비 중이면 비워 두고, 준비 실패·그림 읽기 실패·준비가
  *   [AVATAR_STILL_READY_TIMEOUT_MS] 넘게 끝나지 않으면 성별 기본 전신 그림이다.
- * - 다른 러너: 칸에 모습([AvatarStillSubject.look], 랭킹 줄의 모습)이 있으면 그 의상·체형·러닝량에 그 사람의 셀카 머리다. 머리는
- *   셀카 머리 캐시([SelfieHeads])로 받고 받는 동안은 비워 두며, 받지 못했거나(기본 머리로 둔다) [AVATAR_STILL_READY_TIMEOUT_MS] 넘게
- *   걸리면 기본 머리로 먼저 그린다. 모습이 없으면(크루 줄·탈퇴 회원·옛 서버·대결 상대) 표시 성별의 기본 모습(기본 의상·기본 체형·
- *   러닝량 0·기본 머리)이다. 체형은 내 아바타와 같은 규칙([bodyShapeOf])이다. 그리지 못하면 성별 기본 전신 그림이다.
+ * - 다른 러너: slotLook이 있으면 아이템 ID를 해석하고, look만 있으면 랭킹의 그림 키를 쓴다. 둘 다 없으면 성별 기본 모습이다.
+ *   셀카 머리는 SelfieHeads로 기다리고, 준비 신호와 이미 보인 칸의 대체 그림을 두 경로 모두 지킨다.
  */
 @Composable
-internal fun AvatarStillSlotContent(store: MyAvatarStore) {
+internal fun AvatarStillSlotContent(store: MyAvatarStore, resolver: RunnerLookResolver) {
     val subject = LocalSlotAvatarStill.current ?: return
+    val slotLook = subject.slotLook
+    var hasShown by remember { mutableStateOf(false) }
+    val currentOnReady by rememberUpdatedState(LocalSlotAvatarStillOnReady.current)
+    val onReady = remember {
+        {
+            hasShown = true
+            currentOnReady()
+        }
+    }
     if (!LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)) {
         LocalSlotAvatarStillFallback.current?.invoke()
+        // 부르는 쪽 그림은 바로 보인다([임시:D-성-292])
+        LaunchedEffect(Unit) { onReady() }
         return
     }
-    if (subject.isMine) {
-        MyAvatarStill(store, subject.isLightSkin)
-    } else {
-        RunnerAvatarStill(store.heads, subject)
+    CompositionLocalProvider(LocalSlotAvatarStillOnReady provides onReady) {
+        if (subject.isMine) {
+            MyAvatarStill(store, subject.isLightSkin, hasShown)
+        } else if (slotLook != null) {
+            RunnerAvatarStill(
+                subject.isFemale?.let {
+                    if (it) Gender.FEMALE else Gender.MALE
+                },
+                if (subject.isLightSkin) slotLook.copy(runAmount = 0) else slotLook,
+                resolver,
+                hasShown
+            )
+        } else {
+            RankingAvatarStill(store.heads, subject, hasShown)
+        }
     }
 }
 
 @Composable
-private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
+private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean, hasShown: Boolean) {
     LaunchedEffect(store) { store.warm() }
     val state by store.state.collectAsStateWithLifecycle()
     val look = (state as? MyAvatarState.Ready)?.look?.rive?.let { if (isLightSkin) it.copy(runningAmount = 0) else it }
@@ -75,17 +100,75 @@ private fun MyAvatarStill(store: MyAvatarStore, isLightSkin: Boolean) {
         }
     }
     when {
-        state is MyAvatarState.Failed || isFailed || (look == null && isTimedOut) ->
+        state is MyAvatarState.Failed || isFailed || (look == null && (isTimedOut || hasShown)) ->
             StillFallback(LocalAvatarCharacter.current)
 
-        look != null -> RiveAvatarStill(look, Modifier.fillMaxSize(), onError = { isFailed = true })
+        look != null -> RiveAvatarStill(
+            look,
+            Modifier.fillMaxSize(),
+            onError = { isFailed = true },
+            onReady = LocalSlotAvatarStillOnReady.current,
+            pending = { if (hasShown) StillFallback(LocalAvatarCharacter.current) }
+        )
+
+        else -> Unit
+    }
+}
+
+/**
+ * 다른 러너의 전신 정지 그림. 받은 모습 [received]가 있으면 [RunnerLookResolver]로 만든 모습(의상·체형·러닝량·얼굴, [임시:D-성-272])이고,
+ * 없으면 표시 성별의 기본 모습이다. 만드는 동안에는 칸을 비워 두고, [AVATAR_STILL_READY_TIMEOUT_MS]를 넘거나 그림을 읽지 못하면 성별
+ * 기본 전신 그림이다.
+ */
+@Composable
+private fun RunnerAvatarStill(
+    gender: Gender?,
+    received: SlotRunnerLook?,
+    resolver: RunnerLookResolver,
+    hasShown: Boolean
+) {
+    val isFemale = received?.isFemale ?: (gender == Gender.FEMALE)
+    var look by remember(isFemale, received) {
+        mutableStateOf(
+            if (received ==
+                null
+            ) {
+                defaultRiveLook(isFemale)
+            } else {
+                null
+            }
+        )
+    }
+    var isFailed by remember(look) { mutableStateOf(false) }
+    var isTimedOut by remember(received) { mutableStateOf(false) }
+    LaunchedEffect(received) {
+        if (received != null) look = resolver.resolve(received)
+    }
+    LaunchedEffect(received, look == null) {
+        if (look == null) {
+            delay(AVATAR_STILL_READY_TIMEOUT_MS)
+            isTimedOut = true
+        }
+    }
+    val shown = look
+    when {
+        isFailed || (shown == null && (isTimedOut || hasShown)) ->
+            StillFallback(if (isFemale) AvatarCharacter.FEMALE else AvatarCharacter.MALE)
+
+        shown != null -> RiveAvatarStill(
+            shown,
+            Modifier.fillMaxSize(),
+            onError = { isFailed = true },
+            onReady = LocalSlotAvatarStillOnReady.current,
+            pending = { if (hasShown) StillFallback(if (isFemale) AvatarCharacter.FEMALE else AvatarCharacter.MALE) }
+        )
 
         else -> Unit
     }
 }
 
 @Composable
-private fun RunnerAvatarStill(heads: SelfieHeads, subject: AvatarStillSubject) {
+private fun RankingAvatarStill(heads: SelfieHeads, subject: AvatarStillSubject, hasShown: Boolean) {
     val faceKey = subject.look?.faceKey?.takeIf(::isSelfieHead)
     // 셀카 머리를 받는 동안 null(비움). 셀카 머리가 아니면 기다릴 것이 없다
     var face by remember(faceKey) { mutableStateOf(if (faceKey == null) FaceLook.NONE else null) }
@@ -100,14 +183,35 @@ private fun RunnerAvatarStill(heads: SelfieHeads, subject: AvatarStillSubject) {
         }
     }
     val loaded = face
-    if (loaded == null && !isTimedOut) return
+    if (loaded == null && !isTimedOut) {
+        if (hasShown) StillFallback(if (subject.isFemale == true) AvatarCharacter.FEMALE else AvatarCharacter.MALE)
+        return
+    }
     // 받지 못했거나 오래 걸리면 기본 머리(headLayers = null)로 그린다
     val look = remember(subject, loaded) { runnerLookOf(subject, loaded?.headLayers) }
     var isFailed by remember(look) { mutableStateOf(false) }
     if (isFailed) {
         StillFallback(if (subject.isFemale == true) AvatarCharacter.FEMALE else AvatarCharacter.MALE)
     } else {
-        RiveAvatarStill(look, Modifier.fillMaxSize(), onError = { isFailed = true })
+        RiveAvatarStill(
+            look,
+            Modifier.fillMaxSize(),
+            onError = { isFailed = true },
+            onReady = LocalSlotAvatarStillOnReady.current,
+            pending = {
+                if (hasShown) {
+                    StillFallback(
+                        if (subject.isFemale ==
+                            true
+                        ) {
+                            AvatarCharacter.FEMALE
+                        } else {
+                            AvatarCharacter.MALE
+                        }
+                    )
+                }
+            }
+        )
     }
 }
 
@@ -134,9 +238,11 @@ internal fun runnerLookOf(subject: AvatarStillSubject, headLayers: GeneratedHead
 /** 서버 러닝량 상한(/avatar/runner runAmount 0..100). */
 private const val MAX_RUN_AMOUNT = 100
 
-/** 성별 기본 전신 그림(서기). 발을 칸 바닥에 붙인다. */
+/** 성별 기본 전신 그림(서기). 발을 칸 바닥에 붙인다. 바로 보이므로 준비 신호를 보낸다([임시:D-성-292]). */
 @Composable
 private fun StillFallback(character: AvatarCharacter) {
+    val onReady = LocalSlotAvatarStillOnReady.current
+    LaunchedEffect(Unit) { onReady() }
     Image(
         painterResource(defaultAvatarOf(AvatarExpression.STAND, character)),
         contentDescription = null,

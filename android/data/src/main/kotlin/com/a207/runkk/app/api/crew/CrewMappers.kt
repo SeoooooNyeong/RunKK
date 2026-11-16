@@ -181,7 +181,9 @@ internal fun CrewMembersResponse.toDomain(): CrewMembers = CrewMembers(
             ageBand = it.ageBand,
             gender = it.gender?.let { g -> enumByName<Gender>(g) },
             isAgePublic = it.ageBandVisibility?.let { v -> v == VISIBILITY_PUBLIC },
-            isGenderPublic = it.genderVisibility?.let { v -> v == VISIBILITY_PUBLIC }
+            isGenderPublic = it.genderVisibility?.let { v -> v == VISIBILITY_PUBLIC },
+            faceKey = it.faceKey,
+            shownGender = enumByName<Gender>(it.shownGender)
         )
     }
 )
@@ -331,7 +333,8 @@ internal fun LobbyResponse.toDomain(): Lobby = Lobby(
             it.me,
             isEntered = it.readiness?.let { r -> r != NOT_ENTERED } ?: true,
             faceKey = it.faceKey,
-            shownGender = enumByName<Gender>(it.shownGender)
+            shownGender = enumByName<Gender>(it.shownGender),
+            look = it.look?.toDomain()
         )
     },
     ServerTime.parse(scheduledAt),

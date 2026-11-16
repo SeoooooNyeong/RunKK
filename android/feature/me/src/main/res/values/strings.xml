@@ -169,6 +169,9 @@
     <string name="me_settings_section_consents">동의 관리</string>
     <string name="me_settings_section_device">기기, 기타</string>
     <string name="me_settings_section_upload">기록 전송</string>
+    <!-- 가이드 다시 보기(FR-성-36). 숫자는 보이는 단계 수다 -->
+    <string name="me_settings_guide_replay_title">가이드 다시 보기</string>
+    <string name="me_settings_guide_replay_description">홈 사용법 %1$d단계를 처음부터 다시 봐요</string>
     <string name="me_settings_rejected_runs">못 올린 기록 %1$d건</string>
     <string name="me_settings_resend">다시 보내기</string>
     <string name="me_settings_resend_started">못 올린 기록을 다시 보내고 있어요</string>

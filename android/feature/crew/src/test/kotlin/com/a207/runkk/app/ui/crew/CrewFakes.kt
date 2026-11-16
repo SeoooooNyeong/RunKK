@@ -783,6 +783,11 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun crewRunResult(postId: Long) = answer("result:$postId", resultState)
 
+    /** 받아 둔 얼굴 그림(faceKey → 층). 없는 키는 null이라 [faceLayers]로 받는다. */
+    val cachedFaces = mutableMapOf<String, List<FaceLayer>>()
+
+    override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = cachedFaces[faceKey]
+
     /** 셀카 얼굴 키면 부위 그림 한 장, 아니면 빈 목록(FaceImageSource와 같은 규칙). */
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = answer(
         "face:$faceKey",

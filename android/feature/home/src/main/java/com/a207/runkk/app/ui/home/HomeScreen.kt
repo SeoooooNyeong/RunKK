@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -359,9 +360,7 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                 HeaderIdentity(state, modifier = Modifier.weight(1f, fill = false))
             }
         }
-        // 잔액과 알림함을 묶어 첫 사용 가이드 포인트 단계(J-8)가 함께 강조한다(S15P31A207-250)
         Row(
-            modifier = Modifier.guideAnchor(GuideStep.POINT),
             horizontalArrangement = Arrangement.spacedBy(HEADER_GAP),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -601,7 +600,7 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
     }
 }
 
-/** "이번 주 [n] / [n]km" 막대와 "[n]주 연속"(흰 알약, 가이드 앵커 WEEKLY_GOAL), 러닝 설정(톱니바퀴, 2026-11-04 핫픽스) 버튼. */
+/** "이번 주 [n] / [n]km" 막대와 "[n]주 연속"(흰 알약), 러닝 설정(톱니바퀴, 2026-11-04 핫픽스) 버튼. */
 @Composable
 private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Unit) {
     val openGoal = stringResource(R.string.home_open_goal_coach)
@@ -614,7 +613,6 @@ private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Un
         Row(
             modifier = Modifier
                 .weight(1f)
-                .guideAnchor(GuideStep.WEEKLY_GOAL)
                 .clip(RoundedCornerShape(24.dp))
                 .background(RunkkColors.Surface)
                 // 이번 주 막대를 누르면 주간 목표를 정하는 목표·러닝 코치로 간다
@@ -806,6 +804,7 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
                 colorFilter = sceneAvatarFilter()
             )
         }
+        MyRunnerGuideAnchor(Modifier.height(height * MY_RUNNER_ANCHOR_HEIGHT))
     }
 }
 
@@ -844,8 +843,26 @@ private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier
                 .testTag(HOME_AVATAR_SLOT_TAG)
                 .then(press)
                 .semantics { contentDescription = description }
-        ) { slot.forEach { it() } }
+        ) {
+            slot.forEach { it() }
+            // 칸은 바닥선 아래로 하단 탭 뒤까지 내려가 있다. 강조 자리는 바닥선(발) 바로 아래에서 끝나야 탭과 겹치지 않는다.
+            MyRunnerGuideAnchor(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = HOME_AVATAR_FLOOR_FROM_BOTTOM - MY_RUNNER_ANCHOR_BELOW_FLOOR)
+                    .height(minOf(MY_RUNNER_ANCHOR_SLOT_HEIGHT, height - HOME_AVATAR_FLOOR_FROM_BOTTOM))
+            )
+        }
     }
+}
+
+/**
+ * 첫 사용 가이드 「내 러너」 단계의 강조 자리([임시:D-성-295]): 홈 아바타(누르면 내 러너로 간다) 위에 얹는 투명한 칸이다. 아바타 칸 전체는
+ * 너무 커서 아래 가운데, 칸 너비의 절반만 강조한다. 누름을 받지 않고 보조 기술에도 알리지 않는다.
+ */
+@Composable
+private fun MyRunnerGuideAnchor(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth(MY_RUNNER_ANCHOR_WIDTH).guideAnchor(GuideStep.MY_RUNNER))
 }
 
 /** 주간 막대의 km 표기: 정수면 정수, 아니면 소수 한 자리("12", "12.5"). */
@@ -853,6 +870,14 @@ internal fun compactKm(distance: Distance): String {
     val text = RunkkFormat.kmShort(distance)
     return text.removeSuffix(".0")
 }
+
+/** 「내 러너」 가이드 강조 자리: 아바타 칸 너비의 절반, 높이의 70%(아래 가운데). */
+private const val MY_RUNNER_ANCHOR_WIDTH = 0.5f
+private const val MY_RUNNER_ANCHOR_HEIGHT = 0.7f
+
+/** 아바타 칸(SlotKey.HOME_AVATAR)의 「내 러너」 강조 자리: 바닥선 아래로 그림자만큼 내려가고, 머리 위까지 덮는 높이다. */
+private val MY_RUNNER_ANCHOR_BELOW_FLOOR = 8.dp
+private val MY_RUNNER_ANCHOR_SLOT_HEIGHT = 256.dp
 
 private val AVATAR_MIN_HEIGHT = 160.dp
 private val AVATAR_MAX_HEIGHT = 360.dp

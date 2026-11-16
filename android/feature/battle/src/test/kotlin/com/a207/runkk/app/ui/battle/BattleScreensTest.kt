@@ -1,6 +1,8 @@
 package com.a207.runkk.app.ui.battle
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,7 +12,9 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -22,18 +26,35 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.CELEBRITY_FIGURE_TAG
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
-import com.a207.runkk.app.core.designsystem.OPPONENT_MARKER_TAG
 import com.a207.runkk.app.core.designsystem.RIVAL_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.TRACK_AHEAD_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_BEHIND_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_DOT_MINE_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_DOT_OTHER_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_FINISH_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_ME_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_OTHER_TAG
+import com.a207.runkk.app.core.designsystem.TRACK_RULER_TAG
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.designsystem.viewModeTag
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.GeoPoint
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RouteLine
+import com.a207.runkk.app.core.model.RunViewMode
+import com.a207.runkk.app.core.model.RunnerLook
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
+import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
+import com.a207.runkk.app.core.navigation.LocalSlots
+import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.battle.BattleHistory
 import java.time.Duration
 import java.time.LocalDate
@@ -172,6 +193,85 @@ class BattleScreensTest {
     }
 
     @Test
+    fun `나와의 대결 - 거리를 고르기 전에는 상대 자리가 물음표다(FR-성-25)`() {
+        val candidates = selfCandidates.map(CandidateUi::of)
+        show {
+            SelfBattleScreen(RecordBattleUiState(isLoading = false, candidates = candidates), {}, {}, {}, {})
+        }
+        compose.onNodeWithTag(VERSUS_UNKNOWN_TAG, useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("?", useUnmergedTree = true).assertExists()
+        compose.onNodeWithContentDescription("나 대 과거의 나", substring = true).assertExists()
+    }
+
+    @Test
+    fun `나와의 대결 - 고르면 그 기록에 저장된 모습을 정지 그림 칸에 넘기고 날짜와 기록·페이스를 아이콘 메타로 적는다(FR-성-25)`() {
+        val look = RunnerLook(Gender.FEMALE, 12, null, 31, bodyVariant = 1, runAmount = 42, faceKey = "head:7:ab12")
+        val picked = CandidateUi(
+            celebrityId = null,
+            name = "나",
+            distance = Distance(5_000),
+            finishTime = Duration.ofSeconds(1_625),
+            recordedOn = LocalDate.of(2026, 10, 12),
+            averagePace = Pace(325),
+            sourceLabel = null,
+            isEstimated = false,
+            look = look
+        )
+        val subjects = mutableListOf<AvatarStillSubject>()
+        val probe: @Composable () -> Unit = {
+            val subject = LocalSlotAvatarStill.current
+            SideEffect { subject?.let { if (it !in subjects) subjects += it } }
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(probe))) {
+                RunkkTheme(reduceMotion = true) {
+                    SelfBattleScreen(
+                        RecordBattleUiState(isLoading = false, candidates = listOf(picked), selected = picked),
+                        {},
+                        {},
+                        {},
+                        {}
+                    )
+                }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(
+            setOf(MY_STILL, AvatarStillSubject(isMine = false, isFemale = true, slotLook = look.toSlot())),
+            subjects.toSet()
+        )
+        compose.onAllNodesWithTag(VERSUS_UNKNOWN_TAG, useUnmergedTree = true).assertCountEquals(0)
+        compose.onNodeWithContentDescription("나 대 과거의 나", substring = true)
+            .assert(hasContentDescription("10월 12일", substring = true))
+        // 기록 시간과 페이스는 가운뎃점 없이 항목마다 아이콘을 둔 메타 줄이다.
+        compose.onAllNodesWithText("27:05", useUnmergedTree = true).assertCountEquals(2) // 메타 줄과 거리 카드
+        compose.onNodeWithText("5:25 /km", useUnmergedTree = true).assertExists()
+        compose.onAllNodesWithText("·", substring = true, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun `성사와 결과의 상대 전신은 받은 모습으로, 없으면 표시 성별의 기본 모습으로 그린다(FR-성-29)`() {
+        val look = RunnerLook(Gender.FEMALE, 12, null, 31, bodyVariant = 1, runAmount = 42, faceKey = "head:7:ab12")
+        assertEquals(
+            AvatarStillSubject(isMine = false, isFemale = true, slotLook = look.toSlot()),
+            rivalStill(AvatarCharacter.MALE, look),
+            "받은 모습의 성별이 이긴다"
+        )
+        assertEquals(AvatarStillSubject(isMine = false, isFemale = false), rivalStill(AvatarCharacter.MALE, null))
+        assertEquals(AvatarStillSubject(isMine = false, isFemale = true), rivalStill(AvatarCharacter.FEMALE, null))
+    }
+
+    @Test
+    fun `그날의 나는 받은 모습이 없으면 지금 내 모습이다(D-성-272)`() {
+        assertEquals(MY_STILL, pastSelfStill(null))
+        val male = RunnerLook(Gender.MALE, null, null, null, 0, 0, null)
+        assertEquals(
+            AvatarStillSubject(isMine = false, isFemale = false, slotLook = male.toSlot()),
+            pastSelfStill(male)
+        )
+    }
+
+    @Test
     fun `셀럽런 - 출처는 서버 문구 그대로, 카드를 고르면 대결하기로 시작한다(D-288)`() {
         val candidates = celebCandidates.map(CandidateUi::of)
         var state by mutableStateOf(RecordBattleUiState(isLoading = false, candidates = candidates))
@@ -304,6 +404,45 @@ class BattleScreensTest {
         assertEquals(listOf("ok"), calls)
     }
 
+    @Test
+    fun `매칭 대기 - 화면을 나가면 취소된다는 안내를 늘 보이고 확인 창은 나가기와 계속 기다리기다(FR-성-32)`() {
+        var state by mutableStateOf(MatchUiState(phase = MatchPhase.WAITING, waitingSeconds = 7))
+        show {
+            MatchScreen(
+                state,
+                MatchActions(onLeaveConfirm = { calls += "leave" }, onLeaveDismiss = { calls += "stay" })
+            )
+        }
+        compose.onNodeWithText("화면을 나가면 매칭이 취소돼요").assertExists()
+        compose.onNodeWithText("매칭을 취소할까요?").assertDoesNotExist()
+
+        state = state.copy(isLeaveConfirmVisible = true)
+        compose.waitForIdle()
+        compose.onNodeWithText("매칭을 취소할까요?").assertExists()
+        compose.onNodeWithText("지금 나가면 매칭이 취소돼요. 상대가 정해진 후에 나가면 패배로 기록돼요.").assertExists()
+        compose.onNodeWithText("계속 기다리기").performClick()
+        compose.onNodeWithText("나가기").performClick()
+        assertEquals(listOf("stay", "leave"), calls)
+    }
+
+    @Test
+    fun `친구 초대 대기 - 안내와 확인 창 본문이 초대 문구다(FR-성-32)`() {
+        show {
+            MatchScreen(
+                MatchUiState(
+                    phase = MatchPhase.INVITING,
+                    opponentKind = OpponentKind.FRIEND,
+                    isLeaveConfirmVisible = true
+                ),
+                MatchActions()
+            )
+        }
+        compose.onNodeWithText("화면을 나가면 초대가 취소돼요").assertExists()
+        compose.onNodeWithText("매칭을 취소할까요?").assertExists()
+        compose.onNodeWithText("지금 나가면 초대가 취소돼요.").assertExists()
+        compose.onNodeWithText("화면을 나가면 매칭이 취소돼요").assertDoesNotExist()
+    }
+
     private val route = RouteLine(
         listOf(
             GeoPoint(37.5000, 127.0000),
@@ -314,7 +453,7 @@ class BattleScreensTest {
     )
 
     @Test
-    fun `TC-9646 대결 진행 - 거리 차와 앞서는 중, 상대 숫자는 없고 경로선 위 상대 마커(C-4)`() {
+    fun `TC-9646 대결 진행 - 거리 차와 앞서는 중, 상대 숫자는 없고 트랙 밖 상대는 가장자리 칩이다(C-4, FR-성-27)`() {
         show {
             BattleRunningScreen(
                 BattleRunningUiState(
@@ -332,7 +471,77 @@ class BattleScreensTest {
         compose.onNodeWithText("배틀런 · 5km").assertDoesNotExist()
         compose.onNodeWithContentDescription("상대와 거리 차 42미터 앞서는 중").assertExists()
         compose.onNodeWithText("2.80", substring = true).assertDoesNotExist()
-        compose.onNodeWithTag(OPPONENT_MARKER_TAG, useUnmergedTree = true).assertExists()
+        // 42 m 뒤의 상대는 화면 폭(30 m) 밖이라 아바타 없이 왼쪽 가장자리 칩(이름과 차이)이다.
+        compose.onNodeWithTag(BATTLE_TRACK_TAG).assertExists()
+        compose.onAllNodesWithTag(TRACK_OTHER_TAG).assertCountEquals(0)
+        compose.onNodeWithTag(TRACK_BEHIND_TAG).assertExists()
+        compose.onNodeWithText("‹ 바람처럼 42 m").assertExists()
+        compose.onNodeWithText("2.84 / 5 km").assertExists()
+        compose.onNodeWithText("남은 거리 2.16 km").assertExists()
+        // 지도를 띄울 수 없는 환경(시험)에서는 전환을 숨기고 트랙만 보인다.
+        compose.onAllNodesWithTag(viewModeTag(RunViewMode.MAP)).assertCountEquals(0)
+    }
+
+    @Test
+    fun `대결 진행 트랙 - 창 안의 상대는 위 레인에 이름표와 함께 그리고 거리 자에 차이를 적는다(FR-성-27)`() {
+        show {
+            BattleRunningScreen(
+                BattleRunningUiState(
+                    battleId = 9,
+                    opponentName = "바람처럼",
+                    phase = BattlePhase.RUNNING,
+                    gapMeters = -12,
+                    opponentDistance = Distance(2_354),
+                    myDistance = Distance(2_342),
+                    currentPace = Pace(330)
+                ),
+                BattleRunningActions()
+            )
+        }
+        compose.onNodeWithTag(TRACK_OTHER_TAG).assertExists()
+        compose.onNodeWithTag(TRACK_ME_TAG).assertExists()
+        compose.onNodeWithTag(TRACK_RULER_TAG).assertTextEquals("12 m")
+        compose.onNodeWithText("바람처럼").assertExists()
+        compose.onAllNodesWithText("5:30").assertCountEquals(2) // 지표 줄의 현재 페이스와 내 이름표
+        compose.onAllNodesWithTag(TRACK_AHEAD_TAG).assertCountEquals(0)
+        compose.onAllNodesWithTag(TRACK_BEHIND_TAG).assertCountEquals(0)
+        compose.onAllNodesWithTag(TRACK_FINISH_TAG).assertCountEquals(0)
+        compose.onAllNodesWithTag(TRACK_DOT_MINE_TAG).assertCountEquals(1)
+        compose.onAllNodesWithTag(TRACK_DOT_OTHER_TAG).assertCountEquals(1)
+    }
+
+    @Test
+    fun `대결 진행 트랙 - 결승선은 남은 거리가 화면 안에 들어올 때만 그린다(D-성-306)`() {
+        var state by mutableStateOf(
+            BattleRunningUiState(battleId = 9, opponentName = "바람처럼", phase = BattlePhase.RUNNING, gapMeters = 3)
+                .copy(myDistance = Distance(4_975))
+        )
+        show { BattleRunningScreen(state, BattleRunningActions()) }
+        compose.onAllNodesWithTag(TRACK_FINISH_TAG).assertCountEquals(0)
+
+        state = state.copy(myDistance = Distance(4_990))
+        compose.waitForIdle()
+        compose.onNodeWithTag(TRACK_FINISH_TAG).assertExists()
+    }
+
+    @Test
+    fun `대결 진행 트랙 - 배치고사 상대는 물음표를 유지하고 격차를 모르면 상대를 그리지 않는다(FR-276)`() {
+        var state by mutableStateOf(
+            BattleRunningUiState(
+                battleId = 9,
+                opponentName = "느긋한고래",
+                phase = BattlePhase.RUNNING,
+                gapMeters = 5,
+                placementRound = 1
+            )
+        )
+        show { BattleRunningScreen(state, BattleRunningActions()) }
+        compose.onNodeWithTag(TRACK_OTHER_TAG).assertExists()
+        compose.onNodeWithText("?", useUnmergedTree = true).assertExists()
+
+        state = state.copy(gapMeters = null)
+        compose.waitForIdle()
+        compose.onAllNodesWithTag(TRACK_OTHER_TAG).assertCountEquals(0)
     }
 
     @Test

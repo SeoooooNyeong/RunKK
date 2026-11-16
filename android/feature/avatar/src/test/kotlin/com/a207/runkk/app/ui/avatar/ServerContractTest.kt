@@ -2,6 +2,7 @@ package com.a207.runkk.app.ui.avatar
 
 import com.a207.runkk.app.core.designsystem.testing.ContractEnums
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.Shop
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -17,6 +18,20 @@ class ServerContractTest {
     @Test
     fun `착용 부위는 서버 ItemSlot과 같다`() {
         assertEquals(ContractEnums.names("ItemSlot"), ItemSlot.entries.map { it.name }.toSet())
+    }
+
+    @Test
+    fun `다른 러너 모습으로 받는 부위(상의·하의·신발)는 서버 ItemSlot 안에 있고 렌더러가 그리는 부위와 같다(D-성-246)`() {
+        val drawn = setOf(ItemSlot.TOP, ItemSlot.BOTTOM, ItemSlot.SHOES)
+        assertTrue(ContractEnums.names("ItemSlot").containsAll(drawn.map { it.name }))
+        // 모습 값(SlotRunnerLook)이 싣는 부위는 이 셋뿐이다: 각 부위에 아이템을 넣으면 그 부위 의상 번호만 바뀐다.
+        val items = listOf(
+            Shop.Item(1, ItemSlot.TOP, "상의", 0, true, true, "top_lime_singlet"),
+            Shop.Item(2, ItemSlot.BOTTOM, "하의", 0, true, true, "bottom_running_shorts"),
+            Shop.Item(3, ItemSlot.SHOES, "신발", 0, true, true, "shoes_basic_runner")
+        )
+        val outfit = outfitOf(mapOf(ItemSlot.TOP to 1L, ItemSlot.BOTTOM to 2L, ItemSlot.SHOES to 3L), items)
+        assertEquals(listOf(1, 1, 1), listOf(outfit.top, outfit.bottom, outfit.shoes))
     }
 
     @Test

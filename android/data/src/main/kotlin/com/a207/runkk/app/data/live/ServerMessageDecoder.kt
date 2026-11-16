@@ -1,7 +1,9 @@
 package com.a207.runkk.app.data.live
 
+import android.os.SystemClock
 import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.domain.live.CrewChatRemoved
+import com.a207.runkk.app.domain.live.OpponentProgress
 import com.a207.runkk.app.domain.live.ServerMessage
 import java.time.DateTimeException
 import javax.inject.Inject
@@ -59,7 +61,7 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
                 "OpponentProgress" -> liveJson.decodeFromJsonElement(
                     OpponentProgressJson.serializer(),
                     message
-                ).toDomain()
+                ).toDomain().also(::logReceived)
 
                 "BattleGuidance" -> liveJson.decodeFromJsonElement(BattleGuidanceJson.serializer(), message).toDomain()
 
@@ -105,6 +107,16 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
         }
     }
 
+    /**
+     * [임시:NFR-성-7] 측정용 기록([임시:D-성-274]): 상대 진행값을 받은 시각(부팅 뒤 ms)과 거리값(상대 − 나, m)을 남긴다. 로그 나무는 디버그
+     * 빌드에서만 심으므로(RunkkApp) 그 밖에서는 시계도 읽지 않는다. 그린 쪽(core.designsystem RunkkTrackCard)이 같은 태그로 남긴 시각과의
+     * 차를 실기기에서 잰다.
+     */
+    private fun logReceived(progress: OpponentProgress) {
+        if (Timber.treeCount == 0) return
+        Timber.tag(TRACK_TIMING_LOG_TAG).d("recv ahead=%d at=%d", -progress.gapMeters, SystemClock.uptimeMillis())
+    }
+
     /** 모르는 삭제 사유는 그 메시지만 버리고 로그를 남긴다(D-85, TC-6470). */
     private fun decodeRemoved(message: JsonObject): ServerMessage? {
         val removed = liveJson.decodeFromJsonElement(CrewChatRemovedJson.serializer(), message)
@@ -117,5 +129,8 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
 
     private companion object {
         const val TYPE = "type"
+
+        /** core.designsystem의 TRACK_TIMING_LOG_TAG와 같은 글자다(data는 화면 모듈을 보지 않는다). */
+        const val TRACK_TIMING_LOG_TAG = "RunkkNfr7"
     }
 }

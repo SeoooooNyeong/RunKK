@@ -13,8 +13,10 @@ import com.a207.runkk.battle.live.MatchFailed;
 import com.a207.runkk.battle.live.MatchFound;
 import com.a207.runkk.battle.live.OpponentProgress;
 import com.a207.runkk.battle.live.TrackPoint;
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
+import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewRunMessage;
 import com.a207.runkk.crew.RelayEntry;
@@ -74,7 +76,15 @@ class RealtimeContractTest {
                         Distance.ofMeters(5_000),
                         Duration.ofSeconds(1_625),
                         Duration.ofSeconds(1_580),
-                        3),
+                        3,
+                        null,
+                        // 설계 5.31 B: 상대 모습(안 입은 부위 BOTTOM은 키가 없다)
+                        new AvatarLook(
+                                "MALE",
+                                Map.of(ItemSlot.SHOES, 31L, ItemSlot.TOP, 12L),
+                                1,
+                                42,
+                                "head:7:ab12")),
                 "BattleStart",
                 new BattleStart(
                         101,
@@ -266,7 +276,9 @@ class RealtimeContractTest {
                         "0f8fad5b-d9cb-469f-a165-70867728950e",
                         ChatMessageKind.TEXT,
                         "LEADER",
-                        null),
+                        null,
+                        "head:3:ab12",
+                        "MALE"),
                 "CrewChatPosted-withdrawn",
                 new CrewChatPosted(
                         7,
@@ -277,6 +289,8 @@ class RealtimeContractTest {
                         OffsetDateTime.of(2026, 10, 22, 19, 7, 3, 500_000_000, seoul),
                         "7c9e6679-7425-40de-944b-e07fc1f90ae7",
                         ChatMessageKind.TEXT,
+                        null,
+                        null,
                         null,
                         null),
                 // W5 러닝 완료 시스템 메시지(S15P31A207-296, C7): 닉네임·거리만
@@ -291,7 +305,9 @@ class RealtimeContractTest {
                         "9b2f4c3e-6a1d-3c5b-8e7f-0a1b2c3d4e5f",
                         ChatMessageKind.RUN_FINISHED,
                         "MEMBER",
-                        5_021L),
+                        5_021L,
+                        null,
+                        "FEMALE"),
                 "CrewChatRemoved",
                 new CrewChatRemoved(7, 801, ChatRemovalReason.DELETED),
                 "CrewChatRemoved-hidden",

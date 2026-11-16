@@ -8,6 +8,8 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunViewMode
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.MyAvatar
@@ -144,6 +146,83 @@ class CrewRunViewModelTest {
             runCurrent()
             assertEquals(CrewRunEvent.Finished(31), awaitItem())
         }
+    }
+
+    @Test
+    fun `대기실 모습을 memberId로 이어 쓴다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        val fox = RunnerLook(Gender.FEMALE, 12, null, 31, bodyVariant = 1, runAmount = 42, faceKey = "default:FOX")
+        w.crews.lobbyState = lobby.copy(
+            participants = listOf(
+                Lobby.Participant("바람처럼", true, 1, shownGender = Gender.FEMALE, look = fox),
+                Lobby.Participant("달빛", false, 2, shownGender = Gender.MALE),
+                Lobby.Participant("새벽곰", false, 7, isMe = true)
+            )
+        )
+        val vm = lobbyVm(w, vms)
+        assertEquals(mapOf(1L to fox), vm.state.value.looks, "모습이 없는 줄은 없다(성별 기본 모습)")
+
+        w.channels.channel.push(CrewRunStart(31, w.clock.now, listOf("바람처럼", "달빛", "새벽곰")))
+        runCurrent()
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_100)
+        w.channels.channel.push(
+            CrewRunRelay(
+                31,
+                Distance(1_950),
+                listOf(
+                    CrewRunRelay.Entry("바람처럼", Distance(1_012), CrewRunRelay.State.RUNNING, memberId = 1),
+                    CrewRunRelay.Entry("달빛", Distance(938), CrewRunRelay.State.PAUSED, memberId = 2),
+                    CrewRunRelay.Entry("새벽곰", Distance(0), CrewRunRelay.State.RUNNING, memberId = 7, isMe = true)
+                )
+            )
+        )
+        runCurrent()
+
+        val state = vm.state.value
+        assertEquals(listOf(1L, 2L, 7L), state.relay.map { it.memberId })
+        val nearest = assertNotNull(state.standing.nearest)
+        assertEquals(2L, nearest.memberId, "내 측정 거리(0 m)에서 가장 가까운 사람")
+        assertEquals(null, state.looks[nearest.memberId], "달빛은 모습이 없다")
+        assertEquals(fox, state.looks[1L], "중계 줄의 memberId로 대기실 모습을 찾는다")
+        assertEquals(3, state.standing.rank)
+        assertEquals(3, state.standing.total)
+        assertEquals(1, state.standing.ahead, "가장 가까운 사람을 뺀 앞 인원")
+    }
+
+    @Test
+    fun `보기 선호는 처음에 트랙이고 고른 보기를 저장해 다음 크루런에서도 쓴다(D-성-264)`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        var stored = RunViewMode.TRACK
+        val saves = mutableListOf<RunViewMode>()
+        fun vm() = vms.track(
+            CrewRunViewModel(
+                w.crews,
+                w.coordinator,
+                w.clock,
+                ServerClock(w.clock),
+                readViewMode = { stored },
+                saveViewMode = {
+                    saves += it
+                    stored = it
+                }
+            )
+        )
+        val first = vm()
+        first.bind(Routes.CrewRunLobby(31))
+        runCurrent()
+        assertEquals(RunViewMode.TRACK, first.state.value.viewMode)
+
+        first.onViewModeChange(RunViewMode.MAP)
+        first.onViewModeChange(RunViewMode.MAP)
+        runCurrent()
+        assertEquals(RunViewMode.MAP, first.state.value.viewMode)
+        assertEquals(listOf(RunViewMode.MAP), saves, "같은 보기는 다시 저장하지 않는다")
+
+        val next = vm()
+        next.bind(Routes.CrewRunLobby(31))
+        runCurrent()
+        assertEquals(RunViewMode.MAP, next.state.value.viewMode)
     }
 
     @Test

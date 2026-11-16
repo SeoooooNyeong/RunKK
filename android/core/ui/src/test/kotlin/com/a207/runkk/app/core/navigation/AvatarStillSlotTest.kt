@@ -57,6 +57,19 @@ class AvatarStillSlotTest {
     }
 
     @Test
+    fun `받은 모습이 있으면 그 모습을 칸에 넘긴다(D-성-272)`() {
+        val look = SlotRunnerLook(isFemale = false, topItemId = 12, faceKey = "head:7:ab12")
+        val subject = AvatarStillSubject(isMine = false, isFemale = false, slotLook = look)
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(probe))) {
+                AvatarStillSlot(subject, Modifier.size(60.dp, 100.dp)) { Box(Modifier.testTag("fallback")) }
+            }
+        }
+        assertEquals(look, seen?.slotLook)
+        assertEquals(null, AvatarStillSubject.MINE.slotLook)
+    }
+
+    @Test
     fun `칸 내용에 부르는 쪽 지금 그림을 넘긴다(꾸미기 공개 여부는 칸 내용이 본다)`() {
         val drawsFallback: @Composable () -> Unit = { LocalSlotAvatarStillFallback.current?.invoke() }
         compose.setContent {
@@ -65,5 +78,36 @@ class AvatarStillSlotTest {
             }
         }
         compose.onNodeWithTag("fallback").assertExists()
+    }
+
+    @Test
+    fun `MINE은 isMine이다`() {
+        assertEquals(AvatarStillSubject(isMine = true), AvatarStillSubject.MINE)
+    }
+
+    @Test
+    fun `대체 경로(칸이 빔)에서도 onReady가 한 번 불린다`() {
+        var readies = 0
+        compose.setContent {
+            AvatarStillSlot(AvatarStillSubject.MINE, onReady = { readies++ }) { Box(Modifier.testTag("fallback")) }
+        }
+        compose.onNodeWithTag("fallback").assertExists()
+        assertEquals(1, readies)
+    }
+
+    @Test
+    fun `칸이 있으면 onReady를 칸 내용에 넘기고 스스로 부르지 않는다`() {
+        var readies = 0
+        var signal: (() -> Unit)? = null
+        val content: @Composable () -> Unit = { signal = LocalSlotAvatarStillOnReady.current }
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(content))) {
+                AvatarStillSlot(AvatarStillSubject.MINE, onReady = { readies++ }) { Box(Modifier.testTag("fallback")) }
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(0, readies, "그림이 보일 때 칸 내용이 부른다")
+        signal?.invoke()
+        assertEquals(1, readies)
     }
 }

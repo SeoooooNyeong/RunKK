@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.live
 
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.RunnerLook
 import java.time.Duration
 import java.time.Instant
 
@@ -25,7 +26,9 @@ data class MatchFound(
     val opponentBest: Duration?,
     val animationSeconds: Int,
     val opponentGender: Gender? = null,
-    val placementRound: Int? = null
+    val placementRound: Int? = null,
+    /** 상대 모습([임시:D-성-252]). 배치고사·고스트·가상 상대·옛 서버면 null이고 화면은 성별 기본 모습으로 그린다. */
+    val opponentLook: RunnerLook? = null
 ) : ServerMessage
 
 /**
@@ -127,7 +130,11 @@ data class CrewChatPosted(
     /** 작성자의 지금 크루 역할 이름(LEADER·MANAGER·MEMBER), 없으면 null. */
     val authorRole: String? = null,
     /** 러닝 완료 메시지의 거리(미터), 보통 글이면 null. */
-    val runDistanceMeters: Long? = null
+    val runDistanceMeters: Long? = null,
+    /** 작성자의 아바타 얼굴 키. 탈퇴한 작성자·옛 서버면 null. */
+    val authorFaceKey: String? = null,
+    /** 작성자의 표시 성별 이름(MALE·FEMALE). 탈퇴한 작성자·옛 서버면 null. */
+    val authorShownGender: String? = null
 ) : ServerMessage
 
 /** 크루 채팅 메시지 삭제·숨김(FR-213, FR-215). 모르는 사유 상수의 메시지는 data.live가 버린다(D-85). */

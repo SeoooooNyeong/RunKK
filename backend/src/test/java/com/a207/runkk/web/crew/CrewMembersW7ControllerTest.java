@@ -8,6 +8,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.a207.runkk.common.Week;
+import com.a207.runkk.member.Gender;
+import com.a207.runkk.member.ShownGender;
 import com.a207.runkk.web.WebTestSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Clock;
@@ -168,6 +170,45 @@ class CrewMembersW7ControllerTest extends WebTestSupport {
         assertThat(shown.get("ageBand").asText()).isEqualTo(ageBand(1990, year));
         assertThat(shown.get("gender").asText()).isEqualTo("FEMALE");
         assertThat(shown.get("ageBandVisibility").isNull()).isTrue();
+    }
+
+    @Test
+    @DisplayName("크루원 목록 얼굴과 성별: 얼굴 미선택은 null, 비공개 성별은 본인만 실제 값")
+    void members_carryFaceKeyAndShownGender() throws Exception {
+        Session leader = signUp();
+        Session a = signUp();
+        long crewId = createCrew(leader, "FREE");
+        call(a, post("/api/v1/crews/join"), Map.of("crewId", crewId))
+                .andExpect(jsonPath("$.status").value("JOINED"));
+        profile(leader, 1990, "FEMALE", "PUBLIC", "PUBLIC");
+        String ownGender = ShownGender.fallbackOf(a.memberId()) == Gender.MALE ? "FEMALE" : "MALE";
+        profile(a, 1995, ownGender, "PUBLIC", "PRIVATE");
+        call(leader, post("/api/v1/avatar/default"), Map.of("characterId", "FOX"))
+                .andExpect(status().isOk());
+
+        JsonNode members =
+                json(call(a, get("/api/v1/crews/" + crewId + "/members"), null)).get("members");
+
+        JsonNode withFace = find(members, leader.memberId());
+        assertThat(withFace.get("faceKey").asText()).isEqualTo("default:FOX");
+        assertThat(withFace.get("shownGender").asText()).isEqualTo("FEMALE");
+        JsonNode noFace = find(members, a.memberId());
+        assertThat(noFace.has("faceKey")).as("키는 항상 있고 값만 null").isTrue();
+        assertThat(noFace.get("faceKey").isNull()).isTrue();
+        assertThat(noFace.get("shownGender").asText())
+                .as("내 줄은 비공개여도 실제 성별이다")
+                .isEqualTo(ownGender);
+        JsonNode seenByLeader =
+                json(call(leader, get("/api/v1/crews/" + crewId + "/members"), null))
+                        .get("members");
+        assertThat(find(seenByLeader, a.memberId()).get("shownGender").asText())
+                .as("다른 크루원에게는 회원 ID로 정한 대체 성별이다")
+                .isEqualTo(ShownGender.fallbackOf(a.memberId()).name());
+        List<String> keys = new ArrayList<>();
+        noFace.fieldNames().forEachRemaining(keys::add);
+        assertThat(keys.subList(keys.size() - 3, keys.size()))
+                .as("새 필드는 맨 끝에 더한다")
+                .containsExactly("genderVisibility", "faceKey", "shownGender");
     }
 
     @Test

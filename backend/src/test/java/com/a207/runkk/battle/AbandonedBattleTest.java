@@ -88,7 +88,13 @@ class AbandonedBattleTest {
 
     private RecordBattleService records(LocalDateTime t) {
         return new RecordBattleService(
-                members, runs, new InMemoryBattleStores.Celebrities(), battles, queue, at(t));
+                members,
+                runs,
+                new InMemoryBattleStores.Celebrities(),
+                battles,
+                queue,
+                at(t),
+                BattleFixtures.noLooks());
     }
 
     private BattleStartService starts(LocalDateTime t) {
@@ -99,7 +105,8 @@ class AbandonedBattleTest {
                 new InMemoryBattleStores.Messenger(),
                 new InMemoryBattleStores.Sessions(),
                 at(t),
-                InMemoryBattleStores.transactions());
+                InMemoryBattleStores.transactions(),
+                BattleFixtures.noLooks());
     }
 
     private Battle selfBattle(LocalDateTime t) {

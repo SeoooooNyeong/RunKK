@@ -1,6 +1,9 @@
 package com.a207.runkk.app.ui.crew
 
+import android.app.Activity
 import android.net.Uri
+import android.widget.Toast
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,6 +65,8 @@ import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.PostList
+import com.a207.runkk.app.ui.share.CrewInviteMessage
+import com.a207.runkk.app.ui.share.KakaoShareOutcome
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,6 +83,7 @@ fun CrewHomeRoute(
     isAtTabRoot: Boolean = false,
     initialTab: CrewTab = CrewTab.RACE,
     onLeft: () -> Unit = {},
+    shareToKakao: suspend (Activity, CrewInviteMessage) -> KakaoShareOutcome = { _, _ -> KakaoShareOutcome.FAILED },
     viewModel: CrewHomeViewModel = hiltViewModel(),
     report: CrewReportViewModel = hiltViewModel()
 ) {
@@ -91,6 +97,7 @@ fun CrewHomeRoute(
     val reportState by report.state.collectAsStateWithLifecycle()
     ForwardMessages(viewModel, reportState.message to report::onMessageShown)
     val navigator = LocalRunkkNavigator.current
+    val context = LocalContext.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
@@ -99,11 +106,18 @@ fun CrewHomeRoute(
                     onLeft()
                     navigator.selectTab(Routes.CREW)
                 }
+
+                // 초대 창은 그대로 두고 그 위에 짧은 안내를 띄운다(스낵바는 창 뒤에 가려진다).
+                CrewHomeEvent.InviteKakaoFailed ->
+                    Toast.makeText(context, R.string.crew_invite_kakao_failed, Toast.LENGTH_SHORT).show()
+
+                CrewHomeEvent.InviteShareFailed ->
+                    Toast.makeText(context, R.string.crew_invite_share_failed, Toast.LENGTH_SHORT).show()
             }
         }
     }
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val activity = LocalActivity.current
     // 정보 수정 로고(F-26, DV-6): 크루 만들기와 같이 사진 고르기 → JPEG로 줄여(EXIF 방향 반영) 올린다.
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -120,6 +134,22 @@ fun CrewHomeRoute(
             actions = crewHomeActions(viewModel, report::onAsk).withNavigation(state.crewId, navigator::navigate)
                 .copy(
                     onBack = navigator::back,
+                    // 초대 창([임시:FR-성-37]): 카카오톡은 Activity가 필요해 이 화면이 보낸다. 결과는 ViewModel이 받아 실패만 알린다.
+                    onInviteKakao = {
+                        val invite = crewInviteMessage(context.resources, state.detail)
+                        scope.launch {
+                            val outcome = if (activity != null && invite != null) {
+                                shareToKakao(activity, invite)
+                            } else {
+                                KakaoShareOutcome.FAILED
+                            }
+                            viewModel.onInviteKakaoResult(outcome)
+                        }
+                    },
+                    onInviteSystemShare = {
+                        val invite = crewInviteMessage(context.resources, state.detail)
+                        if (invite == null || !openCrewInviteShare(context, invite)) viewModel.onInviteShareFailed()
+                    },
                     onEditLogoPick = {
                         picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     }
@@ -196,6 +226,7 @@ private fun crewHomeActions(vm: CrewHomeViewModel, onReport: (PostList.Item) -> 
     onInviteOpen = vm::onInviteOpen,
     onInviteClose = vm::onInviteClose,
     onInviteCopied = vm::onInviteCopied,
+    onInviteLinkCopy = vm::onInviteLinkCopied,
     onMessageShown = vm::onMessageShown,
     onLoadMore = vm::onLoadMore,
     onMenuOpen = vm::onMenuOpen,

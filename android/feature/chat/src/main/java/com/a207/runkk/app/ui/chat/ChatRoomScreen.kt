@@ -155,7 +155,9 @@ private fun ChatMessages(state: ChatUiState, actions: ChatActions, modifier: Mod
         verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
         newestFirst.forEachIndexed { index, message ->
-            item(key = message.listKey()) { ChatMessageRow(message, actions) }
+            item(key = message.listKey()) {
+                ChatMessageRow(message, actions, message.authorFaceKey?.let(state.faces::get).orEmpty())
+            }
             // 거꾸로 쌓으므로 그날 첫 메시지 "뒤"에 둔 날짜 줄이 화면에서는 그 위에 보인다.
             val day = message.sentAt.atZone(zone).toLocalDate()
             val olderDay = newestFirst.getOrNull(index + 1)?.sentAt?.atZone(zone)?.toLocalDate()

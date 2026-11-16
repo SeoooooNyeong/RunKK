@@ -1,5 +1,6 @@
 package com.a207.runkk.battle;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 
@@ -15,6 +16,7 @@ import com.a207.runkk.common.Distance;
  * @param source 유명인 출처, 나와의 싸움이면 null
  * @param estimated 평균 페이스로 추정한 표인가(A-006)
  * @param figureKey 유명인 캐릭터 그림 키, 없거나 나와의 싸움이면 null(2026-10-31 결정)
+ * @param opponentLook 나와의 싸움 상대 모습(후보의 look과 같은 값), 유명인 대결이면 null(설계 5.31 [임시:D-성-252])
  */
 public record RecordBattleStart(
         long battleId,
@@ -24,4 +26,5 @@ public record RecordBattleStart(
         OpponentTrack track,
         Source source,
         boolean estimated,
-        String figureKey) {}
+        String figureKey,
+        AvatarLook opponentLook) {}
