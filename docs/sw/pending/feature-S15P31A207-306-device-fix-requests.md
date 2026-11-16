@@ -283,3 +283,12 @@
 - PM: Q1~6은 U-31~36으로 해소. 정책 재질문 없음. CREW_RELEASED 운영 설정은 다음 이슈이며 이번 CR 인수 선행 조건이 아님.
 
 원인 E1~E5는 그대로다: 비동기 내 기록 저장/업로드보다 결과 복귀가 빠를 수 있음, 확인은 기존 back, 레이스 캐시 재사용, 결과 임시 거리와 유효 집계의 차이, AFTER_COMMIT 동기 합산의 실패 흡수 경로. U-34는 모든 집계를 기다려 해결하는 가정을 폐기하고 내 전송 완료와 확정 원본 재조회를 연결한다. 제품 수정/시험/배포/CR 종료는 아직 하지 않았다.
+
+### 2026-11-16 서버 구현(impl/S15P31A207-306-realtime)
+
+새 임시 번호는 없다. 구현에서 정한 세부와 설계와 다른 점은 05-32 8.2에 있다. 공용 파일에 넣을 것만 적는다.
+
+- 새 Flyway 번호 `V67__crew_run_realtime.sql`(crew_post 출발 예약/변경 순번, crew_run_participation 출발 후보/개인 측정 시작 시각/측정 기록 ID, 색인 2개). 병합 때 다른 브랜치의 V67과 겹치면 다음 번호로 옮긴다. design-oo/06-04 ERD와 자료사전에 같은 열을 넣는다.
+- 새 사유 코드 `CREW_RUN_NOT_READY`(409, 05-32 5.1의 새 제안). 앱 계약 파일 `contract/app/enums/ReasonCode.txt`, `contract/app/dto-records.json`을 갱신했다. android/contract는 앱 작업자가 `sync_from_server.py`로 맞춘다.
+- 새 계약 표본(앱 파싱 시험이 함께 쓴다): `backend/src/test/resources/contract/realtime/CrewRunChanged.json`, `CrewRunChanged-schedule.json`, `CrewRunDeparture.json`, `CrewRunDeparture-empty.json`, `backend/src/test/resources/contract/crew/LobbyResponse-countdown.json`, `LobbyResponse-running.json`, `ParticipationResponse.json`.
+- test/06-추적표: 05-32 8.1의 서버 TC와 시험 이름을 옮긴다. 앱 TC와 시스템 시험(11048, 11049)은 미실행이다.
