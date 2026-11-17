@@ -29,6 +29,7 @@ import java.util.List;
  * @param repeat 진행 중인 반복의 최신 회차면 WEEKLY
  * @param repeatDayOfWeek 반복 요일, NONE이면 null
  * @param attendees 참석자
+ * @param myRun 열람자의 참여 상태(v0.14 [임시:D-성-969])
  */
 public record CrewRunDetailView(
         long postId,
@@ -49,7 +50,8 @@ public record CrewRunDetailView(
         boolean canDelete,
         CrewRunRepeat repeat,
         DayOfWeek repeatDayOfWeek,
-        List<Attendee> attendees) {
+        List<Attendee> attendees,
+        MyRunState myRun) {
 
     public CrewRunDetailView {
         attendees = List.copyOf(attendees);
