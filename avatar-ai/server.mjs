@@ -25,6 +25,7 @@ const imageModel=process.env.IMAGE_MODEL||'gpt-image-2.5-sunburst';
 const visionModel=process.env.VISION_MODEL||'gpt-4.1-mini';
 const quality=['low','medium','high','auto'].includes(process.env.IMAGE_QUALITY)?process.env.IMAGE_QUALITY:'high';
 const autoAlign=process.env.AUTO_ALIGN_HEAD!=='false';
+const testMode=process.env.AVATAR_TEST_MODE==='true'||process.env.NODE_ENV==='test';
 const baseURL=(process.env.GMS_BASE_URL||'https://gms.ssafy.io/gmsapi/api.openai.com/v1').replace(/\/+$/,'');
 const apiKey=(process.env.GMS_KEY||process.env.OPENAI_API_KEY||'').trim();
 const configured=Boolean(apiKey&&!apiKey.includes('your-')&&!apiKey.includes('여기에'));
@@ -113,13 +114,13 @@ async function generateHead(selfie,traits,similarity,hairLength,onMaster){
   const master=await normalizeMaster(Buffer.from(encoded,'base64'));
   onMaster?.(master);
   const regions=await analyzeHeadRegions(client,visionModel,master);
-  const layers=await splitHead(master,regions,{client,imageModel,visionModel,quality});layers.master=master;return layers;
+  return {master,regions};
 }
 async function saveHead(userId,layers,traits,hairLength,alignment,qualityResult,mobile,rightProfile){
-  const id=randomUUID(),metadata={id,createdAt:new Date().toISOString(),schemaVersion:FACE_ASSETS_VERSION,rightProfile,rigVersion:'runkk-front-v1',styleVersion:HEAD_LAYER_VERSION,imageModel,visionModel,traits,hairLength,alignment,quality:qualityResult,mobile,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,regions:layers.regions,validation:layers.validation};
+  const id=randomUUID(),metadata={id,createdAt:new Date().toISOString(),schemaVersion:FACE_ASSETS_VERSION,rightProfile,rigVersion:'runkk-front-v1',styleVersion:HEAD_LAYER_VERSION,imageModel,visionModel,traits,hairLength,alignment,quality:qualityResult,mobile,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,regions:layers.regions,validation:layers.validation,layerReference:layers.layerReference};
   return saveUserHead(DIR,userId,layers,metadata);
 }
-app.get('/api/health',(_req,res)=>res.json({ok:true,configured,imageModel,visionModel,quality,autoAlign,provider:baseURL,fields:fieldLabels,supportedHairLengths:HAIR_LENGTHS,layerLayout:LAYER_LAYOUT,selfieQualityVersion:SELFIE_QUALITY_VERSION,avatarViewVersion:AVATAR_VIEW_VERSION,faceAssetsVersion:FACE_ASSETS_VERSION,imageFields:[...FACE_IMAGE_FIELDS,...RIGHT_IMAGE_FIELDS],rightLayerLayout:RIGHT_LAYOUT,backgroundJobs:true,mode:'local-server-ai'}));
+app.get('/api/health',(_req,res)=>res.json({ok:true,configured,imageModel,visionModel,quality,autoAlign,testMode,provider:baseURL,fields:fieldLabels,supportedHairLengths:HAIR_LENGTHS,layerLayout:LAYER_LAYOUT,selfieQualityVersion:SELFIE_QUALITY_VERSION,avatarViewVersion:AVATAR_VIEW_VERSION,faceAssetsVersion:FACE_ASSETS_VERSION,imageFields:[...FACE_IMAGE_FIELDS,...RIGHT_IMAGE_FIELDS],rightLayerLayout:RIGHT_LAYOUT,backgroundJobs:true,mode:'local-server-ai'}));
 app.post('/api/analyze',upload.single('selfie'),async(req,res,next)=>{try{ensureApiKey();if(!req.file)return res.status(400).json({error:'셀카 사진을 먼저 선택해 주세요.'});res.json(await analyzeSelfie(await normalizeSelfie(req.file.buffer)));}catch(e){next(e);}});
 app.get('/api/generate-preview', (req,res,next)=>{try{const userId=requireUserId(req.query.userId),preview=generationPreviews.get(userId);if(!preview)return res.sendStatus(204);res.json({frontImage:'data:image/png;base64,'+preview.toString('base64')});}catch(error){next(error);}});
 app.post('/api/generate',upload.single('selfie'),async(req,res,next)=>{
@@ -133,26 +134,28 @@ app.post('/api/generate',upload.single('selfie'),async(req,res,next)=>{
     let traits=null;try{traits=cleanTraits(JSON.parse(req.body.traits||'null'));}catch{}
     if(!traits||!traits.hair.trim()||!traits.eyes.trim())traits=analysis.traits;
     const similarity=Math.max(0,Math.min(100,Number(req.body.similarity)||60)),hairLength=resolveHairLength(String(req.body.hairLength||'auto'),traits);
-    const layers=await generateHead(selfie,traits,similarity,hairLength,master=>generationPreviews.set(userId,master)),alignment={pivotX:layers.regions.neck.x/1000,pivotY:layers.regions.neck.y/1000,skin:Math.max(0,Math.min(4,Number(layers.regions.skinPalette)||0)),estimated:false};
-    const glassesPresent=layers.regions.features.glassesPresent===true;
-    const eyeY=(layers.regions.landmarks.leftEye.y+layers.regions.landmarks.rightEye.y)/2;
-    const frontEyeToChinPx=Math.max(30,layers.regions.landmarks.chin.y-eyeY);
-    const profile=await avatarViews.generate(userId,layers.master,{lockHeld:true,glassesPresent,frontEyeToChinPx});
+    const head=await generateHead(selfie,traits,similarity,hairLength,master=>generationPreviews.set(userId,master)),alignment={pivotX:head.regions.neck.x/1000,pivotY:head.regions.neck.y/1000,skin:Math.max(0,Math.min(4,Number(head.regions.skinPalette)||0)),estimated:false};
+    const glassesPresent=head.regions.features.glassesPresent===true;
+    const eyeY=(head.regions.landmarks.leftEye.y+head.regions.landmarks.rightEye.y)/2;
+    const frontEyeToChinPx=Math.max(30,head.regions.landmarks.chin.y-eyeY);
+    const profile=await avatarViews.generate(userId,head.master,{lockHeld:true,glassesPresent,frontEyeToChinPx});
+    const layers=await splitHead(head.master,head.regions,{client,imageModel,visionModel,quality});
+    layers.master=head.master;
     layers.right=Buffer.from(profile.image.split(',')[1],'base64');
     for(const part of ['Face','Eyes','Hair'])layers['right'+part]=Buffer.from(profile['right'+part+'Image'].split(',')[1],'base64');
     const rightProfile=profileMetadata(profile),mobile=await mobileHead(layers.face,alignment);
     let saved=null,saveWarning=null;try{saved=await saveHead(userId,layers,traits,hairLength,alignment,analysis.quality,mobile,rightProfile);}catch{saveWarning='서버 폴더에 저장하지 못했어요. 분리 레이어 PNG나 설정 JSON을 직접 저장해 주세요.';}
-    res.json(assertFaceResult({userId,schemaVersion:FACE_ASSETS_VERSION,...faceImages(layers),rightProfile,rightLayerLayout:RIGHT_LAYOUT,headId:saved?.id||null,traits,hairLength,glassesPresent,alignment,mobile,quality:analysis.quality,styleVersion:HEAD_LAYER_VERSION,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,validation:layers.validation,saved:Boolean(saved),warning:saveWarning||null}));
+    res.json(assertFaceResult({userId,schemaVersion:FACE_ASSETS_VERSION,...faceImages(layers),rightProfile,rightLayerLayout:RIGHT_LAYOUT,headId:saved?.id||null,traits,hairLength,glassesPresent,alignment,mobile,quality:analysis.quality,styleVersion:HEAD_LAYER_VERSION,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,validation:layers.validation,layerReference:layers.layerReference,saved:Boolean(saved),warning:saveWarning||null}));
   }catch(e){next(e);}finally{if(previewUserId)generationPreviews.delete(previewUserId);if(ownsGeneration)generating=false;}
 });
-app.get('/api/heads/latest',async(req,res,next)=>{try{const userId=requireUserId(req.query.userId);res.json(await savedFaceResult(DIR,userId,avatarViews.cached));}catch(e){if(e.code==='ENOENT')return res.status(404).json({error:'이 사용자에게 저장된 AI 머리가 없어요.',code:'HEAD_NOT_FOUND'});next(e);}});
+app.get('/api/heads/latest',async(req,res,next)=>{try{const userId=requireUserId(req.query.userId),resplit=req.query.resplit==='true';if(resplit&&!testMode)return res.status(404).json({error:'저장된 완성 얼굴 재분리는 테스트 모드에서만 사용할 수 있어요.',code:'TEST_MODE_ONLY'});res.json(await savedFaceResult(DIR,userId,avatarViews.cached,null,{resplit,persist:!resplit,splitOptions:{client,imageModel,visionModel,quality}}));}catch(e){if(e.code==='ENOENT')return res.status(404).json({error:'이 사용자에게 저장된 AI 머리가 없어요.',code:'HEAD_NOT_FOUND'});next(e);}});
 app.get('/api/bodies/:bodyId',async(req,res,next)=>{try{const id=req.params.bodyId;if(!['daily','hoodie','windbreaker','singlet'].includes(id))return res.status(404).json({error:'몸 프리셋을 찾을 수 없어요.',code:'BODY_NOT_FOUND'});const png=await readFile(path.join(DIR,'public/assets/bodies',id+'.png'));const pack={format:'runkk-body-pack',version:2,id,name:id,rigVersion:'runkk-front-v1',renderer:'seamless-mesh-v1',image:`data:image/png;base64,${png.toString('base64')}`,neck:[.5,.083],skinZones:[],preserveArt:true};pack.mobile=await mobileBody(png,pack);res.json({pack});}catch(e){next(e);}});
 registerBodyGeneration(app,{client,root:DIR,imageModel,visionModel,quality,ensureApiKey,isBusy:()=>generating,setBusy:value=>{generating=value;}});
 const avatarViews=registerAvatarViews(app,{client,root:DIR,imageModel,visionModel,quality,ensureApiKey,isBusy:()=>generating,setBusy:value=>{generating=value;},splitProfile:(png,glassesPresent)=>splitRightHead(png,{client,imageModel,visionModel,quality,glassesPresent})});
 registerHeadJobs(app,{root:DIR,upload,normalizeSelfie,port:Number(process.env.PORT||3000),normalizeResult:async(data,userId)=>{
   if(data.userId!==userId)throw Object.assign(new Error('작업의 사용자 정보가 맞지 않아요.'),{status:409,code:'FACE_ASSETS_INCOMPLETE'});
   if(data.schemaVersion===FACE_ASSETS_VERSION&&RIGHT_IMAGE_FIELDS.every(k=>data[k])&&data.mobile?.version==='runkk-mobile-compose-v2'&&data.mobile.renderFaceImage?.startsWith('data:image/png;base64,'))return assertFaceResult(data);
-  const result=await savedFaceResult(DIR,userId,avatarViews.cached,data.headId);return {...result,...(data.metrics?{metrics:data.metrics}:{})};
+  const result=await savedFaceResult(DIR,userId,avatarViews.cached,data.headId,{splitOptions:{client,imageModel,visionModel,quality}});return {...result,...(data.metrics?{metrics:data.metrics}:{})};
 }});
 app.use(express.static(path.join(DIR,'public'),{dotfiles:'deny'}));
 app.use((req,res,next)=>req.path.startsWith('/api/')?res.status(404).json({error:'요청한 API 경로를 찾을 수 없어요.'}):next());
