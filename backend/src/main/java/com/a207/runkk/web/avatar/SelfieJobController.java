@@ -22,8 +22,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/avatar")
 public class SelfieJobController {
-    /** 머리 응답 형식 버전. v2: frontImage·rightImage·mobile.renderFaceImage를 뺐다. */
-    static final String HEAD_FORMAT = "v2";
+    /**
+     * 머리 응답 형식 버전. v2: frontImage·rightImage·mobile.renderFaceImage를 뺐다. v3: avatar-ai가 저장된 머리
+     * 6레이어를 팔레트 PNG로 다시 줄였다(S15P31A207-300). 압축 전 사본을 가진 앱이 한 번 다시 받는다.
+     */
+    static final String HEAD_FORMAT = "v3";
 
     private final SelfieJobService service;
 
