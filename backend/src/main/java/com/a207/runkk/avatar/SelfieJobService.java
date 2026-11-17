@@ -315,7 +315,17 @@ public class SelfieJobService {
         return gateway.latest(memberId);
     }
 
+    /** 다른 러너가 볼 머리. 앱이 쓰지 않는 원본은 뺀다({@link GeneratedHead#forViewers()}). */
     public GeneratedHead head(long viewerId, long ownerId, String jobId) {
+        requireVisibleHead(viewerId, ownerId, jobId);
+        return gateway.result(ownerId, jobId).forViewers();
+    }
+
+    /**
+     * 열람자가 이 머리를 볼 수 있는지 ai 호출 없이 확인한다(탈퇴·없는 회원 403, 없는 작업 404 JOB_NOT_FOUND, 끝나지 않았거나 실패한 작업 404
+     * HEAD_NOT_FOUND). 앱이 가진 사본을 재검증(304)할 때도 같은 규칙을 거친다.
+     */
+    public void requireVisibleHead(long viewerId, long ownerId, String jobId) {
         DisclosureLevel level =
                 members.disclosureOf(viewerId, List.of(ownerId))
                         .getOrDefault(ownerId, DisclosureLevel.WITHDRAWN);
@@ -325,7 +335,6 @@ public class SelfieJobService {
         if (!job.finished() || job.view().status() != FaceJob.Status.SUCCEEDED) {
             throw new FaceJobRejectedException(404, "HEAD_NOT_FOUND");
         }
-        return gateway.result(ownerId, jobId);
     }
 
     public AvatarBody body(String bodyId) {
