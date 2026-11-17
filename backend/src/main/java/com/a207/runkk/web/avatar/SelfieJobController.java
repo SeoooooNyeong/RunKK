@@ -6,8 +6,14 @@ import com.a207.runkk.avatar.FaceJobRejectedException;
 import com.a207.runkk.avatar.GeneratedHead;
 import com.a207.runkk.avatar.SelfieJobService;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.Map;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +22,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/avatar")
 public class SelfieJobController {
+    /** 머리 응답 형식 버전. v2: frontImage·rightImage·mobile.renderFaceImage를 뺐다. */
+    static final String HEAD_FORMAT = "v2";
+
     private final SelfieJobService service;
 
     public SelfieJobController(SelfieJobService service) {
@@ -74,14 +83,56 @@ public class SelfieJobController {
                 .body(service.latest(memberId));
     }
 
+    /**
+     * 다른 러너의 머리. 작업이 끝난 머리는 바뀌지 않으므로 작업마다 강한 ETag를 주고 매번 재검증하게 한다(공유 캐시 금지). If-None-Match가 맞으면 공개
+     * 규칙만 다시 확인하고 ai를 부르지 않은 채 304를 돌려준다(S15P31A207-300 핫픽스).
+     */
     @GetMapping("/heads/{ownerId}/{jobId}")
     ResponseEntity<GeneratedHead> head(
             @RequestAttribute("memberId") long memberId,
             @PathVariable long ownerId,
-            @PathVariable String jobId) {
+            @PathVariable String jobId,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false)
+                    String ifNoneMatch) {
+        String etag = headEtag(ownerId, jobId);
+        CacheControl revalidate = CacheControl.noCache().cachePrivate();
+        if (matches(ifNoneMatch, etag)) {
+            service.requireVisibleHead(memberId, ownerId, jobId);
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+                    .eTag(etag)
+                    .cacheControl(revalidate)
+                    .build();
+        }
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.noStore())
+                .eTag(etag)
+                .cacheControl(revalidate)
                 .body(service.head(memberId, ownerId, jobId));
+    }
+
+    /**
+     * 머리 응답의 강한 ETag. 작업(소유자·작업 ID)과 응답 형식 버전으로 만든다. 형식을 바꾸면 {@link #HEAD_FORMAT}을 올려 예전 사본을 다시 받게
+     * 한다.
+     */
+    static String headEtag(long ownerId, String jobId) {
+        try {
+            byte[] digest =
+                    MessageDigest.getInstance("SHA-256")
+                            .digest((ownerId + ":" + jobId).getBytes(StandardCharsets.UTF_8));
+            return "\"head-" + HEAD_FORMAT + "-" + HexFormat.of().formatHex(digest, 0, 16) + "\"";
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256를 사용할 수 없다", error);
+        }
+    }
+
+    /** If-None-Match 비교(RFC 9110 13.1.2: 약한 비교, 목록·*). */
+    private static boolean matches(String ifNoneMatch, String etag) {
+        if (ifNoneMatch == null || ifNoneMatch.isBlank()) return false;
+        for (String candidate : ifNoneMatch.split(",")) {
+            String tag = candidate.trim();
+            if (tag.startsWith("W/")) tag = tag.substring(2);
+            if (tag.equals("*") || tag.equals(etag)) return true;
+        }
+        return false;
     }
 
     @GetMapping("/bodies/{bodyId}")

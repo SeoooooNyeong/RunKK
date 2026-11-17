@@ -2,6 +2,7 @@ package com.a207.runkk.avatar;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -67,6 +68,35 @@ public record GeneratedHead(
                 null,
                 null,
                 null);
+    }
+
+    /**
+     * 다른 러너 화면에 보낼 머리(GET /avatar/heads). 앱이 쓰지 않는 정면·옆 원본(frontImage·rightImage)과
+     * mobile.renderFaceImage를 빼 응답 크기를 줄인다(S15P31A207-300 핫픽스). 나머지 레이어·메타데이터는 그대로다.
+     */
+    public GeneratedHead forViewers() {
+        Map<String, Object> slimMobile = mobile;
+        if (mobile != null && mobile.containsKey("renderFaceImage")) {
+            slimMobile = new LinkedHashMap<>(mobile);
+            slimMobile.remove("renderFaceImage");
+        }
+        return new GeneratedHead(
+                headId,
+                userId,
+                faceImage,
+                eyesImage,
+                hairImage,
+                traits,
+                hairLength,
+                alignment,
+                slimMobile,
+                createdAt,
+                null,
+                null,
+                rightFaceImage,
+                rightEyesImage,
+                rightHairImage,
+                rightLayerLayout);
     }
 
     @Override
