@@ -112,7 +112,7 @@ public class Avatar {
         this.skinTone = SkinTone.DAYTIME;
     }
 
-    /** 얼굴 없음, 기본 몸(4단계, [임시:D-성-179]), 낮 톤, 착용 없음. */
+    /** 얼굴 없음, 기본 몸(4단계, D-811), 낮 톤, 착용 없음. */
     public static Avatar create(long memberId) {
         return new Avatar(memberId);
     }
@@ -241,16 +241,7 @@ public class Avatar {
 
     /** 얼굴. 고르지 않았으면 비어 있다. */
     public Optional<Face> face() {
-        if (defaultCharacter != null) {
-            return Optional.of(new DefaultFace(defaultCharacter));
-        }
-        if (headJobId != null) {
-            return Optional.of(() -> "head:" + memberId + ":" + headJobId);
-        }
-        if (facePartKeys.size() == FacePart.values().length) {
-            return Optional.of(new SelfieFace(new SdFaceParts(facePartKeys)));
-        }
-        return Optional.empty();
+        return new AvatarFace(memberId, defaultCharacter, headJobId, facePartKeys).face();
     }
 
     /** 얼굴이 없으면 "기본 캐릭터를 고를 수 있다". 고른 배경 키(null = 기본 배경)를 싣는다(FR-162, FR-202). */

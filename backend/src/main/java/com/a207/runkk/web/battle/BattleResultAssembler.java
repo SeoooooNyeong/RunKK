@@ -73,6 +73,7 @@ class BattleResultAssembler {
                 view.placementRound(),
                 view.placementRound() == null
                         ? null
-                        : placementRoundReader.stateOf(memberId, battleId).orElse(null));
+                        : placementRoundReader.stateOf(memberId, battleId).orElse(null),
+                view.opponentLook());
     }
 }

@@ -27,7 +27,7 @@ data class ProfileEditUiState(
     val isSaving: Boolean = false,
     val error: UiText? = null
 ) {
-    /** 맨 위 얼굴을 아직 그릴 수 없다(프로필·얼굴 층을 받는 중). 기본 머리를 먼저 보이지 않고 중립 자리를 둔다([임시:D-성-190]). */
+    /** 맨 위 얼굴을 아직 그릴 수 없다(프로필·얼굴 층을 받는 중). 기본 머리를 먼저 보이지 않고 중립 자리를 둔다(D-822). */
     val isFacePending: Boolean get() = isLoading || isFaceLoading
 
     val canSave: Boolean get() = !isLoading && !isSaving && nickname.trim().codePointLength() in NICKNAME_LENGTH

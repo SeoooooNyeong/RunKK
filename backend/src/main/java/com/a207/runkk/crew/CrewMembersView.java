@@ -34,6 +34,8 @@ public record CrewMembersView(long crewId, List<Line> members, Set<Long> disclos
      * @param accumulated 이 크루에 반영된 누적 기여 거리(W7 결정 W7-1)
      * @param joinedAt 지금 소속의 크루 가입 일시
      * @param profile 레벨·나이대·성별(공개 설정 반영, CrewMemberProfile)
+     * @param shownGender 다른 러너에게 보이는 표시 성별 이름(MALE | FEMALE, member.ShownGender). 얼굴 그림의 기본 캐릭터를
+     *     고르는 값이라 성별 비공개여도 대체값이 늘 있다(설계 5.31 [임시:D-성-226])
      */
     public record Line(
             long memberId,
@@ -43,5 +45,6 @@ public record CrewMembersView(long crewId, List<Line> members, Set<Long> disclos
             Tier tier,
             Distance accumulated,
             LocalDateTime joinedAt,
-            CrewMemberProfile profile) {}
+            CrewMemberProfile profile,
+            String shownGender) {}
 }

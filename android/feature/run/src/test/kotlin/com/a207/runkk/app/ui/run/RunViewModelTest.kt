@@ -8,6 +8,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GeoPoint
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.record.TodayPlan
 import com.a207.runkk.app.domain.run.FreeRunGoalUseCase
 import com.a207.runkk.app.domain.run.Guidance
@@ -59,6 +60,19 @@ class RunViewModelTest {
         RunCoach(guidance, settings),
         MeasurementRuntime(permission, host, settings, clock)
     )
+
+    @Test
+    fun `지도 위 내 얼굴은 기기에 남긴 내 아바타로 시작하고 홈과 같은 내 아바타로 바뀐다(FR-성-31)`() = runTest {
+        val last = MyAvatar("default:FOX", emptyList(), "SEOUL_NAMSAN")
+        val fresh = MyAvatar("head:7:ab12", emptyList(), "SEOUL_NAMSAN")
+        val vm = RunViewModel(tracker(), records, goals, myAvatar = { fresh }, lastAvatar = { last })
+        assertEquals(last, vm.state.value.myAvatar, "읽기 전에는 마지막으로 본 내 얼굴")
+
+        runCurrent()
+        advanceUntilIdle()
+
+        assertEquals(fresh, vm.state.value.myAvatar)
+    }
 
     private fun TestScope.started(): Pair<RunViewModel, RunTracker> {
         val tracker = tracker()

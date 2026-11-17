@@ -16,7 +16,7 @@ import retrofit2.create
 
 /**
  * AvatarRepository ← AvatarRepositoryImpl(D-61), PendingSelfieStore·BackgroundUnlockSeenStore ← SharedPreferences(S15P31A207-248, W8),
- * SelfieJobFollower ← WorkManager, PendingSelfiePhoto ← 앱 전용 파일(design-oo 05-30 [임시:D-성-117], [임시:D-성-119]).
+ * SelfieJobFollower ← WorkManager, PendingSelfiePhoto ← 앱 전용 파일(design-oo 05-30 D-749, D-751).
  */
 @Module
 @InstallIn(SingletonComponent::class)

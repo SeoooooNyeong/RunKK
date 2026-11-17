@@ -1,5 +1,6 @@
 package com.a207.runkk.web.crew;
 
+import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.common.Tier;
 import com.a207.runkk.crew.CrewMembersView;
 import com.a207.runkk.crew.CrewQueryService;
@@ -14,22 +15,27 @@ import org.springframework.stereotype.Component;
 /**
  * 크루원 목록 응답을 조합한다(설계 6.1.13 web.crew, D-46). CrewQueryService.members에
  * RunimalQuery.typesOf(disclosedMemberIds)를 붙인다. 업무 규칙 없이 두 조회 결과만 붙이고, 공개 수준은 crew가 member의 판정으로
- * 정한 disclosedMemberIds만 따른다(D-52). 가입 대기 목록의 Runimal 유형(FR-136)도 같은 방식으로 붙인다.
+ * 정한 disclosedMemberIds만 따른다(D-52). 가입 대기 목록의 Runimal 유형(FR-136)도 같은 방식으로 붙인다. 크루원 얼굴 키도
+ * AvatarQuery.faceKeysOf(disclosedMemberIds)로 같은 판정에 붙인다(설계 5.31 [임시:D-성-227]).
  */
 @Component
 class CrewMembersAssembler {
 
     private final CrewQueryService crewQueryService;
     private final RunimalQuery runimalQuery;
+    private final AvatarQuery avatarQuery;
 
-    CrewMembersAssembler(CrewQueryService crewQueryService, RunimalQuery runimalQuery) {
+    CrewMembersAssembler(
+            CrewQueryService crewQueryService, RunimalQuery runimalQuery, AvatarQuery avatarQuery) {
         this.crewQueryService = crewQueryService;
         this.runimalQuery = runimalQuery;
+        this.avatarQuery = avatarQuery;
     }
 
     CrewMembersResponse members(long viewerId, long crewId) {
         CrewMembersView view = crewQueryService.members(viewerId, crewId);
         Map<Long, RunimalType> types = runimalQuery.typesOf(view.disclosedMemberIds());
+        Map<Long, String> faceKeys = avatarQuery.faceKeysOf(view.disclosedMemberIds());
         return new CrewMembersResponse(
                 view.members().stream()
                         .map(
@@ -48,7 +54,11 @@ class CrewMembersAssembler {
                                                 m.profile().ageBand(),
                                                 nameOf(m.profile().gender()),
                                                 nameOf(m.profile().ageBandVisibility()),
-                                                nameOf(m.profile().genderVisibility())))
+                                                nameOf(m.profile().genderVisibility()),
+                                                view.disclosedMemberIds().contains(m.memberId())
+                                                        ? faceKeys.get(m.memberId())
+                                                        : null,
+                                                m.shownGender()))
                         .toList());
     }
 
@@ -103,6 +113,8 @@ class CrewMembersAssembler {
          * @param gender 성별(FEMALE | MALE | UNDISCLOSED), 남에게는 성별 공개일 때만
          * @param ageBandVisibility 나이대 공개 값(PUBLIC | PRIVATE, 본인 줄만)
          * @param genderVisibility 성별 공개 값(본인 줄만)
+         * @param faceKey 아바타 얼굴 키(Face.renderKey), 얼굴을 안 골랐거나 프로필을 보이지 않는 크루원이면 null
+         * @param shownGender 표시 성별(MALE | FEMALE). 성별 비공개여도 대체값이 있다(얼굴 그림의 기본 캐릭터)
          */
         record Member(
                 long memberId,
@@ -118,7 +130,9 @@ class CrewMembersAssembler {
                 String ageBand,
                 String gender,
                 String ageBandVisibility,
-                String genderVisibility) {}
+                String genderVisibility,
+                String faceKey,
+                String shownGender) {}
     }
 
     /**

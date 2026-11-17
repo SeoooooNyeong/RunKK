@@ -1,7 +1,7 @@
 package com.a207.runkk.app.ui.avatar
 
 /**
- * 내 아바타 준비 상태(design-oo 05-30 [임시:D-성-103], 3절 상태도). [MyAvatarStore]가 낸다.
+ * 내 아바타 준비 상태(design-oo 05-30 D-735, 3절 상태도). [MyAvatarStore]가 낸다.
  * Idle(로그인 전·로그아웃 뒤) → Loading(성별 기다림·입력 읽는 중) → Ready 또는 Failed.
  */
 sealed interface MyAvatarState {

@@ -26,8 +26,8 @@ import java.util.concurrent.Executors
  *   요청 버전([toneVersion])과 정체 버전([identity])이 지금과 다르면 결과를 버린다.
  * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다. 보이게 된 때 [onReady].
  * - 합성 결과는 프로세스 공용 캐시([SharedToneCache])에도 넣는다. 합성하기 전에 그 캐시를 먼저 보고, 같은 머리·모습이 있으면 합성
- *   스레드를 거치지 않고 바로 넣는다(미리 준비 [prepareRiveAvatarLook], [임시:DR-성-10]). 같은 머리면 몸 분리 결과도 다시 쓴다.
- * - 좌우 뒤집기는 달리기 플레이어만 `scaleX = -1`이다([RivePlayerRules.scaleX], [임시:D-성-130]).
+ *   스레드를 거치지 않고 바로 넣는다(미리 준비 [prepareRiveAvatarLook], DR-10). 같은 머리면 몸 분리 결과도 다시 쓴다.
+ * - 좌우 뒤집기는 달리기 플레이어만 `scaleX = -1`이다([RivePlayerRules.scaleX], D-762).
  * - 화면이 RESUMED가 아니면 재생하지 않고 결과도 RESUMED 때 넣는다.
  */
 internal class RiveAvatarView(context: Context) : FrameLayout(context) {
@@ -368,7 +368,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         val machine = RiveAvatarScene.stateMachine(AvatarMotion.STAND)
         view.setNumberState(machine, RiveAvatarScene.INPUT_BODY_SHAPE, RiveAvatarScene.bodyShapeValue(request.shape))
         if (loader.hasSelectedBody()) {
-            // 남자 서기 riv만 표면 입력이 있다. 표면은 합성이 실제로 그린 묶음 값이다(D-성-115).
+            // 남자 서기 riv만 표면 입력이 있다. 표면은 합성이 실제로 그린 묶음 값이다(D-747).
             val outfit = request.outfit
             view.setNumberState(
                 machine,

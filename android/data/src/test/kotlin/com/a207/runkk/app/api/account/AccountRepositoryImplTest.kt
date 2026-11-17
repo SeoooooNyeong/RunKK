@@ -11,6 +11,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
+import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.MemberSettings
 import com.a207.runkk.app.domain.account.MySummary
@@ -807,6 +808,15 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `보기 선호는 설정 기기 사본에 맡기고 서버에 묻지 않는다(D-성-264)`() = runTest {
+        assertEquals(RunViewMode.TRACK, repository.runViewMode())
+        assertEquals(Outcome.Success(Unit), repository.saveRunViewMode(RunViewMode.MAP))
+        assertEquals(RunViewMode.MAP, seen.viewMode)
+        assertEquals(RunViewMode.MAP, repository.runViewMode())
+        assertEquals(0, api.server.requestCount, "서버에 묻지 않는다")
+    }
+
+    @Test
     fun `기기 저장이 실패해도 이번 실행 동안은 같은 회원이 본 것으로 친다(PL3-A2)`() = runTest {
         var who = "7"
         val switching =
@@ -836,12 +846,20 @@ class AccountRepositoryImplTest {
 private class SeenSettings : SettingsRepository {
     var placementSeen: Long? = null
     var saveFails = false
+    var viewMode: RunViewMode = RunViewMode.TRACK
 
     override suspend fun placementCompleteSeen(): Long? = placementSeen
 
     override suspend fun savePlacementCompleteSeen(battleId: Long): Outcome<Unit> {
         if (saveFails) return Outcome.Failure(AppError.Storage)
         placementSeen = battleId
+        return Outcome.Success(Unit)
+    }
+
+    override suspend fun runViewMode(): RunViewMode = viewMode
+
+    override suspend fun saveRunViewMode(mode: RunViewMode): Outcome<Unit> {
+        viewMode = mode
         return Outcome.Success(Unit)
     }
 

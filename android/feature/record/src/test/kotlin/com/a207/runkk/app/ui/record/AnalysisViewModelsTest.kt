@@ -244,7 +244,7 @@ class AnalysisViewModelsTest {
     }
 
     @Test
-    fun `모르는 접두어 얼굴 키는 받지 않고 받는 중도 아니라 성별 기본 얼굴이다(AR-성-87)`() {
+    fun `모르는 접두어 얼굴 키는 받지 않고 받는 중도 아니라 성별 기본 얼굴이다(AR-87)`() {
         val vm = RankingViewModel(records, clock)
 
         vm.onFaceShown("future:4:a")
@@ -258,7 +258,7 @@ class AnalysisViewModelsTest {
     }
 
     @Test
-    fun `얼굴 받기가 실패하면 기본 얼굴로 두고 다시 보일 때 다시 받는다, 받는 동안 같은 키는 거듭 받지 않는다(AR-성-88)`() {
+    fun `얼굴 받기가 실패하면 기본 얼굴로 두고 다시 보일 때 다시 받는다, 받는 동안 같은 키는 거듭 받지 않는다(AR-88)`() {
         val layers = listOf(
             com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EARS, byteArrayOf(1))
         )
@@ -281,6 +281,69 @@ class AnalysisViewModelsTest {
         vm.onFaceShown("head:4:a")
         assertEquals(2, records.calls.count { it == "face:head:4:a" }, "받은 얼굴은 다시 받지 않는다")
     }
+
+    @Test
+    fun `랭킹의 내 얼굴은 내 아바타 얼굴(셀카 머리 키·층)을 상태에 싣고 읽는 동안은 빈 자리다(PM 2026-11-15)`() {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.EARS, byteArrayOf(3))
+        )
+        val mine = RankingFace("head:7:me", layers)
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val vm = RankingViewModel(records, clock, readMyFace = {
+            gate.await()
+            mine
+        })
+
+        assertEquals(RankingFace.LOADING, vm.state.value.myFace, "읽는 동안은 기본 머리 대신 빈 자리")
+        gate.complete(Unit)
+        assertEquals(mine, vm.state.value.myFace)
+    }
+
+    @Test
+    fun `랭킹의 내 얼굴을 읽지 못하면 기본 얼굴로 두고 다시 시도 때 한 번 더 읽는다, 읽은 뒤에는 다시 읽지 않는다`() {
+        var reads = 0
+        var answer: RankingFace? = null
+        val vm = RankingViewModel(records, clock, readMyFace = {
+            reads++
+            answer
+        })
+
+        assertNull(vm.state.value.myFace, "읽지 못하면 모름(내 순위 카드는 성별 기본 머리)")
+        answer = RankingFace("head:7:me")
+        vm.refresh()
+        assertEquals(answer, vm.state.value.myFace)
+        vm.onPeriodSelected(AggregationPeriod.MONTHLY)
+        assertEquals(2, reads, "읽은 뒤에는 기간을 바꿔도 다시 읽지 않는다")
+    }
+
+    @Test
+    fun `내 얼굴은 내 아바타의 얼굴 키와 그 층이다, 아바타를 못 읽으면 모르고 기본 캐릭터 키는 층을 받지 않는다`() = kotlinx.coroutines.test.runTest {
+        val layers = listOf(
+            com.a207.runkk.app.core.model.FaceLayer(com.a207.runkk.app.core.model.FacePart.HAIR, byteArrayOf(4))
+        )
+        val avatars = FakeAvatarRepository()
+        avatars.avatarResult = Outcome.Success(avatarWithFace("head:7:me"))
+        avatars.faceResults["head:7:me"] = Outcome.Success(layers)
+        assertEquals(RankingFace("head:7:me", layers), avatars.myRankingFace())
+
+        avatars.avatarResult = Outcome.Success(avatarWithFace("default:CAT"))
+        assertEquals(RankingFace("default:CAT"), avatars.myRankingFace())
+        assertEquals(listOf("head:7:me"), avatars.faceCalls, "기본 캐릭터 키는 받을 층이 없다")
+
+        avatars.avatarResult = Outcome.Failure(AppError.Network)
+        assertNull(avatars.myRankingFace())
+    }
+
+    private fun avatarWithFace(faceKey: String?) = com.a207.runkk.app.domain.avatar.Avatar(
+        faceKey = faceKey,
+        defaultCharacterId = null,
+        bodyShape = "NORMAL",
+        skinTone = "LIGHT",
+        equipped = emptyMap(),
+        balance = 0,
+        canCreateSelfieToday = true,
+        rejected = emptyMap()
+    )
 
     @Test
     fun `코치는 이번 주(월~일) 계획 현황을 읽고 오늘 계획·주간 목표를 정한다(FR-072~FR-075)`() {

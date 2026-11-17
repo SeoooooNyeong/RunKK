@@ -128,7 +128,7 @@ class RunkkComponentsScreenshotTest {
         TierEmblemSheet()
     }
 
-    /** 기본 머리(남녀, 큰 그림)와 홈 상단(48dp)·마이 프로필(56dp) 원 안에 넣었을 때([임시:D-성-180]). */
+    /** 기본 머리(남녀, 큰 그림)와 홈 상단(48dp)·마이 프로필(56dp) 원 안에 넣었을 때(D-812). */
     @Test
     fun avatarDefaultHeads() = compose.captureRunkkScreen("designsystem_avatar_default_heads") {
         val characters = AvatarCharacter.entries
@@ -170,7 +170,7 @@ class RunkkComponentsScreenshotTest {
     }
 
     /**
-     * 프로필 원의 셀카 머리 구도([임시:D-성-189]): 기본 머리와 셀카 머리(도형 픽스처: 캔버스 가운데 작은 머리·짧은 목)를 견준다. 셀카 머리도
+     * 프로필 원의 셀카 머리 구도(D-821): 기본 머리와 셀카 머리(도형 픽스처: 캔버스 가운데 작은 머리·짧은 목)를 견준다. 셀카 머리도
      * 기본 머리와 같은 크기·자리이고 목이 원 아래 가장자리까지 이어진다. 성별마다 위 줄 기본 머리, 아래 줄 셀카 머리(44·88·120dp).
      */
     @Test

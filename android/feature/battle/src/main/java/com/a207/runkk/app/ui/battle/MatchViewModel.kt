@@ -273,6 +273,30 @@ class MatchViewModel @Inject constructor(
     }
 
     /**
+     * 시스템 뒤로 가기([임시:D-성-270], [임시:FR-성-32]). 대기 화면(요청 중, 랜덤·배치고사 대기, 친구 초대 대기)에서는 바로 취소하지 않고
+     * 나가기 확인 창을 띄운다. 참가 확인과 초대 끝 안내는 지금처럼 바로 떠나고, 취소 중·참가 중·성사 뒤에는 지금처럼 아무것도 하지
+     * 않는다. 하단 「매칭 취소」([onCancel])와 앱이 뒤로 감([onBackgrounded])은 확인 창을 거치지 않는다.
+     */
+    fun onBackPressed() {
+        when (_state.value.phase) {
+            MatchPhase.REQUESTING, MatchPhase.WAITING, MatchPhase.INVITING ->
+                _state.update { it.copy(isLeaveConfirmVisible = true) }
+
+            else -> onCancel()
+        }
+    }
+
+    /** 확인 창 「나가기」: 창을 닫고 기존 취소를 한다. */
+    fun onLeaveConfirmed() {
+        if (!_state.value.isLeaveConfirmVisible) return
+        _state.update { it.copy(isLeaveConfirmVisible = false) }
+        onCancel()
+    }
+
+    /** 확인 창 「계속 기다리기」·바깥 누름: 창만 닫는다. */
+    fun onLeaveDismissed() = _state.update { it.copy(isLeaveConfirmVisible = false) }
+
+    /**
      * 취소(FR-085, FR-228). 랜덤 대기는 대기열에서 빼고(이미 배정되면 성사를 기다린다), 초대 대기는 초대를 취소한다. 받은 사람이 그 사이
      * 참가했으면(INVITE_ALREADY_JOINED) 취소를 접고 성사를 기다린다. 참가 확인과 초대 끝 안내는 그냥 떠난다.
      */
@@ -588,7 +612,7 @@ class MatchViewModel @Inject constructor(
         closeWaiting()
         ticket = null
         coordinator.forgetInvite()
-        _state.update { it.copy(phase = MatchPhase.INVITE_ENDED, inviteEnd = end) }
+        _state.update { it.copy(phase = MatchPhase.INVITE_ENDED, inviteEnd = end, isLeaveConfirmVisible = false) }
     }
 
     /**
@@ -604,6 +628,7 @@ class MatchViewModel @Inject constructor(
         _state.update {
             it.copy(
                 phase = MatchPhase.MATCHED,
+                isLeaveConfirmVisible = false,
                 match = match,
                 distance = match.distance,
                 error = null,
@@ -732,13 +757,14 @@ class MatchViewModel @Inject constructor(
                     _state.value.opponentKind.name,
                     startAtEpochMillis = startAt?.toEpochMilli(),
                     opponentGender = match.opponentGender?.name,
-                    placementRound = match.placementRound
+                    placementRound = match.placementRound,
+                    opponentLook = match.opponentLook?.toSlot()
                 )
             )
         )
     }
 
-    private fun showNotice(text: UiText) = _state.update { it.copy(notice = text) }
+    private fun showNotice(text: UiText) = _state.update { it.copy(notice = text, isLeaveConfirmVisible = false) }
 
     /** 조정자의 GPS 예열 상태(W55)를 성사 화면에 옮긴다. */
     private fun showGps(gps: GpsReadiness?) = _state.update { it.copy(gps = gps) }

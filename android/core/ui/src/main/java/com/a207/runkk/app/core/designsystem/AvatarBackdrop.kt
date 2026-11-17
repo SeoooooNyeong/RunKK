@@ -28,9 +28,9 @@ fun AvatarBackdrop(
 ) {
     Image(
         painter = painterResource(
-            // 기본 배경은 다크 벌에서 같은 장면의 밤 그림을 쓴다(사용자 요청 2026-10-30)
-            if (backgroundKey == null && LocalRunkkColors.current.isDark) {
-                R.drawable.avatar_backdrop_default_night
+            // 다크 벌에서는 같은 장면의 밤 그림을 쓴다(기본 배경: 사용자 요청 2026-10-30, 도시와 단계 그림: [임시:D-성-308])
+            if (LocalRunkkColors.current.isDark) {
+                nightBackdropRes(avatarBackdropRes(backgroundKey, stage))
             } else {
                 avatarBackdropRes(backgroundKey, stage)
             }
@@ -51,7 +51,7 @@ fun AvatarBackdrop(
 }
 
 /**
- * 배경 키 → 그림 리소스. Compose 밖(공유 카드 비트맵)에서도 쓴다. 기본 키는 도시마다 제 그림([임시:D-성-186]), 그림이 없는 키(운영
+ * 배경 키 → 그림 리소스. Compose 밖(공유 카드 비트맵)에서도 쓴다. 기본 키는 도시마다 제 그림(D-818), 그림이 없는 키(운영
  * 기준값이 더한 LM_n)는 단계 그림이다.
  */
 @DrawableRes
@@ -71,7 +71,7 @@ private const val DOMESTIC = "DOMESTIC"
 private const val EAST_ASIA = "EAST_ASIA"
 private const val INTERCONTINENTAL = "INTERCONTINENTAL"
 
-/** [임시:D-성-186] 기본 키(개인 단계 22개) → 도시 그림(무대 규격 1080×1200, 바닥선 아래 18%). */
+/** D-818 기본 키(개인 단계 22개) → 도시 그림(무대 규격 1080×1200, 바닥선 아래 18%). */
 private val CITY_BACKDROPS: Map<String, Int> = mapOf(
     "INCHEON" to R.drawable.avatar_backdrop_incheon,
     "CHUNCHEON" to R.drawable.avatar_backdrop_chuncheon,
@@ -95,4 +95,39 @@ private val CITY_BACKDROPS: Map<String, Int> = mapOf(
     "NEW_YORK" to R.drawable.avatar_backdrop_new_york,
     "SANTIAGO" to R.drawable.avatar_backdrop_santiago,
     "EARTH_LAP" to R.drawable.avatar_backdrop_earth_lap
+)
+
+/**
+ * 낮 그림 → 같은 장면의 밤 그림([임시:D-성-308]): 화면 전체 기본 배경, 도시 22장, 단계 3장. 밤 그림이 없는 그림은 그대로 돌려준다.
+ */
+@DrawableRes
+internal fun nightBackdropRes(@DrawableRes day: Int): Int = NIGHT_BACKDROPS[day] ?: day
+
+private val NIGHT_BACKDROPS: Map<Int, Int> = mapOf(
+    R.drawable.avatar_backdrop_default to R.drawable.avatar_backdrop_default_night,
+    R.drawable.avatar_backdrop_incheon to R.drawable.avatar_backdrop_incheon_night,
+    R.drawable.avatar_backdrop_chuncheon to R.drawable.avatar_backdrop_chuncheon_night,
+    R.drawable.avatar_backdrop_daejeon to R.drawable.avatar_backdrop_daejeon_night,
+    R.drawable.avatar_backdrop_jeonju to R.drawable.avatar_backdrop_jeonju_night,
+    R.drawable.avatar_backdrop_yeosu to R.drawable.avatar_backdrop_yeosu_night,
+    R.drawable.avatar_backdrop_busan to R.drawable.avatar_backdrop_busan_night,
+    R.drawable.avatar_backdrop_jeju to R.drawable.avatar_backdrop_jeju_night,
+    R.drawable.avatar_backdrop_beijing to R.drawable.avatar_backdrop_beijing_night,
+    R.drawable.avatar_backdrop_tokyo to R.drawable.avatar_backdrop_tokyo_night,
+    R.drawable.avatar_backdrop_taipei to R.drawable.avatar_backdrop_taipei_night,
+    R.drawable.avatar_backdrop_hong_kong to R.drawable.avatar_backdrop_hong_kong_night,
+    R.drawable.avatar_backdrop_hanoi to R.drawable.avatar_backdrop_hanoi_night,
+    R.drawable.avatar_backdrop_bangkok to R.drawable.avatar_backdrop_bangkok_night,
+    R.drawable.avatar_backdrop_kuala_lumpur to R.drawable.avatar_backdrop_kuala_lumpur_night,
+    R.drawable.avatar_backdrop_honolulu to R.drawable.avatar_backdrop_honolulu_night,
+    R.drawable.avatar_backdrop_sydney to R.drawable.avatar_backdrop_sydney_night,
+    R.drawable.avatar_backdrop_london to R.drawable.avatar_backdrop_london_night,
+    R.drawable.avatar_backdrop_paris to R.drawable.avatar_backdrop_paris_night,
+    R.drawable.avatar_backdrop_los_angeles to R.drawable.avatar_backdrop_los_angeles_night,
+    R.drawable.avatar_backdrop_new_york to R.drawable.avatar_backdrop_new_york_night,
+    R.drawable.avatar_backdrop_santiago to R.drawable.avatar_backdrop_santiago_night,
+    R.drawable.avatar_backdrop_earth_lap to R.drawable.avatar_backdrop_earth_lap_night,
+    R.drawable.avatar_backdrop_domestic to R.drawable.avatar_backdrop_domestic_night,
+    R.drawable.avatar_backdrop_east_asia to R.drawable.avatar_backdrop_east_asia_night,
+    R.drawable.avatar_backdrop_intercontinental to R.drawable.avatar_backdrop_intercontinental_night
 )

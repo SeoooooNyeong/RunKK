@@ -51,7 +51,7 @@ class CrewGoalSetViewModel internal constructor(
             val goal = (crews.race(crewId, null) as? Outcome.Success)?.value?.goal ?: return@launch
             _state.update { if (it.draft.isEmpty()) it.copy(draft = kmText(goal)) else it }
         }
-        // 지난 목표 3주(피그마 F-07): 새 API 없이 race(weekStart)를 지난 1·2·3주에 대해 함께 부른다([임시:D-성-32]).
+        // 지난 목표 3주(피그마 F-07): 새 API 없이 race(weekStart)를 지난 1·2·3주에 대해 함께 부른다(D-664).
         // 크루를 만들기 전 주는 빈 레이스라 「목표 없음」으로 보이므로 개설일이 든 주까지만 부른다(DV-성 9(c)). 개설일을 모르면 3주 모두.
         viewModelScope.launch {
             val createdOn = (crews.detail(crewId) as? Outcome.Success)?.value?.createdAt?.atZone(zone)?.toLocalDate()

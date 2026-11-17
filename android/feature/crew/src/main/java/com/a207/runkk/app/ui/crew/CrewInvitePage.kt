@@ -162,11 +162,17 @@ private fun CodeCell(char: Char?, isError: Boolean) {
     }
 }
 
-/** 크루 미리보기 카드(피그마 F-03c): divider 테두리, 모서리 16, 안쪽 16. 이미지 74 + 크루명·개설일·인원, 소개, 태그, 오른쪽 ›. */
+/**
+ * 크루 미리보기 카드(피그마 F-03c): divider 테두리, 모서리 16, 안쪽 16. 이미지 74 + 크루명·개설일·인원, 소개, 태그, 오른쪽 ›.
+ * [canOpen]이 거짓이면(비공개 크루, 초대 링크의 가입 확인) 눌러 상세로 가지 않는다.
+ */
 @Composable
-private fun InvitePreviewCard(preview: CrewPreview, onOpen: () -> Unit) {
+internal fun InvitePreviewCard(
+    preview: CrewPreview,
+    onOpen: () -> Unit,
+    canOpen: Boolean = preview.visibility == CrewVisibility.PUBLIC
+) {
     val shape = RunkkShapes.Medium
-    val canOpen = preview.visibility == CrewVisibility.PUBLIC
     val openLabel = stringResource(R.string.crew_find_open_detail, preview.name)
     Row(
         modifier = Modifier

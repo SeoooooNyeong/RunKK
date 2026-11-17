@@ -2,12 +2,12 @@ package com.a207.runkk.app.core.avatar
 
 /**
  * 합성 스레드에서 도는 텍스처 계산(PoC MainActivity.startNextTone의 계산 부분). 순서는 디자인 규칙을 따른다:
- * 몸은 맨몸 바탕(assets/outfits/body)에 러닝량 톤을 준 뒤 의상 PNG(신발 → 하의 → 상의)를 원래 색으로 얹고(D-성-110·112),
+ * 몸은 맨몸 바탕(assets/outfits/body)에 러닝량 톤을 준 뒤 의상 PNG(신발 → 하의 → 상의)를 원래 색으로 얹고(D-742·D-744),
  * 정면 얼굴은 피부 레이어에만 톤을 적용하며 눈은 원본, 헤어는 고유색 그대로 피부와 맞닿아 피부가 섞인 경계 픽셀만 섞인 몫만큼
- * 톤을 준다(DV-성-5). 측면 머리는 톤을 적용한 얼굴 위에 눈·헤어를 얹는다.
+ * 톤을 준다(DV-5). 측면 머리는 톤을 적용한 얼굴 위에 눈·헤어를 얹는다.
  *
  * 남자 서기의 male_selected_body(riv 내장 기본 옷 몸)는 더 그리지 않는다. 남자도 모든 묶음에서 standing_body 아틀라스 표면
- * (selected_top = maleTopSurface, 하의·신발 1)을 쓰기 때문이다(D-성-115, [RiveAvatarScene.topSurface]).
+ * (selected_top = maleTopSurface, 하의·신발 1)을 쓰기 때문이다(D-747, [RiveAvatarScene.topSurface]).
  */
 internal object AvatarTextureComposer {
     private const val SIDE_HEAD = "side_head"
@@ -24,7 +24,7 @@ internal object AvatarTextureComposer {
         return PreparedAvatarTone(
             request = request,
             face = face,
-            // 헤어 고유색은 그대로, 피부 얼굴과 맞닿은 피부 섞인 경계만 얼굴과 같은 러닝량 톤(DV-성-5).
+            // 헤어 고유색은 그대로, 피부 얼굴과 맞닿은 피부 섞인 경계만 얼굴과 같은 러닝량 톤(DV-5).
             hair = face?.hair ?: request.hair,
             skinBases = skinBases,
             skinRenders = skinRenders,

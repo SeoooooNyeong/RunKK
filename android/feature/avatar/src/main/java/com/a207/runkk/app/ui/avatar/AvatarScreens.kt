@@ -128,7 +128,7 @@ internal fun AvatarMessageEffect(message: UiText?, snackbar: SnackbarHostState, 
 /**
  * 꾸미기 A안(62337:1835): 상단 바(제목, 리워드 칩), 무대 카드 358×340(모서리 28, 오른쪽 위 되돌리기), 밑줄 탭 5개(상의·하의·신발·
  * 악세서리·배경) + 구분선, 3열 격자(칸 112, 마지막 칸 상점 바로가기), 아래 상점(회색)·저장(라임). 체형·피부색 칩과 빈 목록 문장은 두지
- * 않는다([임시:D-성-128]). 꾸미기 탭의 모자 부위는 「악세서리」다(사용자 결정 A2).
+ * 않는다(D-760). 꾸미기 탭의 모자 부위는 「악세서리」다(사용자 결정 A2).
  */
 @Composable
 fun AvatarScreen(
@@ -285,7 +285,7 @@ private fun ItemGrid(state: AvatarUiState, actions: AvatarScreenActions) {
 }
 
 /**
- * 그림 하나로 읽어 주는 설명: 입어 보는 아이템(체형 이름은 넣지 않는다, [임시:D-성-128]). 얼굴 이름(기본 캐릭터·셀카)은 Rive를 그리지 못해
+ * 그림 하나로 읽어 주는 설명: 입어 보는 아이템(체형 이름은 넣지 않는다, D-760). 얼굴 이름(기본 캐릭터·셀카)은 Rive를 그리지 못해
  * 기본 그림을 보일 때([isFallback])만 넣는다. Rive 아바타는 「내 아바타」다(실기기 DV3-10).
  */
 @Composable
@@ -299,7 +299,7 @@ internal fun figureDescription(avatar: Avatar, state: AvatarUiState, isFallback:
     val equipped = stringResource(R.string.avatar_figure_equipped_format)
     return buildString {
         append(base)
-        // 숨긴 부위(모자)는 그림에 없으므로 읽지 않는다([임시:D-성-183]).
+        // 숨긴 부위(모자)는 그림에 없으므로 읽지 않는다(D-815).
         state.draft.filterKeys { it in slotLabels }.forEach { (slot, id) ->
             state.items.firstOrNull { it.itemId == id }?.let {
                 append(String.format(equipped, slotLabels.getValue(slot), it.name))
@@ -308,7 +308,7 @@ internal fun figureDescription(avatar: Avatar, state: AvatarUiState, isFallback:
     }
 }
 
-/** 얼굴 문구: 기본 캐릭터(faceKey "default:…", 어느 값이든)면 「기본 얼굴」([임시:D-성-187]), 셀카 얼굴("selfie:…", "head:…")이면 셀카, 아니면 없음. */
+/** 얼굴 문구: 기본 캐릭터(faceKey "default:…", 어느 값이든)면 「기본 얼굴」(D-819), 셀카 얼굴("selfie:…", "head:…")이면 셀카, 아니면 없음. */
 @Composable
 private fun faceLabel(avatar: Avatar): String = when {
     avatar.isDefaultFace -> stringResource(R.string.avatar_face_default)

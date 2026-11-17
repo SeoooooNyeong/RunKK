@@ -115,7 +115,11 @@ internal interface CrewApi {
         @Path("id") crewId: Long,
         @Query("kind") kind: String?,
         @Query("cursor") cursor: Long?,
-        @Query("size") size: Int
+        @Query("size") size: Int,
+        /** NEWEST(기본, 생략) | SCHEDULED_ASC(크루런 날짜순, 설계 05-32 4.5). */
+        @Query("order") order: String?,
+        /** 참이면 투표 중·대기실·진행 중인 크루런만(SCHEDULED_ASC와 함께). */
+        @Query("activeOnly") activeOnly: Boolean?
     ): PostListResponse
 
     @POST("crews/{id}/posts")
@@ -147,6 +151,22 @@ internal interface CrewApi {
 
     @PUT("crews/{id}/goal")
     suspend fun setGoal(@Path("id") crewId: Long, @Body body: GoalRequest): RaceStatusResponse
+
+    /** 대기실 다시 읽기(읽기만, 설계 05-32 [임시:D-성-879]). */
+    @GET("crew-runs/{id}/lobby")
+    suspend fun lobby(@Path("id") postId: Long): LobbyResponse
+
+    /** 멱등 준비(같은 값이면 바뀌지 않는다). */
+    @PUT("crew-runs/{id}/lobby/ready")
+    suspend fun setReady(@Path("id") postId: Long, @Body body: ReadyRequest): LobbyResponse
+
+    /** 모집자 「지금 시작」. */
+    @POST("crew-runs/{id}/start")
+    suspend fun startNow(@Path("id") postId: Long): LobbyResponse
+
+    /** 중간 참여(멱등). */
+    @POST("crew-runs/{id}/join")
+    suspend fun join(@Path("id") postId: Long): ParticipationResponse
 
     @POST("crew-runs/{id}/lobby/enter")
     suspend fun enterLobby(@Path("id") postId: Long): LobbyResponse

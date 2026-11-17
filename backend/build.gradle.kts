@@ -1,3 +1,5 @@
+import java.net.ServerSocket
+
 plugins {
 	java
 	id("org.springframework.boot") version "3.5.16"
@@ -60,7 +62,20 @@ tasks.withType<Test> {
 	// v0.11에서 Spring 시험 문맥(채팅·크루·실시간 통합 시험)이 늘어 기본 힙 512MB로는 OutOfMemoryError가 난다.
 	// 문맥 캐시 수는 줄이지 않는다: 밀려난 문맥이 닫히며 공유 H2(create-drop) 표를 지워 다른 시험이 깨진다
 	maxHeapSize = "1536m"
+	jvmArgumentProviders.add(FreeEmbeddedRedisPort())
 	finalizedBy(tasks.jacocoTestReport)
+}
+
+// 위험 R-109: 시험 JVM마다 빈 포트에 내장 Redis를 띄운다(application-test.yml의 EMBEDDED_REDIS_PORT).
+// 고정 포트(6371)면 같은 PC의 다른 작업 트리 시험이 띄운 Redis를 다시 쓰다가 그쪽 JVM이 끝날 때 함께 끊긴다.
+// 포트는 입력으로 치지 않으므로(속성 없음) 빌드 캐시를 깨지 않는다. EMBEDDED_REDIS_PORT 환경 변수가 있으면 그 값을 쓴다.
+class FreeEmbeddedRedisPort : CommandLineArgumentProvider {
+	override fun asArguments(): Iterable<String> =
+		if (System.getenv("EMBEDDED_REDIS_PORT") != null) {
+			emptyList()
+		} else {
+			listOf("-DEMBEDDED_REDIS_PORT=" + ServerSocket(0).use { it.localPort })
+		}
 }
 
 jacoco {

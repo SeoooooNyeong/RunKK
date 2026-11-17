@@ -14,6 +14,7 @@ import com.a207.runkk.app.core.designsystem.CELEBRITY_FIGURE_TAG
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.SlotKey
@@ -32,6 +33,38 @@ import org.robolectric.RobolectricTestRunner
 class BattleResultStillTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun `셀프런 결과는 현재 모습 대신 저장된 모습을 슬롯에 보낸다`() {
+        val saved = RunnerLook(Gender.FEMALE, 12, 22, 32, 2, 80, "head:old")
+        val subjects = mutableListOf<com.a207.runkk.app.core.navigation.AvatarStillSubject>()
+        val inspect: @Composable () -> Unit = {
+            LocalSlotAvatarStill.current?.let { subjects += it }
+            Box(Modifier.fillMaxSize())
+        }
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(inspect))) {
+                RunkkTheme(reduceMotion = true) {
+                    BattleResultScreen(
+                        BattleResultUiState(
+                            isLoading = false,
+                            result = battleResult().copy(
+                                type = BattleHistory.Type.SELF,
+                                opponentLook = saved
+                            )
+                        ),
+                        {},
+                        {},
+                        {}
+                    )
+                }
+            }
+        }
+        compose.runOnIdle {
+            kotlin.test.assertTrue(subjects.any { it == pastSelfStill(saved) }, "저장 모습이 상대 슬롯까지 전달된다")
+            kotlin.test.assertTrue(subjects.any { it.isMine && it.look == null }, "현재 내 모습은 별도 슬롯이다")
+        }
+    }
 
     private val probe: @Composable () -> Unit = {
         val subject = LocalSlotAvatarStill.current

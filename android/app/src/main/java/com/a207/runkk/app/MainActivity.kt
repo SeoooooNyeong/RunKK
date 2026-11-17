@@ -69,7 +69,7 @@ class MainActivity : ComponentActivity() {
     private var pendingBattleReturn by mutableStateOf<Long?>(null)
 
     /**
-     * 셀카 결과 알림을 눌러 열어 얼굴 만들기 화면으로 가야 하는가([임시:D-성-146], [임시:D-성-160]). 인텐트에서 한 번 읽고 비운다.
+     * 셀카 결과 알림을 눌러 열어 얼굴 만들기 화면으로 가야 하는가(D-778, D-792). 인텐트에서 한 번 읽고 비운다.
      * 로그인 뒤 홈이 맨 위가 되면 얼굴 만들기를 열고 비운다.
      */
     private var pendingSelfieResult by mutableStateOf(false)
@@ -154,14 +154,18 @@ class MainActivity : ComponentActivity() {
 
     /** 새로 받은 초대 링크를 읽고(최근 앱에서 다시 연 실행은 빼고) 인텐트에서 링크를 비운다(AN8-7). */
     private fun takeInvite(intent: Intent): PendingInvite? {
-        val token = inviteLinks.readNew(intent) ?: return null
+        val link = inviteLinks.readNewLink(intent) ?: return null
         setIntent(InviteLinkReader.consumed(intent))
-        return PendingInvite(token, Instant.now())
+        return PendingInvite.of(link, Instant.now())
     }
 
+    /** 저장해 둔 보류 초대. 종류가 없으면(옛 저장 상태) 친구 대결 초대다. */
     private fun restoreInvite(saved: Bundle): PendingInvite? {
         val token = saved.getString(PENDING_INVITE) ?: return null
-        return PendingInvite(token, Instant.ofEpochMilli(saved.getLong(PENDING_INVITE_AT)))
+        val kind =
+            saved.getString(PENDING_INVITE_KIND)?.let { name -> InviteKind.entries.firstOrNull { it.name == name } }
+                ?: InviteKind.FRIEND_BATTLE
+        return PendingInvite(token, Instant.ofEpochMilli(saved.getLong(PENDING_INVITE_AT)), kind)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -169,11 +173,13 @@ class MainActivity : ComponentActivity() {
         pendingInvite?.let {
             outState.putString(PENDING_INVITE, it.token)
             outState.putLong(PENDING_INVITE_AT, it.receivedAt.toEpochMilli())
+            outState.putString(PENDING_INVITE_KIND, it.kind.name)
         }
     }
 
     private companion object {
         const val PENDING_INVITE = "runkk.pendingInvite"
         const val PENDING_INVITE_AT = "runkk.pendingInviteAt"
+        const val PENDING_INVITE_KIND = "runkk.pendingInviteKind"
     }
 }

@@ -17,6 +17,7 @@ import com.a207.runkk.audit.ActorRole;
 import com.a207.runkk.audit.AuditAction;
 import com.a207.runkk.audit.AuditEntry;
 import com.a207.runkk.audit.AuditService;
+import com.a207.runkk.avatar.AvatarQuery;
 import com.a207.runkk.common.BusinessRuleException;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.DomainEvent;
@@ -60,6 +61,7 @@ class CrewChatServiceTest {
             new InMemoryChatRepositories.Reactions();
     private final CrewMembershipReader membership = mock(CrewMembershipReader.class);
     private final MemberQueryService memberQuery = mock(MemberQueryService.class);
+    private final AvatarQuery avatarQuery = mock(AvatarQuery.class);
     private final AuditService audit = mock(AuditService.class);
     private final List<DomainEvent> events = new ArrayList<>();
     private CrewChatService service;
@@ -97,6 +99,7 @@ class CrewChatServiceTest {
                 reactions,
                 membership,
                 memberQuery,
+                new ChatAuthorFaces(memberQuery, avatarQuery),
                 audit,
                 events::add,
                 NoTransactions.manager(),

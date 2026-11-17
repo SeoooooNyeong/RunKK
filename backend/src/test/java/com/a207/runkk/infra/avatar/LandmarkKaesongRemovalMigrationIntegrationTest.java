@@ -22,8 +22,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 /**
- * V65(D-성-124, D-성-129): 운영 기준값 LANDMARKS 행에서 개성(KAESONG) 원소를 빼고 춘천(CHUNCHEON, 국내, 왕복 150km) 원소를 거리
- * 순 자리에 넣는다. KAESONG 해금 행과 선택 배경을 지운다. 행이 없으면 아무것도 하지 않는다. Docker가 없는 PC에서는 건너뛴다.
+ * V65(D-756, D-761): 운영 기준값 LANDMARKS 행에서 개성(KAESONG) 원소를 빼고 춘천(CHUNCHEON, 국내, 왕복 150km) 원소를 거리 순
+ * 자리에 넣는다. KAESONG 해금 행과 선택 배경을 지운다. 행이 없으면 아무것도 하지 않는다. Docker가 없는 PC에서는 건너뛴다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @DisplayName("V65 개성 삭제·춘천 추가 마이그레이션(PostgreSQL)")

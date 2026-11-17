@@ -74,7 +74,9 @@ class RecordCardViewModel internal constructor(
                         renderer.render(card, CardSide.FRONT, key, stage) to
                             renderer.render(card, CardSide.BACK, key, stage)
                     }
-                    _state.update { it.copy(isLoading = false, card = card, front = front, back = back) }
+                    _state.update {
+                        it.copy(isLoading = false, card = card, front = front, back = back, backgroundKey = key)
+                    }
                 }
 
                 is Outcome.Failure -> {

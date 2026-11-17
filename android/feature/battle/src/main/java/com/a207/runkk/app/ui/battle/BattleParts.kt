@@ -51,6 +51,7 @@ import com.a207.runkk.app.core.designsystem.RunkkLiveDot
 import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.navigation.AvatarStillSlot
 import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.domain.account.MyAvatar
@@ -65,7 +66,8 @@ internal enum class Figure { AVATAR, RIVAL, PAST_SELF, CELEBRITY, UNKNOWN }
 
 /**
  * 한쪽 대결자 카드: 그림 칸, 이름, 티어 칩(있으면), 기록 줄(있으면). 그림은 장식이라 읽기 정보는 이름·줄이 맡는다.
- * [character]는 상대 그림(RIVAL)의 남녀(상대 성별)이고 [celebrityFigure]는 셀럽 그림(CELEBRITY)의 키다.
+ * [character]는 상대 그림(RIVAL)의 남녀(상대 성별)이고 [celebrityFigure]는 셀럽 그림(CELEBRITY)의 키다. [look]은 상대의 받은 모습
+ * ([임시:FR-성-29])이고 없으면 성별 기본 모습이다.
  */
 @Composable
 internal fun Contender(
@@ -75,14 +77,15 @@ internal fun Contender(
     tier: String? = null,
     caption: String? = null,
     character: AvatarCharacter = AvatarCharacter.MALE,
-    celebrityFigure: String? = null
+    celebrityFigure: String? = null,
+    look: RunnerLook? = null
 ) {
     Column(
         modifier = modifier.semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        FigureCard(figure, character, celebrityFigure)
+        FigureCard(figure, character, celebrityFigure, look)
         Text(
             name,
             style = RunkkTextStyles.text(16, FontWeight.Black),
@@ -108,7 +111,7 @@ internal fun Contender(
 }
 
 @Composable
-private fun FigureCard(figure: Figure, character: AvatarCharacter, celebrityFigure: String?) {
+private fun FigureCard(figure: Figure, character: AvatarCharacter, celebrityFigure: String?, look: RunnerLook?) {
     // 피그마 C-3, D-2, E-2: 그림 뒤에 연두색 카드를 두지 않는다
     Box(
         Modifier
@@ -118,9 +121,9 @@ private fun FigureCard(figure: Figure, character: AvatarCharacter, celebrityFigu
     ) {
         // 셀프런 카운트다운(D-2)의 과거의 나도 결과 화면처럼 반투명한 내 전신 정지 그림이다(S15P31A207-300).
         if (figure == Figure.PAST_SELF) {
-            PastSelfStill(size = 96.dp, colorFilter = null)
+            PastSelfStill(size = 96.dp, colorFilter = null, look = look)
         } else {
-            OpponentFigure(figure, size = 96.dp, character = character, celebrityFigure = celebrityFigure)
+            OpponentFigure(figure, size = 96.dp, character = character, celebrityFigure = celebrityFigure, look = look)
         }
     }
 }
@@ -137,7 +140,8 @@ internal fun OpponentFigure(
     colorFilter: ColorFilter? = null,
     character: AvatarCharacter = AvatarCharacter.MALE,
     celebrityFigure: String? = null,
-    myAvatar: MyAvatar? = null
+    myAvatar: MyAvatar? = null,
+    look: RunnerLook? = null
 ) {
     when (figure) {
         Figure.AVATAR -> StillOr(MY_STILL, size) {
@@ -150,10 +154,8 @@ internal fun OpponentFigure(
             )
         }
 
-        Figure.RIVAL -> StillOr(
-            AvatarStillSubject(isMine = false, isFemale = character == AvatarCharacter.FEMALE),
-            size
-        ) {
+        // 상대는 받은 모습([임시:FR-성-29])으로, 받지 못했으면 표시 성별의 기본 모습으로 그린다.
+        Figure.RIVAL -> StillOr(rivalStill(character, look), size) {
             RivalAvatar(Modifier.size(size), colorFilter, character)
         }
 
@@ -170,6 +172,13 @@ internal fun OpponentFigure(
     }
 }
 
+/** 상대 전신 정지 그림 대상: 받은 모습이 있으면 그 모습(성별 포함), 없으면 [character]의 기본 모습이다([임시:D-성-253]). */
+internal fun rivalStill(character: AvatarCharacter, look: RunnerLook?): AvatarStillSubject = AvatarStillSubject(
+    isMine = false,
+    isFemale = look?.let { it.gender == Gender.FEMALE } ?: (character == AvatarCharacter.FEMALE),
+    slotLook = look?.toSlot()
+)
+
 /**
  * 대결 화면의 전신 정지 그림 칸(2026-11-12 PM 요구: 배틀런 친구대결·랜덤대결도 얼굴 대신 아바타 몸체). 밤 거르개를 쓰는 결과 화면도
  * 정지 그림으로 그린다(2026-11-13 PM 요구: 대결 결과도 전부 몸체, S15P31A207-300). 정지 그림에는 거르개를 주지 않고(홈 Rive 칸과 같음)
@@ -177,7 +186,7 @@ internal fun OpponentFigure(
  */
 @Composable
 internal fun StillOr(subject: AvatarStillSubject, size: Dp, fallback: @Composable () -> Unit) {
-    AvatarStillSlot(subject, Modifier.size(size), fallback)
+    AvatarStillSlot(subject, Modifier.size(size), fallback = fallback)
 }
 
 /** 내 전신 정지 그림(의상·체형·러닝량·셀카 머리 그대로). */
@@ -185,9 +194,9 @@ internal val MY_STILL = AvatarStillSubject(isMine = true)
 
 /** 카운트다운·결과 화면의 과거의 나(셀프런): 반투명한 내 전신 정지 그림(S15P31A207-300). 칸이 비면 반투명 기본 서기 그림이다. */
 @Composable
-internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?) {
+internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?, look: RunnerLook? = null) {
     Box(Modifier.alpha(PAST_SELF_ALPHA)) {
-        AvatarStillSlot(MY_STILL, Modifier.size(size)) {
+        AvatarStillSlot(pastSelfStill(look), Modifier.size(size)) {
             RunkkAvatar(null, AvatarExpression.STAND, Modifier.size(size), colorFilter = colorFilter)
         }
     }
@@ -195,7 +204,7 @@ internal fun PastSelfStill(size: Dp, colorFilter: ColorFilter?) {
 
 /** 결과 상세·판 결과 히어로의 내 아바타 칸(디자인 시스템 avatarSlot): 내 전신 정지 그림, 칸이 비면 지금 그림(S15P31A207-300). */
 internal val MY_STILL_SLOT: @Composable (Modifier, @Composable () -> Unit) -> Unit = { modifier, fallback ->
-    AvatarStillSlot(MY_STILL, modifier, fallback)
+    AvatarStillSlot(MY_STILL, modifier, fallback = fallback)
 }
 
 /** 나 VS 상대 한 줄. */

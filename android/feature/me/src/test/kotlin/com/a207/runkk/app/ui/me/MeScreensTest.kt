@@ -66,7 +66,7 @@ class MeScreensTest {
     val compose = createComposeRule()
 
     @Test
-    fun `프로필 원은 기본 캐릭터 값이면 어느 값이든 내 성별의 기본 머리다(동물 그림 없음, D-성-180)`() {
+    fun `프로필 원은 기본 캐릭터 값이면 어느 값이든 내 성별의 기본 머리다(동물 그림 없음, D-812)`() {
         var faceKey by mutableStateOf<String?>("default:BEAR")
         compose.setContent {
             CompositionLocalProvider(LocalAvatarCharacter provides AvatarCharacter.FEMALE) {
@@ -256,7 +256,7 @@ class MeScreensTest {
     }
 
     @Test
-    fun `프로필 편집은 셀카 얼굴을 받는 동안 기본 머리를 먼저 보이지 않는다(임시 D-성-190)`() {
+    fun `프로필 편집은 셀카 얼굴을 받는 동안 기본 머리를 먼저 보이지 않는다(D-822)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 ProfileEditScreen(

@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 
 /**
  * 사람 한 줄(크루원·참석자·반응한 사람·랭킹): 앞 [avatar](기본 36 원 자리) + 이름(14, [isMe]면 Bold) + [badge](크루장 등) + 아래
- * [supporting](13 보조색) + 오른쪽 [trailing](거리·아이콘). 높이 [minHeight](기본 52) 이상, 사이 12. 아래 선은 [divider]다.
+ * [supporting](13 보조색) 또는 [supportingContent](아이콘 메타 줄 등) + 오른쪽 [trailing](거리·아이콘). 높이 [minHeight](기본 52) 이상, 사이 12. 아래 선은 [divider]다.
  * 줄은 한 번에 읽히고, [onClick]이 있으면 눌러 [onClickLabel] 행동을 한다.
  *
  * ```
@@ -47,7 +47,8 @@ fun RunkkPersonRow(
     onClickLabel: String? = null,
     divider: RunkkRowDivider = RunkkRowDivider.Solid,
     minHeight: Dp = 52.dp,
-    nameStyle: TextStyle = RunkkTextStyles.text(14, if (isMe) FontWeight.Bold else FontWeight.Normal)
+    nameStyle: TextStyle = RunkkTextStyles.text(14, if (isMe) FontWeight.Bold else FontWeight.Normal),
+    supportingContent: (@Composable () -> Unit)? = null
 ) {
     Column(modifier.fillMaxWidth()) {
         Row(
@@ -84,6 +85,7 @@ fun RunkkPersonRow(
                 if (supporting != null) {
                     Text(supporting, style = RunkkTextStyles.Label, color = RunkkColors.TextSecondary, maxLines = 1)
                 }
+                supportingContent?.invoke()
             }
             trailing?.invoke()
         }

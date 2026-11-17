@@ -295,6 +295,7 @@
     <string name="record_runbody_coaching">코칭</string>
     <string name="record_runbody_coaching_evidence">확인 근거</string>
     <string name="record_runbody_coaching_split">전반 %1$s/km → 후반 %2$s/km</string>
+    <string name="record_runbody_coaching_split_spoken">전반 %1$s, 후반 %2$s</string>
     <string name="record_runbody_coaching_warmup">천천히 출발하기</string>
     <string name="record_runbody_coaching_positive_split">초반 페이스 조절</string>
     <string name="record_runbody_coaching_overstride">보폭 줄이기</string>

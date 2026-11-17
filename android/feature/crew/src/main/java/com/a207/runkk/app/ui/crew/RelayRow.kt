@@ -12,7 +12,9 @@ data class RelayRow(
     val distance: Distance,
     val state: MateState = MateState.RUNNING,
     val isMe: Boolean = false,
-    val shownGender: Gender? = null
+    val shownGender: Gender? = null,
+    /** 회원 ID(중계 줄). 트랙 보기에서 가장 가까운 크루원의 성별과 모습을 찾는다([임시:D-성-266]). 옛 서버면 null. */
+    val memberId: Long? = null
 ) {
     /** 아직 달리는(정지·연결 확인 중 포함) 크루원인가. 끝낸 사람은 지도와 "함께 달리는 크루원"에서 뺀다. */
     val isRunning: Boolean get() = state != MateState.ENDED

@@ -13,6 +13,7 @@ import com.a207.runkk.battle.Source;
 import com.a207.runkk.battle.TrackSample;
 import com.a207.runkk.battle.Verdict;
 import com.a207.runkk.battle.WeeklyRecord;
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.PageCursor;
 import com.a207.runkk.common.StandardDistance;
@@ -112,6 +113,7 @@ final class BattleDtos {
      * @param opponentGender 상대 캐릭터 성별(MALE, FEMALE), 셀럽·나와의 싸움이면 null(2026-10-31 결정)
      * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(앱 공통 셀럽 그림, 2026-10-31 결정)
      * @param placementRound 배치고사 대결이면 판 번호(1~3), 아니면 null(05-03 5.7.3.3 P5)
+     * @param opponentLook 상대 아바타 모습(랜덤·친구 대결 상대, 나와의 싸움의 그날의 나), 그 밖이면 null(설계 5.31 B)
      */
     record ActiveBattleResponse(
             long battleId,
@@ -122,7 +124,8 @@ final class BattleDtos {
             LocalDateTime startAt,
             String opponentGender,
             String celebrityFigure,
-            Integer placementRound) {
+            Integer placementRound,
+            AvatarLook opponentLook) {
         static ActiveBattleResponse of(ActiveBattleView v) {
             return new ActiveBattleResponse(
                     v.battleId(),
@@ -133,7 +136,8 @@ final class BattleDtos {
                     v.startAt(),
                     v.opponentGender(),
                     v.celebrityFigure(),
-                    v.placementRound());
+                    v.placementRound(),
+                    v.opponentLook());
         }
     }
 
@@ -161,6 +165,7 @@ final class BattleDtos {
      * @param estimated 평균 페이스로 추정
      * @param myBestSeconds 그 거리 내 최고 기록(초), 없으면 null(셀럽 카운트다운의 "첫 도전", v0.14 D-238)
      * @param celebrityFigure 유명인 캐릭터 그림 키, 없거나 나와의 싸움 후보면 null(2026-10-31 결정)
+     * @param look 나와의 싸움 후보의 모습(그 기록을 달린 날의 나, 옛 기록이면 지금 모습). 기록이 없는 후보와 유명인 후보는 null(설계 5.31 B)
      */
     record Candidate(
             Long id,
@@ -171,7 +176,8 @@ final class BattleDtos {
             String sourceLabel,
             boolean estimated,
             Long myBestSeconds,
-            String celebrityFigure) {
+            String celebrityFigure,
+            AvatarLook look) {
         static Candidate of(RecordBattleCandidates.Candidate c) {
             return new Candidate(
                     c.celebrityId(),
@@ -182,7 +188,8 @@ final class BattleDtos {
                     Optional.ofNullable(c.source()).map(Source::label).orElse(null),
                     c.estimated(),
                     seconds(c.myBest()),
-                    c.figureKey());
+                    c.figureKey(),
+                    c.look());
         }
     }
 
@@ -197,6 +204,7 @@ final class BattleDtos {
      * @param sourceLabel 출처 표기(유명인)
      * @param estimated 평균 페이스로 추정
      * @param celebrityFigure 유명인 캐릭터 그림 키, 없거나 나와의 싸움이면 null(2026-10-31 결정)
+     * @param opponentLook 나와의 싸움 상대 모습(후보의 look과 같은 값), 유명인 대결이면 null(설계 5.31 B)
      */
     record RecordBattleStartResponse(
             long battleId,
@@ -206,7 +214,8 @@ final class BattleDtos {
             String cardKind,
             String sourceLabel,
             boolean estimated,
-            String celebrityFigure) {
+            String celebrityFigure,
+            AvatarLook opponentLook) {
         static RecordBattleStartResponse of(RecordBattleStart s) {
             return new RecordBattleStartResponse(
                     s.battleId(),
@@ -216,7 +225,8 @@ final class BattleDtos {
                     s.type() == BattleType.SELF ? SELF_CARD : CELEBRITY_CARD,
                     Optional.ofNullable(s.source()).map(Source::label).orElse(null),
                     s.estimated(),
-                    s.figureKey());
+                    s.figureKey(),
+                    s.opponentLook());
         }
     }
 
@@ -307,6 +317,7 @@ final class BattleDtos {
      * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
      * @param placementRound 배치고사 대결이면 만든 때의 판 번호(1~3), 아니면 null(05-03 5.7.3.3 P4)
      * @param placementState 배치고사 판 셈 상태(COUNTED·NOT_COUNTED·PENDING), placementRound가 null이면 null
+     * @param opponentLook 상대 아바타 모습(랜덤·친구 대결 상대, 나와의 싸움의 그날의 나), 그 밖이면 null(설계 5.31 B)
      */
     record BattleResultResponse(
             long battleId,
@@ -328,7 +339,8 @@ final class BattleDtos {
             String opponentGender,
             String celebrityFigure,
             Integer placementRound,
-            PlacementRoundState placementState) {}
+            PlacementRoundState placementState,
+            AvatarLook opponentLook) {}
 
     /**
      * 이 러닝이 일으킨 티어 평가(v0.14 D-291·D-294).

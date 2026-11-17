@@ -1,4 +1,4 @@
-"""맨몸 바탕 원본(src_body/{g}_{slot}.png) 만들기([임시:D-성-152]).
+"""맨몸 바탕 원본(src_body/{g}_{slot}.png) 만들기(D-784).
 
 그림 도구 출력(runs/base_stand·base_run_body·base_run_leg)을 승인 기본 텍스처에 정렬하고, 기본 의상에서 보이던 피부(손·팔·다리·목)는
 승인 픽셀을 그대로 쓴다. 달리기 팔은 소매 끝 아래 피부 행을 위로 늘린다. 서기는 목·가슴 위를 피부로 채우고 어깨를 기본 실루엣 안으로
@@ -102,7 +102,7 @@ def stand(work: Path) -> Image.Image:
     alone = (g[..., 3] > 0) & ~drop_specks(g[..., 3] > 0)
     g[side & alone] = 0
     # 허리(y 296~321, 몸통 열): 승인 텍스처의 짙은 회색 허리 밴드를 둔다. `outfit-pipeline body`가 이 밴드를 기본 하의 레이어로 옮기고
-    # 허리·엉덩이 속옷을 맨몸 피부로 바꾼다(맨몸에 남으면 다른 하의 밖으로 검은 띠가 비쳤다, [임시:D-성-185]).
+    # 허리·엉덩이 속옷을 맨몸 피부로 바꾼다(맨몸에 남으면 다른 하의 밖으로 검은 띠가 비쳤다, D-817).
     waist = (yy >= 296) & (yy < 322) & (xx >= 100) & (xx < 412) & shorts & (r[..., 3] > 0)
     g[waist] = r[waist]
     image = Image.fromarray(g.clip(0, 255).astype(np.uint8), "RGBA")

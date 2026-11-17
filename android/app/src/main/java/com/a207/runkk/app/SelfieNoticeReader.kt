@@ -4,7 +4,7 @@ import android.content.Intent
 import com.a207.runkk.app.core.model.SelfieNoticeIntent
 
 /**
- * 셀카 얼굴 결과 알림을 눌러 연 실행인가(design-oo 05-30 [임시:D-성-120], [임시:D-성-160]). 알림(data.push SelfieNoticeTracker)이 앱 안
+ * 셀카 얼굴 결과 알림을 눌러 연 실행인가(design-oo 05-30 D-752, D-792). 알림(data.push SelfieNoticeTracker)이 앱 안
  * 전용 동작 [SelfieNoticeIntent.ACTION_OPEN_RESULT]로 실행 화면을 연다. 동작만 보고 다른 값(엑스트라)은 믿지 않는다. 읽은 실행은
  * [consumed]로 바꿔 같은 인텐트로 두 번 열지 않게 한다.
  */

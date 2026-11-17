@@ -1,7 +1,9 @@
 package com.a207.runkk.running;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.GeoPoint;
+import com.a207.runkk.common.ItemSlot;
 import com.a207.runkk.common.Pace;
 import com.a207.runkk.common.StandardDistance;
 import com.a207.runkk.common.Tier;
@@ -17,11 +19,14 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 서버에 저장된 러닝 한 회의 측정 결과(설계 6.1.3). 위치 포인트와 심박은 압축 바이너리 열에 두고 처음 쓸 때 RunTrack·HeartRateSeries로 푼다.
@@ -166,6 +171,33 @@ public class RunRecord {
     @Enumerated(EnumType.STRING)
     @Column(name = "rejudge_state", length = 8, insertable = false, updatable = false)
     private RejudgeState rejudgeState;
+
+    /**
+     * 저장 시점의 아바타 모습(V66, 설계 5.31 [임시:D-성-249]). 일곱 열 모두 널 허용이다. 성별·체형·러닝량은 모습이 있으면 함께 있고, 옷 세 부위와
+     * 얼굴 키는 모습이 있어도 없을 수 있다. 옛 기록은 채우지 않는다.
+     */
+    @Column(name = "look_gender", length = 6)
+    private String lookGender;
+
+    @Column(name = "look_top_item_id")
+    private Long lookTopItemId;
+
+    @Column(name = "look_bottom_item_id")
+    private Long lookBottomItemId;
+
+    @Column(name = "look_shoes_item_id")
+    private Long lookShoesItemId;
+
+    @Column(name = "look_body_variant")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    private Integer lookBodyVariant;
+
+    @Column(name = "look_run_amount")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    private Integer lookRunAmount;
+
+    @Column(name = "look_face_key", length = 255)
+    private String lookFaceKey;
 
     /** 목록 썸네일 경로 모양(RouteShape.encode, 경로 없으면 null, v0.14 D-234). 되채우기 작업이 기존 기록에 채운다. */
     @Column(name = "route_shape", columnDefinition = "text")
@@ -345,6 +377,67 @@ public class RunRecord {
         }
         this.weatherTemperature = w.temperatureC();
         this.weatherSky = w.sky();
+    }
+
+    /** 저장 시점의 아바타 모습 붙이기(설계 5.31 [임시:D-성-250]). null이면 무시. 상의·하의·신발만 남기고 다른 부위는 버린다. */
+    public void attachLook(AvatarLook look) {
+        if (look == null) {
+            return;
+        }
+        this.lookGender = look.gender();
+        this.lookTopItemId = look.equipped().get(ItemSlot.TOP);
+        this.lookBottomItemId = look.equipped().get(ItemSlot.BOTTOM);
+        this.lookShoesItemId = look.equipped().get(ItemSlot.SHOES);
+        this.lookBodyVariant = look.bodyVariant();
+        this.lookRunAmount = look.runAmount();
+        this.lookFaceKey = look.faceKey();
+    }
+
+    /** 저장 시점의 아바타 모습. 모습 없이 저장한 기록(옛 기록, 읽기 실패)은 비어 있다. */
+    public Optional<AvatarLook> look() {
+        return lookOf(
+                new LookColumns(
+                        lookGender,
+                        lookTopItemId,
+                        lookBottomItemId,
+                        lookShoesItemId,
+                        lookBodyVariant,
+                        lookRunAmount,
+                        lookFaceKey));
+    }
+
+    /** 저장된 아바타 모습의 일곱 열. */
+    public record LookColumns(
+            String gender,
+            Long topItemId,
+            Long bottomItemId,
+            Long shoesItemId,
+            Integer bodyVariant,
+            Integer runAmount,
+            String faceKey) {}
+
+    /** 성별이 없으면 비어 있다. 엔티티와 저장소 투영이 같은 모습 복원 규칙을 쓴다. */
+    public static Optional<AvatarLook> lookOf(LookColumns columns) {
+        if (columns.gender() == null) {
+            return Optional.empty();
+        }
+        Map<ItemSlot, Long> equipped = new EnumMap<>(ItemSlot.class);
+        putIfPresent(equipped, ItemSlot.TOP, columns.topItemId());
+        putIfPresent(equipped, ItemSlot.BOTTOM, columns.bottomItemId());
+        putIfPresent(equipped, ItemSlot.SHOES, columns.shoesItemId());
+        return Optional.of(
+                new AvatarLook(
+                        columns.gender(),
+                        equipped,
+                        columns.bodyVariant() == null ? 0 : columns.bodyVariant(),
+                        columns.runAmount() == null ? 0 : columns.runAmount(),
+                        columns.faceKey()));
+    }
+
+    private static void putIfPresent(Map<ItemSlot, Long> equipped, ItemSlot slot, Long itemId) {
+        if (itemId != null) {
+            equipped.put(slot, itemId);
+        }
     }
 
     /** 늦게 온 심박 덧붙이기. 유효 여부·점수는 바꾸지 않는다(FR-043). 심박 동의 확인은 서비스가 한다. */

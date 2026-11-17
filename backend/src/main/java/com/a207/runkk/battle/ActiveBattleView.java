@@ -1,5 +1,6 @@
 package com.a207.runkk.battle;
 
+import com.a207.runkk.common.AvatarLook;
 import com.a207.runkk.common.DisplayName;
 import com.a207.runkk.common.Distance;
 import java.time.LocalDateTime;
@@ -16,6 +17,7 @@ import java.time.LocalDateTime;
  * @param startAt 출발 시각, 시작 보고 전 기록 대결이면 null
  * @param celebrityFigure 유명인 캐릭터 그림 키, 유명인 대결이 아니거나 키가 없으면 null(2026-10-31 결정)
  * @param placementRound 배치고사 대결이면 판 번호, 아니면 null(05-03 P5)
+ * @param opponentLook 상대 아바타 모습(랜덤·친구 대결 상대, 나와의 싸움의 그날의 나), 그 밖이면 null(설계 5.31 [임시:D-성-252])
  */
 public record ActiveBattleView(
         long battleId,
@@ -26,4 +28,5 @@ public record ActiveBattleView(
         String opponentGender,
         LocalDateTime startAt,
         String celebrityFigure,
-        Integer placementRound) {}
+        Integer placementRound,
+        AvatarLook opponentLook) {}

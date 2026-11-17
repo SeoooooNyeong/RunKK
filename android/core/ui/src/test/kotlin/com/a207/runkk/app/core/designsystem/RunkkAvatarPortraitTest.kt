@@ -26,9 +26,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 프로필 얼굴 = 아바타 머리(design-oo 05-30 [임시:D-성-180], [임시:D-성-187]): 셀카 얼굴("selfie:…", "head:…")이면 받은 부위 그림을
+ * 프로필 얼굴 = 아바타 머리(design-oo 05-30 D-812, D-819): 셀카 얼굴("selfie:…", "head:…")이면 받은 부위 그림을
  * 겹치고, 얼굴 키가 없거나 어느 기본 캐릭터 값("default:*")이든 표시 성별의 기본 머리를 그린다. 동물 그림은 그리지 않는다. 셀카 그림을
- * 받는 중이면 중립 자리(기본 머리를 거치지 않는다, [임시:D-성-190]), 받지 못했거나 깨졌으면 기본 머리다.
+ * 받는 중이면 중립 자리(기본 머리를 거치지 않는다, D-822), 받지 못했거나 깨졌으면 기본 머리다.
  */
 @RunWith(RobolectricTestRunner::class)
 class RunkkAvatarPortraitTest {
@@ -86,7 +86,7 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `셀카 키이고 그림을 받는 중이면 기본 머리 대신 중립 자리다(임시 D-성-190)`() {
+    fun `셀카 키이고 그림을 받는 중이면 기본 머리 대신 중립 자리다(D-822)`() {
         show("head:7:job-1", emptyList(), AvatarCharacter.FEMALE, isFaceLoading = true)
         compose.onNodeWithTag(RUNKK_AVATAR_FACE_LOADING_TAG, useUnmergedTree = true).assertExists()
         compose.onNodeWithTag(defaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true).assertDoesNotExist()
@@ -120,7 +120,7 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `셀카 머리 얼굴(head)은 받는 동안 중립 자리이고 기본 머리를 거치지 않고 받은 층으로 바뀐다(임시 D-성-190)`() {
+    fun `셀카 머리 얼굴(head)은 받는 동안 중립 자리이고 기본 머리를 거치지 않고 받은 층으로 바뀐다(D-822)`() {
         var layers by mutableStateOf(emptyList<FaceLayer>())
         var loading by mutableStateOf(true)
         compose.setContent {
@@ -174,7 +174,7 @@ class RunkkAvatarPortraitTest {
                 )
             }
         }
-        // 결과 상세는 얼굴 원이 아닌 장면이라 원 밖 기본 머리다([임시:D-성-193]).
+        // 결과 상세는 얼굴 원이 아닌 장면이라 원 밖 기본 머리다(D-825).
         compose.onNodeWithTag(
             runkkAvatarDefaultHeadTag(AvatarCharacter.MALE, isInCircle = false),
             useUnmergedTree = true
@@ -183,7 +183,7 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `기본 머리 그림은 프로필 원 구도다 - 머리가 크고 정수리가 원 안에 들며 제 길이 목이 아래 끝까지 이어진다(임시 D-성-189)`() {
+    fun `기본 머리 그림은 프로필 원 구도다 - 머리가 크고 정수리가 원 안에 들며 제 길이 목이 아래 끝까지 이어진다(D-821)`() {
         val resources = org.robolectric.RuntimeEnvironment.getApplication().resources
         AvatarCharacter.entries.forEach { character ->
             val bitmap = android.graphics.BitmapFactory.decodeResource(
@@ -194,7 +194,9 @@ class RunkkAvatarPortraitTest {
             fun alpha(x: Int, y: Int) = android.graphics.Color.alpha(bitmap.getPixel(x, y))
             val crown = (0 until size).first { y -> (0 until size).any { alpha(it, y) >= 128 } }
             // 목을 늘리지 않고 머리를 내렸다(사용자 요청 2026-11-12): 정수리가 위 끝에서 조금 내려와 원 안에 든다.
-            assertTrue(crown in (size * .01f).toInt()..(size * .05f).toInt(), "$character 정수리가 원 안 위쪽이다: $crown")
+            // 여자는 남자와 같은 얼굴 배율을 쓴다(S15P31A207-306). 둥근 정수리가 남자 삐친 머리보다 낮아 조금 더 내려온다.
+            val crownMax = if (character == AvatarCharacter.FEMALE) .10f else .05f
+            assertTrue(crown in (size * .01f).toInt()..(size * crownMax).toInt(), "$character 정수리가 원 안 위쪽이다: $crown")
             assertTrue(alpha(size / 2, size - 1) >= 200, "$character 목이 아래 끝까지 이어진다")
             // 아래 끝 가운데는 목(피부색)이다(여자 긴 머리는 목 옆까지 내려와 폭으로는 가리지 않는다).
             assertTrue(android.graphics.Color.red(bitmap.getPixel(size / 2, size - 1)) > 200, "$character 아래 끝 가운데는 목")
@@ -207,7 +209,7 @@ class RunkkAvatarPortraitTest {
     }
 
     @Test
-    fun `원 밖 그림(얼굴 원이 아닌 장면, 지도 마커)은 목을 늘리지 않은 기본 머리(_free)를 쓴다(임시 D-성-193)`() {
+    fun `원 밖 그림(얼굴 원이 아닌 장면, 지도 마커)은 목을 늘리지 않은 기본 머리(_free)를 쓴다(D-825)`() {
         assertEquals(
             R.drawable.avatar_default_head_male_free,
             RunkkAvatarArt.defaultHeadOf(AvatarCharacter.MALE, false)

@@ -1,6 +1,7 @@
 package com.a207.runkk.app.ui.crew
 
 import com.a207.runkk.app.core.designsystem.UiText
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
@@ -19,7 +20,11 @@ data class CrewHomeUiState(
     /** ⋯ 메뉴로 연 쪽(피그마 F-17·F-24). HOME이면 탭 화면이다. */
     val page: CrewHomePage = CrewHomePage.HOME,
     val isLoading: Boolean = false,
+    /** 당겨서 새로고침 중(설계 05-32). 지금 값은 그대로 보인다. */
+    val isRefreshing: Boolean = false,
     val race: RaceStatus? = null,
+    /** 레이스 탭에 새로 반영된 거리 강조(2초). 없으면 null. */
+    val raceHighlight: RaceHighlight? = null,
     val period: CrewRanking.Period = CrewRanking.Period.WEEKLY,
     val ranking: CrewRanking? = null,
     /** 크루런 탭의 크루런 일정(피그마 F-11). */
@@ -31,6 +36,8 @@ data class CrewHomeUiState(
     /** 크루런 모집글별 대기실 단추 상태(postId → LobbyAvailability). 서버 시각 추정으로 1초마다 다시 판단한다. */
     val lobbyEntries: Map<Long, LobbyAvailability> = emptyMap(),
     val members: CrewMembers? = null,
+    /** 크루원 셀카 얼굴 부위 그림(faceKey → 층, [임시:D-성-236]). 없는 키는 기본 얼굴로 그린다. */
+    val memberFaces: Map<String, List<FaceLayer>> = emptyMap(),
     /** 크루런 다음 쪽을 읽는 중. */
     val isLoadingMore: Boolean = false,
     val isConfirmingLeave: Boolean = false,
@@ -40,7 +47,7 @@ data class CrewHomeUiState(
     val confirmDelete: PostList.Item? = null,
     val isEditingIntro: Boolean = false,
     val introDraft: String = "",
-    /** 초대 코드 팝업(피그마 F-18b·F-25b)을 연 상태. */
+    /** 초대 창([임시:FR-성-37], CrewInviteSheet)을 연 상태. 코드와 만료일은 [detail]에서 읽는다. */
     val isInviteOpen: Boolean = false,
     /** ⋯ 메뉴(피그마 F-17·F-24: 딤 + 카드)를 연 상태. */
     val isMenuOpen: Boolean = false,
@@ -60,7 +67,7 @@ data class CrewHomeUiState(
     val isGenderPublic: Boolean = false,
     /** 크루 정보 수정(F-26) 입력. 수정 쪽을 열 때 크루 정보로 채운다. */
     val editForm: CrewFormState = CrewFormState(),
-    /** 정보 수정에서 새로 고른 로고(JPEG, 미리보기, DV-성-6). 올린 주소는 [editForm]의 logoUrl이다. 고르지 않았으면 null. */
+    /** 정보 수정에서 새로 고른 로고(JPEG, 미리보기, DV-6). 올린 주소는 [editForm]의 logoUrl이다. 고르지 않았으면 null. */
     val editLogo: ByteArray? = null,
     /** 정보 수정에서 고른 로고를 올리는 중(저장을 막는다). */
     val isUploadingLogo: Boolean = false,

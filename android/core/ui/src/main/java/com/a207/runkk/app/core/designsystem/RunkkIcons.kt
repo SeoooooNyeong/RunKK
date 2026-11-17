@@ -327,6 +327,12 @@ object RunkkIcons {
     /** 위 화살표(채팅·코치 보내기 단추). */
     val ArrowUp: ImageVector = line("ArrowUp", "M12 19V5", "M5 12l7-7 7 7")
 
+    /** 깃발(트랙 진행 막대의 도착 끝, [임시:D-성-268]). */
+    val Flag: ImageVector = line("Flag", "M5 21V4", "M5 4h12l-2.5 4L17 12H5")
+
+    /** 내 위치(과녁 모양, 지도 「내 위치로」 단추). */
+    val MyLocation: ImageVector = line("MyLocation", circle(12f, 12f, 6f), "M12 2v4", "M12 18v4", "M2 12h4", "M18 12h4")
+
     /** 채움 아이콘([viewport] 격자, 크기도 격자와 같다). 색은 tint가 정한다. */
     private fun filled(name: String, viewport: Float, path: String): ImageVector = ImageVector.Builder(
         name = "Runkk.$name",

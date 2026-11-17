@@ -26,7 +26,7 @@ import org.robolectric.RobolectricTestRunner
 import retrofit2.create
 
 /**
- * 셀카 진행(design-oo 05-30 [임시:D-성-117]~[임시:D-성-119], 11절 4번): 저장소가 기기 사본을 바꿀 때마다 같은 프로세스의 진행이 바뀌고,
+ * 셀카 진행(design-oo 05-30 D-749~D-751, 11절 4번): 저장소가 기기 사본을 바꿀 때마다 같은 프로세스의 진행이 바뀌고,
  * 접수 시각을 남기며, 보낸 사진은 로그인한 회원 것만 돌려주고, 따라가기는 새 접수 REPLACE·이어 걸기 APPEND_OR_REPLACE·다시 켬 KEEP이다.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -98,7 +98,7 @@ class SelfieProgressTest {
     }
 
     @Test
-    fun `아바타 얼굴이 이미 남긴 작업의 셀카 머리면 만드는 중을 끄고 기기 작업과 사진을 지운다(임시 D-성-188)`() = runTest {
+    fun `아바타 얼굴이 이미 남긴 작업의 셀카 머리면 만드는 중을 끄고 기기 작업과 사진을 지운다(D-820)`() = runTest {
         store.save("job-1", 1_000L)
         hub.sync()
         photo.save(byteArrayOf(1))
@@ -148,7 +148,7 @@ class PendingSelfieTimeTest {
     }
 
     @Test
-    fun `보낸 사진은 로그인한 회원 것만 돌려주고 새로 남기면 앞 사진을 지운다(D-성-119)`() = runTest {
+    fun `보낸 사진은 로그인한 회원 것만 돌려주고 새로 남기면 앞 사진을 지운다(D-751)`() = runTest {
         val photo = FilePendingSelfiePhoto(context, SelfMember(tokens))
         photo.clear()
         photo.save(byteArrayOf(1, 2))

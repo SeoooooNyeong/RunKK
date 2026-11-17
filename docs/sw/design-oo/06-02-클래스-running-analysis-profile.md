@@ -56,6 +56,8 @@
 | `boolean reached(Distance d)` | 거리 도달 여부 | | 대결 검증(FR-092) |
 | 조회 | getRecordId, getMemberId, getStartedAt, getDistance, getElapsed, getAveragePace, isValid, getScore, getMode, getCardKind, getWeather, getNewRecords, getSavedAt (v0.11, CR34-03), routePoints()(읽기 전용, 파기 뒤 빈 목록) | | |
 
+표 밖 소비자 (v0.40 반영, PM 지시로 대신 반영(2026-11-15)): run_record의 `record_id`, `member_id`, `started_at`, `distance_meters`, `valid` 다섯 열은 Grafana 이벤트 현황 대시보드가 읽기 전용 계정(`runkk_grafana_ro`, 열 단위 GRANT)으로 서버를 거치지 않고 직접 읽는다(design-oo 05-29 이벤트 현황 D-860~D-867, 9절). 유효 판정(`ValidityRule`, FR-047)이나 이 열의 이름·뜻을 바꾸는 변경은 `infra/monitoring/grafana/dashboards/runkk-event.json`의 공통 SQL과 `infra/monitoring/grafana/runkk-db/readonly-role.sql`의 run_record 열 목록을 같은 MR에서 함께 고친다(13.1 「표 밖 소비자」).
+
 ##### PauseInterval (값, record) (v0.11, FR-194, FR-036, D-93)
 | 항목 | 내용 |
 |------|------|
@@ -192,6 +194,7 @@ PENDING(V28이 배포 때 무효 기록에 세움), VALID(재판정으로 유효
 | `List<RunSampleRow> runSamples(long memberId, int limit)`, `List<RunSampleRow> runSamples(long memberId, DateRange r)` | 최근 유효 기록 limit개 또는 기간 안 유효 기록, 최신순. RunSampleRow(recordId, startedAt, distance). runimal의 판정 표본·코스 비교 대상용(design-review.md R4) |
 | `List<LocalDateTime> recentStartTimes(long memberId, int limit)` | 최근 유효 기록 limit개의 시작 일시, 최신순. avatar.AppearanceService의 피부색·마지막 유효 러닝 일시용(R6) |
 | `List<RunSummary> summariesBetween(long memberId, DateRange r)` | 기간 안 기록 전부(무효 포함), 최신순. 기록 목록·주간 거리 재합산용 |
+| `Map<String, RunSummary> summariesOf(Collection<String> recordIds)` | 여러 기록의 요약을 한 번에 돌려준다(기록 ID → 요약). 없는 ID는 맵에서 빠지고, 빈 입력이면 저장소를 부르지 않고 빈 맵이다. `RunRecordRepository.findSummaries`를 한 번 불러 기록·참가자마다 `findSummary`를 부르던 N+1을 없앤다. crew.CrewRunHistory(크루 상세 최근 크루런 거리 합, 시스템 메시지 거리)가 쓴다(06-04 v0.40 의존 표, 코드 리뷰 PL11-B3) (v0.40 반영, PM 지시로 대신 반영(2026-11-15)) |
 | `RunDetail detail(String recordId, OptionalInt maxHeartRate)` | 1km 구간 페이스, 가장 빠른 1km, 심박 구간(최대 심박이 있을 때), 불안정 구간, 날씨, 신기록. analysis의 기록 상세용 |
 | `RunComparison comparisonOf(String recordId)` | RunComparison(elapsed, averagePace, fastestKm). battle의 결과 비교표용(R5). 없으면 BusinessRuleException(RECORD_NOT_FOUND) |
 | `Optional<RunComparison> findComparison(String recordId)` | 기록을 못 읽은 상태도 허용하는 대결 결과 비교표에 쓴다(D-524). |
@@ -284,7 +287,7 @@ recordId(String), memberId(long), distance(Distance, 초과 구간을 뺀 집계
 `RunRecordRepository.findSummary(String): Optional<RunSummary>`와 `latestListRow(long): Optional<RunListRow>`는 요약과 최신 목록 행을 직접 읽는 투영이다(D-524).
 | 인터페이스 | 시그니처 |
 |-----------|---------|
-| RunRecordRepository | `boolean exists(String recordId)`, `Optional<RunRecord> findById(String)`, `RunRecord save(RunRecord)`, `List<RunRecord> findByMember(long memberId)`, `List<RunRecord> recentValid(long memberId, int limit)`, `List<RunRecord> findByMemberBetween(long memberId, DateRange range)`, `int countValid(long memberId)`, `List<SavedRun> savedBetween(LocalDateTime from, LocalDateTime to)`(v0.11 CR34-03), `List<SavedRun> tierPendingBetween(LocalDateTime from, LocalDateTime to)`(저장 일시 [from, to)이고 tier_applied 거짓인 유효 기록, 저장 일시·기록 ID 순, 색인 idx_run_record_tier_pending), `Optional<ValidRunScore> validRunScoreOf(String recordId)`(유효 기록 하나의 점수·거리·순번, 무효거나 없으면 비어 있음), `boolean markTierApplied(String recordId)`(조건부 UPDATE, 이번에 세웠으면 참) (v0.11 구현 반영, U5-A-1, D-169), `Distance validDistanceSavedBefore(long memberId, LocalDateTime cutoff)`(저장 일시 < cutoff인 유효 기록 거리 합, RunQueryService.validDistanceBefore용, D-176) (v0.12, U6-5), 일회성 재판정 연산 넷 `List<String> rejudgeCandidates(RejudgeState state, int limit)`(저장 일시·기록 ID 순, 색인 idx_run_record_rejudge)·`Optional<RunRecord> findForUpdate(String recordId)`(행 잠금)·`boolean storeRejudgement(RunRecord record, RejudgeState from, RejudgeState to)`(거리·시간·페이스·유효·점수·제외 값과 표시를 조건부 UPDATE. 거리·시간 열은 updatable = false라 이 연산만 쓴다)·`boolean moveRejudgeState(String recordId, RejudgeState from, RejudgeState to)`(표시만 조건부 UPDATE) (v0.12 구현 반영, D-191), 통계 조회(RunQueryService용), `void deleteByMember(long memberId)`. running 밖에서 쓰지 않는다(ArchUnit 규칙, 13.1) (v0.11, CR34-03, D-108) |
+| RunRecordRepository | `boolean exists(String recordId)`, `Optional<RunRecord> findById(String)`, `List<RunSummary> findSummaries(Collection<String> recordIds)`(v0.40 반영, summariesOf용), `RunRecord save(RunRecord)`, `List<RunRecord> findByMember(long memberId)`, `List<RunRecord> recentValid(long memberId, int limit)`, `List<RunRecord> findByMemberBetween(long memberId, DateRange range)`, `int countValid(long memberId)`, `List<SavedRun> savedBetween(LocalDateTime from, LocalDateTime to)`(v0.11 CR34-03), `List<SavedRun> tierPendingBetween(LocalDateTime from, LocalDateTime to)`(저장 일시 [from, to)이고 tier_applied 거짓인 유효 기록, 저장 일시·기록 ID 순, 색인 idx_run_record_tier_pending), `Optional<ValidRunScore> validRunScoreOf(String recordId)`(유효 기록 하나의 점수·거리·순번, 무효거나 없으면 비어 있음), `boolean markTierApplied(String recordId)`(조건부 UPDATE, 이번에 세웠으면 참) (v0.11 구현 반영, U5-A-1, D-169), `Distance validDistanceSavedBefore(long memberId, LocalDateTime cutoff)`(저장 일시 < cutoff인 유효 기록 거리 합, RunQueryService.validDistanceBefore용, D-176) (v0.12, U6-5), 일회성 재판정 연산 넷 `List<String> rejudgeCandidates(RejudgeState state, int limit)`(저장 일시·기록 ID 순, 색인 idx_run_record_rejudge)·`Optional<RunRecord> findForUpdate(String recordId)`(행 잠금)·`boolean storeRejudgement(RunRecord record, RejudgeState from, RejudgeState to)`(거리·시간·페이스·유효·점수·제외 값과 표시를 조건부 UPDATE. 거리·시간 열은 updatable = false라 이 연산만 쓴다)·`boolean moveRejudgeState(String recordId, RejudgeState from, RejudgeState to)`(표시만 조건부 UPDATE) (v0.12 구현 반영, D-191), 통계 조회(RunQueryService용), `void deleteByMember(long memberId)`. running 밖에서 쓰지 않는다(ArchUnit 규칙, 13.1) (v0.11, CR34-03, D-108) |
 | PersonalRecordBookRepository | `PersonalRecordBook findOrCreateForUpdate(long memberId)`(행 잠금), `PersonalRecordBook findOrCreate(long memberId)`, `void save(PersonalRecordBook)`, `void deleteByMember(long)`. running 밖에서 쓰지 않는다 |
 | DisposalOrderRepository | `void save(DisposalOrder)`, `List<DisposalOrder> findScheduled()`, `List<DisposalOrder> findNotConfirmedByMember(long)`, `Optional<DisposalOrder> findById(long)` |
 | WeatherGateway | `Optional<Weather> lookup(GeoPoint coarsePoint, LocalDateTime at)` (3초 제한, 실패면 비어 있음) |
@@ -386,6 +389,13 @@ CommentContext(record): llmAgreed(boolean), aiEnabled(boolean), memberId(long �
 ##### RankEntry (값, record)
 속성: rank(int), subjectId(long, 회원 또는 크루), displayName(DisplayName), tier(Tier, 크루 랭킹은 null), distance(Distance).
 
+##### RankingSnapshotRebuilt (사건, record) (v0.40 반영, 05-30 D-858, sqa DF-089. PM 지시로 대신 반영(2026-11-15))
+랭킹 스냅숏 하나를 새로 저장했다는 사건이다. analysis가 발행한다(D-31). 속성: kind(RankingKind), period(AggregationPeriod), computedAt(LocalDateTime, 저장한 스냅숏의 집계 시각이며 조회 응답 aggregatedAt과 같은 값, 밀리초 단위), topSubjectIds(List<Long>, 상위 줄 회원 또는 크루 ID 최대 `RankingService.TOP` = 100개, 순위순, 불변 사본). `occurredAt()`은 computedAt이다.
+
+- 발행: `RankingService`의 패키지 내부 `save(RankingSnapshot)`가 스냅숏 저장과 **같은 쓰기 트랜잭션**(`AnalysisTransactions.write`) 안에서 `DomainEventPublisher.publish(rebuiltOf(snapshot))`. 0시 `rebuild`, 시작 때 `rebuildIfMissing`, 운영자 `recompute`가 모두 이 경로를 탄다. 재집계 시각은 `at.truncatedTo(ChronoUnit.MILLIS)`로 자른다(Redis 키와 DB 값이 같은 밀리초).
+- 수신: `web.record.RankingLookPrefill.onRebuilt`(`@TransactionalEventListener(phase = AFTER_COMMIT)`, 새 읽기 전용 트랜잭션 REQUIRES_NEW). 개인 스냅숏이고 상위 줄이 있을 때만 `avatar.RunnerLookQuery.snapshotLooksOf`로 그 스냅숏 키(`RankingSnapshotIds.of`)에 줄 모습을 미리 채운다. 크루 스냅숏은 건너뛰고, 실패는 경고 로그만 남겨 재집계는 성공으로 둔다(조회 때 지연 채움이 안전망).
+- analysis는 avatar를 import하지 않는다. analysis → avatar 화살표를 만들지 않으려고 사건으로 넘긴다(D-46). 12.2 의존 표는 바뀌지 않는다(web.record → analysis·avatar는 이미 허용).
+
 ##### DashboardService
 | 항목 | 내용 |
 |------|------|
@@ -431,6 +441,8 @@ CommentContext(record): llmAgreed(boolean), aiEnabled(boolean), memberId(long �
 | `RankingRecomputeResult recompute()` | POST /admin/rankings/recompute(web.admin.ranking RankingAdminController, v0.11 검증 D-136). 0시를 기다리지 않고 지금 시각으로 rebuild와 같은 경로(종류·기간마다 한 트랜잭션, 커밋 뒤 캐시 판 교체)를 같은 잠금 안에서 탄다. 다른 집계가 돌고 있으면 기다리지 않고 IllegalStateException(web.error가 409로 바꾼다). 감사 AuditAction.RANKING_RECOMPUTED(V18)는 web.admin.ranking이 남긴다 (v0.11, CR2-U1) |
 | `RankingView personalRanking(long memberId, AggregationPeriod period)` | 개인 최근 스냅숏 + entryOf + gapToNext + 집계 기준 시각. 나만 보기면 안내 문구. 페이지와 본인 행의 회원을 `MemberQueryService.summaries`로 읽어 `RankingView.publicTiers`에 현재 공개 티어를 붙인다. `publicTierOf(entry)`는 회원 ID로 읽는다. UNRANKED는 「배치 중」으로 표시한다(D-486, FR-282). |
 | `RankingView crewRanking(long memberId, AggregationPeriod period)` | 크루 최근 스냅숏 + 본인 크루의 entryOf + gapToNext + 집계 기준 시각. 크루 없음이면 본인 크루 순위 비움. 크루 랭킹의 `publicTiers`는 빈 맵이다(D-486). |
+
+`RankingView.activeMemberIds()`(v0.40 반영, 05-30 D-858. PM 지시로 대신 반영(2026-11-15)): `Set<Long>`. 개인 랭킹 줄(entries·mine) 가운데 탈퇴하지 않은 회원 ID, 곧 `publicTiers`의 키(D-486과 같은 탈퇴 제외)다. web.record `RankingController`가 줄 회원 모습(look)을 붙일 대상으로 쓰고, 집계 시각이 없거나 이 집합이 비면 모습을 읽지 않는다. 크루 랭킹과 스냅숏 없음이면 비어 있다.
 
 v0.1의 `ranking(memberId, RankingKind, period)`은 kind가 개인·크루 처리 경로를 골라 제어 결합이었다. 두 연산으로 나눴다(D-36). RankingKind는 RankingSnapshot 안의 구분으로만 남는다.
 

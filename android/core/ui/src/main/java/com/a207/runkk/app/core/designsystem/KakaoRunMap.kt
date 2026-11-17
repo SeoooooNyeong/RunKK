@@ -63,12 +63,13 @@ data class RunMapMarker(
 /**
  * 측정 중 Kakao 지도(C-005, 사용자 요청 2026-10-30): 지도 위에 경로선을 그리고 카메라가 늘 내 위치(경로 끝)를 가운데에 둔다.
  * 끌기·회전·기울이기는 막고 확대·축소만 받으며, 확대·축소해도 가운데(내 위치)는 그대로다. 새 위치가 와도 사용자가 정한 확대 단계는 지킨다.
- * 내 아바타([figure], 칸 [myMarkerSize], 기본은 [markerSize]. 내 Rive 아바타 칸은 88dp, [임시:D-성-121])와 [others](대결 상대)는 지도 좌표 → 화면 위치(toScreenPoint)로 놓아 확대·축소에도 지도 위 제자리를 지킨다
+ * 내 아바타([figure], 칸 [myMarkerSize], 기본은 [markerSize]. 내 Rive 아바타 칸은 88dp, D-753)와 [others](대결 상대)는 지도 좌표 → 화면 위치(toScreenPoint)로 놓아 확대·축소에도 지도 위 제자리를 지킨다
  * (카메라가 움직이는 동안은 매 프레임 다시 놓는다). 지도를 띄울 수 없으면(키·지도 라이브러리 없음, canShowKakaoMap) 부르는 쪽이 RouteCanvas를 그린다.
  * 실행 중 지도 오류(잘못된 키·네트워크, MapLifeCycleCallback.onMapError)면 [onMapError]를 알리고, 부르는 쪽이 그 상태를
  * canShowKakaoMap(key, isMapFailed)에 넘겨 격자 바탕 RouteCanvas로 바꾼다(FR-034, D-322 (3), D-340).
  * 기록 상세 KakaoCourseMap과 같이 화면 수명에 맞춰 지도를 이어 그리고 멈추며, 화면을 떠나면 닫는다.
  * [isFramed]가 거짓이면 둥근 모서리·테두리 없이 칸 그대로 자른다(크루런 F-15는 가장자리 페이드를 부르는 쪽이 덮는다).
+ * [recenterRequest]가 바뀌면(「내 위치로」 단추, [RunkkMeMap]) 내 위치를 가운데에 두고 따라가기 확대 단계로 되돌린다.
  */
 @Composable
 fun KakaoRunMap(
@@ -80,6 +81,7 @@ fun KakaoRunMap(
     myLabel: String? = null,
     onMapError: () -> Unit = {},
     isFramed: Boolean = true,
+    recenterRequest: Int = 0,
     figure: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -182,6 +184,14 @@ fun KakaoRunMap(
             ready.moveCamera(update)
             isZoomSet = true
         }
+        place(ready)
+    }
+    // 「내 위치로」: 사용자가 바꾼 확대 단계를 버리고 내 위치를 따라가기 확대 단계로 다시 맞춘다
+    LaunchedEffect(map, recenterRequest) {
+        val ready = map ?: return@LaunchedEffect
+        if (recenterRequest == 0) return@LaunchedEffect
+        val me = latestRoute.points.lastOrNull() ?: return@LaunchedEffect
+        ready.moveCamera(CameraUpdateFactory.newCenterPosition(LatLng.from(me.latitude, me.longitude), FOLLOW_ZOOM))
         place(ready)
     }
     // 지도를 끄는 동안 아바타가 지도 위 제자리를 따라가게 매 프레임 다시 놓는다

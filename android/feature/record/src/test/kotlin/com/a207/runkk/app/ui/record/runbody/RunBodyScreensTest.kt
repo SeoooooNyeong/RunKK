@@ -220,7 +220,7 @@ class RunBodyScreensTest {
                 )
             }
         }
-        // 피그마 "5.2km · 선택됨"은 가운뎃점 대신 메타 줄로 그리고 한 번에 읽는다([임시:D-성-10])
+        // 피그마 "5.2km · 선택됨"은 가운뎃점 대신 메타 줄로 그리고 한 번에 읽는다(D-642)
         compose.onNodeWithContentDescription("5.2km, 선택됨").assertIsSelected()
         compose.onNodeWithContentDescription("10.0km, 58:00").assertIsNotSelected()
         compose.onNodeWithContentDescription("10.0km, 58:00").performClick()
@@ -268,10 +268,14 @@ class RunBodyScreensTest {
         compose.onNodeWithContentDescription("11월 2일 오전 7:10, 5.2km").assertExists()
         compose.onNodeWithText("00:30:10", useUnmergedTree = true).assertExists()
         compose.onNodeWithText("구간, 페이스, 평균 심박").performScrollTo().assertExists()
-        compose.onNodeWithText("5′42″/km, 148 bpm", useUnmergedTree = true).assertExists()
-        compose.onNodeWithText("마지막 0.2 km", useUnmergedTree = true).assertExists()
+        // 구간 줄은 한 번에 읽고 페이스 기호(′ ″)는 화면 읽기에 "5분 42초"로 읽힌다(PL12-A4). 보이는 글자는 G20 스냅샷이 지킨다.
+        compose.onNodeWithContentDescription("1km, 1킬로미터당 5분 42초, 148 bpm").assertExists()
+        compose.onNodeWithContentDescription("마지막 0.2 km, 1킬로미터당 5분 58초, 154 bpm").assertExists()
         compose.onNodeWithText("좋았던 점 전반과 후반 페이스 차이가 작아요.").performScrollTo().assertExists()
         compose.onNodeWithText("확인 근거 전반 5′44″/km → 후반 5′52″/km").performScrollTo().assertExists()
+        compose
+            .onNodeWithContentDescription("확인 근거 전반 1킬로미터당 5분 44초, 후반 1킬로미터당 5분 52초")
+            .assertExists()
         compose.onNodeWithText("5.2 km / 5.0 km", useUnmergedTree = true).performScrollTo().assertExists()
     }
 
@@ -378,7 +382,7 @@ class RunBodyScreensTest {
         compose.onNodeWithText("2.1 → 2.8회").assertExists()
         compose.onNodeWithText("0.7회 늘었어요").assertExists()
         compose.onNodeWithText("출근도장 거북이").performScrollTo().assertExists()
-        // 피그마 G-14에는 토글이 없다([임시:D-성-17]). "월간"은 맨 위 탭 하나뿐이다
+        // 피그마 G-14에는 토글이 없다(D-649). "월간"은 맨 위 탭 하나뿐이다
         compose.onNodeWithText("주간").assertDoesNotExist()
         assertEquals(1, compose.onAllNodesWithText("월간").fetchSemanticsNodes().size)
         compose.onNodeWithText("월간 러닝 빈도").assertDoesNotExist()

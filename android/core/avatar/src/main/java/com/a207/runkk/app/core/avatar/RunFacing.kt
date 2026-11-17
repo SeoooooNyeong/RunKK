@@ -8,7 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
 
-/** 달리기 좌우 방향을 바꾸기 전에 같은 방향이 이어져야 하는 시간([임시:D-성-133], D-성-130의 1초를 2초로 정정). */
+/** 달리기 좌우 방향을 바꾸기 전에 같은 방향이 이어져야 하는 시간(D-765, D-762의 1초를 2초로 정정). */
 const val RUN_FACING_HOLD_MILLIS = 2_000L
 
 /**

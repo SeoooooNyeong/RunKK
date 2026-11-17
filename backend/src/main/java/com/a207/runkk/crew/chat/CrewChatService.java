@@ -50,6 +50,7 @@ public class CrewChatService {
     private final ChatReactionRepository reactions;
     private final CrewMembershipReader membership;
     private final MemberQueryService memberQuery;
+    private final ChatAuthorFaces authorFaces;
     private final AuditService audit;
     private final DomainEventPublisher events;
     private final TransactionTemplate transactions;
@@ -60,6 +61,7 @@ public class CrewChatService {
             ChatReactionRepository reactions,
             CrewMembershipReader membership,
             MemberQueryService memberQuery,
+            ChatAuthorFaces authorFaces,
             AuditService audit,
             DomainEventPublisher events,
             PlatformTransactionManager transactionManager,
@@ -68,6 +70,7 @@ public class CrewChatService {
         this.reactions = reactions;
         this.membership = membership;
         this.memberQuery = memberQuery;
+        this.authorFaces = authorFaces;
         this.audit = audit;
         this.events = events;
         this.transactions = new TransactionTemplate(transactionManager);
@@ -199,7 +202,8 @@ public class CrewChatService {
 
     /**
      * 반응한 사람 목록(피그마 F-09d, 사용자 결정 C7). 없거나 삭제·숨김이면 CHAT_MESSAGE_NOT_FOUND, 크루 밖·떠난 회원은
-     * NOT_CREW_MEMBER. 반응 한 건이 한 줄이고 먼저 단 순서다. kind를 주면 그 종류만. 표시명은 묶어서 한 번 읽는다.
+     * NOT_CREW_MEMBER. 반응 한 건이 한 줄이고 먼저 단 순서다. kind를 주면 그 종류만. 표시명과 얼굴(ChatAuthorFaces)은 묶어서 한 번씩
+     * 읽는다.
      */
     @Transactional(readOnly = true)
     public List<ChatReactor> reactors(long memberId, long messageId, Optional<ReactionKind> kind) {
@@ -209,18 +213,23 @@ public class CrewChatService {
         if (rows.isEmpty()) {
             return List.of();
         }
-        Map<Long, MemberSummary> names =
-                memberQuery.summaries(
-                        rows.stream().map(ChatReaction::memberId).distinct().toList());
+        List<Long> reactorIds = rows.stream().map(ChatReaction::memberId).distinct().toList();
+        Map<Long, MemberSummary> names = memberQuery.summaries(reactorIds);
+        Map<Long, ChatAuthorFaces.Face> faces = authorFaces.of(memberId, reactorIds);
         return rows.stream()
                 .map(
-                        r ->
-                                new ChatReactor(
-                                        r.memberId(),
-                                        authorName(r.memberId(), names),
-                                        r.kind(),
-                                        r.reactedAt().atZone(clock.getZone()).toOffsetDateTime(),
-                                        r.memberId() == memberId))
+                        r -> {
+                            ChatAuthorFaces.Face face =
+                                    faces.getOrDefault(r.memberId(), ChatAuthorFaces.Face.NONE);
+                            return new ChatReactor(
+                                    r.memberId(),
+                                    authorName(r.memberId(), names),
+                                    r.kind(),
+                                    r.reactedAt().atZone(clock.getZone()).toOffsetDateTime(),
+                                    r.memberId() == memberId,
+                                    face.faceKey(),
+                                    face.shownGender());
+                        })
                 .toList();
     }
 
@@ -373,10 +382,16 @@ public class CrewChatService {
         Map<Long, MemberSummary> names = memberQuery.summaries(authors);
         Map<Long, CrewRole> roles =
                 authors.isEmpty() ? Map.of() : membership.rolesIn(page.get(0).crewId(), authors);
+        Map<Long, ChatAuthorFaces.Face> faces = authorFaces.of(memberId, authors);
         return page.stream()
                 .map(
                         m -> {
                             boolean own = m.isAuthor(memberId);
+                            ChatAuthorFaces.Face face =
+                                    m.authorId() == null
+                                            ? ChatAuthorFaces.Face.NONE
+                                            : faces.getOrDefault(
+                                                    m.authorId(), ChatAuthorFaces.Face.NONE);
                             return new ChatPage.Line(
                                     m.id(),
                                     m.authorId(),
@@ -390,7 +405,9 @@ public class CrewChatService {
                                     own ? m.clientMessageId() : null,
                                     m.kind(),
                                     m.authorId() == null ? null : roles.get(m.authorId()),
-                                    m.runDistanceMeters());
+                                    m.runDistanceMeters(),
+                                    face.faceKey(),
+                                    face.shownGender());
                         })
                 .toList();
     }

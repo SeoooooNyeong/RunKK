@@ -11,11 +11,37 @@ import com.a207.runkk.common.Distance;
 import com.a207.runkk.common.StandardDistance;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 /** RunRecord(6.1.3): 수신 검증, judgeValidity(한 번만), 신기록·날씨·심박·파기. PersonalRecordBook.apply(A-05). */
 @org.junit.jupiter.api.DisplayName("러닝 기록·최고 기록·파기 지시 엔티티")
 class RunRecordTest {
+
+    @Test
+    void lookProjectionUsesOneValueAndPreservesEveryColumn() {
+        assertThat(
+                        java.util.Arrays.stream(RunRecord.class.getDeclaredMethods())
+                                .filter(method -> method.getName().equals("lookOf")))
+                .singleElement()
+                .satisfies(method -> assertThat(method.getParameterCount()).isEqualTo(1));
+        RunRecord record = RunFixtures.valid5k(id(1));
+        var look =
+                new com.a207.runkk.common.AvatarLook(
+                        "FEMALE",
+                        Map.of(
+                                com.a207.runkk.common.ItemSlot.TOP,
+                                11L,
+                                com.a207.runkk.common.ItemSlot.BOTTOM,
+                                22L,
+                                com.a207.runkk.common.ItemSlot.SHOES,
+                                33L),
+                        4,
+                        99,
+                        "head:1:old");
+        record.attachLook(look);
+        assertThat(record.look()).contains(look);
+    }
 
     private static RunUpload with(
             RunUpload u, RunMode mode, CardKind kind, Long battle, Long post) {

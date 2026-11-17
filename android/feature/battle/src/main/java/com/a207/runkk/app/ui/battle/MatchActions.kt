@@ -10,5 +10,7 @@ data class MatchActions(
     val onInviteEndedConfirmed: () -> Unit = {},
     val onNoticeConfirmed: () -> Unit = {},
     val onConsentAgree: () -> Unit = {},
-    val onConsentClose: () -> Unit = {}
+    val onConsentClose: () -> Unit = {},
+    val onLeaveConfirm: () -> Unit = {},
+    val onLeaveDismiss: () -> Unit = {}
 )

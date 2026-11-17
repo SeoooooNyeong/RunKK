@@ -29,7 +29,7 @@ interface FeatureEntry {
 
     /**
      * 이 기능이 앱 전체 화면에 내려 주는 값(CompositionLocal). RunkkNavHost가 모든 기능의 값을 모아 그래프를 감싼다. 예: 아바타
-     * 기능의 내 얼굴 그을림([임시:D-성-220]). 대부분의 기능은 없다.
+     * 기능의 내 얼굴 그을림(D-852). 대부분의 기능은 없다.
      */
     @Composable
     fun providedLocals(): List<ProvidedValue<*>> = emptyList()

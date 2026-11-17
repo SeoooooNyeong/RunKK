@@ -88,6 +88,7 @@
     <string name="battle_running_forfeit_confirm">포기하기</string>
     <string name="battle_running_forfeit_button">그만두기</string>
     <string name="battle_running_title_random">배틀런, %1$s</string>
+    <string name="battle_running_label">%1$s, %2$s</string>
     <string name="battle_running_title_celeb">vs %1$s, %2$s</string>
     <string name="battle_running_ready">준비</string>
     <string name="battle_running_forfeit_dismiss">계속 달리기</string>
@@ -103,6 +104,12 @@
     <string name="battle_running_overtook_self">과거의 나를 앞질렀어요</string>
     <string name="battle_running_overtook">추월했어요!</string>
     <string name="battle_running_overtaken">역전당했어요</string>
+    <string name="battle_record_pace">%1$s /km</string>
+    <string name="battle_track_progress">%1$s / %2$s km</string>
+    <string name="battle_track_remaining">남은 거리 %1$s km</string>
+    <string name="battle_track_edge_ahead">%1$s %2$d m ›</string>
+    <string name="battle_track_edge_behind">‹ %1$s %2$d m</string>
+    <string name="battle_track_ruler">%1$d m</string>
     <string name="battle_running_gap_waiting">상대 진행 기다리는 중</string>
     <string name="battle_running_gap_ahead_spoken">%1$d미터 앞서는 중</string>
     <string name="battle_running_gap_behind_spoken">%1$d미터 뒤처지는 중</string>
@@ -123,6 +130,13 @@
     <string name="battle_match_finding">상대를 찾고 있어요</string>
     <string name="battle_match_finding_desc">상대를 찾고 있어요, %1$d초 지남</string>
     <string name="battle_match_cancelling">취소하는 중</string>
+    <string name="battle_leave_title">매칭을 취소할까요?</string>
+    <string name="battle_leave_message">지금 나가면 매칭이 취소돼요. 상대가 정해진 후에 나가면 패배로 기록돼요.</string>
+    <string name="battle_leave_message_invite">지금 나가면 초대가 취소돼요.</string>
+    <string name="battle_leave_exit">나가기</string>
+    <string name="battle_leave_stay">계속 기다리기</string>
+    <string name="battle_leave_hint">화면을 나가면 매칭이 취소돼요</string>
+    <string name="battle_leave_hint_invite">화면을 나가면 초대가 취소돼요</string>
     <string name="battle_match_cancel">취소</string>
     <string name="battle_match_found">상대를 찾았어요</string>
     <string name="battle_match_found_desc">상대를 찾았어요. %1$s, %2$s</string>

@@ -165,7 +165,7 @@ class CrewHomeW7ViewModelTest {
     }
 
     @Test
-    fun `정보 수정 로고 - 고른 사진을 미리 보이고 올린 주소를 저장에 싣는다(F-26, DV-성-6)`() {
+    fun `정보 수정 로고 - 고른 사진을 미리 보이고 올린 주소를 저장에 싣는다(F-26, DV-6)`() {
         val vm = vm()
         vm.onPage(CrewHomePage.EDIT)
         vm.onEditLogoPicked(byteArrayOf(1, 2, 3))
@@ -179,7 +179,7 @@ class CrewHomeW7ViewModelTest {
     }
 
     @Test
-    fun `정보 수정 로고 - 올리지 못하면 미리보기를 비우고 원래 로고를 둔 채 안내한다(DV-성-6)`() {
+    fun `정보 수정 로고 - 올리지 못하면 미리보기를 비우고 원래 로고를 둔 채 안내한다(DV-6)`() {
         repo.fail["uploadLogo"] = AppError.Network
         val vm = vm()
         vm.onPage(CrewHomePage.EDIT)
@@ -192,7 +192,7 @@ class CrewHomeW7ViewModelTest {
     }
 
     @Test
-    fun `탈퇴하면 크루 홈 상태를 비우고 같은 크루로 다시 묶으면 처음부터 읽는다(DV-성-7)`() = runTest(main.dispatcher) {
+    fun `탈퇴하면 크루 홈 상태를 비우고 같은 크루로 다시 묶으면 처음부터 읽는다(DV-7)`() = runTest(main.dispatcher) {
         val vm = vm(CrewRole.MEMBER)
         vm.onPage(CrewHomePage.INFO)
         vm.events.test {
@@ -402,7 +402,7 @@ class CrewW7ScreensTest {
     )
 
     @Test
-    fun `정보 수정의 로고 연필 덮개를 누르면 사진 고르기를 연다(F-26, DV-성-6)`() {
+    fun `정보 수정의 로고 연필 덮개를 누르면 사진 고르기를 연다(F-26, DV-6)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
@@ -416,7 +416,7 @@ class CrewW7ScreensTest {
     }
 
     @Test
-    fun `올린 로고가 있으면 크루 홈 머리와 크루 정보가 그 로고를 읽는다(DV-성-8)`() {
+    fun `올린 로고가 있으면 크루 홈 머리와 크루 정보가 그 로고를 읽는다(DV-8)`() {
         val asked = mutableListOf<String>()
         val loader: suspend (String) -> Outcome<ByteArray> = { url ->
             asked += url
@@ -482,7 +482,7 @@ class CrewW7ScreensTest {
     }
 
     @Test
-    fun `초대 코드 팝업은 복사와 닫기 ✕만 있고 재발급·기한은 없다(F-18b)`() {
+    fun `초대 창은 복사와 세 동작과 닫기가 있고 재발급은 없다(실기기 수정 ⑧, FR-성-37)`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
@@ -491,9 +491,13 @@ class CrewW7ScreensTest {
                 )
             }
         }
+        compose.onNodeWithText("크루원 초대").assertExists()
         compose.onNodeWithText("복사").assertExists()
+        compose.onNodeWithText("카카오톡으로 보내기").assertExists()
+        compose.onNodeWithText("초대 링크 복사").assertExists()
+        compose.onNodeWithText("다른 앱으로 공유").assertExists()
         compose.onNodeWithText("새로 발급").assertDoesNotExist()
-        compose.onNodeWithContentDescription("초대 코드 닫기").performClick()
+        compose.onNodeWithText("닫기").performClick()
         assertEquals(listOf("close"), calls)
     }
 

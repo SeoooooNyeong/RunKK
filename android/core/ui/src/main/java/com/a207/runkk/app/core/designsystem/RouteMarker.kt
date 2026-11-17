@@ -47,7 +47,7 @@ data class RouteMarker(
     val alpha: Float = 1f,
     val tag: String = MY_MARKER_TAG,
     val figure: @Composable () -> Unit = DefaultMarkerFigure,
-    /** 이 마커만의 그림 칸 크기. null이면 RouteCanvas의 markerSize다(내 아바타 칸 88dp, [임시:D-성-121]). */
+    /** 이 마커만의 그림 칸 크기. null이면 RouteCanvas의 markerSize다(내 아바타 칸 88dp, D-753). */
     val size: Dp? = null
 )
 
@@ -59,7 +59,7 @@ const val OPPONENT_MARKER_TAG = "route-marker-opponent"
 
 /** 기본 마커 그림(기본 아바타 얼굴). 마커마다 새 람다를 만들지 않게 하나를 함께 쓴다. */
 private val DefaultMarkerFigure: @Composable () -> Unit = {
-    // 지도 위 마커는 얼굴 원이 아니다(목을 늘리지 않는다, [임시:D-성-193]).
+    // 지도 위 마커는 얼굴 원이 아니다(목을 늘리지 않는다, D-825).
     RunkkAvatar(
         faceKey = null,
         expression = AvatarExpression.FACE,

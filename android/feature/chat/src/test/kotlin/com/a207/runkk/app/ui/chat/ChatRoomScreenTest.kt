@@ -2,19 +2,27 @@ package com.a207.runkk.app.ui.chat
 
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
+import com.a207.runkk.app.core.designsystem.AvatarCharacter
+import com.a207.runkk.app.core.designsystem.RUNKK_AVATAR_FACE_TAG
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.runkkAvatarDefaultHeadTag
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.chat.ChatAuthorRole
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.chat.ChatMessageKind
@@ -57,6 +65,59 @@ class ChatRoomScreenTest {
 
         assertEquals(sending.listKey(), confirmed.listKey())
         assertEquals("m:7", chatMessage(7).listKey(), "남의 메시지는 messageId")
+    }
+
+    @Test
+    fun `얼굴_없으면_표시성별_기본_얼굴`() {
+        show(
+            ChatUiState(
+                messages = listOf(
+                    chatMessage(101, authorFaceKey = null, authorShownGender = Gender.FEMALE),
+                    // 탈퇴한 작성자: 얼굴 키와 표시 성별이 모두 없다(남자 기본 얼굴).
+                    chatMessage(102, authorName = "탈퇴한 사용자"),
+                    chatMessage(103, isMine = true)
+                )
+            )
+        )
+
+        compose.onAllNodesWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true)
+            .assertCountEquals(1)
+        compose.onAllNodesWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.MALE), useUnmergedTree = true)
+            .assertCountEquals(1)
+        compose.onAllNodesWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertCountEquals(0)
+    }
+
+    @Test
+    fun `작성자_얼굴_그림이_있으면_32_원에_그_얼굴을_그린다`() {
+        show(
+            ChatUiState(
+                messages = listOf(chatMessage(101, authorFaceKey = "selfie:2/a", authorShownGender = Gender.MALE)),
+                faces = mapOf("selfie:2/a" to listOf(FaceLayer(FacePart.EYES, byteArrayOf(1))))
+            )
+        )
+
+        compose.onAllNodesWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun `반응자_목록의_원에도_얼굴을_그린다`() {
+        val target = chatMessage(101, reactions = mapOf(ReactionKind.LIKE to 2))
+        show(
+            ChatUiState(
+                messages = listOf(target),
+                reactorsTarget = target,
+                reactors = listOf(
+                    Reactor(4, "느긋한고래", ReactionKind.LIKE, T0, isMe = false, faceKey = "selfie:4/d"),
+                    Reactor(5, "새벽곰", ReactionKind.LIKE, T0, isMe = false, shownGender = Gender.FEMALE)
+                ),
+                faces = mapOf("selfie:4/d" to listOf(FaceLayer(FacePart.EYES, byteArrayOf(1))))
+            )
+        )
+
+        // 시트 안 반응자 두 줄: 셀카 얼굴 하나, 여자 기본 얼굴 하나(뒤 목록의 작성자 원은 남자 기본 얼굴).
+        compose.onAllNodesWithTag(RUNKK_AVATAR_FACE_TAG, useUnmergedTree = true).assertCountEquals(1)
+        compose.onAllNodesWithTag(runkkAvatarDefaultHeadTag(AvatarCharacter.FEMALE), useUnmergedTree = true)
+            .assertCountEquals(1)
     }
 
     @Test
@@ -170,7 +231,7 @@ class ChatRoomScreenTest {
     }
 
     @Test
-    fun `W5 반응 알약을 길게 누르면 그 종류로 반응한 사람 시트를 열고, 메뉴에 체크 반응이 있다(D-성-24)`() {
+    fun `W5 반응 알약을 길게 누르면 그 종류로 반응한 사람 시트를 열고, 메뉴에 체크 반응이 있다(D-656)`() {
         show(ChatUiState(messages = listOf(chatMessage(101, reactions = mapOf(ReactionKind.CHECK to 2)))))
         compose.onNodeWithContentDescription("체크 2개").performSemanticsAction(SemanticsActions.OnLongClick)
         openMenu("m101")

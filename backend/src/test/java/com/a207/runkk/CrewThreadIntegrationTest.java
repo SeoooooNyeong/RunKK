@@ -238,8 +238,11 @@ class CrewThreadIntegrationTest {
                                 new CrewRunDraft(
                                         "10명 크루런", scheduledAt, StandardDistance.KM3, null))
                         .postId();
+        // 05-32 U-25/U-33: 입장자 전원이 준비하는 순간 후보를 고정하므로 10명이 먼저 모두 들어온 뒤 준비한다
         for (long m : runners) {
             crewRuns.enterLobby(m, postId);
+        }
+        for (long m : runners) {
             crewRuns.toggleReady(m, postId);
         }
 
@@ -496,7 +499,7 @@ class CrewThreadIntegrationTest {
                 .isEqualTo(5);
         assertThat(avatars.equip(m, List.of(EquipChange.wear(ItemSlot.HAT, 77))).rejected())
                 .containsKey(ItemSlot.HAT);
-        // 한 번도 달리지 않은 회원은 기본 몸(4단계) 그대로다([임시:D-성-212]: 셀카·기본 아바타 몸이 가입 직후부터 같다)
+        // 한 번도 달리지 않은 회원은 기본 몸(4단계) 그대로다(D-844: 셀카·기본 아바타 몸이 가입 직후부터 같다)
         appearance.refreshAll(LocalDate.now());
         assertThat(
                         jdbc.queryForObject(

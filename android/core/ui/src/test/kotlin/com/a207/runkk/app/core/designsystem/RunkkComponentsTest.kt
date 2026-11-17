@@ -304,12 +304,12 @@ class RunkkComponentsTest {
         )
         assertTrue(home.top >= circle.bottom, "라벨은 원 아래")
         assertTrue(home.bottom <= surface.bottom, "라벨은 표면 안")
-        // 가이드 강조 구멍(J7)은 솟은 원 자리가 아니라 표면 안의 탭 칸이다.
+        // 가이드 강조 구멍(기록런 단계)은 솟은 원 자리가 아니라 표면 안의 탭 칸이다.
         compose.waitForIdle()
-        val me = anchors[GuideStep.ME]!!
+        val recordRun = anchors[GuideStep.RECORD_RUN]!!
         val density = compose.density.density
-        assertEquals(surface.top.value, me.top / density, 1f, "마이 앵커 위")
-        assertEquals(surface.bottom.value, me.bottom / density, 1f, "마이 앵커 아래")
+        assertEquals(surface.top.value, recordRun.top / density, 1f, "기록런 앵커 위")
+        assertEquals(surface.bottom.value, recordRun.bottom / density, 1f, "기록런 앵커 아래")
     }
 
     @Test

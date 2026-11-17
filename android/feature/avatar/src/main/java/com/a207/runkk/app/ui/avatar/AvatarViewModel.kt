@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 /**
  * 아바타 꾸미기(피그마 제안 A안, FR-161): 착용 아이템·잔액을 보이고 가진 아이템을 부위마다 입혀 본다. 칸을 누르면 무대에 바로 입혀 보이고
  * (저장 전), 「저장」이 바뀐 부위만 한 번에 보낸다. 거부된 착용은 Avatar.rejected 사유로 보인다. 셀카 결과 적용은 워커가 한다
- * (design-oo 05-30 [임시:D-성-118]).
+ * (design-oo 05-30 D-750).
  */
 @HiltViewModel
 class AvatarViewModel @Inject constructor(

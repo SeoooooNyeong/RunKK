@@ -44,6 +44,8 @@ import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
+import com.a207.runkk.app.core.designsystem.RunkkStatusChip
+import com.a207.runkk.app.core.designsystem.RunkkStatusChipTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewRunStatus
@@ -85,10 +87,14 @@ internal fun LazyListScope.scheduleTabItems(state: CrewHomeUiState, actions: Cre
     }
 }
 
-/** 다가오는 크루런(가까운 일시순). 끝났거나 취소된 크루런은 지난 크루런 화면이 보인다. */
+/**
+ * 다가오는 크루런(가까운 일시순, 같은 일시는 글 ID순, 설계 05-32 [임시:FR-성-365]). 끝났거나 취소된 크루런은 지난 크루런 화면이 보인다.
+ * 새 크루런은 이 순서의 제자리에 들어가고 「새로」 표식은 없다(U-35).
+ */
 internal fun upcomingSchedules(state: CrewHomeUiState): List<PostList.Item> = state.crewRuns?.posts.orEmpty()
     .filter { it.kind == PostList.Kind.CREW_RUN && !isPast(it) }
-    .sortedBy { scheduledAt(it) }
+    .distinctBy { it.postId }
+    .sortedWith(compareBy<PostList.Item>({ scheduledAt(it) }, { it.postId }))
 
 /** 다가오는 크루런 묶음: 이번주(월~일, 이미 지난 날 포함), 다음주, 그 뒤. */
 internal enum class ScheduleGroup(val labelRes: Int) {
@@ -209,9 +215,30 @@ private fun HeroRun(post: PostList.Item, lobby: LobbyAvailability?, now: Instant
             chevronColor = RunkkColors.OnSecondary,
             onClick = { actions.onRunOpen(post) }
         )
-        StartsIn(Duration.between(now, run.scheduledAt))
-        entry.lobby?.let { HeroLobbyButton(post, it, actions) }
+        if (run.status == CrewRunStatus.RUNNING) {
+            // 달리는 크루런: 남은 시간 대신 「달리는 중」, 대기실 대신 「중간 참여하기」(설계 05-32 흐름 2, [임시:D-성-884]).
+            RunkkStatusChip(stringResource(R.string.crew_home_run_running), RunkkStatusChipTone.Lime)
+            HeroJoinButton(post, actions)
+        } else {
+            StartsIn(Duration.between(now, run.scheduledAt))
+            entry.lobby?.let { HeroLobbyButton(post, it, actions) }
+        }
     }
+}
+
+/** 강조 카드의 흰 알약 「중간 참여하기」: 끝나기 전까지 크루원 누구나 참여한다(종료 뒤면 서버가 거부한다). */
+@Composable
+private fun HeroJoinButton(post: PostList.Item, actions: CrewHomeActions) {
+    val text = stringResource(R.string.crew_home_run_join)
+    val label = runTitle(post).ifBlank { post.crewRun?.let { crewRunSummary(it) }.orEmpty() }
+    val description = stringResource(R.string.crew_home_run_join_description, text, label)
+    RunkkButton(
+        text,
+        onClick = { actions.onJoinRun(post) },
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = description },
+        style = RunkkButtonStyle.White,
+        size = RunkkButtonSize.Medium
+    )
 }
 
 /** 남은 시간 "29:45 후 시작"(하루 넘게 남으면 "n일 후 시작"). */

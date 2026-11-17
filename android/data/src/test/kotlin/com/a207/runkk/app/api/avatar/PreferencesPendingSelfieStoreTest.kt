@@ -40,7 +40,7 @@ class PreferencesPendingSelfieStoreTest {
     }
 
     @Test
-    fun `마지막 셀카 실패는 남긴 작업과 따로 남고 다른 회원에게는 보이지 않는다(DV-성-10)`() {
+    fun `마지막 셀카 실패는 남긴 작업과 따로 남고 다른 회원에게는 보이지 않는다(DV-10)`() {
         store().clear()
         store().clearFailure()
         store().saveFailure(SelfieFailure("job-1", "GENERATION_OUTCOME_UNKNOWN"))

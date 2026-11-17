@@ -62,6 +62,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
+import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import java.time.Duration
@@ -91,7 +92,7 @@ fun RecordRunRoute(initialSegment: Int = SELF_SEGMENT) {
     }
 }
 
-/** 나와의 대결(D-1, FR-096). */
+/** 나와의 대결(D-1, FR-096). 시작 전에 절전 모드 안내를 거친다([임시:D-성-902]). */
 @Composable
 fun SelfBattleRoute(viewModel: SelfBattleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -99,13 +100,13 @@ fun SelfBattleRoute(viewModel: SelfBattleViewModel = hiltViewModel()) {
     SelfBattleScreen(
         state = state,
         onSelect = viewModel::onSelect,
-        onStart = viewModel::onStart,
+        onStart = rememberRunPowerSaveStart(onStart = viewModel::onStart),
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
 }
 
-/** 셀럽런(E-1, FR-097·FR-100). */
+/** 셀럽런(E-1, FR-097·FR-100). 시작 전에 절전 모드 안내를 거친다([임시:D-성-902]). */
 @Composable
 fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -114,7 +115,7 @@ fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
         state = state,
         onFilter = viewModel::onFilter,
         onSelect = viewModel::onSelect,
-        onStart = viewModel::onStart,
+        onStart = rememberRunPowerSaveStart(onStart = viewModel::onStart),
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
@@ -139,7 +140,8 @@ private fun RecordBattleEffects(viewModel: RecordBattleViewModel) {
 
 /**
  * 나와의 대결(D-1, D-288): "어제의 나를 이겨 볼까요?", 나 VS 과거의 나, 거리 카드(1km·3km·5km·10km·하프, 기록 없는 거리는 누를 수 없다).
- * 처음엔 고른 거리가 없고 카드를 눌러야 "n km 기록 깨러 가기"가 보인다.
+ * 처음엔 고른 거리가 없고 카드를 눌러야 "n km 기록 깨러 가기"가 보인다. 고르기 전의 상대 자리는 물음표이고, 고르면 그 기록에 저장된
+ * 내 모습과 기록 날짜, 기록 시간·평균 페이스 줄이 보인다([임시:FR-성-25]).
  */
 @Composable
 fun SelfBattleScreen(
@@ -161,7 +163,17 @@ fun SelfBattleScreen(
                     style = RunkkTextStyles.Headline,
                     color = RunkkColors.TextPrimary
                 )
-                ModeVersus(stringResource(R.string.battle_running_opponent_self), opponentFigure = Figure.PAST_SELF)
+                // 거리를 고르기 전에는 물음표, 고르면 그 기록의 나와 기록 날짜([임시:FR-성-25])
+                val picked = state.selected
+                ModeVersus(
+                    stringResource(R.string.battle_running_opponent_self),
+                    opponentFigure = if (picked == null) Figure.UNKNOWN else Figure.PAST_SELF,
+                    opponentLook = picked?.look,
+                    opponentCaption = picked?.recordedOn?.let(::monthDay)
+                )
+                picked?.finishTime?.let { time ->
+                    RecordMetaRow(time, picked.averagePace, Modifier.align(Alignment.CenterHorizontally))
+                }
                 CandidateBody(state, onRetry, emptyTitle = R.string.battle_self_empty_title) {
                     state.candidates.forEach { candidate ->
                         DistanceCardRow(
