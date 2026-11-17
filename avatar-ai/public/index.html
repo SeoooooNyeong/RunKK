@@ -36,7 +36,7 @@
       <div class="slider-row"><label for="similarity">특징 반영</label><input id="similarity" type="range" min="10" max="100" value="60"><output id="similarityValue">60</output></div>
       <div class="ai-actions"><button id="analyzeButton" type="button" disabled>특징 분석</button><button id="generateButton" type="button" disabled>AI 머리 생성 ↗</button></div>
       <p class="hint" id="aiMessage">셀카 선택 후 AI 머리 생성을 눌러 주세요. 특징 분석은 생성 시 자동으로 진행할 수 있어요.</p>
-      <div class="api-actions"><button id="refreshApi" type="button">서버 상태 새로고침</button><button id="loadLatestHead" type="button">최근 생성 불러오기</button></div>
+      <div class="api-actions"><button id="refreshApi" type="button">서버 상태 새로고침</button><button id="loadLatestHead" type="button">최근 생성 불러오기</button><button id="resplitLatestHead" type="button" hidden>저장된 완성 얼굴로 파츠 재추출</button></div>
       <details class="traits-editor"><summary>추출한 특징 확인 / 수정</summary><div id="traitsFields"></div></details>
       <div class="head-preview checker ai-head-preview"><img id="headPreview" alt="현재 연결된 머리 이미지"><span class="image-badge" id="headBadge">기본 머리</span></div>
       <div class="inline-actions"><button type="button" id="defaultHead">기본 머리로</button><button type="button" id="exportHead">목 포함 머리 PNG 저장 ↓</button></div>
