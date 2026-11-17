@@ -26,7 +26,7 @@ const imageModel=process.env.IMAGE_MODEL||'gpt-image-2.5-sunburst';
 const visionModel=process.env.VISION_MODEL||'gpt-4.1-mini';
 const quality=['low','medium','high','auto'].includes(process.env.IMAGE_QUALITY)?process.env.IMAGE_QUALITY:'high';
 const autoAlign=process.env.AUTO_ALIGN_HEAD!=='false';
-// 머리 레이어 PNG 압축(head-png.mjs). 기본 꺼짐. PM 확인 뒤 HEAD_PNG_COMPRESSION=palette로 켠다(S15P31A207-300)
+// 머리 레이어 PNG 압축(head-png.mjs). 코드 기본은 꺼짐이고 운영·develop은 infra compose가 palette(q95)로 켠다(S15P31A207-300)
 const headPngCompression=headPngCompressionMode();
 const testMode=process.env.AVATAR_TEST_MODE==='true'||process.env.NODE_ENV==='test';
 const baseURL=(process.env.GMS_BASE_URL||'https://gms.ssafy.io/gmsapi/api.openai.com/v1').replace(/\/+$/,'');
