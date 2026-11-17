@@ -5,8 +5,10 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.a207.runkk.common.BusinessRuleException;
+import com.a207.runkk.common.PermissionDeniedException;
 import com.a207.runkk.common.ReasonCode;
 import com.a207.runkk.member.ConsentItem;
+import com.a207.runkk.member.DisclosureLevel;
 import com.a207.runkk.member.MemberQueryService;
 import com.a207.runkk.member.MemberWithdrawn;
 import com.a207.runkk.policy.FeatureToggles;
@@ -112,6 +114,78 @@ class SelfieJobServiceTest {
         service.status(1, "job-1");
         assertThat(failures.failuresOn(1, LocalDate.now(clock))).isEqualTo(1);
         assertThat(avatars.findOrCreate(1).creationCount()).isZero();
+    }
+
+    private void finishJob() {
+        service.submit(1, new byte[] {1});
+        when(gateway.status(1, "job-1"))
+                .thenReturn(new FaceJob("job-1", FaceJob.Status.SUCCEEDED, "head-1", null));
+        service.status(1, "job-1");
+        service.result(1, "job-1");
+    }
+
+    private static GeneratedHead w9Head() {
+        return new GeneratedHead(
+                "head-1",
+                "1",
+                "face",
+                "eyes",
+                "hair",
+                Map.of("hair", "short"),
+                "short",
+                Map.of("pivotX", 0.5),
+                Map.of("renderFaceImage", "render", "neckMask", "neck", "skinColor", "#f0c8a0"),
+                "now",
+                "front",
+                "right",
+                "right-face",
+                "right-eyes",
+                "right-hair",
+                Map.of("scale", 1.0));
+    }
+
+    @Test
+    void headForViewersDropsOriginalsTheAppDoesNotUse() {
+        // S15P31A207-300 핫픽스: 앱이 쓰지 않는 정면·옆 원본과 renderFaceImage를 빼서 응답을 줄인다
+        finishJob();
+        when(gateway.result(1, "job-1")).thenReturn(w9Head());
+        when(members.disclosureOf(2, List.of(1L))).thenReturn(Map.of(1L, DisclosureLevel.PUBLIC));
+        GeneratedHead viewed = service.head(2, 1, "job-1");
+        assertThat(viewed.frontImage()).isNull();
+        assertThat(viewed.rightImage()).isNull();
+        assertThat(viewed.mobile())
+                .doesNotContainKey("renderFaceImage")
+                .containsEntry("neckMask", "neck")
+                .containsEntry("skinColor", "#f0c8a0");
+        assertThat(viewed.faceImage()).isEqualTo("face");
+        assertThat(viewed.eyesImage()).isEqualTo("eyes");
+        assertThat(viewed.hairImage()).isEqualTo("hair");
+        assertThat(viewed.rightFaceImage()).isEqualTo("right-face");
+        assertThat(viewed.rightEyesImage()).isEqualTo("right-eyes");
+        assertThat(viewed.rightHairImage()).isEqualTo("right-hair");
+        assertThat(viewed.rightLayerLayout()).containsEntry("scale", 1.0);
+        assertThat(viewed.headId()).isEqualTo("head-1");
+        assertThat(viewed.traits()).containsEntry("hair", "short");
+        assertThat(viewed.alignment()).containsEntry("pivotX", 0.5);
+        // 셀카 작업 결과(본인 조회)는 그대로 둔다
+        assertThat(service.result(1, "job-1").frontImage()).isEqualTo("front");
+    }
+
+    @Test
+    void headVisibilityIsCheckedWithoutCallingAi() {
+        finishJob();
+        clearInvocations(gateway);
+        when(members.disclosureOf(2, List.of(1L))).thenReturn(Map.of(1L, DisclosureLevel.PUBLIC));
+        service.requireVisibleHead(2, 1, "job-1");
+        when(members.disclosureOf(3, List.of(1L)))
+                .thenReturn(Map.of(1L, DisclosureLevel.WITHDRAWN));
+        assertThatThrownBy(() -> service.requireVisibleHead(3, 1, "job-1"))
+                .isInstanceOf(PermissionDeniedException.class);
+        assertThatThrownBy(() -> service.requireVisibleHead(2, 1, "job-x"))
+                .isInstanceOfSatisfying(
+                        FaceJobRejectedException.class,
+                        e -> assertThat(e.reason()).isEqualTo("JOB_NOT_FOUND"));
+        verifyNoInteractions(gateway);
     }
 
     @Test
