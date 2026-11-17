@@ -3,6 +3,9 @@ import sharp from 'sharp';
 import {splitAiLayers} from './ai-head-layers.mjs';
 
 export const HEAD_LAYER_VERSION = 'runkk-coherent-head-v2';
+// v44 까지는 파트마다 images.edit 을 불러 레이어를 다시 그렸고, 그래서 세 장을
+// 겹치면 좌표와 색이 어긋났다. v45 부터는 원본 픽셀을 결정론적으로 분할한다.
+// 저장된 머리와 우측 레이어 캐시를 모두 무효화해야 하므로 반드시 바꿔야 한다.
 export const HEAD_SEGMENTATION_VERSION = 'runkk-ai-source-pixels-v44';
 export const HEAD_LAYOUT = Object.freeze({
   version: HEAD_LAYER_VERSION,
@@ -15,7 +18,14 @@ export const HEAD_LAYOUT = Object.freeze({
   eyesIncludes: ['eyes', 'eyelashes'],
   hairIncludes: ['hair', 'eyebrows'],
   optionalHairIncludes: ['glasses'],
-  independentTransforms: false
+  independentTransforms: false,
+  // 세 레이어를 z 순서대로 그대로 겹치면 원본과 코드값 단위로 같아진다.
+  // 클라이언트에서 레이어별 보정(스케일·오프셋)을 하면 안 된다.
+  extraction: 'deterministic-pixel-split',
+  recomposition: 'exact-on-shared-canvas',
+  // face 레이어는 눈·눈썹·안경 자리와 머리에 가린 이마까지 살색으로 복원돼 있다.
+  // 헤어나 안경만 교체해도 구멍이 드러나지 않는다.
+  faceLayerIsAmodal: true
 });
 
 const fail = message => Object.assign(new Error(message), {status: 502});
@@ -83,11 +93,28 @@ export async function analyzeHeadRegions(client, model, image) {
 }
 
 export async function splitHead(master, regions = {}, options = {}) {
-  const parts = await splitAiLayers(master, {...options, landmarks:regions.landmarks,glassesPresent:regions.features.glassesPresent});
-  const composite = await sharp(parts.face).composite([{input:parts.eyes},{input:parts.hair}]).png().toBuffer();
+  const parts = await splitAiLayers(master, {
+    ...options,
+    landmarks: regions.landmarks,
+    glassesPresent: regions.features?.glassesPresent
+  });
+  // z 순서대로 그대로 겹친다. 레이어별 보정은 없다. 정확성은 splitAiLayers 가
+  // validation.recomposition 에 실제 측정값으로 보고한다.
+  const composite = await sharp(parts.face)
+    .composite([{input: parts.eyes}, {input: parts.hair}])
+    .png()
+    .toBuffer();
+
+  if (parts.validation?.warning) {
+    console.warn('[head-layers]', parts.validation.warning);
+  }
+
   return {
-    face:parts.face, eyes:parts.eyes, hair:parts.hair, composite,
-    regions:{...regions, coordinateMethod:'source-registered-ai-layers'},
-    layout:HEAD_LAYOUT, segmentationVersion:HEAD_SEGMENTATION_VERSION, validation:parts.validation
+    face: parts.face, eyes: parts.eyes, hair: parts.hair, composite,
+    regions: {...regions, coordinateMethod: 'deterministic-pixel-split'},
+    layout: HEAD_LAYOUT, segmentationVersion: HEAD_SEGMENTATION_VERSION,
+    validation: parts.validation,
+    // API 응답에서도 master 기준 좌표·박스·비율을 바로 확인할 수 있게 한다.
+    layerReference: parts.validation?.reference
   };
 }
