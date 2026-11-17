@@ -4,11 +4,16 @@ import com.a207.runkk.avatar.AvatarBody;
 import com.a207.runkk.avatar.FaceJob;
 import com.a207.runkk.avatar.FaceJobRejectedException;
 import com.a207.runkk.avatar.GeneratedHead;
+import com.a207.runkk.avatar.HeadLayer;
+import com.a207.runkk.avatar.HeadLayerCache;
+import com.a207.runkk.avatar.HeadLayerService;
+import com.a207.runkk.avatar.HeadMeta;
 import com.a207.runkk.avatar.SelfieJobService;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.Map;
 import org.springframework.http.CacheControl;
@@ -25,10 +30,16 @@ public class SelfieJobController {
     /** 머리 응답 형식 버전. v2: frontImage·rightImage·mobile.renderFaceImage를 뺐다. */
     static final String HEAD_FORMAT = "v2";
 
-    private final SelfieJobService service;
+    /** 층·메타 응답: 작업이 끝난 머리는 바뀌지 않으므로 1년 두고 다시 묻지 않는다(공유 캐시 금지). */
+    private static final CacheControl FOREVER =
+            CacheControl.maxAge(Duration.ofDays(365)).cachePrivate().immutable();
 
-    public SelfieJobController(SelfieJobService service) {
+    private final SelfieJobService service;
+    private final HeadLayerService layers;
+
+    public SelfieJobController(SelfieJobService service, HeadLayerService layers) {
         this.service = service;
+        this.layers = layers;
     }
 
     @PostMapping(
@@ -133,6 +144,88 @@ public class SelfieJobController {
             if (tag.equals("*") || tag.equals(etag)) return true;
         }
         return false;
+    }
+
+    /**
+     * 머리 메타데이터(이미지 없음, S15P31A207-300 레이어 합성). 권한은 기존 머리와 같고 매 요청 확인한다. 앱은 이것과 층({@link
+     * #headLayer})으로 머리를 합성한다. 기존 GET /heads/{회원}/{작업}(통짜 응답)은 v0.13.x 앱을 위해 그대로 둔다.
+     */
+    @GetMapping("/heads/{ownerId}/{jobId}/meta")
+    ResponseEntity<HeadMeta> headMeta(
+            @RequestAttribute("memberId") long memberId,
+            @PathVariable long ownerId,
+            @PathVariable String jobId,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false)
+                    String ifNoneMatch) {
+        String etag = metaEtag(ownerId, jobId);
+        if (matches(ifNoneMatch, etag)) {
+            layers.requireVisible(memberId, ownerId, jobId);
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+                    .eTag(etag)
+                    .cacheControl(FOREVER)
+                    .build();
+        }
+        return ResponseEntity.ok()
+                .eTag(etag)
+                .cacheControl(FOREVER)
+                .body(layers.meta(memberId, ownerId, jobId));
+    }
+
+    /**
+     * 머리 층 그림 하나(face·eyes·hair·rightFace·rightEyes·rightHair). 1024 공통 캔버스를 size(256·512·1024, 기본
+     * 1024)로 비율 그대로 줄인 무손실 PNG다. 바뀌지 않으므로 1년·immutable로 두고, 강한 ETag가 맞으면 공개 규칙만 확인하고 304를 준다.
+     */
+    @GetMapping("/heads/{ownerId}/{jobId}/layers/{layer}")
+    ResponseEntity<byte[]> headLayer(
+            @RequestAttribute("memberId") long memberId,
+            @PathVariable long ownerId,
+            @PathVariable String jobId,
+            @PathVariable String layer,
+            @RequestParam(defaultValue = "1024") int size,
+            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false)
+                    String ifNoneMatch) {
+        HeadLayer parsed = HeadLayer.fromName(layer);
+        HeadLayerService.requireSize(size);
+        String etag = layerEtag(ownerId, jobId, parsed, size);
+        if (matches(ifNoneMatch, etag)) {
+            layers.requireVisible(memberId, ownerId, jobId);
+            return ResponseEntity.status(HttpStatus.NOT_MODIFIED)
+                    .eTag(etag)
+                    .cacheControl(FOREVER)
+                    .build();
+        }
+        return ResponseEntity.ok()
+                .eTag(etag)
+                .cacheControl(FOREVER)
+                .contentType(MediaType.IMAGE_PNG)
+                .body(layers.layer(memberId, ownerId, jobId, parsed, size));
+    }
+
+    /** 층 응답의 강한 ETag: 소유자·작업·층·크기·층 형식 버전({@link HeadLayerCache#FORMAT}). */
+    static String layerEtag(long ownerId, String jobId, HeadLayer layer, int size) {
+        String format = HeadLayerCache.FORMAT;
+        return "\"layer-"
+                + format
+                + "-"
+                + hash(ownerId + ":" + jobId + ":" + layer.pathName() + ":" + size + ":" + format)
+                + "\"";
+    }
+
+    /** 메타 응답의 강한 ETag: 소유자·작업·층 형식 버전. */
+    static String metaEtag(long ownerId, String jobId) {
+        String format = HeadLayerCache.FORMAT;
+        return "\"meta-" + format + "-" + hash(ownerId + ":" + jobId + ":meta:" + format) + "\"";
+    }
+
+    private static String hash(String text) {
+        try {
+            byte[] digest =
+                    MessageDigest.getInstance("SHA-256")
+                            .digest(text.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest, 0, 16);
+        } catch (NoSuchAlgorithmException error) {
+            throw new IllegalStateException("SHA-256를 사용할 수 없다", error);
+        }
     }
 
     @GetMapping("/bodies/{bodyId}")

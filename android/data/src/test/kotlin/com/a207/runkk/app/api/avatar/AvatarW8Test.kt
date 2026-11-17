@@ -5,11 +5,16 @@ import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlinx.coroutines.test.runTest
+import mockwebserver3.Dispatcher
+import mockwebserver3.MockResponse
+import mockwebserver3.RecordedRequest
+import okio.Buffer
 import retrofit2.create
 
 /** W8(S15P31A207-299, contract-W8.md 2·4·6절): 내 러너, 배경 남은 거리, 상점 그림 키·잠김, 셀카 머리 JSON. */
@@ -104,17 +109,42 @@ class AvatarW8Test {
     }
 
     @Test
-    fun `셀카 머리 얼굴이면 GET avatar heads 응답 JSON을 그대로 돌려주고 아니면 null`() = runTest {
-        val body =
-            """{"headId":"h","faceImage":"data:image/png;base64,AA",""" +
-                """"rightFaceImage":"data:image/png;base64,AA"}"""
-        api.reply(body)
+    fun `셀카 머리 얼굴이면 메타와 1024 층 여섯 장을 받아 정면·옆모습 층과 합성 정보로 돌려주고 아니면 null`() = runTest {
+        val meta = """{"format":"png1","headId":"h","mobile":{"skinColor":[1,2,3]}}"""
+        val names = listOf("face", "eyes", "hair", "rightFace", "rightEyes", "rightHair")
+        api.server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                val last = request.url.pathSegments.last()
+                return if (last == "meta") {
+                    MockResponse.Builder().addHeader("Content-Type", "application/json").body(meta).build()
+                } else {
+                    MockResponse.Builder().body(Buffer().write(byteArrayOf((names.indexOf(last) + 1).toByte()))).build()
+                }
+            }
+        }
 
-        val json = repository.selfieHead("head:7:job-1").value()?.json
+        val head = repository.selfieHead("head:7:job-1").value()!!
 
-        assertEquals("/api/v1/avatar/heads/7/job-1", api.take().url.encodedPath)
-        assertEquals(body, json)
+        val requested = (1..7).mapNotNull { api.server.takeRequest(5, TimeUnit.SECONDS)?.url }
+            .map { it.encodedPath + "?" + it.encodedQuery }
+            .toSet()
+        assertEquals(
+            (
+                listOf("/api/v1/avatar/heads/7/job-1/meta?null") +
+                    names.map { "/api/v1/avatar/heads/7/job-1/layers/$it?size=1024" }
+                )
+                .toSet(),
+            requested
+        )
+        assertEquals(meta, head.meta)
+        assertEquals(listOf<Byte>(1, 2, 3), head.faceLayers.map { it.png.single() })
+        assertEquals(listOf<Byte>(4, 5, 6), head.rightLayers.map { it.single() })
         assertNull(repository.selfieHead("default:FOX").value())
         assertNull(repository.selfieHead(null).value())
+    }
+
+    @Test
+    fun `savedSelfFaceKey는 기기에 남긴 내 얼굴 키다(없으면 null)`() = runTest {
+        assertNull(repository.savedSelfFaceKey())
     }
 }

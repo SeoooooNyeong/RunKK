@@ -61,6 +61,19 @@ internal class SelfFaceStore(private val dir: File) {
         write(Saved(member, before?.keys, faceKey))
     }
 
+    /** 남긴 것의 회원(이 기기의 얼굴 캐시를 마지막으로 쓴 회원). 남긴 것이 없으면 null. */
+    fun owner(): Long? = synchronized(lock) { load()?.member }
+
+    /**
+     * 얼굴 캐시(디스크 HTTP 캐시 포함)를 [member]가 쓴다고 남긴다. 다른 회원 것이 남아 있으면 먼저 [clearUnless]로 지운 뒤에 부른다.
+     * 앱을 새로 켰을 때 디스크 캐시가 같은 회원 것인지 이것으로 가린다(S15P31A207-300).
+     */
+    fun claim(member: Long) = synchronized(lock) {
+        val before = load()
+        if (before?.member == member) return@synchronized
+        write(Saved(member, null, null))
+    }
+
     /** 저장한 회원이 [member]가 아니면(계정 바뀜·로그아웃이면 null) 지운다. */
     fun clearUnless(member: Long?) = synchronized(lock) {
         val current = load() ?: return@synchronized

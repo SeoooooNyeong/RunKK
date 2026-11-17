@@ -4,6 +4,8 @@ import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.AfterTest
@@ -12,19 +14,25 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
+import okhttp3.Cache
 import okhttp3.OkHttpClient
 import okio.Buffer
 
 /**
- * FaceImageSource(14장 단위(앱 데이터)): 셀카 얼굴 부위 PNG 주소·인증 헤더·메모리 캐시(Cache-Control max-age)·실패 처리.
- * 서버는 MockWebServer다.
+ * FaceImageSource(14장 단위(앱 데이터)): 셀카 얼굴 부위 PNG 주소·인증 헤더·메모리 캐시(Cache-Control max-age)·실패 처리,
+ * 셀카 머리 층별 받기(S15P31A207-300 레이어 합성: 얼굴 원 정면 세 층, 큰 아바타 메타 + 여섯 층, 같은 주소 합치기, 디스크 재사용,
+ * 예전 서버 대체 경로). 서버는 MockWebServer다.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class FaceImageSourceTest {
     private val server = MockWebServer()
     private val paths = ConcurrentLinkedQueue<String>()
@@ -47,24 +55,41 @@ class FaceImageSourceTest {
             .build()
     }
 
-    private val source: FaceImageSource by lazy {
+    /** 보낸 주소(경로 + 질의). 층 크기(size=)를 본다. */
+    private val urls = ConcurrentLinkedQueue<String>()
+
+    /** 있으면 서버가 이 문이 열릴 때까지 답하지 않는다(동시 요청 합치기 시험). */
+    @Volatile
+    private var gate: CountDownLatch? = null
+
+    private val started by lazy {
         server.dispatcher = object : Dispatcher() {
             override fun dispatch(request: RecordedRequest): MockResponse {
                 paths += request.url.encodedPath
+                urls += request.url.encodedPath + (request.url.encodedQuery?.let { "?$it" } ?: "")
                 request.headers["Authorization"]?.let(auth::add)
+                gate?.await(5, TimeUnit.SECONDS)
                 return reply(request.url.pathSegments.last())
             }
         }
         server.start()
+        true
+    }
+
+    private val source: FaceImageSource by lazy { newSource() }
+
+    /** 같은 서버를 쓰는 새 소스. [cache]를 주면 디스크(HTTP) 캐시를 얹는다. */
+    private fun newSource(cache: Cache? = null, selfStore: SelfFaceStore = store): FaceImageSource {
+        check(started)
         val client = ApiCoreBindings.authenticatedClient(
-            OkHttpClient(),
+            OkHttpClient.Builder().apply { if (cache != null) cache(cache) }.build(),
             Tokens("access-1"),
             server.url("/api/v1/auth/refresh"),
             Json { ignoreUnknownKeys = true }
         )
-        FaceImageSource(client, server.url("/api/v1/"), selfId = {
+        return FaceImageSource(client, server.url("/api/v1/"), selfId = {
             member
-        }, now = clock::get, io = io, selfStore = store)
+        }, now = clock::get, io = io, selfStore = selfStore)
     }
 
     /** 내 얼굴 마지막 모습 저장소(임시 폴더). */
@@ -161,38 +186,131 @@ class FaceImageSourceTest {
     }
 
     @Test
-    fun `셀카 머리 얼굴은 다른 러너 것도 heads 주소로 한 번 받아 얼굴·눈·머리카락 세 층으로 겹친다`() = runTest {
-        fun data(byte: Int) =
-            "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(byteArrayOf(byte.toByte()))
-        reply = {
-            MockResponse.Builder()
-                .addHeader("Content-Type", "application/json")
-                .addHeader("Cache-Control", "no-store")
-                .body(
-                    """{"headId":"h1","userId":"12","faceImage":"${data(1)}","eyesImage":"${data(2)}",""" +
-                        """"hairImage":"${data(3)}","traits":{"hair":"short"},"mobile":{"canvas":[1024,1024]}}"""
-                )
-                .build()
-        }
+    fun `다른 러너 얼굴 원은 정면 세 층만 512로 받고 메타·옆모습·통짜 머리는 받지 않는다`() = runTest {
+        reply = ::layerServer
         val layers = (source.faceLayers("head:12:job-1") as Outcome.Success).value
 
         assertEquals(listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR), layers.map { it.part }, "아래부터 얼굴·눈·머리카락")
         assertEquals(listOf<Byte>(1, 2, 3), layers.map { it.png.single() })
-        assertEquals(listOf("/api/v1/avatar/heads/12/job-1"), paths.toList())
-        assertEquals(listOf("Bearer access-1"), auth.toList())
+        assertEquals(
+            listOf("face", "eyes", "hair").map { "/api/v1/avatar/heads/12/job-1/layers/$it?size=512" }.toSet(),
+            urls.toSet()
+        )
+        assertEquals(3, urls.size, "층마다 한 번")
+        assertTrue(auth.all { it == "Bearer access-1" } && auth.size == 3, "인증 헤더: $auth")
+    }
+
+    @Test
+    fun `내 얼굴 원과 큰 아바타가 함께 찾아도 같은 1024 층은 한 번만 받는다`() = runTest {
+        member = 12
+        reply = ::layerServer
+        gate = CountDownLatch(1)
+        val circle = async { source.faceLayers("head:12:job-1") }
+        val head = async { source.selfieHead("head:12:job-1") }
+        runCurrent()
+        gate?.countDown()
+
+        val front = (circle.await() as Outcome.Success).value
+        val body = (head.await() as Outcome.Success).value!!
+        assertEquals(7, urls.size, "메타 1 + 층 6, 정면 세 층은 함께 쓴다: $urls")
+        assertEquals(urls.size, urls.toSet().size, "같은 주소를 두 번 보내지 않는다")
+        assertTrue(urls.filter { "/layers/" in it }.all { it.endsWith("?size=1024") }, "내 머리는 원본 크기: $urls")
+        assertEquals(listOf<Byte>(1, 2, 3), front.map { it.png.single() })
+        assertEquals(listOf<Byte>(1, 2, 3), body.faceLayers.map { it.png.single() })
+        assertEquals(listOf<Byte>(4, 5, 6), body.rightLayers.map { it.single() })
+        assertTrue(body.meta.contains("neckMask"), body.meta)
+    }
+
+    @Test
+    fun `층 그림은 디스크(HTTP 캐시)에 남아 새 실행에서도 서버에 다시 묻지 않고, 계정이 바뀌면 비운다`() = runTest {
+        member = 12
+        reply = ::layerServer
+        val cacheDir = kotlin.io.path.createTempDirectory("face-http").toFile()
+        try {
+            val firstCache = Cache(cacheDir, CACHE_BYTES)
+            val first = newSource(firstCache)
+            first.selfieHead("head:12:job-1")
+            first.faceLayers("head:7:job-9")
+            firstCache.close()
+            val sent = urls.size
+            assertEquals(10, sent, "내 머리 메타·여섯 층과 다른 러너 세 층")
+
+            // 새 실행: 메모리 캐시 없이 같은 디스크 캐시와 내 얼굴 저장소
+            val secondCache = Cache(cacheDir, CACHE_BYTES)
+            val restarted = newSource(secondCache, SelfFaceStore(storeDir))
+            val head = (restarted.selfieHead("head:12:job-1") as Outcome.Success).value!!
+            val other = (restarted.faceLayers("head:7:job-9") as Outcome.Success).value
+            assertEquals(sent, urls.size, "디스크에서 준다(immutable)")
+            assertEquals(listOf<Byte>(4, 5, 6), head.rightLayers.map { it.single() })
+            assertEquals(listOf<Byte>(1, 2, 3), other.map { it.png.single() })
+
+            member = 99
+            restarted.faceLayers("head:7:job-9")
+            assertEquals(sent + 3, urls.size, "다른 계정이면 디스크 캐시를 비우고 다시 받는다")
+            secondCache.close()
+        } finally {
+            cacheDir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `서버가 층 엔드포인트를 모르면(404) 예전 통짜 머리 응답으로 받는다`() = runTest {
+        reply = ::legacyServer
+        val layers = (source.faceLayers("head:12:job-1") as Outcome.Success).value
+        assertEquals(listOf<Byte>(1, 2, 3), layers.map { it.png.single() })
+        assertTrue("/api/v1/avatar/heads/12/job-1" in paths, "$paths")
+
+        val head = (source.selfieHead("head:12:job-2") as Outcome.Success).value!!
+        assertEquals(listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR), head.faceLayers.map { it.part })
+        assertEquals(listOf<Byte>(1, 2, 3), head.faceLayers.map { it.png.single() })
+        assertEquals(listOf<Byte>(4, 5, 6), head.rightLayers.map { it.single() })
+        assertTrue(head.meta.contains("\"chinY\":750"), head.meta)
+        assertTrue(!head.meta.contains("data:image"), "합성 정보만 남긴다: ${head.meta}")
+        assertTrue("/api/v1/avatar/heads/12/job-2" in paths)
+    }
+
+    @Test
+    fun `selfieHead - 옆모습 층이 없으면(예전 머리) 비우고, 정면을 받지 못하면 실패, 셀카 머리가 아니면 null`() = runTest {
+        reply = { segment ->
+            if (segment.startsWith("right")) notFound("LAYER_NOT_FOUND") else layerServer(segment)
+        }
+        val head = (source.selfieHead("head:12:job-1") as Outcome.Success).value!!
+        assertEquals(listOf<Byte>(1, 2, 3), head.faceLayers.map { it.png.single() })
+        assertEquals(emptyList(), head.rightLayers)
+
+        reply = { segment ->
+            if (segment == "eyes") {
+                MockResponse.Builder().code(503).body("""{"reason":"UPSTREAM_FAILED"}""").build()
+            } else {
+                layerServer(segment)
+            }
+        }
+        assertTrue(source.selfieHead("head:12:job-2") is Outcome.Failure)
+
+        val sent = paths.size
+        assertEquals(Outcome.Success(null), source.selfieHead("selfie:face/7/s1"))
+        assertEquals(Outcome.Success(null), source.selfieHead(null))
+        assertEquals(sent, paths.size)
     }
 
     @Test
     fun `셀카 머리를 받지 못하거나 층이 비었거나 키가 이상하면 실패라 화면이 기본 캐릭터를 그린다`() = runTest {
-        reply = { MockResponse.Builder().code(404).body("""{"reason":"HEAD_NOT_FOUND"}""").build() }
+        reply = { notFound("HEAD_NOT_FOUND") }
         assertTrue(source.faceLayers("head:12:job-1") is Outcome.Failure)
 
-        reply = { MockResponse.Builder().body("""{"faceImage":"data:image/png;base64,AQ==","eyesImage":""}""").build() }
+        reply = { segment ->
+            if (segment == "job-1") {
+                MockResponse.Builder().body("""{"faceImage":"data:image/png;base64,AQ==","eyesImage":""}""").build()
+            } else {
+                notFound(null)
+            }
+        }
         assertTrue(source.faceLayers("head:12:job-1") is Outcome.Failure, "층 하나가 비었다")
 
         val sent = paths.size
         assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("head:x:job"))
         assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.faceLayers("head:12:a/b"))
+        assertEquals(Outcome.Failure(AppError.Rejected("FACE_IMAGE_NOT_FOUND")), source.selfieHead("head:12:a/b"))
         assertEquals(sent, paths.size, "이상한 키는 보내지 않는다")
     }
 
@@ -202,48 +320,26 @@ class FaceImageSourceTest {
         val afterParts = io.dispatches.get()
         assertTrue(afterParts >= FacePart.entries.size, "부위 다섯 장 본문을 IO에서 읽는다: $afterParts")
 
-        reply = { headReply() }
+        reply = ::layerServer
         source.faceLayers("head:12:job-1")
-        assertTrue(io.dispatches.get() > afterParts, "머리 JSON 본문을 IO에서 읽고 푼다")
+        assertTrue(io.dispatches.get() > afterParts, "층 본문을 IO에서 읽는다")
         val afterHead = io.dispatches.get()
-        source.selfieHead("head:12:job-1")
+        source.selfieHead("head:12:job-2")
         assertTrue(io.dispatches.get() > afterHead, "selfieHead도 IO에서 읽는다")
-    }
-
-    @Test
-    fun `selfieHead는 머리 JSON을 한 번 받아 원문과 대체 그림 세 층을 함께 준다`() = runTest {
-        reply = { headReply() }
-        val head = (source.selfieHead("head:12:job-1") as Outcome.Success).value!!
-
-        assertEquals(listOf("/api/v1/avatar/heads/12/job-1"), paths.toList(), "한 번만 받는다")
-        assertTrue(head.json.contains("\"headId\":\"h1\""))
-        assertEquals(listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR), head.faceLayers.map { it.part })
-        assertEquals(listOf<Byte>(1, 2, 3), head.faceLayers.map { it.png.single() })
-    }
-
-    @Test
-    fun `selfieHead - 층이 비면 대체 그림만 비우고, 받지 못하면 실패, 셀카 머리가 아니면 null`() = runTest {
-        reply = { MockResponse.Builder().body("""{"faceImage":"data:image/png;base64,AQ==","eyesImage":""}""").build() }
-        val malformed = (source.selfieHead("head:12:job-1") as Outcome.Success).value!!
-        assertEquals(emptyList(), malformed.faceLayers, "형식 실패는 받은 것으로 친다(다시 받지 않게)")
-
-        reply = { MockResponse.Builder().code(404).body("""{"reason":"HEAD_NOT_FOUND"}""").build() }
-        assertTrue(source.selfieHead("head:12:job-1") is Outcome.Failure)
-
-        val sent = paths.size
-        assertEquals(Outcome.Success(null), source.selfieHead("selfie:face/7/s1"))
-        assertEquals(Outcome.Success(null), source.selfieHead(null))
-        assertEquals(sent, paths.size)
+        val afterLayers = io.dispatches.get()
+        reply = ::legacyServer
+        source.selfieHead("head:12:job-3")
+        assertTrue(io.dispatches.get() > afterLayers, "예전 통짜 머리 JSON도 IO에서 읽고 푼다")
     }
 
     @Test
     fun `셀카 머리는 한 번 받으면 메모리에 두어 다시 받지 않고 바로 그리기(peek)로도 준다`() = runTest {
-        reply = { headReply() }
+        reply = ::layerServer
         assertEquals(null, source.peek("head:12:job-1"), "받기 전에는 바로 줄 그림이 없다")
         val first = (source.faceLayers("head:12:job-1") as Outcome.Success).value
         val second = (source.faceLayers("head:12:job-1") as Outcome.Success).value
 
-        assertEquals(1, paths.size, "다시 받지 않는다")
+        assertEquals(3, paths.size, "다시 받지 않는다")
         assertEquals(first, second)
         assertEquals(first, source.peek("head:12:job-1"))
         assertEquals(emptyList(), source.peek("default:RABBIT"), "기본 캐릭터는 기다릴 그림이 없다")
@@ -261,7 +357,7 @@ class FaceImageSourceTest {
     @Test
     fun `내 셀카 머리와 내 프로필 키는 기기에 남아 앱을 새로 켜도 바로 그린다`() = runTest {
         member = 12
-        reply = { headReply() }
+        reply = ::layerServer
         source.rememberSelf("head:12:job-1", "bg-1")
         source.faceLayers("head:12:job-1")
 
@@ -274,13 +370,13 @@ class FaceImageSourceTest {
         )
         assertEquals(SelfFaceStore.Keys("head:12:job-1", "bg-1"), restarted.lastSelf())
         assertEquals(listOf<Byte>(1, 2, 3), restarted.peek("head:12:job-1")?.map { it.png.single() })
-        assertEquals(1, paths.size, "새 실행은 받지 않고 남긴 것을 준다")
+        assertEquals(3, paths.size, "새 실행은 받지 않고 남긴 것을 준다")
     }
 
     @Test
     fun `다른 러너 머리는 기기에 남기지 않고 다른 계정이면 남긴 내 얼굴을 내주지 않는다`() = runTest {
         member = 7
-        reply = { headReply() }
+        reply = ::layerServer
         source.faceLayers("head:12:job-1")
         assertEquals(null, SelfFaceStore(storeDir).layers(7, "head:12:job-1"), "남의 얼굴은 남기지 않는다")
 
@@ -294,15 +390,48 @@ class FaceImageSourceTest {
         assertEquals(null, SelfFaceStore(storeDir).keys(12), "계정이 바뀌면 앞 계정의 내 얼굴을 지운다")
     }
 
+    /** 층 엔드포인트가 있는 서버: 층 이름별 PNG 한 바이트(얼굴 1·눈 2·헤어 3·옆 4~6)와 이미지 없는 메타. 오래 두는 캐시 머리글. */
+    private fun layerServer(segment: String): MockResponse = when (segment) {
+        "meta" -> MockResponse.Builder()
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Cache-Control", IMMUTABLE)
+            .body(
+                """{"format":"png1","headId":"h1","canvas":1024,"layers":["face","eyes","hair","rightFace",""" +
+                    """"rightEyes","rightHair"],"mobile":{"neckMask":{"centerX":512,"chinY":750}}}"""
+            )
+            .build()
+
+        in LAYER_BYTES -> MockResponse.Builder()
+            .addHeader("Content-Type", "image/png")
+            .addHeader("Cache-Control", IMMUTABLE)
+            .addHeader("ETag", "\"layer-$segment\"")
+            .body(Buffer().write(byteArrayOf(LAYER_BYTES.getValue(segment))))
+            .build()
+
+        else -> notFound(null)
+    }
+
+    /** 층 엔드포인트를 모르는 예전 서버(v0.13.x): 새 주소는 404, 머리 주소는 통짜 JSON. */
+    private fun legacyServer(segment: String): MockResponse =
+        if (segment == "meta" || segment in LAYER_BYTES) notFound(null) else headReply()
+
+    private fun notFound(reason: String?): MockResponse = MockResponse.Builder()
+        .code(404)
+        .addHeader("Content-Type", "application/json")
+        .body(reason?.let { """{"reason":"$it"}""" } ?: """{"status":404,"error":"Not Found"}""")
+        .build()
+
     private fun headReply(): MockResponse {
         fun data(byte: Int) =
             "data:image/png;base64," + java.util.Base64.getEncoder().encodeToString(byteArrayOf(byte.toByte()))
         return MockResponse.Builder()
             .addHeader("Content-Type", "application/json")
-            .addHeader("Cache-Control", "no-store")
+            .addHeader("Cache-Control", "no-cache, private")
             .body(
                 """{"headId":"h1","userId":"12","faceImage":"${data(1)}","eyesImage":"${data(2)}",""" +
-                    """"hairImage":"${data(3)}"}"""
+                    """"hairImage":"${data(3)}","rightFaceImage":"${data(4)}","rightEyesImage":"${data(5)}",""" +
+                    """"rightHairImage":"${data(6)}","mobile":{"neckMask":{"centerX":512,"chinY":750},""" +
+                    """"renderFaceImage":"${data(9)}"}}"""
             )
             .build()
     }
@@ -325,5 +454,18 @@ class FaceImageSourceTest {
         override fun update(access: String, refresh: String) = Unit
 
         override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
+    }
+
+    private companion object {
+        const val IMMUTABLE = "max-age=31536000, private, immutable"
+        const val CACHE_BYTES = 8L * 1024 * 1024
+        val LAYER_BYTES = mapOf<String, Byte>(
+            "face" to 1,
+            "eyes" to 2,
+            "hair" to 3,
+            "rightFace" to 4,
+            "rightEyes" to 5,
+            "rightHair" to 6
+        )
     }
 }
