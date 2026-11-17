@@ -4,7 +4,9 @@ import sharp from 'sharp';
 // 앱은 PNG 서명과 1024 크기만 본다(HeadResultPolicy.decodePng). 팔레트 PNG(색 형식 3 + tRNS)도 같은 PNG로 풀린다.
 //   palette   256색 팔레트 양자화(libimagequant, quality 최대 95). 실측 회원 머리 6레이어 합계 82% 감소, 합성 PSNR 약 51dB
 //   lossless  완전 투명 픽셀의 RGB만 0으로 지우고 zlib 9·적응 필터로 다시 쓴다. 보이는 픽셀과 알파는 그대로다(실측 57% 감소)
-//   off       손대지 않는다(기본값). PM 확인 전까지 운영에서 켜지 않는다
+//   off       손대지 않는다(코드 기본값, 로컬 compose 기본값)
+// 운영·develop은 infra/docker-compose.yml이 palette를 기본으로 넘긴다(2026-11-18 PM 결정, q95).
+// 이미 저장된 머리는 scripts/recompress-heads.mjs로 다시 줄인다.
 // 환경 변수 HEAD_PNG_COMPRESSION으로 고른다.
 export const HEAD_PNG_MODES = Object.freeze(['off', 'palette', 'lossless']);
 // 다른 러너에게 보내는 레이어(GET /avatar/heads). 원본(master·right)과 합성(composite)은 그대로 둔다

@@ -56,7 +56,7 @@ export async function savedFaceResult(root,userId,findRight,headId=null,{resplit
       metadata.segmentationVersion=HEAD_SEGMENTATION_VERSION;
       metadata.layerLayout={...metadata.layerLayout,...HEAD_LAYOUT};
       metadata.mobile=await mobileHead(layers.face,metadata.alignment);
-      // 다시 쪼갠 레이어도 새 머리와 같이 줄인다(HEAD_PNG_COMPRESSION, 기본 꺼짐)
+      // 다시 쪼갠 레이어도 새 머리와 같이 줄인다(HEAD_PNG_COMPRESSION, 운영은 palette)
       await compressHeadLayers(layers);
       if(persist)await saveUserHead(root,userId,layers,metadata);
     }catch(error){
