@@ -19,12 +19,12 @@ android {
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
-    // 아바타 무대(배경·바닥선·그림자·로딩 표시, design-oo 05-30 4절·[임시:D-성-106])의 Box·Image·원형 진행 표시
+    // 아바타 무대(배경·바닥선·그림자·로딩 표시, design-oo 05-30 4절·D-738)의 Box·Image·원형 진행 표시
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.rive.android)
     implementation(libs.kotlinx.serialization.json)
-    // 표시 시간 측정 로그(NFR-성-4 「AvatarStage shown= ready=」). 앱이 디버그 빌드에서만 DebugTree를 심는다.
+    // 표시 시간 측정 로그(NFR-061 「AvatarStage shown= ready=」). 앱이 디버그 빌드에서만 DebugTree를 심는다.
     implementation(libs.timber)
 
     testImplementation(libs.robolectric)

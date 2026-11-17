@@ -16,7 +16,7 @@ import org.springframework.stereotype.Component;
  * 크루런 매주 반복(피그마 F-12f·F-13e, 사용자 결정 C8, W6). 규칙은 contract-W6.md 3절이다.
  *
  * <ul>
- *   <li>매주 일요일 오전 9시(batch.crew.CrewRunRepeatJob, D-성-26, 코드 리뷰 M6) generateDue가 다음 주(월~일)에 들어가는 같은
+ *   <li>매주 일요일 오전 9시(batch.crew.CrewRunRepeatJob, D-658, 코드 리뷰 M6) generateDue가 다음 주(월~일)에 들어가는 같은
  *       요일·시각 회차 하나를 최신 회차에서 복사해 만든다. 서버가 멈춰 놓친 주는 건너뛴다.
  *   <li>반복 행을 잠가 다시 조건을 보고 만들며, crew_post (series_id, scheduled_at) 고유 색인이 두 번째 삽입을 막는다(멱등).
  *   <li>잠금 순서는 언제나 반복 → 글이다(회차 생성·글 수정·글 삭제·크루 삭제). 글을 먼저 잠근 뒤 반복을 기다리는 경로가 없어야 교착이 생기지 않는다(코드 리뷰
@@ -34,18 +34,21 @@ public class CrewRunRepeater {
     private final CrewRepository crewRepository;
     private final NotificationService notificationService;
     private final CrewTransactions transactions;
+    private final CrewRunAnnouncer announcer;
 
     CrewRunRepeater(
             CrewRunSeriesRepository seriesRepository,
             CrewPostRepository crewPostRepository,
             CrewRepository crewRepository,
             NotificationService notificationService,
-            CrewTransactions transactions) {
+            CrewTransactions transactions,
+            CrewRunAnnouncer announcer) {
         this.seriesRepository = seriesRepository;
         this.crewPostRepository = crewPostRepository;
         this.crewRepository = crewRepository;
         this.notificationService = notificationService;
         this.transactions = transactions;
+        this.announcer = announcer;
     }
 
     /** 저장된 글(첫 회차)로 반복을 시작하고 글을 반복에 묶는다. 부르는 쪽 트랜잭션 안에서 쓴다. */
@@ -156,6 +159,7 @@ public class CrewRunRepeater {
         series.advance(next.getId(), slot);
         seriesRepository.save(series);
         announce(crew.get(), next);
+        announcer.scheduleChanged(next); // 열린 크루런 목록에 새 회차(설계 05-32 SCHEDULE)
         return true;
     }
 

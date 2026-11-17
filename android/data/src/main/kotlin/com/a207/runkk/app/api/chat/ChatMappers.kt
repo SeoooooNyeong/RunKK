@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.chat
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.domain.chat.ChatAuthorRole
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.chat.ChatMessageKind
@@ -28,13 +29,23 @@ internal fun ChatMessageItem.toDomain(): ChatMessage = ChatMessage(
     clientMessageId = clientMessageId,
     kind = enumByName<ChatMessageKind>(messageKind) ?: ChatMessageKind.TEXT,
     authorRole = authorRole?.let { enumByName<ChatAuthorRole>(it) },
-    runDistance = runDistanceMeters?.takeIf { it >= 0 }?.let(::Distance)
+    runDistance = runDistanceMeters?.takeIf { it >= 0 }?.let(::Distance),
+    authorFaceKey = authorFaceKey,
+    authorShownGender = enumByName<Gender>(authorShownGender)
 )
 
 /** 앱이 모르는 반응 종류의 줄은 건너뛴다. */
 internal fun ReactorListResponse.toDomain(): List<Reactor> = reactors.mapNotNull { item ->
     enumByName<ReactionKind>(item.kind)?.let { kind ->
-        Reactor(item.memberId, item.displayName, kind, ServerTime.parse(item.reactedAt), item.isMe)
+        Reactor(
+            item.memberId,
+            item.displayName,
+            kind,
+            ServerTime.parse(item.reactedAt),
+            item.isMe,
+            faceKey = item.faceKey,
+            shownGender = enumByName<Gender>(item.shownGender)
+        )
     }
 }
 

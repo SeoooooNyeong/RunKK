@@ -2,6 +2,7 @@ package com.a207.runkk.avatar;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -10,6 +11,9 @@ public interface AvatarRepository {
 
     /** 없으면 저장하지 않은 새 아바타(조회용). */
     Avatar findOrCreate(long memberId);
+
+    /** 필요한 얼굴 값만 한 번에 읽는다. 얼굴이 없거나 없는 ID는 맵에 없다. */
+    Map<Long, String> faceKeysOf(Collection<Long> memberIds);
 
     /**
      * ID 묶음의 아바타(얼굴 부위·착용 포함)를 질의 하나로 읽는다. 행이 없는 회원은 빠지고 만들지 않는다(랭킹 줄 모습, S15P31A207-300). 순서는 정하지

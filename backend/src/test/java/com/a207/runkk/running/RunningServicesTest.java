@@ -101,6 +101,7 @@ class RunningServicesTest {
                     books,
                     weather,
                     new MemberQueryService(members),
+                    memberId -> java.util.Optional.empty(),
                     published::add,
                     NO_TX,
                     clock);

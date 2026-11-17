@@ -118,7 +118,15 @@ class FriendInviteServiceTest {
                         });
         availability = new RunnerAvailability(queue, battles, invites);
         startService =
-                new BattleStartService(battles, members, runs, messenger, sessions, clock, tx);
+                new BattleStartService(
+                        battles,
+                        members,
+                        runs,
+                        messenger,
+                        sessions,
+                        clock,
+                        tx,
+                        BattleFixtures.noLooks());
         service =
                 new FriendInviteService(
                         invites,

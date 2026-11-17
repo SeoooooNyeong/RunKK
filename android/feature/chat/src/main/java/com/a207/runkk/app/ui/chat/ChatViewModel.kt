@@ -31,6 +31,8 @@ import kotlinx.coroutines.launch
  * (코드 포인트)만 ChatRoom.send로 넘기고, 실패한 메시지는 같은 clientMessageId로 다시 보낸다(D-160 (3)). 리액션은 이미 단 종류면 떼고
  * 아니면 단다(FR-210). 삭제는 canDelete인 메시지만 확인 뒤(FR-213), 신고는 남의 메시지만 사유를 골라 ReportRepository로 보낸다
  * (FR-214, 기타는 상세 1~200자, D-149). 업무 규칙은 ChatRoom·서버가 갖는다.
+ * 남이 보낸 메시지의 작성자와 반응자의 얼굴 그림은 얼굴 키마다 한 번 받는다([임시:D-성-236]). 받지 못해도 안내를 띄우지 않고 기본
+ * 얼굴로 둔다([임시:FR-성-24]).
  */
 @HiltViewModel
 class ChatViewModel
@@ -42,6 +44,12 @@ constructor(
 ) : ViewModel() {
     private val local = MutableStateFlow(ChatUiState())
 
+    /** 이미 받았거나 받는 중인 얼굴 키(키마다 한 번 받는다). 실패한 키는 빼서 다음 목록 갱신에 다시 받는다. */
+    private val requestedFaces = mutableSetOf<String>()
+
+    /** 얼굴 키별 받기 실패 횟수. [MAX_FACE_TRIES]번 실패한 키는 이 화면에서 다시 받지 않는다(기본 얼굴로 둔다). */
+    private val faceFailures = mutableMapOf<String, Int>()
+
     val state: StateFlow<ChatUiState> =
         combine(local, room.messages) { s, page -> s.copy(messages = page.messages, hasMore = page.hasMore) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, ChatUiState())
@@ -50,6 +58,40 @@ constructor(
         // 리액션·삭제·이전 쪽 읽기 실패를 안내 줄로 알린다(A4). 알려진 거부 사유면 그 문구, 아니면 동작별 문구다.
         viewModelScope.launch {
             room.failures.collect { failure -> local.update { it.copy(message = failure.toText()) } }
+        }
+        // 남이 보낸 보통 글의 작성자 얼굴(내 메시지와 시스템 메시지는 원을 그리지 않는다).
+        viewModelScope.launch {
+            room.messages.collect { page ->
+                readFaces(page.messages.filter { !it.isMine && !it.isSystem }.mapNotNull { it.authorFaceKey })
+            }
+        }
+    }
+
+    /**
+     * 얼굴 키마다 셀카 얼굴 부위 그림을 한 번 받는다(크루원 목록 CrewHomeViewModel.readMemberFaces와 같은 방식, 같은 캐시). 받아 둔
+     * 그림은 바로 쓰고 없는 것만 받는다. 실패는 알리지 않는다(기본 얼굴로 그린다).
+     */
+    private fun readFaces(faceKeys: List<String>) {
+        val keys = faceKeys.distinct().filter { requestedFaces.add(it) }
+        val cached = keys.mapNotNull { key ->
+            chats.cachedFaceLayers(key)?.takeIf { it.isNotEmpty() }?.let { key to it }
+        }
+        if (cached.isNotEmpty()) local.update { it.copy(faces = it.faces + cached) }
+        keys.filter { key -> cached.none { it.first == key } }.forEach { key ->
+            viewModelScope.launch {
+                when (val r = chats.faceLayers(key)) {
+                    is Outcome.Success -> r.value.takeIf { it.isNotEmpty() }?.let { layers ->
+                        local.update { it.copy(faces = it.faces + (key to layers)) }
+                    }
+
+                    // 목록은 메시지마다 바뀌므로 실패한 키를 끝없이 다시 받지 않게 횟수를 둔다(리뷰 반영).
+                    is Outcome.Failure -> {
+                        val failures = (faceFailures[key] ?: 0) + 1
+                        faceFailures[key] = failures
+                        if (failures < MAX_FACE_TRIES) requestedFaces.remove(key)
+                    }
+                }
+            }
         }
     }
 
@@ -89,7 +131,7 @@ constructor(
 
     fun onLoadOlder() = room.loadOlder()
 
-    // 반응한 사람(피그마 F-09d, D-성-24)
+    // 반응한 사람(피그마 F-09d, D-656)
 
     /** 서버에 있는 보이는 메시지만 연다. [tab]은 길게 누른 알약의 종류(null = 전체). */
     fun onOpenReactors(message: ChatMessage, tab: ReactionKind?) {
@@ -106,6 +148,7 @@ constructor(
         }
         viewModelScope.launch {
             val result = chats.reactors(id)
+            if (result is Outcome.Success) readFaces(result.value.mapNotNull { it.faceKey })
             local.update { s ->
                 if (s.reactorsTarget?.messageId != id) return@update s
                 when (result) {
@@ -192,6 +235,9 @@ constructor(
 
     private companion object {
         const val REPORT_MAX = ChatUiState.REPORT_DETAIL_MAX
+
+        /** 얼굴 그림 하나를 받아 보는 횟수 상한. */
+        const val MAX_FACE_TRIES = 3
     }
 }
 

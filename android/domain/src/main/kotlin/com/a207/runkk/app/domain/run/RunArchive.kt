@@ -22,8 +22,14 @@ class RunArchive
 constructor(
     private val pendingRuns: PendingRunRepository,
     private val uploadScheduler: UploadScheduler,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    /** 내 기록 저장 결과를 알릴 곳(설계 05-32 OwnRunUploadPort). */
+    private val ownUploads: OwnRunUploads
 ) {
+    /** 저장 결과를 따로 모으지 않는 조립(시험·워치). */
+    constructor(pendingRuns: PendingRunRepository, uploadScheduler: UploadScheduler, scope: CoroutineScope) :
+        this(pendingRuns, uploadScheduler, scope, OwnRunUploads())
+
     private val lock = Any()
 
     /** 보관함에 아직 넣지 못한 늦은 심박(기록ID별). lock 안에서만 쓴다. */
@@ -32,6 +38,7 @@ constructor(
 
     /** 저장하고 전송을 요청한다. 세 번 모두 실패하면 [onFailed]를 부른다. 반복의 출구는 조건 하나다(P-1). */
     fun saveInBackground(run: CompletedRun, onFailed: () -> Unit) {
+        ownUploads.onSaving(run)
         scope.launch {
             var isSaved = pendingRuns.save(run) is Outcome.Success
             var attempt = 1
@@ -40,7 +47,13 @@ constructor(
                 isSaved = pendingRuns.save(run) is Outcome.Success
                 attempt++
             }
-            if (isSaved) uploadScheduler.requestUpload() else onFailed()
+            if (isSaved) {
+                ownUploads.onSaved(run.recordId)
+                uploadScheduler.requestUpload()
+            } else {
+                ownUploads.onSaveFailed(run.recordId)
+                onFailed()
+            }
         }
     }
 

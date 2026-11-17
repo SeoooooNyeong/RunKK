@@ -10,6 +10,7 @@ resolver 127.0.0.11 valid=10s ipv6=off;
 # 접근 로그에서 친구 대결 초대 토큰을 가린다. 토큰은 5분 동안 수락에 쓸 수 있는 값이라 요청 줄 전체를 남기는 기본 형식을 쓰지 않는다(BE8-6)
 map $request_uri $runkk_logged_uri {
     ~^(?<invite_head>/invite/battle/)[^?]+                                  "$invite_head***";
+    ~^(?<crew_invite_head>/invite/crew/)[^?]+                               "$crew_invite_head***";
     ~^(?<token_head>/api/v1/battles/friend-invites/by-token/)[^/?]+(?<token_tail>.*)$ "$token_head***$token_tail";
     default $request_uri;
 }

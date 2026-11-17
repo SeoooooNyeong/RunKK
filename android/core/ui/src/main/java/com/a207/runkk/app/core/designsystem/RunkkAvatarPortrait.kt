@@ -23,11 +23,11 @@ import kotlin.math.roundToInt
 
 /**
  * 아바타 얼굴 키(서버 Face.renderKey, 설계 6.1.8 avatar)를 그림으로 바꾼다. 그리는 쪽은 얼굴 종류를 묻지 않고 키만 넘긴다.
- * - "default:<DefaultCharacter>": 어느 기본 캐릭터 값이든 표시 성별의 기본 머리 그림이다([임시:D-성-180], [임시:D-성-187]). 동물 그림은
+ * - "default:<DefaultCharacter>": 어느 기본 캐릭터 값이든 표시 성별의 기본 머리 그림이다(D-812, D-819). 동물 그림은
  *   그리지 않는다. 서버 값은 그대로 받는다.
  * - "selfie:…"·"head:…": 서버 부위 PNG(FaceImageSource가 받은 층, [RunkkAvatarFace]). 셀카 머리("head:…")는 기본 머리 그림과 같은
  *   프로필 원 구도(머리를 크게, 목은 제 길이로 두고 머리를 내려 목 끝이 원 아래 가장자리에서 잘림)로 맞춘다([PortraitHeadFrame],
- *   [임시:D-성-189], 사용자 요청 2026-11-12). 받는 중이면 중립 자리, 받지 못했거나 깨졌으면 기본 머리다([임시:D-성-190]).
+ *   D-821, 사용자 요청 2026-11-12). 받는 중이면 중립 자리, 받지 못했거나 깨졌으면 기본 머리다(D-822).
  * - 없음: 기본 머리.
  */
 object RunkkAvatarArt {
@@ -44,9 +44,9 @@ object RunkkAvatarArt {
 
     /**
      * 표시 성별의 기본 머리 그림(512×512): Rive 기본 머리 정면 face + eyes_open + hair를 셀카 머리와 같은 구도([PortraitHeadFrame],
-     * [임시:D-성-189])에 놓은 것이다. 얼굴 원 안([isInCircle])이면 목은 늘리지 않고 머리를 내려 목 끝(둥글어지기 시작하는 줄)이 아래 끝에
+     * D-821)에 놓은 것이다. 얼굴 원 안([isInCircle])이면 목은 늘리지 않고 머리를 내려 목 끝(둥글어지기 시작하는 줄)이 아래 끝에
      * 닿아 원 가장자리에서 잘리고(정수리 약 2~3%, 사용자 요청 2026-11-12), 원 밖(대결 그림, Rive 대체 그림, 지도 마커 등)이면 정수리 -5%·
-     * 턱 86% 자리에 목이 제 길이로 둥글게 끝난다(`_free`, [임시:D-성-193]). `:core:ui`가 `:core:avatar` 자산에 기대지 않게 drawable로 둔다. 내장 머리 그림이 바뀌면
+     * 턱 86% 자리에 목이 제 길이로 둥글게 끝난다(`_free`, D-825). `:core:ui`가 `:core:avatar` 자산에 기대지 않게 drawable로 둔다. 내장 머리 그림이 바뀌면
      * core/ui/tools/default-head/make_default_heads.py로 다시 만든다.
      */
     @DrawableRes
@@ -87,11 +87,11 @@ object RunkkAvatarArt {
 
 /**
  * 아바타 얼굴 한 칸(프로필 원: 홈 상단, 마이, 프로필 편집, 다른 러너, 랭킹·크루·대결의 얼굴 원, 얼굴 만들기): 셀카 얼굴이고 부위 그림을
- * 받았으면 겹친 얼굴, 그 밖(얼굴 없음, 기본 캐릭터 값, 셀카 그림을 받지 못함·깨짐)은 [character]의 기본 머리다([임시:D-성-180]).
+ * 받았으면 겹친 얼굴, 그 밖(얼굴 없음, 기본 캐릭터 값, 셀카 그림을 받지 못함·깨짐)은 [character]의 기본 머리다(D-812).
  * [isFaceLoading]이면(부르는 쪽이 얼굴 키나 셀카 그림을 아직 받는 중) 기본 머리 대신 빈 중립 자리를 둬 기본 머리가 보였다가 셀카로
- * 바뀌지 않게 한다. 기본 캐릭터 키는 기다릴 것이 없어 바로 기본 머리다([임시:D-성-190]).
+ * 바뀌지 않게 한다. 기본 캐릭터 키는 기다릴 것이 없어 바로 기본 머리다(D-822).
  * [character]는 내 그림이면 기본값(내 성별), 다른 러너면 그 러너의 표시 성별을 넘긴다. 장식이므로 읽기 정보는 부르는 쪽이 붙인다.
- * [isInCircle]은 얼굴 원 안에 그리는가다. 원 밖이면 목을 늘리지 않는다(기본 머리 `_free`, 셀카 머리는 목 제 길이, [임시:D-성-193]).
+ * [isInCircle]은 얼굴 원 안에 그리는가다. 원 밖이면 목을 늘리지 않는다(기본 머리 `_free`, 셀카 머리는 목 제 길이, D-825).
  */
 @Composable
 fun RunkkAvatarPortrait(
@@ -111,7 +111,7 @@ fun RunkkAvatarPortrait(
                     faceLayers,
                     isInCircle,
                     Modifier.fillMaxSize().testTag(RUNKK_AVATAR_FACE_TAG),
-                    // 내 얼굴이면 몸과 같은 그을림을 피부 층에만([임시:D-성-220])
+                    // 내 얼굴이면 몸과 같은 그을림을 피부 층에만(D-852)
                     skinFilter = LocalSelfFaceTone.current.skinFilterFor(faceKey)
                 ) {
                     DefaultHead(character, isInCircle)
@@ -178,7 +178,7 @@ private fun DrawScope.drawHead(head: SelfieHeadArt, isInCircle: Boolean, skinFil
         val x = left + frame.dx * side
         val y = top + frame.dy * side
         val scale = frame.scale * side
-        // 원 밖 구도는 목을 늘리지 않는다([임시:D-성-193]). 원 안도 아주 짧은 목일 때만 늘린다.
+        // 원 밖 구도는 목을 늘리지 않는다(D-825). 원 안도 아주 짧은 목일 때만 늘린다.
         val row = frame.neckRow
         if (image === head.face && row != null) {
             // 목 줄 위만 그리고(목 끝 외곽선은 그리지 않는다) 그 줄을 상자 바닥까지 늘린다.

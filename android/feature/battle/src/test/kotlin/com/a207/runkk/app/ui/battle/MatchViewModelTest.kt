@@ -110,6 +110,141 @@ class MatchViewModelTest {
     }
 
     @Test
+    fun `랜덤 대기 뒤로 가기는 확인 창을 띄운다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            vm.onBackPressed()
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(true, vm.state.value.isLeaveConfirmVisible)
+        assertEquals(false, vm.state.value.isInviteWaiting, "매칭 문구")
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase)
+        assertTrue("cancel" !in w.battles.calls, "확인 전에는 취소하지 않는다")
+    }
+
+    @Test
+    fun `요청 중 뒤로 가기도 확인 창을 띄운다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.startQuick(Distance(5_000))
+        assertEquals(MatchPhase.REQUESTING, vm.state.value.phase)
+
+        vm.onBackPressed()
+
+        assertEquals(true, vm.state.value.isLeaveConfirmVisible)
+    }
+
+    @Test
+    fun `배치고사 대기도 같다`() = main.runVmTest { vms ->
+        // 배치고사는 서버에 대기 단계가 없지만 앱은 랜덤 매칭과 같은 길(요청 중 → 대기 → 성사 알림)을 지난다.
+        val w = world()
+        w.battles.match =
+            Outcome.Success(
+                MatchAcceptance(isWaiting = false, distance = Distance(5_000), placementRound = 1, battleId = 9)
+            )
+        val vm = quick(w, vms)
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase, "성사 알림을 받기 전에는 대기 단계다")
+
+        vm.onBackPressed()
+        assertEquals(true, vm.state.value.isLeaveConfirmVisible)
+
+        w.channels.channel.push(matchFound().copy(opponentTier = "UNRANKED", placementRound = 1))
+        runCurrent()
+        assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
+        assertEquals(false, vm.state.value.isLeaveConfirmVisible, "상대가 정해지면 창을 자동으로 닫는다")
+    }
+
+    @Test
+    fun `친구 초대 대기는 초대 문구다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.vm(w)
+        vm.startInvite(Distance(5_000))
+        runCurrent()
+        assertEquals(MatchPhase.INVITING, vm.state.value.phase)
+
+        vm.onBackPressed()
+
+        assertEquals(true, vm.state.value.isLeaveConfirmVisible)
+        assertEquals(true, vm.state.value.isInviteWaiting)
+    }
+
+    @Test
+    fun `나가기는 취소한다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.onBackPressed()
+        vm.events.test {
+            vm.onLeaveConfirmed()
+            runCurrent()
+            assertEquals(MatchEvent.Exit, awaitItem())
+        }
+        assertEquals(false, vm.state.value.isLeaveConfirmVisible)
+        assertTrue("cancel" in w.battles.calls)
+    }
+
+    @Test
+    fun `계속 기다리기는 창만 닫는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.onBackPressed()
+        vm.events.test {
+            vm.onLeaveDismissed()
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(false, vm.state.value.isLeaveConfirmVisible)
+        assertEquals(MatchPhase.WAITING, vm.state.value.phase)
+        assertTrue("cancel" !in w.battles.calls)
+        advanceTimeBy(2_100)
+        assertTrue(vm.state.value.waitingSeconds >= 2, "대기 시간은 계속 센다")
+    }
+
+    @Test
+    fun `하단 매칭 취소는 창 없이 취소한다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        vm.events.test {
+            vm.onCancel()
+            assertEquals(false, vm.state.value.isLeaveConfirmVisible)
+            runCurrent()
+            assertEquals(MatchEvent.Exit, awaitItem())
+        }
+        assertTrue("cancel" in w.battles.calls)
+    }
+
+    @Test
+    fun `참가 확인과 초대 끝은 바로 나간다`() = main.runVmTest { vms ->
+        val w = world()
+        val joining = vms.vm(w)
+        joining.events.test {
+            joining.startJoin("tok")
+            runCurrent()
+            assertEquals(MatchPhase.CONFIRMING, joining.state.value.phase)
+            joining.onBackPressed()
+            assertEquals(MatchEvent.Exit, awaitItem())
+            cancelAndIgnoreRemainingEvents()
+        }
+        assertEquals(false, joining.state.value.isLeaveConfirmVisible)
+    }
+
+    @Test
+    fun `성사 뒤 뒤로 가기는 지금처럼 아무것도 하지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        w.channels.channel.push(matchFound())
+        runCurrent()
+        vm.events.test {
+            vm.onBackPressed()
+            runCurrent()
+            expectNoEvents()
+        }
+        assertEquals(false, vm.state.value.isLeaveConfirmVisible)
+        assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
+    }
+
+    @Test
     fun `대기 취소 - 대기열에서 빠지면 채널을 닫고 이전 화면으로(FR-085)`() = main.runVmTest { vms ->
         val w = world()
         val vm = quick(w, vms)
@@ -1034,6 +1169,7 @@ class MatchViewModelTest {
             runCurrent()
             val started = assertIs<MatchEvent.Started>(awaitItem())
             assertEquals(2, started.key.placementRound)
+            assertEquals(null, started.key.opponentLook, "배치고사는 모습이 없다")
         }
     }
 }

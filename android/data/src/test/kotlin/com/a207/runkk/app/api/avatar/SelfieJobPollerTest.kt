@@ -55,7 +55,7 @@ class SelfieJobPollerTest {
     }
 
     @Test
-    fun `성공이면 결과를 한 번 받아 적용하고 사진을 지운 뒤 성공 알림을 낸다(D-성-118, D-성-120)`() = runTest {
+    fun `성공이면 결과를 한 번 받아 적용하고 사진을 지운 뒤 성공 알림을 낸다(D-750, D-752)`() = runTest {
         store.save("job-1", clock.now)
         repo.jobs +=
             listOf(job(SelfieJob.Status.QUEUED), job(SelfieJob.Status.RUNNING), job(SelfieJob.Status.SUCCEEDED))
@@ -181,7 +181,7 @@ class SelfieJobPollerTest {
     }
 
     @Test
-    fun `앞 화면 직접 확인 - 끝난 작업이면 기다리지 않고 결과를 받아 적용한다(임시 D-성-188)`() = runTest {
+    fun `앞 화면 직접 확인 - 끝난 작업이면 기다리지 않고 결과를 받아 적용한다(D-820)`() = runTest {
         store.save("job-1", clock.now)
         hub.sync()
         repo.jobs += job(SelfieJob.Status.SUCCEEDED)

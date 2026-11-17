@@ -67,7 +67,7 @@ internal fun RunTab(state: RunBodyUiState, actions: RunBodyActions) {
 
 /**
  * 고른 기록 칸(피그마 모서리 12, 높이 64, 안쪽 16x8): 시각(12 Medium) + "5.2km  기록 선택 ▾"(16 Regular). 피그마의 가운뎃점은 띄어
- * 쓰기로 바꾼다([임시:D-성-10]). 누르면 러닝 선택(G-30).
+ * 쓰기로 바꾼다(D-642). 누르면 러닝 선택(G-30).
  */
 @Composable
 private fun SelectedRunCard(run: RunSummary, zone: ZoneId, onOpenPick: () -> Unit) {

@@ -51,7 +51,7 @@ import com.a207.runkk.app.domain.crew.JoinPolicy
 /**
  * 크루 정보 수정(피그마 F-26, 크루장): 로고(연필 덮개)와 크루명 한 줄, 한 줄 소개, 태그(최대 3개, 32 칩), 공개 여부·가입 방식 세그먼트,
  * 아래 라임 "저장"(위 구분선 없음). 로고 연필 덮개를 누르면 사진 고르기를 열고, 고른 사진은 크루 만들기처럼 올려 저장 때 그 주소를 싣는다
- * (DV-성-6). 로고는 고른 사진 → 지금 로고 → 기본 그림 순으로 보인다.
+ * (DV-6). 로고는 고른 사진 → 지금 로고 → 기본 그림 순으로 보인다.
  */
 @Composable
 internal fun CrewEditPage(state: CrewHomeUiState, actions: CrewHomeActions) {
@@ -147,7 +147,7 @@ private fun FieldLabel(title: String, suffix: String? = null) {
 
 /**
  * 크루 이미지 수정(피그마 `RunKK / Avatar / 크루 이미지 수정` 66): 고른 사진(올리는 중에도) 또는 크루 로고(없으면 기본 그림) 위 검정 50%
- * 덮개와 흰 연필 24. 누르면 사진 고르기(DV-성-6), 올리는 동안은 누를 수 없다.
+ * 덮개와 흰 연필 24. 누르면 사진 고르기(DV-6), 올리는 동안은 누를 수 없다.
  */
 @Composable
 private fun EditableLogo(picked: ByteArray?, logoUrl: String?, isUploading: Boolean, onPick: () -> Unit) {

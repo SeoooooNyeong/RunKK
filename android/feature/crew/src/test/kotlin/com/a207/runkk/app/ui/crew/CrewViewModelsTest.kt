@@ -7,10 +7,13 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.uiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
+import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunRepeat
@@ -182,7 +185,7 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `크루 홈에서 탈퇴하면 내 크루를 비우고 다시 확인해 크루 찾기를 보인다(DV-성-7)`() {
+    fun `크루 홈에서 탈퇴하면 내 크루를 비우고 다시 확인해 크루 찾기를 보인다(DV-7)`() {
         repo.mine = MyCrew(crewDetail(11, CrewRole.MEMBER), emptyList())
         val vm = CrewFindViewModel(repo)
         assertEquals(11L, vm.state.value.mine?.crewId)
@@ -228,7 +231,7 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 시트 안 칸 아래에 기다리라고 안내한다(DV-성-1)`() {
+    fun `초대 코드를 너무 많이 틀리면(429 TOO_MANY_ATTEMPTS) 시트 안 칸 아래에 기다리라고 안내한다(DV-1)`() {
         repo.fail["preview"] = AppError.Rejected("TOO_MANY_ATTEMPTS")
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()
@@ -241,7 +244,7 @@ class CrewFindViewModelTest {
     }
 
     @Test
-    fun `가입하기에서 시도 제한(TOO_MANY_ATTEMPTS)이 와도 시트 안에 안내한다(DV-성-1)`() {
+    fun `가입하기에서 시도 제한(TOO_MANY_ATTEMPTS)이 와도 시트 안에 안내한다(DV-1)`() {
         val vm = CrewFindViewModel(repo)
         vm.onInviteOpen()
         vm.onInviteCode("AB12CD")
@@ -477,8 +480,60 @@ class CrewHomeViewModelTest {
         assertEquals(22, shareLabel(22.7))
     }
 
+    private fun withFaces(vararg faceKeys: String?) = CrewMembers(
+        members.members.zip(faceKeys.toList()) { member, key -> member.copy(faceKey = key) }
+    )
+
+    private fun faceCalls() = repo.calls.filter { it.startsWith("face:") }
+
     @Test
-    fun `탭과 크루원 쪽은 처음 열 때 한 번만 읽는다`() {
+    fun `크루원_얼굴_그림을_캐시_먼저_받는다`() {
+        val cachedLayers = listOf(FaceLayer(FacePart.HAIR, byteArrayOf(9)))
+        repo.memberList = withFaces("selfie:1/a", "selfie:2/b", null)
+        repo.cachedFaces["selfie:1/a"] = cachedLayers
+
+        val vm = vm()
+        vm.onPage(CrewHomePage.MEMBERS)
+
+        val faces = vm.state.value.memberFaces
+        assertEquals(cachedLayers, faces["selfie:1/a"], "받아 둔 그림은 그대로 쓴다")
+        assertEquals(1, faces["selfie:2/b"]?.size, "없는 것만 받는다")
+        assertEquals(listOf("face:selfie:2/b"), faceCalls())
+    }
+
+    @Test
+    fun `같은_얼굴_키는_한_번만_받는다`() {
+        repo.memberList = withFaces("selfie:1/a", "selfie:1/a", "default:FOX")
+
+        val vm = vm()
+        vm.onPage(CrewHomePage.MEMBERS)
+        vm.refresh()
+
+        assertEquals(listOf("face:selfie:1/a", "face:default:FOX"), faceCalls())
+        assertNull(vm.state.value.memberFaces["default:FOX"], "기본 캐릭터 얼굴은 그림이 없다(기본 얼굴로 그린다)")
+    }
+
+    @Test
+    fun `실패하면_다음_갱신에_다시_받는다`() {
+        repo.memberList = withFaces("selfie:1/a", null, null)
+        repo.fail["face"] = AppError.Network
+
+        val vm = vm()
+        vm.onPage(CrewHomePage.MEMBERS)
+
+        assertTrue(vm.state.value.memberFaces.isEmpty())
+        assertNull(vm.state.value.error, "얼굴 그림을 못 받아도 오류 문구를 띄우지 않는다")
+        assertNull(vm.state.value.message)
+
+        repo.fail.remove("face")
+        vm.refresh()
+
+        assertEquals(1, vm.state.value.memberFaces["selfie:1/a"]?.size)
+        assertEquals(2, faceCalls().size)
+    }
+
+    @Test
+    fun `크루원 쪽은 처음 열 때 한 번만 읽고, 탭은 다시 고를 때마다 읽는다(TC-11017 재진입 읽기)`() {
         val vm = vm()
         vm.onPage(CrewHomePage.MEMBERS)
         vm.onPage(CrewHomePage.HOME)
@@ -488,7 +543,10 @@ class CrewHomeViewModelTest {
         vm.onTab(CrewTab.SCHEDULE)
         vm.onTab(CrewTab.RACE)
         vm.onTab(CrewTab.SCHEDULE)
-        assertEquals(1, repo.calls.count { it == "posts:CREW_RUN" }, repo.calls.toString())
+        assertEquals(2, repo.calls.count { it == "posts:CREW_RUN" }, repo.calls.toString())
+        assertEquals(2, repo.calls.count { it == "race" }, "처음(bind)과 레이스 재진입: ${repo.calls}")
+        vm.onTab(CrewTab.SCHEDULE)
+        assertEquals(2, repo.calls.count { it == "posts:CREW_RUN" }, "같은 탭을 다시 눌러도 이미 읽었으면 읽지 않는다")
     }
 
     @Test

@@ -6,7 +6,7 @@ import java.time.LocalDate
 
 /**
  * 주간 목표 정하기(FR-138, 피그마 F-07) 상태. [weekStart]는 이번 주 월요일, [draft]는 목표 거리(km) 입력, [pastWeeks]는 지난 3주
- * 레이스 결과(최신 먼저, 합산 거리·그 주 목표·달성 여부·참여 인원, 읽지 못한 주는 빠진다, [임시:D-성-32])다. 목표는 1km 이상이다.
+ * 레이스 결과(최신 먼저, 합산 거리·그 주 목표·달성 여부·참여 인원, 읽지 못한 주는 빠진다, D-664)다. 목표는 1km 이상이다.
  */
 data class CrewGoalSetUiState(
     val crewId: Long = 0,

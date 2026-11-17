@@ -72,7 +72,15 @@ class RecordAndAdminServicesTest {
         when(members.hasConsent(anyLong(), eq(ConsentItem.LOCATION))).thenReturn(true);
         when(members.summaries(anyCollection()))
                 .thenReturn(Map.of(ALICE, BattleFixtures.summary(ALICE, Tier.GOLD)));
-        records = new RecordBattleService(members, runs, celebrities, battles, queue, clock);
+        records =
+                new RecordBattleService(
+                        members,
+                        runs,
+                        celebrities,
+                        battles,
+                        queue,
+                        clock,
+                        BattleFixtures.noLooks());
         when(policy.tierBoundary()).thenReturn(VirtualRecordFactoryTest.BOUNDARY);
         when(policy.virtualRecordRule()).thenReturn(VirtualRecordFactoryTest.RULE);
     }
@@ -107,7 +115,7 @@ class RecordAndAdminServicesTest {
                         NOW));
     }
 
-    /** 셀럽런 목록에 보이는 코치 기록(그림 키 "joo", [임시:D-성-219]). */
+    /** 셀럽런 목록에 보이는 코치 기록(그림 키 "joo", D-851). */
     private CelebrityRecord coach(List<TrackSample> splits) {
         return celebrities.save(
                 CelebrityRecord.register(
@@ -281,7 +289,8 @@ class RecordAndAdminServicesTest {
         assertThat(start.figureKey()).isEqualTo("lee");
         assertThat(battles.findById(start.battleId()).orElseThrow().getOpponentFigure())
                 .contains("lee");
-        BattleHistoryService history = new BattleHistoryService(battles, members, celebrities);
+        BattleHistoryService history =
+                new BattleHistoryService(battles, members, celebrities, BattleFixtures.noLooks());
         assertThat(history.active(ALICE).orElseThrow().celebrityFigure()).isEqualTo("lee");
 
         bestFiveK();
@@ -450,7 +459,8 @@ class RecordAndAdminServicesTest {
         celebrityBattle.forfeit(BOB, NOW.plusMinutes(2));
         battles.save(celebrityBattle);
 
-        BattleHistoryService history = new BattleHistoryService(battles, members, celebrities);
+        BattleHistoryService history =
+                new BattleHistoryService(battles, members, celebrities, BattleFixtures.noLooks());
         BattleHistoryView bob =
                 history.history(
                         BOB,
@@ -477,7 +487,8 @@ class RecordAndAdminServicesTest {
             "진행 중인 대결: 없으면 비어 있고, 랜덤은 상대 회원 표시명·출발 시각, 고스트는 GHOST 그대로, 시작 보고 전 기록 대결은"
                     + " 출발 시각 없음(배틀런 QA 7번)")
     void active() {
-        BattleHistoryService history = new BattleHistoryService(battles, members, celebrities);
+        BattleHistoryService history =
+                new BattleHistoryService(battles, members, celebrities, BattleFixtures.noLooks());
         assertThat(history.active(ALICE)).isEmpty();
 
         Battle random =

@@ -40,6 +40,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -53,12 +54,12 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.KakaoRunMap
 import com.a207.runkk.app.core.designsystem.LocalKakaoMapKey
 import com.a207.runkk.app.core.designsystem.LocalReduceMotion
 import com.a207.runkk.app.core.designsystem.RouteCanvas
 import com.a207.runkk.app.core.designsystem.RouteMarker
 import com.a207.runkk.app.core.designsystem.RunPermissionEffect
+import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
@@ -66,6 +67,7 @@ import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkHint
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
+import com.a207.runkk.app.core.designsystem.RunkkMeMap
 import com.a207.runkk.app.core.designsystem.RunkkPauseScrim
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
@@ -96,6 +98,7 @@ import com.a207.runkk.app.core.navigation.RunAvatarSlot
 import com.a207.runkk.app.core.navigation.RunkkNavigator
 import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.core.navigation.isSlotFilled
+import com.a207.runkk.app.domain.account.MyAvatar
 import com.a207.runkk.app.domain.run.HeartRateSample
 import com.a207.runkk.app.domain.run.RunProgress
 import java.time.Duration
@@ -358,7 +361,8 @@ private fun RunningContent(state: RunUiState, actions: RunActions) {
                     state.progress,
                     isPaused = state.isPaused,
                     isRunning =
-                        state.phase == RunPhase.RUNNING
+                        state.phase == RunPhase.RUNNING,
+                    myAvatar = state.myAvatar
                 )
                 state.splitBanner?.takeIf { !state.isPaused }?.let {
                     RunkkBanner(
@@ -410,13 +414,22 @@ private fun RunningStats(progress: RunProgress) {
 }
 
 /**
- * 경로선과 경로 끝의 내 아바타(D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. 아바타는 경로 전후 같은 그림이다.
- * 아바타 칸(SlotKey.RUN_AVATAR, design-oo 05-30 7절)이 있으면 88dp 칸에 Rive 아바타를 넣는다: 측정 중(일시정지 아님)이면 RUN, 그 밖은
- * STAND이고 진행 방향 원값을 넘긴다([임시:D-성-122], [임시:D-성-133]). 칸이 비면 지금 그림이다: 움직이는 동안 달리기 동작을 현재
- * 페이스 빠르기로 넘기고, 멈춰 있거나 일시정지면 서 있는다.
+ * 자유런 지도([임시:D-성-269], [임시:FR-성-31]): Kakao 지도를 띄울 수 있으면 지도 카드 한 장([RunkkMeMap])에 내가 달린 길과 지금
+ * 위치의 내 얼굴 원을 그린다. 보기 전환, 진행 막대, 차이 문장은 없고(상대와 목표가 없다) 달리는 아바타 칸도 두지 않는다.
+ *
+ * 지도를 띄울 수 없으면(키·지도 라이브러리 없음, 실행 중 지도 오류) 지금의 대체 그림을 유지한다: 격자 바탕 경로선과 경로 끝의 내 아바타
+ * (D-261). 경로가 아직 없으면 아바타만 가운데에 둔다. 아바타 칸(SlotKey.RUN_AVATAR, design-oo 05-30 7절)이 있으면 88dp 칸에 Rive
+ * 아바타를 넣는다: 측정 중(일시정지 아님)이면 RUN, 그 밖은 STAND이고 진행 방향 원값을 넘긴다(D-754, D-765). 칸이
+ * 비면 지금 그림이다: 움직이는 동안 달리기 동작을 현재 페이스 빠르기로 넘기고, 멈춰 있거나 일시정지면 서 있는다.
  */
 @Composable
-private fun RunningRoute(route: RouteLine, progress: RunProgress, isPaused: Boolean, isRunning: Boolean) {
+private fun RunningRoute(
+    route: RouteLine,
+    progress: RunProgress,
+    isPaused: Boolean,
+    isRunning: Boolean,
+    myAvatar: MyAvatar?
+) {
     val me = route.points.lastOrNull()
     val isMoving = rememberIsMoving(progress.distance) && !isPaused && progress.currentPace != null
     val frameMillis = runFrameMillis(progress.currentPace)
@@ -428,16 +441,23 @@ private fun RunningRoute(route: RouteLine, progress: RunProgress, isPaused: Bool
     val figure: @Composable () -> Unit = {
         RunAvatarSlot(pose, isLeft, runSpeed) { RunkkRunningFigure(isMoving, frameMillis, isFacingLeft = isLeft) }
     }
-    // Kakao 지도를 띄울 수 있으면(키 + 지도 라이브러리) 지도 위에서 카메라가 나를 따라가고, 아니면 격자 바탕 경로선이다.
+    // Kakao 지도를 띄울 수 있으면(키 + 지도 라이브러리) 나만 그리는 지도 카드이고, 아니면 격자 바탕 경로선이다.
     // 실행 중 지도 오류가 나면 격자로 바꾼다(D-340).
     var isMapFailed by remember { mutableStateOf(false) }
     if (canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)) {
-        KakaoRunMap(
+        RunkkMeMap(
             route = route,
-            modifier = Modifier.fillMaxSize(),
-            myMarkerSize = figureSize,
-            onMapError = { isMapFailed = true }
-        ) { figure() }
+            myMarkerSize = MAP_FACE_SIZE,
+            onMapError = { isMapFailed = true },
+            modifier = Modifier.fillMaxSize().testTag(RUN_MAP_TAG)
+        ) {
+            RunkkAvatarCircle(
+                faceKey = myAvatar?.faceKey,
+                size = MAP_FACE_SIZE,
+                faceLayers = myAvatar?.faceLayers.orEmpty(),
+                borderColor = RunkkColors.Lime
+            )
+        }
         return
     }
     val markers = remember(me, isMoving, frameMillis, isLeft, pose, figureSize) {
@@ -531,9 +551,15 @@ private const val SUMMARY_SEPARATOR = ", "
 private const val NO_HEART_RATE = "--"
 private val BIG_BUTTON = 88.dp
 
-/** 내 위치 그림 칸: 지금 그림 72dp, 아바타 칸(Rive)이면 88dp([임시:D-성-121], 피그마 62341:1878). */
+/** 내 위치 그림 칸: 지금 그림 72dp, 아바타 칸(Rive)이면 88dp(D-753, 피그마 62341:1878). */
 private val MY_FIGURE = 72.dp
 private val MY_AVATAR_SLOT = 88.dp
+
+/** 지도 위 내 위치의 얼굴 원([임시:FR-성-31]). */
+private val MAP_FACE_SIZE = 44.dp
+
+/** 자유런 지도 카드의 시험 표지. */
+internal const val RUN_MAP_TAG = "run-map"
 private val SMALL_BUTTON = 48.dp
 
 private val previewProgress = RunProgress(

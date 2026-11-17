@@ -71,6 +71,11 @@ public final class InMemoryRunningRepositories {
         }
 
         @Override
+        public Optional<com.a207.runkk.common.AvatarLook> findLook(String recordId) {
+            return findById(recordId).flatMap(RunRecord::look);
+        }
+
+        @Override
         public List<RunSummary> findSummaries(Collection<String> recordIds) {
             return recordIds.stream()
                     .distinct()

@@ -1,4 +1,4 @@
-"""맨몸 바탕·옷 레이어 정리([임시:D-성-184] 민소매 팔 선, [임시:D-성-185] 허리 띠·반바지 가장자리).
+"""맨몸 바탕·옷 레이어 정리(D-816 민소매 팔 선, D-817 허리 띠·반바지 가장자리).
 
 riv 메시는 체형과 숨쉬기 동작에서 팔과 몸통 사이, 엉덩이 옆을 늘린다. 그래서 텍스처의 작은 흠이 화면에서 선으로 커진다.
 
@@ -302,7 +302,7 @@ WAIST_BRIDGE_ROWS = 345
 
 def waist_tufts_mask(rgba: np.ndarray | Image.Image) -> np.ndarray:
     """하의 서기 레이어의 허리 겹침 띠(`spec.STAND_WAIST` 행)에서 하의 본체(y [WAIST_ROOT] 아래로 이어진 덩어리)와 떨어진 조각(그림 도구
-    추출 찌꺼기). 가는 털로만 이어진 조각도 떨어진 것으로 본다. 상의 밑단이 짧으면 맨몸 위로 검은 얼룩·들쭉날쭉한 허리선으로 보였다([임시:D-성-185])."""
+    추출 찌꺼기). 가는 털로만 이어진 조각도 떨어진 것으로 본다. 상의 밑단이 짧으면 맨몸 위로 검은 얼룩·들쭉날쭉한 허리선으로 보였다(D-817)."""
     from outfit_pipeline.build import _components
 
     array = _rgba(rgba)
@@ -381,7 +381,7 @@ def square_waist_sides(image: Image.Image) -> tuple[Image.Image, int]:
 
 
 def extend_waist(image: Image.Image, body: Image.Image) -> tuple[Image.Image, int]:
-    """하의 서기 레이어의 허리를 허리 겹침 띠 위(y 296)까지 늘린다(상의 밑단 밑으로 들어가게, [임시:D-성-158]·[임시:D-성-185]). 열마다 하의가
+    """하의 서기 레이어의 허리를 허리 겹침 띠 위(y 296)까지 늘린다(상의 밑단 밑으로 들어가게, D-790·D-817). 열마다 하의가
     5행 이어지기 시작하는 행 아래 4~8행의 색(양옆 10열 가운데값)으로, 맨몸 실루엣 안만 채운다. 하의가 그 띠에서 시작하지 않는 열은 그대로.
     밑단이 높은 상의와 짧은 허리 사이로 맨몸(예전엔 맨몸의 짙은 허리 밴드)이 띠로 보이지 않게 한다. (레이어, 채운 픽셀 수)."""
     array = _rgba(image).astype(np.float64)
@@ -441,7 +441,7 @@ SEAM = 4  # 하의 레이어에서 위·아래가 모두 천인 이 높이 이�
 
 def seam_mask(rgba: np.ndarray | Image.Image) -> np.ndarray:
     """하의 레이어의 세로 [SEAM]px 이하 틈: 열마다 불투명 천 사이에 낀 반투명·투명 픽셀 줄. 예전엔 맨몸 바탕의 회색 속바지가 메워
-    보이지 않다가, 맨몸이 피부가 되자 밑단에 살색 점선으로 보였다([임시:D-성-185])."""
+    보이지 않다가, 맨몸이 피부가 되자 밑단에 살색 점선으로 보였다(D-817)."""
     array = _rgba(rgba)
     solid = array[..., 3] >= SOLID
     height = solid.shape[0]
@@ -479,7 +479,7 @@ GAP_PIECE = 200  # 틈 안에 따로 떨어진 불투명 덩어리(4방향, 알�
 
 def drop_gap_fragments(image: Image.Image) -> Image.Image:
     """서기 맨몸의 팔과 몸통 사이 틈([GAP_ZONES]) 안에 따로 떨어진 작은 불투명 덩어리(옛 반팔·몸통 가장자리의 짙은 선 조각, 팔 외곽선과
-    반투명 1px로만 닿는다)를 지운다. 팔·몸통 본체는 큰 덩어리라 남는다([임시:D-성-184])."""
+    반투명 1px로만 닿는다)를 지운다. 팔·몸통 본체는 큰 덩어리라 남는다(D-816)."""
     from outfit_pipeline.build import _components
 
     array = _rgba(image).copy()
@@ -500,7 +500,7 @@ SIDE_WAIST = (100, 296, 412, 330)  # 허리(겹침 띠와 허리 밴드 아래 �
 
 def side_gap_mask(image: Image.Image, body: Image.Image) -> np.ndarray:
     """하의 서기 레이어의 엉덩이 옆 칸(`spec.STAND_HIP_CUTS`)과 허리([SIDE_WAIST])에서 [SIDE_CLOSE]px로 닫으면 메워지는 맨몸 실루엣 안
-    빈 곳(밑단 옆 트임, 허리 옆 구멍). 그 밑 맨몸이 배경(자르기)이나 살색 조각으로 비쳤다([임시:D-성-185])."""
+    빈 곳(밑단 옆 트임, 허리 옆 구멍). 그 밑 맨몸이 배경(자르기)이나 살색 조각으로 비쳤다(D-817)."""
     array = _rgba(image)
     solid = array[..., 3] >= SOLID
     mask = Image.fromarray((solid * 255).astype(np.uint8))
@@ -569,7 +569,7 @@ def _components8(mask: np.ndarray) -> list[np.ndarray]:
 
 def dust_mask(rgba: np.ndarray | Image.Image) -> np.ndarray:
     """맨몸 바탕의 고립 점: 알파가 있는 픽셀을 8방향으로 이은 덩어리 가운데 알파 128 이상이 하나도 없거나(거의 투명한 먼지·떨어진 유령
-    외곽선) [DUST_PIECE]픽셀보다 작은 것. 외곽선에 붙은 안티에일리어싱은 몸 덩어리에 이어져 있어 남는다([임시:D-성-184] 검수)."""
+    외곽선) [DUST_PIECE]픽셀보다 작은 것. 외곽선에 붙은 안티에일리어싱은 몸 덩어리에 이어져 있어 남는다(D-816 검수)."""
     array = _rgba(rgba)
     alpha = array[..., 3]
     out = np.zeros(alpha.shape, bool)

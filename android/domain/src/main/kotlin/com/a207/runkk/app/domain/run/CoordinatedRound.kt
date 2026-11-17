@@ -66,10 +66,8 @@ internal class CoordinatedRound(
         return true
     }
 
-    /** 측정 중이면 endRun(기록 저장). 여러 곳에서 동시에 불러도 한 번만 끝낸다. */
-    fun endMeasuring() {
-        if (measuring.compareAndSet(true, false)) tracker.endRun()
-    }
+    /** 측정 중이면 endRun(기록 저장)하고 그 결과를 돌려준다. 여러 곳에서 동시에 불러도 한 번만 끝내고 나머지는 null이다. */
+    fun endMeasuring(): FinishOutcome? = if (measuring.compareAndSet(true, false)) tracker.endRun() else null
 
     /** 측정 중이면 기록을 남기지 않고 끝낸다(RunTracker.discardRun, D-266). 여러 번 불러도 한 번만 버린다. */
     fun discardMeasuring() {

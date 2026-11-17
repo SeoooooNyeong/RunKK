@@ -1,12 +1,15 @@
 package com.a207.runkk.app.ui.me
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -17,14 +20,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.designsystem.GuideStep
+import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkButton
 import com.a207.runkk.app.core.designsystem.RunkkButtonSize
 import com.a207.runkk.app.core.designsystem.RunkkButtonStyle
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkDialog
 import com.a207.runkk.app.core.designsystem.RunkkDialogButtons
+import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkSwitchRow
 import com.a207.runkk.app.core.designsystem.RunkkTextLink
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
@@ -193,7 +200,7 @@ private fun VisibilitySection(state: SettingsUiState, actions: SettingsActions, 
     }
 }
 
-/** 기기, 기타 묶음: 워치 연동(심박 동의가 없으면 [onAskHeartRate]), 알림 설정, 약관 및 정책, 도움말. */
+/** 기기, 기타 묶음: 워치 연동(심박 동의가 없으면 [onAskHeartRate]), 알림 설정, 약관 및 정책, 도움말, 가이드 다시 보기. */
 @Composable
 private fun DeviceSection(
     state: SettingsUiState,
@@ -221,6 +228,43 @@ private fun DeviceSection(
         )
         SettingsDivider()
         ValueRow(stringResource(R.string.me_settings_legal_title), null, onClick = onLegal)
+        SettingsDivider()
+        // 단계 수는 배포 범위를 따른다(닫힌 기능의 단계는 빠진다, [임시:D-성-299])
+        val stepCount = GuideStep.visibleIn(LocalReleaseScope.current).size
+        GuideReplayRow(stepCount, onClick = actions.onReplayGuide)
+    }
+}
+
+/** 「가이드 다시 보기」 줄([임시:FR-성-36]): 제목 아래에 설명(「홈 사용법 n단계를 처음부터 다시 봐요」), 오른쪽에 이동 표시. */
+@Composable
+private fun GuideReplayRow(stepCount: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 56.dp)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                stringResource(R.string.me_settings_guide_replay_title),
+                style = RunkkTextStyles.text(15, FontWeight.Medium),
+                color = RunkkColors.TextPrimary
+            )
+            Text(
+                stringResource(R.string.me_settings_guide_replay_description, stepCount),
+                style = RunkkTextStyles.Caption,
+                color = RunkkColors.TextSecondary
+            )
+        }
+        Icon(
+            RunkkIcons.ChevronRight,
+            contentDescription = null,
+            tint = RunkkColors.TextSecondary,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 

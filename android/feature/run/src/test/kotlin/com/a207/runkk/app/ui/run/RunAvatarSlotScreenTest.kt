@@ -34,7 +34,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 자유런 측정 화면의 내 아바타 칸(design-oo 05-30 7절, [임시:D-성-121], [임시:D-성-122], [임시:D-성-133]): 측정 중(일시정지 아님)이면
+ * 자유런 측정 화면의 내 아바타 칸(design-oo 05-30 7절, D-753, D-754, D-765): 측정 중(일시정지 아님)이면
  * RUN, 그 밖은 STAND이고, 진행 방향은 `rememberHeadingLeft` 원값을 그대로 넘긴다. 칸은 88dp다.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -109,7 +109,7 @@ class RunAvatarSlotScreenTest {
     }
 
     @Test
-    fun `DR-성-14 위치가 10번 갱신되어도 칸 내용은 한 번만 만든다`() {
+    fun `DR-14 위치가 10번 갱신되어도 칸 내용은 한 번만 만든다`() {
         var created = 0
         val counting: @Composable () -> Unit = {
             DisposableEffect(Unit) {

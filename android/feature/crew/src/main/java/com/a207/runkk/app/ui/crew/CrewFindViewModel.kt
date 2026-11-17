@@ -64,7 +64,7 @@ class CrewFindViewModel internal constructor(private val crews: CrewRepository, 
     }
 
     /**
-     * 이 탭 자리에 그린 내 크루 홈에서 탈퇴·크루 삭제했다(DV-성-7). 탭 항목과 ViewModel이 남아 [refreshMine]이 다시 확인하지 않으므로
+     * 이 탭 자리에 그린 내 크루 홈에서 탈퇴·크루 삭제했다(DV-7). 탭 항목과 ViewModel이 남아 [refreshMine]이 다시 확인하지 않으므로
      * 내 크루를 비우고 처음처럼 다시 확인해 크루 찾기(나온 뒤 24시간 카운트다운 포함)를 보인다.
      */
     fun onLeftCrew() {

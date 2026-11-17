@@ -294,5 +294,39 @@ class MemberAccountServicesTest {
                         Map.entry(c, ShownGender.fallbackOf(c)),
                         Map.entry(999L, ShownGender.fallbackOf(999L)));
         assertThat(query.shownGendersOf(List.of())).isEmpty();
+        // 본인이 보는 내 성별(S15P31A207-306 그날의 나): 공개 값과 무관하게 입력한 남·여, 성별 없음·없는 회원은 비어 있다
+        assertThat(query.ownGenderOf(b)).hasValue(Gender.FEMALE);
+        assertThat(query.ownGenderOf(a))
+                .isEqualTo(Optional.ofNullable(repository.findById(a).orElseThrow().gender()));
+        assertThat(query.ownGenderOf(c)).isEmpty();
+        assertThat(query.ownGenderOf(999L)).isEmpty();
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName(
+            "열람자에게 보일 성별: 내 줄은 성별을 비공개로 둬도 내가 입력한 성별이고, 다른 회원 줄은 표시 성별 그대로다(S15P31A207-306 크루원 목록의"
+                    + " 나)")
+    void gendersShownTo_usesOwnGenderForViewer() {
+        MemberQueryService query = new MemberQueryService(repository);
+        long other = saved("곰이웃");
+        // 성별은 여(비공개)인데 대체값이 남으로 나오는 회원: 표시 성별과 실제 성별이 다르다
+        long hidden =
+                java.util.stream.IntStream.range(0, 40)
+                        .mapToLong(i -> saved("숨은곰" + i))
+                        .filter(id -> ShownGender.fallbackOf(id) == Gender.MALE)
+                        .findFirst()
+                        .orElseThrow();
+
+        assertThat(query.gendersShownTo(hidden, List.of(hidden, other, 999L)))
+                .containsOnly(
+                        Map.entry(hidden, Gender.FEMALE),
+                        Map.entry(other, ShownGender.fallbackOf(other)),
+                        Map.entry(999L, ShownGender.fallbackOf(999L)));
+        assertThat(query.gendersShownTo(other, List.of(hidden)))
+                .as("남이 볼 때는 대체값")
+                .containsOnly(Map.entry(hidden, Gender.MALE));
+        assertThat(query.gendersShownTo(hidden, List.of(other)))
+                .as("목록에 내가 없으면 표시 성별과 같다")
+                .isEqualTo(query.shownGendersOf(List.of(other)));
     }
 }

@@ -26,9 +26,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
- * 서버 시각 저장 계약(DF-073, srs [임시:NFR-성-1]): 서버가 JPA로 쓴 LocalDateTime은 DB에 한국 시각 벽시계 값 그대로 남고, SQL로 넣은
- * 한국 시각은 서버가 같은 값으로 읽는다. hibernate.jdbc.time_zone을 두지 않았으므로 JVM 기본 시간대가 UTC여도(옛 운영 컨테이너) 값이 옮겨지지
- * 않는다. 감사 저장소를 대표로 쓴다. Docker가 없으면 건너뛴다.
+ * 서버 시각 저장 계약(DF-073, srs NFR-058): 서버가 JPA로 쓴 LocalDateTime은 DB에 한국 시각 벽시계 값 그대로 남고, SQL로 넣은 한국
+ * 시각은 서버가 같은 값으로 읽는다. hibernate.jdbc.time_zone을 두지 않았으므로 JVM 기본 시간대가 UTC여도(옛 운영 컨테이너) 값이 옮겨지지 않는다.
+ * 감사 저장소를 대표로 쓴다. Docker가 없으면 건너뛴다.
  */
 @Testcontainers(disabledWithoutDocker = true)
 @SpringBootTest(classes = RunkkApplication.class)

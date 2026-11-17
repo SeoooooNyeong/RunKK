@@ -7,7 +7,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 /**
- * 공용 합성 캐시([임시:D-성-105], [임시:DR-성-10]): 남녀 × 동작마다 마지막 모습 하나(상한 4묶음). 키는 성별·동작·머리 동일성(참조)·
+ * 공용 합성 캐시(D-737, DR-10): 남녀 × 동작마다 마지막 모습 하나(상한 4묶음). 키는 성별·동작·머리 동일성(참조)·
  * 의상·체형·러닝량이다. 뷰는 합성 전에 이 캐시를 먼저 본다.
  */
 class SharedToneCacheTest {

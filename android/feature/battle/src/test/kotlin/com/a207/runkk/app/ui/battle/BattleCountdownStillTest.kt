@@ -11,6 +11,8 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.model.Gender
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.SlotKey
@@ -29,6 +31,24 @@ import org.robolectric.RobolectricTestRunner
 class BattleCountdownStillTest {
     @get:Rule
     val compose = createComposeRule()
+
+    @Test
+    fun `과거의 나 대결자 카드는 받은 모습을 끝까지 전달한다`() {
+        val saved = RunnerLook(Gender.MALE, 11, 21, 31, 1, 70, "head:old")
+        var seen: com.a207.runkk.app.core.navigation.AvatarStillSubject? = null
+        compose.setContent {
+            val inspect: @Composable () -> Unit = {
+                seen = LocalSlotAvatarStill.current
+                Box(Modifier.fillMaxSize())
+            }
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.AVATAR_STILL to listOf(inspect))) {
+                RunkkTheme(reduceMotion = true) {
+                    Contender("그날의 나", figure = Figure.PAST_SELF, look = saved)
+                }
+            }
+        }
+        compose.runOnIdle { kotlin.test.assertEquals(pastSelfStill(saved), seen) }
+    }
 
     private val probe: @Composable () -> Unit = {
         val subject = LocalSlotAvatarStill.current

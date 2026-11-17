@@ -38,16 +38,39 @@ public class CrewRunLiveSession {
     private final Set<Long> ended = new HashSet<>();
     private final Set<Long> checking = new HashSet<>();
 
+    /** 개인 측정 시작 시각(중간 참여자, 설계 05-32 [임시:D-성-885]). 없으면 세션 시작 시각이다. */
+    private final Map<Long, LocalDateTime> starts = new HashMap<>();
+
     private CrewRunLiveSession(long postId, LocalDateTime startAt, Map<Long, DisplayName> names) {
         this.postId = postId;
         this.startAt = startAt;
         this.names = new LinkedHashMap<>(names);
     }
 
-    /** 출발 때 진행 참가자 표시명(입장 순으로 넘긴다)으로 연다. */
+    /** 출발 때 진행 참가자 표시명(입장 순으로 넘긴다)으로 연다. 진행 참가자가 0명이어도 연다(늦은 참여를 받는다, U-33). */
     public static CrewRunLiveSession open(
             long postId, Map<Long, DisplayName> names, LocalDateTime startAt) {
         return new CrewRunLiveSession(postId, startAt, names);
+    }
+
+    /**
+     * 중간 참여자를 줄 끝에 더한다(설계 05-32 [임시:D-성-885]). 개인 측정 시작 시각은 joinedAt이고 거리는 0부터 실제 달린 거리 그대로다(보정
+     * 없음). 이미 참가자면 아무것도 바꾸지 않고 false(재시도, 누락 보충에 안전).
+     */
+    public boolean join(long memberId, DisplayName name, LocalDateTime joinedAt) {
+        if (names.containsKey(memberId)) {
+            return false;
+        }
+        names.put(memberId, name);
+        if (joinedAt != null && !joinedAt.equals(startAt)) {
+            starts.put(memberId, joinedAt);
+        }
+        return true;
+    }
+
+    /** 참가자의 개인 측정 시작 시각(중간 참여자는 참여 시각, 나머지는 세션 시작 시각). */
+    public LocalDateTime startOf(long memberId) {
+        return starts.getOrDefault(memberId, startAt);
     }
 
     /**
@@ -85,7 +108,7 @@ public class CrewRunLiveSession {
             LocalDateTime seen =
                     Optional.ofNullable(latest.get(memberId))
                             .map(LiveProgress::seenAt)
-                            .orElse(startAt);
+                            .orElse(startOf(memberId));
             if (Duration.between(seen, now).compareTo(TIMEOUT) > 0) {
                 checking.add(memberId);
                 changed = true;
@@ -190,7 +213,8 @@ public class CrewRunLiveSession {
                                             .map(Duration::toMillis)
                                             .orElse(null),
                                     ended.contains(id),
-                                    checking.contains(id)));
+                                    checking.contains(id),
+                                    starts.get(id)));
                 });
         return new Snapshot(postId, startAt, runners);
     }
@@ -218,6 +242,9 @@ public class CrewRunLiveSession {
             }
             if (runner.checking()) {
                 session.checking.add(runner.memberId());
+            }
+            if (runner.joinedAt() != null) {
+                session.starts.put(runner.memberId(), runner.joinedAt());
             }
         }
         return session;
@@ -247,6 +274,7 @@ public class CrewRunLiveSession {
          * @param pausedAtMillis 일시정지 때 경과, 달리는 중이면 null
          * @param ended 끝냄
          * @param checking 연결 확인 중
+         * @param joinedAt 중간 참여자의 개인 측정 시작 시각, 세션 시작과 같거나 옛 세션이면 null(설계 05-32)
          */
         public record Runner(
                 long memberId,
@@ -256,6 +284,30 @@ public class CrewRunLiveSession {
                 LocalDateTime seenAt,
                 Long pausedAtMillis,
                 boolean ended,
-                boolean checking) {}
+                boolean checking,
+                LocalDateTime joinedAt) {
+
+            /** 중간 참여 전 형식(개인 측정 시작 시각 없음). */
+            public Runner(
+                    long memberId,
+                    String name,
+                    Long meters,
+                    Long elapsedMillis,
+                    LocalDateTime seenAt,
+                    Long pausedAtMillis,
+                    boolean ended,
+                    boolean checking) {
+                this(
+                        memberId,
+                        name,
+                        meters,
+                        elapsedMillis,
+                        seenAt,
+                        pausedAtMillis,
+                        ended,
+                        checking,
+                        null);
+            }
+        }
     }
 }

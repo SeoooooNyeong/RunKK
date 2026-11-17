@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.core.model.RunnerLook
 import com.a207.runkk.app.domain.battle.ActiveBattle
 import com.a207.runkk.app.domain.battle.BattleHistory
 import com.a207.runkk.app.domain.battle.BattleResult
@@ -310,6 +311,38 @@ class BattleRepositoryImplTest {
         assertEquals(CardKind.SELF_RUN, start.cardKind)
         assertEquals(Distance(150), start.track.distanceAt(Duration.ofSeconds(50)), "표본 사이 직선 보간")
         assertEquals(Duration.ofSeconds(1_000), start.track.arrivalTime(Distance(3_000)))
+    }
+
+    @Test
+    fun `후보와 대결 조회·결과·기록 대결 시작의 상대 모습을 읽고 없으면 null이다(D-성-252)`() = runTest {
+        val look =
+            """{"gender":"MALE","equipped":{"TOP":12,"SHOES":31},"bodyVariant":1,"runAmount":42,"faceKey":"head:7:ab12"}"""
+        api.reply(
+            """{"candidates":[{"displayName":"나","distanceMeters":5000,"finishSeconds":1500,"recordedOn":"2026-10-02","look":$look},
+               |{"displayName":"나","distanceMeters":10000,"look":null}]}
+            """.trimMargin()
+        )
+        api.reply(
+            """{"battleId":1,"type":"RANDOM","status":"RUNNING","distanceMeters":5000,"opponentName":"바람처럼","opponentLook":$look}"""
+        )
+        api.reply("""{"battleId":9,"pending":false,"verdict":"WIN","opponentLook":$look}""")
+        api.reply("""{"battleId":9,"pending":false,"verdict":"WIN","opponentLook":null}""")
+        api.reply(
+            """{"battleId":4,"opponentName":"나","distanceMeters":5000,"track":[],"cardKind":"SELF_RUN","opponentLook":$look}"""
+        )
+
+        val candidates = repository.selfCandidates().value().candidates
+        val active = repository.active().value()
+        val result = repository.result(9).value()
+        val bare = repository.result(9).value()
+        val start = repository.startSelfBattle(Distance(5_000)).value()
+
+        val expected = RunnerLook(Gender.MALE, 12, null, 31, bodyVariant = 1, runAmount = 42, faceKey = "head:7:ab12")
+        assertEquals(listOf(expected, null), candidates.map { it.look })
+        assertEquals(expected, active?.opponentLook)
+        assertEquals(expected, result.opponentLook)
+        assertEquals(null, bare.opponentLook)
+        assertEquals(expected, start.opponentLook)
     }
 
     @Test

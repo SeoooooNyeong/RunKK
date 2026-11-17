@@ -26,7 +26,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * 러닝 중 아바타 칸(design-oo 05-30 [임시:D-성-100]·[임시:D-성-101]·[임시:D-성-121]·[임시:D-성-133]): 측정 화면은 칸에 동작과 진행 방향
+ * 러닝 중 아바타 칸(design-oo 05-30 D-732·D-733·D-753·D-765): 측정 화면은 칸에 동작과 진행 방향
  * 원값만 넘기고, 칸이 비면 지금 그림을 그린다. 내 마커만 88dp로 키울 수 있다.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -71,6 +71,41 @@ class RunAvatarSlotTest {
         compose.waitForIdle()
         assertEquals(AvatarSlotPose.RUN, seenPose)
         assertEquals(true, seenLeft)
+    }
+
+    @Test
+    fun `상대 대상이면 상대 모습으로 그린다`() {
+        val look = SlotRunnerLook(isFemale = true, topItemId = 12, shoesItemId = 31, bodyVariant = 1, runAmount = 42)
+        var seen: RunAvatarSubject? = null
+        val subjectProbe: @Composable () -> Unit = { seen = LocalSlotAvatarRunSubject.current }
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(subjectProbe))) {
+                RunAvatarSlot(AvatarSlotPose.RUN, facingLeft = false, subject = RunAvatarSubject.other(look, null)) {}
+            }
+        }
+        assertEquals(RunAvatarSubject(isMine = false, look = look, isFemale = true), seen)
+    }
+
+    @Test
+    fun `모습을 받지 못한 상대는 표시 성별만 넘긴다`() {
+        assertEquals(RunAvatarSubject(isMine = false, look = null, isFemale = true), RunAvatarSubject.other(null, true))
+        assertEquals(RunAvatarSubject(isMine = false, look = null, isFemale = null), RunAvatarSubject.other(null, null))
+    }
+
+    @Test
+    fun `기본 대상은 지금처럼 내 아바타다`() {
+        var seen: RunAvatarSubject? = null
+        var outside: RunAvatarSubject? = null
+        val subjectProbe: @Composable () -> Unit = { seen = LocalSlotAvatarRunSubject.current }
+        compose.setContent {
+            outside = LocalSlotAvatarRunSubject.current
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(subjectProbe))) {
+                RunAvatarSlot(AvatarSlotPose.RUN, facingLeft = false) {}
+            }
+        }
+        assertEquals(RunAvatarSubject.Mine, seen)
+        assertEquals(RunAvatarSubject.Mine, outside, "칸 밖에서도 내 아바타다")
+        assertEquals(true, RunAvatarSubject.Mine.isMine)
     }
 
     @Test

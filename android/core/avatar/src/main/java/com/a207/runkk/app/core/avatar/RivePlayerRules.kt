@@ -4,7 +4,7 @@ import android.view.View
 
 /** [RiveAvatarView]의 플레이어 뷰 규칙(시험할 수 있게 뷰 밖에 둔다). */
 internal object RivePlayerRules {
-    /** 좌우 뒤집기는 달리기 플레이어만 한다(뷰 `scaleX = -1`, [임시:D-성-130]). 서기(정면)는 늘 1이다. */
+    /** 좌우 뒤집기는 달리기 플레이어만 한다(뷰 `scaleX = -1`, D-762). 서기(정면)는 늘 1이다. */
     fun scaleX(motion: AvatarMotion, mirrored: Boolean): Float = if (motion == AvatarMotion.RUN && mirrored) -1f else 1f
 
     /** 지금 동작이 아니면 GONE, 그 동작의 첫 텍스처가 들어가기 전에는 INVISIBLE(기본 그림 숨김), 들어가면 VISIBLE. */

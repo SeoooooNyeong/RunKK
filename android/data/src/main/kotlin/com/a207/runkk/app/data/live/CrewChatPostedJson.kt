@@ -43,7 +43,9 @@ internal data class CrewChatPostedJson(
     val clientMessageId: String? = null,
     val messageKind: String = "TEXT",
     val authorRole: String? = null,
-    val runDistanceMeters: Long? = null
+    val runDistanceMeters: Long? = null,
+    val authorFaceKey: String? = null,
+    val authorShownGender: String? = null
 ) {
     fun toDomain(): CrewChatPosted = CrewChatPosted(
         crewId,
@@ -55,6 +57,8 @@ internal data class CrewChatPostedJson(
         clientMessageId,
         messageKind,
         authorRole,
-        runDistanceMeters
+        runDistanceMeters,
+        authorFaceKey,
+        authorShownGender
     )
 }

@@ -90,9 +90,18 @@ class RunCollaboratorsTest {
         )
         assertNotNull(ctor.getAnnotation(javax.inject.Inject::class.java))
         assertNotNull(RunTracker::class.java.getAnnotation(Singleton::class.java))
-        fun params(type: Class<*>) = type.constructors.single().parameterTypes.toList()
+        // 주입 생성자를 본다(RunArchive는 시험·워치용 3인자 생성자를 따로 둔다).
+        fun params(type: Class<*>) = type.constructors.single {
+            it.isAnnotationPresent(javax.inject.Inject::class.java) || type.constructors.size == 1
+        }.parameterTypes.toList()
+        // 내 기록 저장 결과는 OwnRunUploads로 알린다(설계 05-32 OwnRunUploadPort).
         assertEquals(
-            listOf(PendingRunRepository::class.java, UploadScheduler::class.java, CoroutineScope::class.java),
+            listOf(
+                PendingRunRepository::class.java,
+                UploadScheduler::class.java,
+                CoroutineScope::class.java,
+                OwnRunUploads::class.java
+            ),
             params(RunArchive::class.java)
         )
         assertEquals(listOf(WatchGateway::class.java, CoroutineScope::class.java), params(RunWatchBridge::class.java))

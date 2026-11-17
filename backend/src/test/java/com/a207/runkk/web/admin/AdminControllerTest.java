@@ -334,7 +334,7 @@ class AdminControllerTest extends WebTestSupport {
                                 .content(write(badKey)))
                 .andExpect(status().isBadRequest());
         java.util.Map<String, Object> lee = new java.util.HashMap<>(celebrity());
-        lee.put("figureKey", "joo"); // 셀럽런 목록은 코치(joo·kim)만 보인다([임시:D-성-219])
+        lee.put("figureKey", "joo"); // 셀럽런 목록은 코치(joo·kim)만 보인다(D-851)
         lee.put("splits", List.of()); // 5km까지인 구간은 10km 대결 표가 되지 않는다
         long celebrityId =
                 body(mvc.perform(

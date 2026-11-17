@@ -18,6 +18,7 @@ import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunDetail
 import com.a207.runkk.app.domain.crew.CrewRunEdit
 import com.a207.runkk.app.domain.crew.CrewRunForm
+import com.a207.runkk.app.domain.crew.CrewRunJoin
 import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
@@ -114,7 +115,12 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
         ApiErrorMapper.call { api.race(crewId, weekStart?.let(ServerTime::formatDate)).toDomain() }
 
     override suspend fun posts(crewId: Long, kind: PostList.Kind?, cursor: Long?): Outcome<PostList> =
-        ApiErrorMapper.call { api.posts(crewId, kind?.name, cursor, PAGE_SIZE).toDomain() }
+        ApiErrorMapper.call { api.posts(crewId, kind?.name, cursor, PAGE_SIZE, null, null).toDomain() }
+
+    /** 크루런 탭 목록: 진행 중인 크루런만 예정 일시 오름차순(설계 05-32 4.5). */
+    override suspend fun activeCrewRuns(crewId: Long, cursor: Long?): Outcome<PostList> = ApiErrorMapper.call {
+        api.posts(crewId, PostList.Kind.CREW_RUN.name, cursor, PAGE_SIZE, SCHEDULED_ASC, true).toDomain()
+    }
 
     override suspend fun writeCrewRun(crewId: Long, form: CrewRunForm): Outcome<Long> =
         ApiErrorMapper.call { api.writePost(crewId, form.toRequest()).id }
@@ -154,6 +160,20 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
         api.leaveLobby(postId).toDomain()
     }
 
+    override suspend fun lobby(postId: Long): Outcome<Lobby> = ApiErrorMapper.call { api.lobby(postId).toDomain() }
+
+    override suspend fun setReady(postId: Long, ready: Boolean): Outcome<Lobby> = ApiErrorMapper.call {
+        api.setReady(postId, ReadyRequest(ready)).toDomain()
+    }
+
+    override suspend fun startNow(postId: Long): Outcome<Lobby> = ApiErrorMapper.call {
+        api.startNow(postId).toDomain()
+    }
+
+    override suspend fun join(postId: Long): Outcome<CrewRunJoin> = ApiErrorMapper.call {
+        api.join(postId).toDomain()
+    }
+
     override suspend fun quit(postId: Long, distanceMeters: Long?, elapsed: Duration?): Outcome<Unit> =
         ApiErrorMapper.call { api.quit(postId, CrewRunQuitRequest(distanceMeters, elapsed?.seconds)) }
 
@@ -190,6 +210,10 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
     private companion object {
         /** 크루 목록·게시글 한 쪽 크기(서버 PageCursor 1~100). */
         const val PAGE_SIZE = 20
+
+        /** 크루런 탭 날짜순(서버 crew.PostOrder.SCHEDULED_ASC). */
+        const val SCHEDULED_ASC = "SCHEDULED_ASC"
+
         const val LOGO_PART = "logo"
         const val LOGO_FILE = "logo.jpg"
         const val NOT_CREW_LOGO = "NOT_CREW_LOGO"

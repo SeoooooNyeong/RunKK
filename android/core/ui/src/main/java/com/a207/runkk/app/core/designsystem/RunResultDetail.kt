@@ -63,7 +63,7 @@ import kotlinx.coroutines.delay
  * [crewLine]은 크루 반영 줄이고 CREW가 닫혀 있으면(1차 배포) 그리지 않는다. 가장 빠른 1km·소모 열량·날씨는 싣지 않는다(D-26).
  * [expression]은 뛰어오르는 아바타가 기본이고(D84, 피그마 B-6·C-8) 패배 상세만 부르는 쪽이 SAD를 넘긴다.
  * [faceKey]·[faceLayers]는 내 아바타 얼굴(크루런·대결 결과 상세 F-16b)이고 아바타 꾸미기가 열려 있을 때 그린다.
- * [dateItems]가 있으면 날짜 줄을 가운뎃점 글자([dateLine]) 대신 아이콘 메타 줄(MetaRow, [임시:D-성-10])로 그린다.
+ * [dateItems]가 있으면 날짜 줄을 가운뎃점 글자([dateLine]) 대신 아이콘 메타 줄(MetaRow, D-642)로 그린다.
  */
 @Immutable
 data class RunResultDetailState(
@@ -89,7 +89,7 @@ data class RunResultDetailState(
  * 러닝 결과 상세(D-282, 피그마 B-6): 큰 거리와 날짜 줄, 기본 아바타, "시간"(아래 휴식)·"평균 페이스"·"평균 심박" 세 칸,
  * 구간 페이스(1km 막대)와 심박 구간(워치), 하이라이트 줄(★ 신기록, ♥ 크루 반영(CREW), + 리워드 합계).
  * 화면 제목·버튼은 부르는 쪽(ui.crew 크루런 결과 F-16b, ui.battle 결과 2쪽)이 그린다. 값은 피그마 F-16b(S15P31A207-293,
- * [임시:D-성-15]): 블록 사이 14, 큰 거리 64 Bold + km 22, 테두리 1 divider 카드(통계 모서리 24, 구간 26).
+ * D-647): 블록 사이 14, 큰 거리 64 Bold + km 22, 테두리 1 divider 카드(통계 모서리 24, 구간 26).
  * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(칸 [Modifier], 못 그릴 때의 지금 그림). 대결 결과는 내 전신 정지 그림을 넘긴다
  * (S15P31A207-300). 없으면 지금 그림이다.
  */
@@ -317,7 +317,7 @@ private fun SplitRow(km: Int, pace: Pace, ratio: Float) {
                     .fillMaxHeight()
                     .fillMaxWidth(ratio.coerceIn(MIN_BAR, 1f))
                     .clip(CircleShape)
-                    .background(RunkkColors.BarCrew)
+                    .background(splitBarFill(LocalRunkkColors.current))
             )
         }
         Text(
@@ -329,6 +329,13 @@ private fun SplitRow(km: Int, pace: Pace, ratio: Float) {
         )
     }
 }
+
+/**
+ * 구간 페이스 막대 채움(WCAG 1.4.11, 리뷰 PL12-A2): 트랙(surfaceHigh)과 카드 바탕 대비 3:1 이상인 무채색 [RunkkColors.textSecondary]
+ * (라이트 #52525B 약 6.1:1, 다크 #A1A1AA로 이전 barCrew 다크 값과 같음). 크루 막대 토큰 barCrew는 라이트 #D4D4D8이 트랙 #E4E4E7과
+ * 약 1.16:1이라 여기서 쓰지 않는다. ColorContrastTest가 두 벌 모두 지킨다.
+ */
+internal fun splitBarFill(colors: RunkkColors): Color = colors.textSecondary
 
 /** 심박 구간: 제목, "워치" 표시, 구간 비율 막대. 구간별 시간은 보조 기술에 읽어 준다. */
 @Composable
@@ -441,6 +448,7 @@ private val CARD_SECTION_TITLE = RunkkTextStyles.text(14, FontWeight.Bold, lineH
  * 결과 위쪽 거리 히어로(피그마 61326:1878): 종류 칩(없으면 생략) + 날짜 줄, 큰 거리 60 Bold + 「km」, 오른쪽 기뻐하는 아바타 84.
  * 큰 숫자는 Barlow Condensed 기울임이다(prod 글꼴, 2026-11-12). 아바타 얼굴은 [faceKey]·[faceLayers](내 아바타)이고 없으면 기본 얼굴이다.
  * [avatarSlot]을 넘기면 아바타 칸을 그것으로 그린다(배치고사 판 결과는 내 전신 정지 그림, S15P31A207-300).
+ * [isAvatarShown]이 거짓이면 오른쪽 아바타를 그리지 않는다(자유런 결과는 위쪽 무대에 전신이 선다, [임시:D-성-285]).
  */
 @Composable
 fun ResultDistanceHero(
@@ -450,7 +458,8 @@ fun ResultDistanceHero(
     modifier: Modifier = Modifier,
     faceKey: String? = null,
     faceLayers: List<FaceLayer> = emptyList(),
-    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null
+    avatarSlot: (@Composable (Modifier, @Composable () -> Unit) -> Unit)? = null,
+    isAvatarShown: Boolean = true
 ) {
     val km = RunkkFormat.km(distance)
     val spoken = stringResource(
@@ -497,7 +506,14 @@ fun ResultDistanceHero(
                 )
             }
         }
-        CheeringAvatar(Modifier.size(HERO_AVATAR), faceKey = faceKey, faceLayers = faceLayers, avatarSlot = avatarSlot)
+        if (isAvatarShown) {
+            CheeringAvatar(
+                Modifier.size(HERO_AVATAR),
+                faceKey = faceKey,
+                faceLayers = faceLayers,
+                avatarSlot = avatarSlot
+            )
+        }
     }
 }
 

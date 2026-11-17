@@ -27,7 +27,7 @@ def test_riv_scene_reads_artboard_images_and_mesh_uvs() -> None:
     top = next(i for i in scene.images if i.name == "Existing wardrobe top")
     assert top.triangles and len(top.triangles) % 3 == 0
     assert all(0.0 <= u <= 1.0 and 0.0 <= v <= 1.0 for u, v in top.uvs)
-    # 표면 애니메이션이 불투명도를 바꾼다(남자 selected_top, DR-성-1).
+    # 표면 애니메이션이 불투명도를 바꾼다(남자 selected_top, DR-1).
     assert scene.opacity_keys["top surface 2"][top.index] == 0.0
 
 

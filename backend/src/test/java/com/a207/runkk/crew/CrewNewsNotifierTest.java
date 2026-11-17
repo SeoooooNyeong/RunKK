@@ -14,7 +14,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
-/** 크루 공지 알림은 앱에 공지를 볼 화면이 없어 알림 내용에 공지 본문을 싣는다(DV-성-14). */
+/** 크루 공지 알림은 앱에 공지를 볼 화면이 없어 알림 내용에 공지 본문을 싣는다(DV-14). */
 class CrewNewsNotifierTest {
     private static final long CREW = 5;
     private static final LocalDateTime NOW = LocalDateTime.of(2026, 11, 10, 9, 0);

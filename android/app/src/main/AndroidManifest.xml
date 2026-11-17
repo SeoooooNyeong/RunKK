@@ -33,7 +33,17 @@
                     android:host="k15a207.p.ssafy.io"
                     android:pathPrefix="/invite/battle/" />
             </intent-filter>
-            <!-- 카카오톡 초대 메시지의 실행 링크(D-270): kakao{앱 키}://kakaolink?invite={token}. 스킴은 빌드 속성 KAKAO_NATIVE_APP_KEY. -->
+            <!-- 크루 초대 앱 링크([임시:D-성-239]): https://k15a207.p.ssafy.io/invite/crew/{CODE}. 검증 파일은 대결 초대와 같은 assetlinks.json(호스트 단위). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="k15a207.p.ssafy.io"
+                    android:pathPrefix="/invite/crew/" />
+            </intent-filter>
+            <!-- 카카오톡 초대 메시지의 실행 링크(D-270): kakao{앱 키}://kakaolink?invite={token}, 크루 초대는 ?crewInvite={CODE}. 스킴은 빌드 속성 KAKAO_NATIVE_APP_KEY. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

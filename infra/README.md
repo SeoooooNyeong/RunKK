@@ -110,6 +110,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 - 실행 중인 컨테이너는 CI 작업 폴더가 아니라 `$RUNKK_HOME/<스택>/`의 파일을 연결합니다. CI 작업 폴더는 다른 브랜치·MR 잡이 다시 받으므로(git checkout·clean) 거기를 연결하면 한 배포가 다른 환경의 설정 파일을 바꿔 버립니다. 저장소에서 파일을 지우면 `$RUNKK_HOME/`에서도 지웁니다(복사는 덮어쓰기만 함).
 - 에지 설정은 마지막으로 배포한 브랜치의 것이 반영됩니다. nginx·모니터링 설정을 바꾸면 develop에서 확인한 뒤 main에도 곧 반영합니다(main 배포가 옛 설정으로 되돌리지 않게).
 - `.env`를 통째로 컨테이너에 넣지 않습니다. `docker-compose.yml`의 `environment:`가 컨테이너마다 필요한 값만 고릅니다. 새 환경 변수는 `.env.example`과 함께 해당 서비스의 `environment:`에도 추가합니다.
+- 스케줄러 스레드 `SCHEDULER_POOL_SIZE`(api, `application.yml spring.task.scheduling.pool.size`, 기본 27)는 넣을 때 27 이상으로 둡니다. api의 주기 작업이 27개(코치 대화 색인 만료, 크루런 매주 반복 회차 생성 `CrewRunRepeatJob` 포함)이고, 스레드가 작업 수보다 적으면 0시·3시처럼 같은 시각 작업과 1초 시계가 스레드를 서로 기다립니다. 주기 작업을 더하면 `application.yml` 기본값, compose 기본값, `.env`의 값을 함께 늘립니다(`BootstrapConfigTest`가 등록 작업 수와 기본값을 비교합니다).
 - prod 환경 확인: `deploy.sh`는 `RUNKK_ENV=prod`인데 `SPRING_PROFILES_ACTIVE`가 prod가 아니거나 `SWAGGER_ENABLED=true`면 멈춥니다. `smoke.sh`는 prod에서 `/v3/api-docs`가 열려 있으면 실패합니다.
 - 아바타 서버 확인: `.env`의 `COMPOSE_PROFILES`에 `avatar`가 있으면 `smoke.sh`가 `avatar` 컨테이너 헬스 상태가 healthy인지(starting이면 1분까지 기다림), ai 컨테이너에서 `http://avatar:3000/api/health`가 응답하는지 보고, 아니면 실패합니다. 프로필이 없으면 건너뜁니다. avatar 포트는 밖으로 열지 않습니다.
 
@@ -119,7 +120,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 
 ### 2차 배포 기능 공개 스위치
 
-크루, 아바타 꾸미기(체형·배경), 런바디 ai 분석은 관리툴 운영 기준값으로 엽니다. 처음 값만은 환경 변수 `RUNKK_BOOTSTRAP_SETTINGS`로 넣을 수 있습니다(아래).
+크루, 아바타 꾸미기(체형·배경), 런바디 ai 분석, AI 코치는 관리툴 운영 기준값으로 엽니다. 처음 값만은 환경 변수 `RUNKK_BOOTSTRAP_SETTINGS`로 넣을 수 있습니다(아래).
 
 | 운영 기준값 | 기본값 | 꺼져 있을 때 |
 |-------------|--------|--------------|
@@ -127,6 +128,7 @@ SSAFY 배정 도메인(`k15a207.p.ssafy.io`)이 EC2를 가리키는지 확인한
 | `AVATAR_RELEASED` | false | 체형 변화(`BODY_SHAPE_CHANGED`)·배경 해금(`BACKGROUND_UNLOCKED`) 알림을 알림함에만 저장하고 FCM 푸시를 보내지 않습니다 |
 | `BODY_SHAPE_RELEASED` | false | 2차 배포에서 뺀 체형 변화입니다. 0시 외형 재계산이 모든 회원을 기본 몸(`STAGE4`)으로 두고 체형 변화 알림을 만들지 않습니다. 피부색 계산은 그대로입니다. 2차 배포에서는 켜지 않습니다 |
 | `RUNBODY_ENABLED` | false | 러닝 저장 뒤 런바디 분석 작업을 만들지 않고 ai에 제출·상태 조회하지 않습니다. `/api/v1/runbody/**`는 403 `FEATURE_CLOSED`입니다. 켜기 전에 저장한 러닝은 분석하지 않습니다 |
+| `COACH_ENABLED` | false | AI 코치 질문과 대화 목록·대화 내용 조회가 403 `FEATURE_CLOSED`(「아직 열리지 않은 기능입니다」)입니다. 켜져 있어도 회원의 최신 LLM 전송 동의가 없으면 403 `CONSENT_REQUIRED`입니다(설계 D-440) |
 
 DB에 행이 없으면 기본값(false)을 쓰므로 1차 배포(develop·prod)는 따로 넣지 않아도 닫혀 있습니다. 2차 배포에서 기능을 열 때 관리툴에서 true로 바꿉니다. 앱의 1차 배포 잠금 빌드(`LOCK_UNRELEASED`)도 같은 알림 종류를 숨기며, 두 분류는 계약 파일 `policy/GatedNotification.txt`로 대조합니다.
 
@@ -147,6 +149,20 @@ develop은 GitLab CI 변수 `INFRA_ENV`에 `RUNKK_BOOTSTRAP_SETTINGS=CREW_RELEAS
   ```
 
 - 서버 시간대 수정(V48, DF-073)이 적용된 환경은 V48이 없는 서버 이미지(옛 시간대 설정: JVM UTC, `hibernate.jdbc.time_zone`)로 되돌리지 않습니다. 오류 없이 뜨지만(Flyway는 DB에만 있는 V48, V49를 문제 삼지 않습니다) 그 뒤 서버가 쓰는 시각이 다시 9시간 앞서 저장되어 V48로 고친 값과 섞입니다. 되돌려야 하면 V48 직전 덤프(`before-tz` 또는 그 배포의 `predeploy`)로 DB를 먼저 복구한 뒤 이미지를 되돌립니다. V48 적용 뒤에는 `-prev` 이미지 태그로 되돌리지 않고, 이전 파이프라인의 `backend:deploy`를 다시 실행하지 않으며, V48 이전에 develop에서 갈라진 `release/*` 브랜치에 push하지 않습니다(8443 자동 배포로 옛 이미지가 뜹니다).
+
+### 서버 시간대 마이그레이션 V48 (DF-073, 설계 05-28)
+
+`V48__server_timezone_kst.sql`은 서버 시간대 수정과 한 묶음입니다. 같은 이미지가 JVM 시간대를 Asia/Seoul로 맞추고(`RunkkApplication.main`, Dockerfile, compose) `hibernate.jdbc.time_zone`을 지우며, V48은 그동안 9시간 앞서 저장된 "서버가 쓴 시각"을 한 트랜잭션에서 9시간 뺍니다.
+
+- 바꾸는 것: 서버가 JPA로 쓰는 `timestamp without time zone` 열 전부(V47 기준, 열 이름을 나열). `audit_record`는 추가 전용 트리거를 V48 안에서만 껐다가 다시 켭니다. `celebrity_record`는 관리 API로 등록한 행(감사 `CELEBRITY_REGISTER`가 있는 행)만, `event`는 기간을 모든 행에서 빼고 시드 두 행(`coach-challenge`, `beta-1km`)의 만든 시각은 9시간 더합니다.
+- 바꾸지 않는 것: `timestamp with time zone` 열, `match_ticket` 대기열 시각, `flyway_schema_history`. 운영자가 SQL로 9시간 더해 넣은 값은 V48이 다루는 표면 함께 되돌아가지만, 다루지 않는 행(SQL로 넣은 유명인 기록)은 9시간 앞선 채 남으므로 적용 전에 찾아 따로 고칩니다.
+- 후속 V49(`V49__event_seed_fresh_db.sql`): 임시 보정이 없던 새 DB(시험 컨테이너, 새 환경)에서 V48이 틀어 놓은 이벤트 시드 기간과 만든 시각만 되돌립니다. develop과 운영은 보정 상태라 V49가 바꾸는 행이 없습니다. V48은 develop에 이미 적용되어(2026-11-09) 체크섬 때문에 고치지 않습니다.
+- 배포 때 주의
+  - V48과 새 시간대 설정은 한 이미지로만 배포합니다. 옛 설정 api가 V48 뒤에 쓰면 그 값이 다시 9시간 앞섭니다(되돌릴 때는 위 "롤백").
+  - 운영은 2차 배포에서 V36~V49를 차례로 받습니다. V48을 다른 번호(예: 핫픽스 V35_4)로 main에 먼저 넣지 않습니다. 역병합 뒤 develop이 순서 밖으로 다시 적용해 두 번 뺍니다.
+  - 적용 전에 덤프를 하나 더 뜹니다(`pg-backup.sh now before-tz`, `deploy.sh`의 `predeploy` 덤프와 별도). 되돌림은 V48 역 SQL이 아니라 이 덤프 복구를 기본으로 합니다.
+  - 적용 뒤 확인: `flyway_schema_history`의 V48·V49가 success, 미래 시각 행 0건(`member.last_access_at`, `run_record.ended_at`, `audit_record.recorded_at` > `now()`), `docker exec runkk-<환경>-api-1 date`가 KST, 감사 트리거 `trg_audit_record_reject_update`가 다시 켜짐(`tgenabled = 'O'`). 쿼리 전체는 설계 05-28 7절에 있습니다.
+  - 운영 적용을 확인하면 4절 운영 주의(9시간 규칙)를 「DB 시각은 한국 시각 그대로 저장한다」로 바꾸고 DF-073을 닫습니다.
 
 ## 4. 운영 명령
 
@@ -287,6 +303,7 @@ GitLab 파이프라인의 수동 잡 **backup:restore-check**를 누릅니다(de
 - 통과: 매일 덤프가 26시간 안에 있음(NFR-019), `pg_restore` 오류 없음, 테이블 목록이 운영과 같음, 복원한 행이 1개 이상.
 - 덤프 뒤에 마이그레이션이 든 배포가 있었으면 Flyway 버전이 달라 테이블 목록은 비교하지 않고 경고만 남깁니다. 행 수는 덤프 뒤 쌓인 자료 때문에 운영 쪽이 많을 수 있어 판정에 쓰지 않습니다.
 - 결과(잡 번호, 덤프 이름, 통과 여부)는 test.md 8장에 한 줄 남깁니다.
+- 익명 볼륨 정리: `restore-check.sh`와 `offsite-backup.sh`는 끝나면 일회용 postgres 컨테이너를 `docker rm -fv`로 지웁니다. postgres 이미지가 컨테이너마다 익명 데이터 볼륨을 만들어 `docker rm -f`로는 볼륨이 남기 때문입니다(2026-11-09 서버에서 복원한 운영 백업 사본 10개와 빈 볼륨 12개를 찾아 지운 뒤 고침). 복원 사본이 남으면 백업 7일 보존(NFR-037)과 탈퇴 자료 파기(NFR-026)를 어길 수 있으므로, 아래처럼 손으로 리허설할 때도 `-v`를 붙여 지웁니다. 남은 것은 `docker volume ls -qf dangling=true`로 봅니다.
 
 서버에서 손으로 할 때는 아래처럼 합니다(ubuntu 사용자). 최신 기록 시각과 덤프 시각의 차이가 24시간 안이면 NFR-019를 만족합니다.
 
@@ -300,7 +317,7 @@ docker exec -i runkk-restore-rehearsal pg_restore -U postgres -d runkk --no-owne
 docker exec runkk-restore-rehearsal psql -U postgres -d runkk -c "ANALYZE" \
   -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC LIMIT 10" \
   -c "SELECT max(installed_rank) AS flyway_version_rank, max(installed_on) AS last_migration FROM flyway_schema_history"
-docker rm -f runkk-restore-rehearsal
+docker rm -fv runkk-restore-rehearsal                                # -v: 복원한 사본이 든 익명 볼륨까지 지운다
 ```
 
 ### 실제 복구 (장애 때)

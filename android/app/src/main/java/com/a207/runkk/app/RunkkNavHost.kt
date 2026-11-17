@@ -50,9 +50,11 @@ import com.a207.runkk.app.core.designsystem.media.RunkkBackgroundMusic
 import com.a207.runkk.app.core.navigation.BattleReturnRequest
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalBattleReturnRequest
+import com.a207.runkk.app.core.navigation.LocalRunReturnReceipts
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.core.navigation.RunReturnReceipts
 import com.a207.runkk.app.core.navigation.RunkkNavigator
 import com.a207.runkk.app.core.navigation.collectSlots
 import java.time.Instant
@@ -86,7 +88,8 @@ fun RunkkNavHost(
     val backStack = rememberNavBackStack(Routes.Key(startRoute))
     val navigator = remember(backStack) { BackStackNavigator(backStack, onExit) }
     // 초대 링크(D-272): 로그인 상태이고 홈이 맨 위일 때 참가 확인을 연다. 로그인·가입 중이거나 측정 중이면 홈이 맨 위가 될 때까지 기다린다.
-    // 받은 지 5분이 지난 초대는 열지 않고 버린다(AN8-8).
+    // 받은 지 5분(크루 초대는 30분, [임시:D-성-242])이 지난 초대는 열지 않고 버린다(AN8-8). 크루 초대는 가입 확인
+    // (Routes.CrewInviteJoin)으로, 친구 대결 초대는 참가 확인(Routes.FriendInviteJoin)으로 연다.
     val current = backStack.lastOrNull()
     LaunchedEffect(pendingInvite, loggedIn, current) {
         val now = Instant.now()
@@ -94,12 +97,12 @@ fun RunkkNavHost(
             onInviteDone()
             return@LaunchedEffect
         }
-        inviteToOpen(pendingInvite, loggedIn, current, now)?.let { token ->
-            navigator.navigate(Routes.FriendInviteJoin(token))
+        if (pendingInvite != null && inviteToOpen(pendingInvite, loggedIn, current, now) != null) {
+            navigator.navigate(inviteRoute(pendingInvite))
             onInviteDone()
         }
     }
-    // 셀카 결과 알림([임시:D-성-146], [임시:D-성-160]): 초대와 같이 로그인 상태이고 홈이 맨 위일 때만 얼굴 만들기(결과 단계)를 연다.
+    // 셀카 결과 알림(D-778, D-792): 초대와 같이 로그인 상태이고 홈이 맨 위일 때만 얼굴 만들기(결과 단계)를 연다.
     // 로그인·가입 중이거나 측정 중(자유런·크루런·대결)이면 홈이 맨 위가 될 때까지 기다린다.
     LaunchedEffect(pendingSelfieResult, loggedIn, current) {
         if (selfieResultToOpen(pendingSelfieResult, loggedIn, current)) {
@@ -128,13 +131,16 @@ fun RunkkNavHost(
     var isLockedNoticeVisible by rememberSaveable { mutableStateOf(false) }
     val guideAnchors = remember { GuideAnchors() }
     val slots = remember(featureEntries) { featureEntries.collectSlots() }
-    // 기능이 앱 전체에 내려 주는 값(예: 아바타 기능의 내 얼굴 그을림, [임시:D-성-220])
+    // 크루런 결과 「확인」의 복귀 값(설계 05-32): 결과 화면이 넣고 홈·크루 홈이 다음에 보일 때 꺼낸다.
+    val returnReceipts = remember { RunReturnReceipts() }
+    // 기능이 앱 전체에 내려 주는 값(예: 아바타 기능의 내 얼굴 그을림, D-852)
     val featureLocals = featureEntries.flatMap { it.providedLocals() }
     CompositionLocalProvider(
         LocalRunkkNavigator provides navigator,
         LocalReleaseScope provides releaseScope,
         LocalGuideAnchors provides guideAnchors,
         LocalSlots provides slots,
+        LocalRunReturnReceipts provides returnReceipts,
         *featureLocals.toTypedArray()
     ) {
         Scaffold(
@@ -192,9 +198,15 @@ fun RunkkNavHost(
 internal fun selfieResultToOpen(pendingSelfieResult: Boolean, loggedIn: Boolean, top: NavKey?): Boolean =
     pendingSelfieResult && loggedIn && top == Routes.Key(Routes.HOME)
 
-/** 지금 열 초대 토큰: 받은 지 5분이 안 된 초대가 있고 로그인 상태이며 홈이 맨 위일 때만(D-272, AN8-8). 그 밖에는 null(기다린다). */
+/** 지금 열 초대 토큰(크루 초대면 코드): 수명이 안 지난 초대가 있고 로그인 상태이며 홈이 맨 위일 때만(D-272, AN8-8). 그 밖에는 null(기다린다). */
 internal fun inviteToOpen(pendingInvite: PendingInvite?, loggedIn: Boolean, top: NavKey?, now: Instant): String? =
     pendingInvite?.takeIf { loggedIn && top == Routes.Key(Routes.HOME) && it.isFresh(now) }?.token
+
+/** 보류 초대를 여는 경로([임시:D-성-242]): 크루 초대는 가입 확인, 친구 대결 초대는 참가 확인. */
+internal fun inviteRoute(invite: PendingInvite): NavKey = when (invite.kind) {
+    InviteKind.CREW -> Routes.CrewInviteJoin(invite.token)
+    InviteKind.FRIEND_BATTLE -> Routes.FriendInviteJoin(invite.token)
+}
 
 /** 로그인 상태가 바뀐 뒤 남길 보류 초대: 로그아웃(참 → 거짓)이면 버리고, 로그인 전에 받은 초대는 로그인 뒤까지 남긴다(AN8-8). */
 internal fun pendingAfterSession(

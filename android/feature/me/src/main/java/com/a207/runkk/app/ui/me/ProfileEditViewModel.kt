@@ -64,7 +64,7 @@ class ProfileEditViewModel @Inject constructor(
                         isLoading = false,
                         faceKey = me.faceKey,
                         faceLayers = layers,
-                        // 얼굴 층을 받을 때까지 기본 머리를 보이지 않는다([임시:D-성-190]).
+                        // 얼굴 층을 받을 때까지 기본 머리를 보이지 않는다(D-822).
                         isFaceLoading = me.faceKey != null && cached == null && layers.isEmpty(),
                         nickname = me.displayName,
                         intro = me.intro.orEmpty(),

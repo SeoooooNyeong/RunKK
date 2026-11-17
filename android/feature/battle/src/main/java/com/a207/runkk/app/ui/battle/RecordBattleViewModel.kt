@@ -98,7 +98,9 @@ abstract class RecordBattleViewModel(
                                 opponentRecordSeconds = candidate.finishTime?.seconds,
                                 opponentRecordedOnEpochDay = candidate.recordedOn?.toEpochDay(),
                                 myBestSeconds = candidate.myBest?.seconds,
-                                celebrityFigure = start.celebrityFigure ?: candidate.celebrityFigure
+                                celebrityFigure = start.celebrityFigure ?: candidate.celebrityFigure,
+                                // 셀프런은 그 기록의 나(시작 응답, 없으면 후보에 실린 모습)다. 셀럽은 null이다.
+                                opponentLook = (start.opponentLook ?: candidate.look)?.toSlot()
                             )
                         )
                     )

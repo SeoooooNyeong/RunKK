@@ -348,7 +348,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun `S15P31A207-250 포인트 단계(J-8) 앵커는 잔액과 알림함 버튼을 함께 감싼다`() {
+    fun `내 러너 단계 앵커는 홈 아바타 아래 가운데, 아바타 칸 너비의 절반이다(D-성-295)`() {
         val anchors = GuideAnchors()
         compose.setContent {
             CompositionLocalProvider(
@@ -359,15 +359,17 @@ class HomeScreenTest {
             }
         }
         compose.waitForIdle()
-        val point = assertNotNull(anchors[GuideStep.POINT], "포인트 단계 앵커")
+        val runner = assertNotNull(anchors[GuideStep.MY_RUNNER], "내 러너 단계 앵커")
         val density = compose.density.density
-        listOf("리워드 잔액 1,250 포인트", "알림함").forEach { label ->
-            val bounds = compose.onNodeWithContentDescription(label).getUnclippedBoundsInRoot()
-            assertTrue(point.left <= bounds.left.value * density + 1f, label)
-            assertTrue(point.right >= bounds.right.value * density - 1f, label)
-            assertTrue(point.top <= bounds.top.value * density + 1f, label)
-            assertTrue(point.bottom >= bounds.bottom.value * density - 1f, label)
-        }
+        val avatar = compose.onNodeWithContentDescription("내 아바타").getUnclippedBoundsInRoot()
+        val avatarWidth = (avatar.right - avatar.left).value * density
+        val avatarCenter = (avatar.left + avatar.right).value / 2 * density
+        assertEquals(avatarCenter, runner.center.x, 2f, "아바타 가운데")
+        assertTrue(runner.width <= avatarWidth + 1f, "아바타 칸보다 넓지 않다: ${runner.width} > $avatarWidth")
+        assertTrue(runner.height > 0f)
+        // 옛 8단계의 주간 목표 앵커는 없고, 자유런과 배틀런 카드 앵커는 그대로다.
+        assertNotNull(anchors[GuideStep.FREE_RUN])
+        assertNotNull(anchors[GuideStep.BATTLE_RUN])
     }
 
     @Test

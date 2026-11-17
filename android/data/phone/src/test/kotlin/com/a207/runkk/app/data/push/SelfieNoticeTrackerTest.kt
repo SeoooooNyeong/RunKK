@@ -17,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * 셀카 결과 기기 알림(design-oo 05-30 [임시:D-성-120], 11절 4번): 얼굴 만들기 화면이 보이거나 앱이 앞에 있거나 알림 권한이 없으면 내지
+ * 셀카 결과 기기 알림(design-oo 05-30 D-752, 11절 4번): 얼굴 만들기 화면이 보이거나 앱이 앞에 있거나 알림 권한이 없으면 내지
  * 않고, 같은 작업은 한 번만 낸다.
  */
 @RunWith(RobolectricTestRunner::class)

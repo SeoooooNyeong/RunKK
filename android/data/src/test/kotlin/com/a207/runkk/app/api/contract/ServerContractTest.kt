@@ -41,6 +41,8 @@ import com.a207.runkk.app.api.chat.ChatMessageItem
 import com.a207.runkk.app.api.chat.ChatPageResponse
 import com.a207.runkk.app.api.chat.ChatPostRequest
 import com.a207.runkk.app.api.chat.ReactionResponse
+import com.a207.runkk.app.api.chat.ReactorListResponse
+import com.a207.runkk.app.api.core.RunnerLookJson
 import com.a207.runkk.app.api.crew.AttendanceRequest
 import com.a207.runkk.app.api.crew.AttendanceResponse
 import com.a207.runkk.app.api.crew.CreatedResponse
@@ -63,11 +65,13 @@ import com.a207.runkk.app.api.crew.LeaderRequest
 import com.a207.runkk.app.api.crew.LobbyResponse
 import com.a207.runkk.app.api.crew.ManagerResponse
 import com.a207.runkk.app.api.crew.MyCrewResponse
+import com.a207.runkk.app.api.crew.ParticipationResponse
 import com.a207.runkk.app.api.crew.PastCrewRunsResponse
 import com.a207.runkk.app.api.crew.PendingRequestsResponse
 import com.a207.runkk.app.api.crew.PostListResponse
 import com.a207.runkk.app.api.crew.PostWriteRequest
 import com.a207.runkk.app.api.crew.RaceStatusResponse
+import com.a207.runkk.app.api.crew.ReadyRequest
 import com.a207.runkk.app.api.notification.InboxResponse
 import com.a207.runkk.app.api.notification.PushTokenRequest
 import com.a207.runkk.app.api.notification.TITLES
@@ -111,6 +115,7 @@ import com.a207.runkk.app.domain.crew.CrewRole
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.CrewVisibility
 import com.a207.runkk.app.domain.crew.JoinPolicy
+import com.a207.runkk.app.domain.crew.LobbyPhase
 import com.a207.runkk.app.domain.crew.PollMethod
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.live.CrewChatRemoved
@@ -222,6 +227,9 @@ class ServerContractTest {
         assertEquals(enumNames("PlacementStatus"), names(PlacementStatus.entries))
         // TC-5942 배치고사 판 셈 상태(05-03 5.7.3.1)
         assertEquals(enumNames("PlacementRoundState"), names(PlacementRoundState.entries))
+        // 설계 05-32 대기실 논리 단계(crew.CrewRunPhase), 실시간 변경 자원·크루런 탭 정렬
+        assertEquals(enumNames("CrewRunPhase"), names(LobbyPhase.entries))
+        assertTrue("SCHEDULED_ASC" in enumNames("PostOrder"), "크루런 탭 날짜순 정렬")
     }
 
     @Test
@@ -324,6 +332,8 @@ class ServerContractTest {
         request(PostWriteRequest.serializer(), "CrewDtos.PostWriteRequest")
         request(com.a207.runkk.app.api.crew.CrewRunEditRequest.serializer(), "CrewScheduleDtos.CrewRunEditRequest")
         request(AttendanceRequest.serializer(), "CrewDtos.AttendanceRequest")
+        // 설계 05-32 멱등 준비(PUT /crew-runs/{id}/lobby/ready)
+        request(ReadyRequest.serializer(), "CrewDtos.ReadyRequest")
         request(GoalRequest.serializer(), "CrewDtos.GoalRequest")
         request(GuestStartRequest.serializer(), "SignUpController.GuestStartRequest")
         request(SocialLinkRequest.serializer(), "AuthController.SocialLinkRequest")
@@ -373,6 +383,8 @@ class ServerContractTest {
         response(ChatPageResponse.serializer(), "ChatController.ChatPageResponse")
         response(ChatMessageItem.serializer(), "ChatController.ChatMessageItem")
         response(ReactionResponse.serializer(), "ChatController.ReactionResponse")
+        // 반응자 행(얼굴 키·표시 성별, [임시:D-성-229])
+        response(ReactorListResponse.serializer(), "ChatController.ReactorListResponse")
         response(
             com.a207.runkk.app.api.report.ReportResponse.serializer(),
             "ReportController.ReportResponse"
@@ -385,6 +397,9 @@ class ServerContractTest {
         response(RaceStatusResponse.serializer(), "CrewDtos.RaceStatusResponse")
         response(PostListResponse.serializer(), "CrewDtos.PostListResponse")
         response(LobbyResponse.serializer(), "CrewDtos.LobbyResponse")
+        // 설계 05-32 중간 참여(POST /crew-runs/{id}/join)
+        response(ParticipationResponse.serializer(), "CrewDtos.ParticipationResponse")
+        response(ParticipationResponse.Runner.serializer(), "CrewDtos.ParticipationResponse.Runner")
         response(
             com.a207.runkk.app.api.crew.CrewRunDetailResponse.serializer(),
             "CrewScheduleDtos.CrewRunDetailResponse"
@@ -428,9 +443,31 @@ class ServerContractTest {
         mapOf(
             MatchAcceptanceResponse.serializer() to
                 ("BattleDtos.MatchAcceptanceResponse" to setOf("placementRound", "battleId")),
+            // 다른 러너 모습([임시:D-성-252], [임시:D-성-277]): 대결 조회·결과·기록 대결 시작의 opponentLook, 후보와 대기실 참가자의 look
             BattleResultResponse.serializer() to
-                ("BattleDtos.BattleResultResponse" to setOf("placementRound", "placementState")),
-            ActiveBattleResponse.serializer() to ("BattleDtos.ActiveBattleResponse" to setOf("placementRound")),
+                ("BattleDtos.BattleResultResponse" to setOf("placementRound", "placementState", "opponentLook")),
+            ActiveBattleResponse.serializer() to
+                ("BattleDtos.ActiveBattleResponse" to setOf("placementRound", "opponentLook")),
+            RecordBattleStartResponse.serializer() to ("BattleDtos.RecordBattleStartResponse" to setOf("opponentLook")),
+            CandidatesResponse.Candidate.serializer() to ("BattleDtos.Candidate" to setOf("look")),
+            LobbyResponse.Participant.serializer() to ("CrewDtos.LobbyResponse.Participant" to setOf("look")),
+            // 설계 05-32 대기실 추가 항목(옛 서버 호환으로 앱은 선택 항목이다)
+            LobbyResponse.serializer() to (
+                "CrewDtos.LobbyResponse" to setOf(
+                    "crewId",
+                    "revision",
+                    "phase",
+                    "countdownToken",
+                    "startAt",
+                    "countdownParticipantIds",
+                    "canStartNow",
+                    "canJoin",
+                    "meRunner",
+                    "measurementRecordId"
+                )
+                ),
+            RunnerLookJson.serializer() to
+                ("AvatarLook" to setOf("gender", "equipped", "bodyVariant", "runAmount", "faceKey")),
             BattleHistoryResponse.Entry.serializer() to
                 ("BattleDtos.Entry" to setOf("placementRound", "opponentMemberId"))
         ).forEach { (app, server) ->
@@ -438,8 +475,8 @@ class ServerContractTest {
             val appNames = (0 until app.descriptor.elementsCount).map { app.descriptor.getElementName(it) }.toSet()
             val serverNames = records.getValue(key).jsonObject.getValue("components").jsonArray
                 .map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
-            (fields - appNames).forEach { problems += "${app.descriptor.serialName}.$it: 앱 DTO에 없는 배치고사 항목" }
-            (fields - serverNames).forEach { problems += "$key.$it: 서버 record에 없는 배치고사 항목" }
+            (fields - appNames).forEach { problems += "${app.descriptor.serialName}.$it: 앱 DTO에 없는 선택 항목" }
+            (fields - serverNames).forEach { problems += "$key.$it: 서버 record에 없는 선택 항목" }
         }
         assertTrue(problems.isEmpty(), problems.joinToString("\n", prefix = "\n"))
     }

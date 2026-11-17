@@ -22,6 +22,7 @@ import java.util.List;
  * @param myRecordId 열람자의 연결된 기록 ID, 없으면 null
  * @param firstCrewRun 열람자의 첫 크루런인가
  * @param crewContribution 크루 주간 거리에 반영된 거리 합
+ * @param revision 변경 순번(설계 05-32 5.1, 결과 신호의 revision과 견준다)
  */
 public record CrewRunResultView(
         long postId,
@@ -33,7 +34,8 @@ public record CrewRunResultView(
         List<Line> participants,
         String myRecordId,
         boolean firstCrewRun,
-        Distance crewContribution) {
+        Distance crewContribution,
+        long revision) {
 
     public CrewRunResultView {
         participants = List.copyOf(participants);

@@ -35,13 +35,13 @@ interface AvatarRepository {
     suspend fun pendingSelfieJobId(): String?
 
     /**
-     * 기기에 남긴 마지막 셀카 실패(DV-성-10). 작업이 실패로 끝나면 남기고, 새로 접수하거나 결과를 받거나 기본 캐릭터를 고르면 지운다.
+     * 기기에 남긴 마지막 셀카 실패(DV-10). 작업이 실패로 끝나면 남기고, 새로 접수하거나 결과를 받거나 기본 캐릭터를 고르면 지운다.
      * 구현이 없으면 null이다.
      */
     suspend fun lastSelfieFailure(): SelfieFailure? = null
 
     /**
-     * 셀카 작업 진행(design-oo 05-30 6.1, [임시:D-성-117]). 기기에 남긴 작업·실패와 워커가 고친 최근 상태를 합쳐 낸다. 얼굴 만들기·
+     * 셀카 작업 진행(design-oo 05-30 6.1, D-749). 기기에 남긴 작업·실패와 워커가 고친 최근 상태를 합쳐 낸다. 얼굴 만들기·
      * 꾸미기·내 러너·홈 진행 표시가 같은 흐름을 듣는다. 구현이 없으면 [SelfieProgress.None] 하나다.
      */
     fun selfieProgress(): Flow<SelfieProgress> = flowOf(SelfieProgress.None)

@@ -7,6 +7,7 @@ import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.TierDisplay
 import com.a207.runkk.app.core.model.getOrNull
+import com.a207.runkk.app.core.navigation.HomeRunReturnReceipt
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.LocationConsentUseCase
@@ -25,6 +26,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -41,6 +43,8 @@ import kotlinx.coroutines.launch
  * 자유런 카드는 위치 수집 동의를 먼저 본다(D-267): 동의가 없으면 시트를 띄우고, "동의하고 시작"이면 동의를 준 뒤 시작한다.
  * 미전송 기록이 재전송 안내 기준을 넘으면 상단에 안내 띠를 보인다(FR-039, W48). 보관함이 바뀔 때와 홈이 다시 보일 때 지금 시각으로
  * 다시 세고, 조건이 풀리면 띠를 내린다. 안내만 하고 기록을 지우거나 측정을 막지 않는다(W47).
+ * 크루런 결과 「확인」의 복귀 값(설계 05-32 HomeRunReturnReceipt)을 받으면 대시보드를 다시 읽고, 읽기에 성공한 첫 표시부터 내 유효
+ * 거리(「+0.80km 크루런」)를 2초 강조한다. 같은 복귀 값은 한 번만 강조하고 거리를 손으로 더하지 않는다(원본을 다시 읽는다).
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -72,6 +76,11 @@ class HomeViewModel @Inject constructor(
 
     private var consentJob: Job? = null
 
+    /** 아직 강조하지 않은 결과 복귀 값과 이미 쓴 복귀 값 ID(같은 기록 중복 강조 금지, TC-11035). */
+    private var pendingReturn: HomeRunReturnReceipt? = null
+    private val consumedReturns = mutableSetOf<String>()
+    private var highlightJob: Job? = null
+
     init {
         viewModelScope.launch { pendingRuns.observePending().collect { checkResendReminder() } }
         refresh()
@@ -81,9 +90,11 @@ class HomeViewModel @Inject constructor(
      * 홈이 다시 보일 때(러닝 결과의 "홈으로", 다른 탭에서 복귀) 다시 읽는다. 처음 표시는 init이 읽으므로 첫 재개는 건너뛴다.
      * 「내 기록 요약」은 홈에 들어올 때마다 접힌다(J24-16).
      */
-    fun onResumed() {
+    fun onResumed(receipt: HomeRunReturnReceipt? = null) {
         _state.update { it.copy(isSummaryExpanded = false) }
-        if (resumedOnce) refresh()
+        val isNew = receipt != null && receipt.receiptId !in consumedReturns
+        if (isNew) pendingReturn = receipt
+        if (resumedOnce || isNew) refresh()
         resumedOnce = true
     }
 
@@ -159,6 +170,8 @@ class HomeViewModel @Inject constructor(
             }
             val summary = dashboardResult.getOrNull()
             applyPlacement(placement.await(), placementTurnNow)
+            // 대시보드를 새로 읽었을 때만 결과 복귀 값을 강조한다(읽지 못하면 다음 읽기까지 둔다).
+            val returned = pendingReturn.takeIf { dashboardResult is Outcome.Success }
             _state.update {
                 // 대시보드·프로필을 못 읽었으면 그 값은 지난 값을 남긴다(AN8-11). 읽었는데 잔액이 없으면(옛 서버) 비운다.
                 val balance = if (dashboardResult is Outcome.Success) summary?.rewardBalance else it.header.balance
@@ -183,6 +196,19 @@ class HomeViewModel @Inject constructor(
                     error = (dashboardResult as? Outcome.Failure)?.let { failure -> RunkkErrorText.of(failure.error) }
                 )
             }
+            returned?.let(::highlight)
+        }
+    }
+
+    /** 결과 복귀 값의 내 유효 거리를 첫 표시부터 2초 강조한다(TC-11037). 유효 거리가 0이면 강조하지 않는다. */
+    private fun highlight(receipt: HomeRunReturnReceipt) {
+        pendingReturn = null
+        if (!consumedReturns.add(receipt.receiptId) || receipt.ownDistanceMeters <= 0) return
+        highlightJob?.cancel()
+        _state.update { it.copy(weeklyHighlight = Distance(receipt.ownDistanceMeters)) }
+        highlightJob = viewModelScope.launch {
+            delay(HIGHLIGHT_MILLIS)
+            _state.update { it.copy(weeklyHighlight = null) }
         }
     }
 
@@ -218,6 +244,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private companion object {
+        /** 결과 복귀 강조 시간(설계 05-32 [임시:D-성-889]). */
+        const val HIGHLIGHT_MILLIS = 2_000L
+
         /** 러닝 설정 하위 항목 키(MemberSettings.values, 서버 RunSettings.voice·vibration). */
         const val RUN_VOICE = "RUN_SETTINGS.voice"
         const val RUN_VIBRATION = "RUN_SETTINGS.vibration"

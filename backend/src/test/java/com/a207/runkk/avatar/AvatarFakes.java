@@ -1,6 +1,7 @@
 package com.a207.runkk.avatar;
 
 import com.a207.runkk.NoTransactions;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +32,20 @@ public final class AvatarFakes {
         @Override
         public synchronized Avatar findOrCreate(long memberId) {
             return avatars.getOrDefault(memberId, Avatar.create(memberId));
+        }
+
+        @Override
+        public synchronized Map<Long, String> faceKeysOf(Collection<Long> memberIds) {
+            Map<Long, String> result = new java.util.LinkedHashMap<>();
+            for (Long id : memberIds) {
+                if (id != null) {
+                    findOrCreate(id)
+                            .face()
+                            .map(Face::renderKey)
+                            .ifPresent(key -> result.put(id, key));
+                }
+            }
+            return result;
         }
 
         @Override

@@ -1,5 +1,6 @@
 package com.a207.runkk.app.api.battle
 
+import com.a207.runkk.app.api.core.RunnerLookJson
 import kotlinx.serialization.Serializable
 
 /**
@@ -18,6 +19,8 @@ internal data class CandidatesResponse(val candidates: List<Candidate> = emptyLi
         val sourceLabel: String? = null,
         val estimated: Boolean = false,
         val myBestSeconds: Long? = null,
-        val celebrityFigure: String? = null
+        val celebrityFigure: String? = null,
+        /** 그 기록에 저장된 모습(옛 기록은 서버가 지금 모습으로 채운다). 유명인 후보·기록 없는 거리면 null이다([임시:D-성-251]). */
+        val look: RunnerLookJson? = null
     )
 }

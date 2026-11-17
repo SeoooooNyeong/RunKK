@@ -83,7 +83,7 @@ fun CrewPastRunsRoute(key: Routes.CrewPastRuns, viewModel: CrewPastRunsViewModel
             onPeriodOpen = viewModel::onPeriodOpen,
             onPeriodClose = viewModel::onPeriodClose,
             onPeriodApply = viewModel::onPeriodApply,
-            // 지난 줄도 W6 일정 상세(종료된 일정 모양)로 간다(설계 05-29 [임시:D-성-32]).
+            // 지난 줄도 W6 일정 상세(종료된 일정 모양)로 간다(설계 05-29 D-664).
             onRun = { run -> navigator.navigate(Routes.CrewRunDetail(run.postId)) }
         )
     )

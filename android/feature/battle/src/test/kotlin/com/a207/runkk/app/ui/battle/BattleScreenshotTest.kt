@@ -297,6 +297,15 @@ class BattleScreenshotTest {
         MatchScreen(MatchUiState(phase = MatchPhase.WAITING, waitingSeconds = 7), MatchActions())
     }
 
+    /** 대기 중 뒤로 가기의 나가기 확인 창([임시:FR-성-32]). */
+    @Test
+    fun matchLeaveConfirm() = compose.captureRunkkScreen("D2_match_leave_confirm") {
+        MatchScreen(
+            MatchUiState(phase = MatchPhase.WAITING, waitingSeconds = 7, isLeaveConfirmVisible = true),
+            MatchActions()
+        )
+    }
+
     @Test
     fun matchFoundScreen() = compose.captureRunkkScreen("D2_match_found") {
         MatchScreen(
@@ -420,10 +429,37 @@ class BattleScreenshotTest {
         BattleRunningScreen(running, BattleRunningActions())
     }
 
-    /** 배치고사 판(FR-276): 지도 위 상대 자리를 점선 원 「?」로 그린다. */
+    /** 배치고사 판(FR-276): 트랙 위 상대를 점선 원 「?」로 그린다(창 안일 때, [임시:D-성-253]). */
     @Test
     fun battleRunningPlacement() = compose.captureRunkkScreen("D3_battle_running_placement") {
-        BattleRunningScreen(running.copy(placementRound = 1), BattleRunningActions())
+        BattleRunningScreen(running.copy(placementRound = 1, gapMeters = -8), BattleRunningActions())
+    }
+
+    /** 트랙 보기([임시:FR-성-27]): 12 m 앞선 상대를 위 레인에 그리고 거리 자에 차이를 적는다. 결승선이 화면 안에 들어왔다. */
+    @Test
+    fun battleTrackNear() = compose.captureRunkkScreen("D3_battle_track_near") {
+        BattleRunningScreen(
+            running.copy(gapMeters = -12, myDistance = Distance(4_984), opponentDistance = Distance(4_996)),
+            BattleRunningActions()
+        )
+    }
+
+    @Test
+    fun battleTrackOverlap() = compose.captureRunkkScreen("D3_battle_track_overlap", isDarkTheme = false) {
+        BattleRunningScreen(running.copy(gapMeters = 0), BattleRunningActions())
+    }
+
+    @Test
+    fun selfTrackNear() = compose.captureRunkkScreen("D3_self_track_near", isDarkTheme = false) {
+        BattleRunningScreen(
+            running.copy(
+                kind = OpponentKind.SELF,
+                gapMeters = -3,
+                connectionLabel = null,
+                opponentRecordedOn = LocalDate.of(2026, 11, 13)
+            ),
+            BattleRunningActions()
+        )
     }
 
     @Test
@@ -614,9 +650,11 @@ class BattleScreenshotTest {
 
     @Test
     fun resultDetailLight() = compose.captureRunkkScreen("D4_battle_result_detail_light", isDarkTheme = false) {
+        // 라이트 테마 구간 막대 대비(PL12-A2)를 보이게 구간 페이스를 넣는다.
+        val detail = recordDetail().copy(splitPaces = listOf(Pace(331), Pace(326), Pace(318), Pace(322), Pace(312)))
         FirstRelease {
             BattleResultScreen(
-                BattleResultUiState(isLoading = false, result = battleResult(), detail = recordDetail()),
+                BattleResultUiState(isLoading = false, result = battleResult(), detail = detail),
                 {},
                 {},
                 {},

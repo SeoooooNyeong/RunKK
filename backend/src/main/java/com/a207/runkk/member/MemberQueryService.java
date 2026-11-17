@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -63,6 +64,30 @@ public class MemberQueryService {
             result.computeIfAbsent(id, ShownGender::fallbackOf);
         }
         return result;
+    }
+
+    /**
+     * 열람자에게 보일 성별(S15P31A207-306). 다른 회원은 shownGendersOf와 같고, 열람자 자신은 성별 공개 값과 무관하게 입력한 남·여다(입력하지
+     * 않았으면 표시 성별). 한 사람에게만 보내는 응답(크루원 목록)에 쓰고, 여러 사람에게 같이 보내는 값에는 shownGendersOf를 쓴다.
+     */
+    public Map<Long, Gender> gendersShownTo(long viewerId, Collection<Long> memberIds) {
+        Map<Long, Gender> result = new HashMap<>(shownGendersOf(memberIds));
+        if (result.containsKey(viewerId)) {
+            ownGenderOf(viewerId).ifPresent(own -> result.put(viewerId, own));
+        }
+        return result;
+    }
+
+    /**
+     * 본인에게 보이는 내 성별(입력한 남·여). 성별 공개 값과 무관하다. 입력하지 않았거나 밝히지 않음, 없는 회원이면 비어 있다. 다른 러너에게 보일 값은
+     * shownGendersOf를 쓴다(S15P31A207-306: 나와의 싸움의 그날의 나는 본인만 본다).
+     */
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public Optional<Gender> ownGenderOf(long memberId) {
+        return memberRepository
+                .findById(memberId)
+                .map(Member::gender)
+                .filter(g -> g == Gender.MALE || g == Gender.FEMALE);
     }
 
     /** analysis·profile이 엔티티 대신 읽는 설정 투영. */

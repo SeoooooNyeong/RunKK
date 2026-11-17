@@ -11,6 +11,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,7 +47,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,10 +69,12 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -103,7 +106,6 @@ import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
 import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIconButton
@@ -111,6 +113,8 @@ import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLimePill
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkSnackbarHost
+import com.a207.runkk.app.core.designsystem.RunkkStatusChip
+import com.a207.runkk.app.core.designsystem.RunkkStatusChipTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.TierBadge
@@ -119,8 +123,10 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.guideAnchor
 import com.a207.runkk.app.core.designsystem.media.rememberSoundEffects
+import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.designsystem.sceneAvatarFilter
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.LocalRunReturnReceipts
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.Routes
@@ -133,9 +139,10 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    // 러닝 결과·다른 화면에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다).
-    LifecycleResumeEffect(viewModel) {
-        viewModel.onResumed()
+    // 러닝 결과·다른 화면에서 돌아오면 다시 읽는다(처음 표시는 init이 읽는다). 크루런 결과 「확인」의 복귀 값이 있으면 함께 넘긴다.
+    val receipts = LocalRunReturnReceipts.current
+    LifecycleResumeEffect(viewModel, receipts) {
+        viewModel.onResumed(receipts?.takeHome())
         onPauseOrDispose {}
     }
     val navigator = LocalRunkkNavigator.current
@@ -144,9 +151,8 @@ fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         navigator.navigate(Routes.RUN)
     }
-    var isBatteryPromptShown by rememberSaveable { mutableStateOf(false) }
-    var isBatteryPromptVisible by rememberSaveable { mutableStateOf(false) }
-    val startRun = {
+    // 자유런 출발 전 절전 모드 안내([임시:D-성-902]): 절전 모드가 켜져 있으면 위치 권한·러닝 화면 이동을 보류한다.
+    val startRun = rememberRunPowerSaveStart {
         if (LOCATION_PERMISSIONS.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
             navigator.navigate(Routes.RUN)
         } else {
@@ -157,34 +163,9 @@ fun HomeRoute(viewModel: HomeViewModel = hiltViewModel()) {
         viewModel.events.collect { event ->
             when (event) {
                 is HomeEvent.Navigate -> navigator.navigate(event.key)
-
-                HomeEvent.StartRun -> {
-                    if (!isBatteryPromptShown && shouldOfferRunBatterySettings(context)) {
-                        isBatteryPromptShown = true
-                        isBatteryPromptVisible = true
-                    } else {
-                        startRun()
-                    }
-                }
+                HomeEvent.StartRun -> startRun()
             }
         }
-    }
-    if (isBatteryPromptVisible) {
-        RunkkConfirmDialog(
-            title = stringResource(R.string.home_run_battery_title),
-            message = stringResource(R.string.home_run_battery_message),
-            confirmLabel = stringResource(R.string.home_run_battery_open_settings),
-            dismissLabel = stringResource(R.string.home_run_battery_skip),
-            onConfirm = {
-                isBatteryPromptVisible = false
-                if (!openRunBatterySettings(context)) startRun()
-            },
-            onDismiss = {
-                isBatteryPromptVisible = false
-                startRun()
-            },
-            onDismissRequest = { isBatteryPromptVisible = false }
-        )
     }
     HomeScreen(
         state = state,
@@ -359,9 +340,7 @@ private fun Header(state: HomeUiState, onNavigate: (String) -> Unit) {
                 HeaderIdentity(state, modifier = Modifier.weight(1f, fill = false))
             }
         }
-        // 잔액과 알림함을 묶어 첫 사용 가이드 포인트 단계(J-8)가 함께 강조한다(S15P31A207-250)
         Row(
-            modifier = Modifier.guideAnchor(GuideStep.POINT),
             horizontalArrangement = Arrangement.spacedBy(HEADER_GAP),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -601,7 +580,7 @@ private fun Room(state: HomeUiState, actions: HomeActions, bottomSpace: Dp, modi
     }
 }
 
-/** "이번 주 [n] / [n]km" 막대와 "[n]주 연속"(흰 알약, 가이드 앵커 WEEKLY_GOAL), 러닝 설정(톱니바퀴, 2026-11-04 핫픽스) 버튼. */
+/** "이번 주 [n] / [n]km" 막대와 "[n]주 연속"(흰 알약), 러닝 설정(톱니바퀴, 2026-11-04 핫픽스) 버튼. */
 @Composable
 private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Unit) {
     val openGoal = stringResource(R.string.home_open_goal_coach)
@@ -610,17 +589,21 @@ private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Un
     val spoken = goal?.let { stringResource(R.string.home_week_spoken, actual, it) }
         ?: stringResource(R.string.home_week_spoken_no_goal, actual)
     val streak = stringResource(R.string.home_streak, state.streakWeeks)
+    // 크루런 결과 「확인」 뒤 막 더해진 내 거리(2초): 라임 테두리와 「+0.80km 크루런」(설계 05-32 흐름 4).
+    val added = state.weeklyHighlight?.let { stringResource(R.string.home_week_added_crew_run, compactKm(it)) }
+    val pillShape = RoundedCornerShape(24.dp)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Row(
             modifier = Modifier
                 .weight(1f)
-                .guideAnchor(GuideStep.WEEKLY_GOAL)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(pillShape)
                 .background(RunkkColors.Surface)
+                .then(if (added != null) Modifier.border(2.dp, RunkkColors.Lime, pillShape) else Modifier)
                 // 이번 주 막대를 누르면 주간 목표를 정하는 목표·러닝 코치로 간다
                 .clickable(role = Role.Button, onClickLabel = openGoal, onClick = onGoal)
                 .clearAndSetSemantics {
-                    contentDescription = "$spoken, $streak"
+                    contentDescription = listOfNotNull(spoken, added, streak).joinToString(", ")
+                    if (added != null) liveRegion = LiveRegionMode.Polite
                     role = Role.Button
                     onClick(label = openGoal) {
                         onGoal()
@@ -646,7 +629,11 @@ private fun WeekRow(state: HomeUiState, onSettings: () -> Unit, onGoal: () -> Un
                 maxLines = 1
             )
             RunkkProgressBar(progress = state.weeklyProgress, height = 6.dp, modifier = Modifier.weight(1f))
-            Text(streak, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary, maxLines = 1)
+            if (added != null) {
+                RunkkStatusChip(added, RunkkStatusChipTone.Lime)
+            } else {
+                Text(streak, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary, maxLines = 1)
+            }
         }
         CircleIconButton(
             icon = RunkkIcons.Settings,
@@ -742,7 +729,7 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
         R.raw.home_jump_male
     }
     // 1차 배포는 눌러도 이동하지 않고, 기쁜 자세로 바뀌며 소리와 함께 한 번 뛰었다 내려온다(장식이라 읽기 동작은 두지 않는다).
-    // 열린 배포에서 눌러 이동할 때는 물결을 그리지 않는다([임시:D-성-182]).
+    // 열린 배포에서 눌러 이동할 때는 물결을 그리지 않는다(D-814).
     val interaction = remember { MutableInteractionSource() }
     val press = if (isAvatarOpen) {
         Modifier.clickable(
@@ -806,15 +793,16 @@ private fun RoomAvatar(state: HomeUiState, isAvatarOpen: Boolean, onAvatar: () -
                 colorFilter = sceneAvatarFilter()
             )
         }
+        MyRunnerGuideAnchor(Modifier.height(height * MY_RUNNER_ANCHOR_HEIGHT))
     }
 }
 
 /**
- * 아바타 칸(SlotKey.HOME_AVATAR, design-oo 05-30 2절, [임시:D-성-100], [임시:D-성-134], 피그마 62341:1878): 390×420 칸에 ui.avatar가
+ * 아바타 칸(SlotKey.HOME_AVATAR, design-oo 05-30 2절, D-732, D-766, 피그마 62341:1878): 390×420 칸에 ui.avatar가
  * 바닥선·그림자·Rive 서기·로딩 표시를 그린다. 배경 사진은 홈이 화면 전체에 깔아 두므로 칸은 배경을 다시 그리지 않고 같은 바닥 규칙
  * (칸 위에서 342dp, 아래에서 [HOME_AVATAR_FLOOR_FROM_BOTTOM])만 쓴다. 칸 바닥선이 남은 자리 아래보다
  * [HOME_AVATAR_FLOOR_ABOVE_ROOM] 위에 오게 칸을 내리고, 남은 자리가 좁으면 칸 높이를 줄인다(바닥선은 칸 아래에서 같은 거리다).
- * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다(물결 없음, [임시:D-성-182]). 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
+ * 아바타 꾸미기가 열려 있으면 누르면 내 러너로 간다(물결 없음, D-814). 뛰어오르기·효과음은 없다(FR-236 2차 배포 뒤 규칙).
  */
 @Composable
 private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier: Modifier = Modifier) {
@@ -825,7 +813,7 @@ private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier
     BoxWithConstraints(modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
         val drop = HOME_AVATAR_FLOOR_FROM_BOTTOM - HOME_AVATAR_FLOOR_ABOVE_ROOM
         val height = (maxHeight + drop).coerceIn(HOME_AVATAR_SLOT_MIN_HEIGHT, HOME_AVATAR_SLOT_HEIGHT)
-        // 아바타 그림을 누르면 물결(반투명 눌림)을 그리지 않는다. 단추 안내·누름 영역은 그대로다([임시:D-성-182]).
+        // 아바타 그림을 누르면 물결(반투명 눌림)을 그리지 않는다. 단추 안내·누름 영역은 그대로다(D-814).
         val press = if (isAvatarOpen) {
             Modifier.clickable(
                 interactionSource = interaction,
@@ -844,8 +832,26 @@ private fun HomeAvatarSlot(isAvatarOpen: Boolean, onAvatar: () -> Unit, modifier
                 .testTag(HOME_AVATAR_SLOT_TAG)
                 .then(press)
                 .semantics { contentDescription = description }
-        ) { slot.forEach { it() } }
+        ) {
+            slot.forEach { it() }
+            // 칸은 바닥선 아래로 하단 탭 뒤까지 내려가 있다. 강조 자리는 바닥선(발) 바로 아래에서 끝나야 탭과 겹치지 않는다.
+            MyRunnerGuideAnchor(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = HOME_AVATAR_FLOOR_FROM_BOTTOM - MY_RUNNER_ANCHOR_BELOW_FLOOR)
+                    .height(minOf(MY_RUNNER_ANCHOR_SLOT_HEIGHT, height - HOME_AVATAR_FLOOR_FROM_BOTTOM))
+            )
+        }
     }
+}
+
+/**
+ * 첫 사용 가이드 「내 러너」 단계의 강조 자리([임시:D-성-295]): 홈 아바타(누르면 내 러너로 간다) 위에 얹는 투명한 칸이다. 아바타 칸 전체는
+ * 너무 커서 아래 가운데, 칸 너비의 절반만 강조한다. 누름을 받지 않고 보조 기술에도 알리지 않는다.
+ */
+@Composable
+private fun MyRunnerGuideAnchor(modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxWidth(MY_RUNNER_ANCHOR_WIDTH).guideAnchor(GuideStep.MY_RUNNER))
 }
 
 /** 주간 막대의 km 표기: 정수면 정수, 아니면 소수 한 자리("12", "12.5"). */
@@ -853,6 +859,14 @@ internal fun compactKm(distance: Distance): String {
     val text = RunkkFormat.kmShort(distance)
     return text.removeSuffix(".0")
 }
+
+/** 「내 러너」 가이드 강조 자리: 아바타 칸 너비의 절반, 높이의 70%(아래 가운데). */
+private const val MY_RUNNER_ANCHOR_WIDTH = 0.5f
+private const val MY_RUNNER_ANCHOR_HEIGHT = 0.7f
+
+/** 아바타 칸(SlotKey.HOME_AVATAR)의 「내 러너」 강조 자리: 바닥선 아래로 그림자만큼 내려가고, 머리 위까지 덮는 높이다. */
+private val MY_RUNNER_ANCHOR_BELOW_FLOOR = 8.dp
+private val MY_RUNNER_ANCHOR_SLOT_HEIGHT = 256.dp
 
 private val AVATAR_MIN_HEIGHT = 160.dp
 private val AVATAR_MAX_HEIGHT = 360.dp
@@ -872,7 +886,7 @@ private const val HOP_DAMPING = 0.45f
 /** 발을 남은 자리 바닥보다 더 내리는 거리. 솟은 홈 탭 원(20dp)과 신발이 조금 겹친다(사용자 요청 2026-10-30). */
 private val AVATAR_GROUND_SINK = 8.dp
 
-/** 홈 아바타 칸 크기(피그마 62341:1878, [임시:D-성-134]). 남은 자리가 좁으면 높이만 줄인다. */
+/** 홈 아바타 칸 크기(피그마 62341:1878, D-766). 남은 자리가 좁으면 높이만 줄인다. */
 private val HOME_AVATAR_SLOT_WIDTH = 390.dp
 private val HOME_AVATAR_SLOT_HEIGHT = 420.dp
 private val HOME_AVATAR_SLOT_MIN_HEIGHT = 240.dp
@@ -885,7 +899,7 @@ internal val HOME_AVATAR_FLOOR_FROM_BOTTOM = 78.dp
 
 /**
  * Rive 칸 바닥선을 방 아래 끝보다 올리는 거리. 신발이 솟은 홈 탭 원(방 아래 끝에서 약 18dp 위까지 솟음)과 8dp쯤만 겹친다
- * (사용자 요청 2026-10-30 「조금 겹친다」, 2026-11-11 실기기 3차에서 방 아래 + 8dp는 신발 대부분이 가려짐, [임시:D-성-173]).
+ * (사용자 요청 2026-10-30 「조금 겹친다」, 2026-11-11 실기기 3차에서 방 아래 + 8dp는 신발 대부분이 가려짐, D-805).
  */
 internal val HOME_AVATAR_FLOOR_ABOVE_ROOM = 10.dp
 

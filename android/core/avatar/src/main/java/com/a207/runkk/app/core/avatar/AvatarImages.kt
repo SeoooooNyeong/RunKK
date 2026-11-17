@@ -40,7 +40,7 @@ internal object AvatarImages {
     }
 
     /**
-     * 헤어 레이어: 고유색은 그대로 두고 얼굴과 맞닿은 경계의 피부 섞인 색만 섞인 몫만큼 러닝량 톤을 준다([HairSkinFringe], DV-성-5).
+     * 헤어 레이어: 고유색은 그대로 두고 얼굴과 맞닿은 경계의 피부 섞인 색만 섞인 몫만큼 러닝량 톤을 준다([HairSkinFringe], DV-5).
      * 러닝량 0이거나 얼굴과 크기가 다르면 원본 바이트를 그대로 돌려준다.
      */
     fun hairForRunningAmount(hair: ByteArray, face: ByteArray, amount: Int): ByteArray {
@@ -88,12 +88,11 @@ internal object AvatarImages {
                 } else {
                     drawRegisteredFace(canvas, face, neck)
                 }
-                drawOverlay(canvas, layers.eyes, face, clipFemaleStrand = false)
+                drawOverlay(canvas, layers.eyes, face)
                 drawOverlay(
                     canvas,
                     hairForRunningAmount(layers.hair, layers.face, amount),
-                    face,
-                    clipFemaleStrand = neck == SideNeckRegistration.FEMALE
+                    face
                 )
                 return encode(result)
             } finally {
@@ -125,18 +124,11 @@ internal object AvatarImages {
         }
     }
 
-    private fun drawOverlay(canvas: Canvas, bytes: ByteArray, face: Bitmap, clipFemaleStrand: Boolean) {
+    private fun drawOverlay(canvas: Canvas, bytes: ByteArray, face: Bitmap) {
         val overlay = decode(bytes)
         try {
             require(overlay.width == face.width && overlay.height == face.height) { "side layers differ in size" }
-            val saved = canvas.save()
-            try {
-                // 내장 여자 옆얼굴: 이 머리카락 한 가닥은 줄인 목·옷깃 뒤에 있다. 헤어 원본을 바꾸지 않고 그 자리만 가린다.
-                if (clipFemaleStrand) canvas.clipOutRect(680f, 770f, 760f, 880f)
-                canvas.drawBitmap(overlay, 0f, 0f, null)
-            } finally {
-                canvas.restoreToCount(saved)
-            }
+            canvas.drawBitmap(overlay, 0f, 0f, null)
         } finally {
             overlay.recycle()
         }

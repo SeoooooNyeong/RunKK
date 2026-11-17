@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.chat
 
+import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.Outcome
 
 /** 크루 채팅 REST 포트(F.2, FR-208~FR-213). 구현 api.chat.ChatRepositoryImpl. 거부는 AppError.Rejected(사유 코드)로 온다. */
@@ -21,4 +22,13 @@ interface ChatRepository {
 
     /** 삭제(DELETE /chat-messages/{id}). 본인 또는 운영진 이상만(FR-213). */
     suspend fun delete(messageId: Long): Outcome<Unit>
+
+    /**
+     * 작성자·반응자 얼굴 그림: faceKey(셀카 아바타)로 부위 그림을 받는다(CrewRepository.faceLayers와 같은 그림, 같은 캐시).
+     * 셀카 얼굴이 아니면 빈 목록, 받지 못하면 실패다. 구현이 없으면 빈 목록이다.
+     */
+    suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = Outcome.Success(emptyList())
+
+    /** 기다리지 않고 바로 그릴 수 있는 얼굴 그림(앞서 받아 둔 것). 없으면 null. */
+    fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = null
 }
