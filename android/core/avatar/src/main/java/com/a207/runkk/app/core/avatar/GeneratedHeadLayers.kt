@@ -23,5 +23,23 @@ class GeneratedHeadLayers internal constructor(
         @WorkerThread
         fun fromHeadJson(json: String): GeneratedHeadLayers =
             GeneratedAvatarLayers.prepare(GeneratedHeadInput.parse(json))
+
+        /**
+         * 층별로 받은 셀카 머리(S15P31A207-300 레이어 합성: 서버 …/layers/{층}?size=1024 PNG 여섯 장과 이미지 없는 메타 JSON의
+         * mobile.neckMask·mobile.skinColor)를 바꾼다. 같은 그림·메타면 [fromHeadJson]과 같은 결과다. 층이 1024×1024 PNG가 아니거나
+         * 메타가 JSON 객체가 아니면 IllegalArgumentException이다. 주 스레드에서 부르지 않는다.
+         */
+        @WorkerThread
+        fun fromLayers(
+            face: ByteArray,
+            eyes: ByteArray,
+            hair: ByteArray,
+            rightFace: ByteArray,
+            rightEyes: ByteArray,
+            rightHair: ByteArray,
+            metaJson: String
+        ): GeneratedHeadLayers = GeneratedAvatarLayers.prepare(
+            GeneratedHeadInput.of(face, eyes, hair, rightFace, rightEyes, rightHair, metaJson)
+        )
     }
 }

@@ -80,11 +80,18 @@ interface AvatarRepository {
     suspend fun runner(): Outcome<AvatarRunner> = Outcome.Failure(AppError.Server(HTTP_NOT_IMPLEMENTED))
 
     /**
-     * 셀카 머리 결과(GET /avatar/heads/{회원ID}/{작업ID}, W9 Rive 렌더러 입력, contract-W8.md 6.2). 본문을 한 번 받아 원문 JSON과
-     * 대체 그림(정면 세 층)을 함께 준다. [faceKey]가 셀카 머리("head:…")가 아니면 null이다. 받지 못하면 실패이고, 받았지만 층 형식이
-     * 틀렸으면 대체 그림이 빈 성공이다. 구현이 없으면 null이다.
+     * 셀카 머리(W9 Rive 렌더러 입력, S15P31A207-300 레이어 합성): 메타데이터와 1024 층 여섯 장(GET /avatar/heads/{회원ID}/{작업ID}/meta,
+     * …/layers/{층}?size=1024)을 한 번 받아 정면 세 층·옆모습 세 층·합성 정보로 준다. 서버가 층 주소를 모르면 예전 통짜 응답으로 받는다.
+     * [faceKey]가 셀카 머리("head:…")가 아니면 null이다. 받지 못하면 실패이고, 받았지만 층 형식이 틀렸으면 대체 그림이 빈 성공이다.
+     * 구현이 없으면 null이다.
      */
     suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> = Outcome.Success(null)
+
+    /**
+     * 기기에 남긴 내 마지막 얼굴 키(본인 프로필을 읽을 때 남긴다). 앱을 켜자마자 프로필 응답을 기다리지 않고 내 머리를 디스크에서
+     * 합성하기 시작할 때 쓴다. 모르거나 다른 계정 것이면 null이다. 네트워크는 쓰지 않는다.
+     */
+    fun savedSelfFaceKey(): String? = null
 }
 
 /** 구현이 없는 기본 메소드의 실패 상태(HTTP 501과 같은 뜻). */

@@ -75,7 +75,12 @@ class MyAvatarStore internal constructor(
     /** 기기에 남긴 마지막 내 얼굴 그을림(앱을 켠 첫 화면부터 쓴다, D-854). */
     private val savedTone: () -> SelfFaceTone = { SelfFaceTone() },
     /** 내 얼굴 그을림을 기기에 남긴다. 로그아웃이면 빈 값을 남긴다. */
-    private val saveTone: (SelfFaceTone) -> Unit = {}
+    private val saveTone: (SelfFaceTone) -> Unit = {},
+    /**
+     * 기기에 남긴 내 마지막 얼굴 키(AvatarRepository.savedSelfFaceKey). [warm]이 프로필(성별) 응답을 기다리지 않고 이 키로 내 머리를
+     * 받아(디스크 캐시면 바로) 합성을 시작한다(S15P31A207-300).
+     */
+    private val savedFaceKey: () -> String? = { null }
 ) {
     @Inject
     constructor(
@@ -108,7 +113,8 @@ class MyAvatarStore internal constructor(
         resumeSelfie = { avatars.pendingSelfieJobId()?.let(follower::resume) },
         checkPending = { follower.checkNow() },
         savedTone = { FaceTonePrefs.read(context) },
-        saveTone = { FaceTonePrefs.write(context, it) }
+        saveTone = { FaceTonePrefs.write(context, it) },
+        savedFaceKey = avatars::savedSelfFaceKey
     )
 
     /** 셀카 작업 진행(홈 칸의 진행 배지가 듣는다, 피그마 AV-7 4). */
@@ -153,6 +159,9 @@ class MyAvatarStore internal constructor(
         // 로그아웃 상태면(clear 뒤 늦게 온 warm) 앞 회원 그림을 다시 준비하지 않는다(리뷰 R2-7).
         if (genderJob?.isActive == true || !loggedIn.value) return
         _state.value = MyAvatarState.Loading
+        // 내 머리는 프로필(성별) 응답을 기다리지 않고 마지막 얼굴 키로 바로 받아 합성해 둔다(S15P31A207-300). 준비([load])가 같은
+        // 키를 찾으면 SelfieHeads가 받는 중인 것을 기다리거나 담아 둔 것을 준다. 키가 바뀌었으면 이 결과는 쓰이지 않을 뿐이다.
+        savedFaceKey()?.takeIf(::isSelfieHead)?.let { key -> scope.launch { quietly { heads.look(key) } } }
         genderJob = scope.launch {
             myGender
                 .map { it?.let(::avatarGenderOf) }

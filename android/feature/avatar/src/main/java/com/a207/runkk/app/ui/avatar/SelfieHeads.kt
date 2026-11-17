@@ -1,8 +1,10 @@
 package com.a207.runkk.app.ui.avatar
 
 import com.a207.runkk.app.core.avatar.GeneratedHeadLayers
+import com.a207.runkk.app.core.model.FacePart
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.domain.avatar.AvatarRepository
+import com.a207.runkk.app.domain.avatar.SelfieHead
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
@@ -61,11 +63,21 @@ class SelfieHeads internal constructor(private val avatars: AvatarRepository, pr
     private suspend fun load(faceKey: String): FaceLook? {
         if (!isSelfieHead(faceKey)) return avatars.faceLayers(faceKey).getOrNull()?.let { FaceLook(it, null) }
         val head = avatars.selfieHead(faceKey).getOrNull() ?: return null
-        return FaceLook(head.faceLayers, withContext(worker) { headLayersOf(head.json) })
+        return FaceLook(head.faceLayers, withContext(worker) { headLayersOf(head) })
     }
 
-    private fun headLayersOf(json: String): GeneratedHeadLayers? = try {
-        GeneratedHeadLayers.fromHeadJson(json)
+    private fun headLayersOf(head: SelfieHead): GeneratedHeadLayers? = try {
+        val front = FRONT_PARTS.map { part -> head.faceLayers.firstOrNull { it.part == part }?.png ?: return null }
+        if (head.rightLayers.size != SIDE_LAYERS) return null
+        GeneratedHeadLayers.fromLayers(
+            face = front[0],
+            eyes = front[1],
+            hair = front[2],
+            rightFace = head.rightLayers[0],
+            rightEyes = head.rightLayers[1],
+            rightHair = head.rightLayers[2],
+            metaJson = head.meta
+        )
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -82,5 +94,11 @@ class SelfieHeads internal constructor(private val avatars: AvatarRepository, pr
          */
         const val ENTRIES = 6
         const val LOAD_FACTOR = 0.75f
+
+        /** 정면 세 층(얼굴·눈·머리카락) 자리. */
+        val FRONT_PARTS = listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR)
+
+        /** 옆모습 층 수(얼굴·눈·머리카락). */
+        const val SIDE_LAYERS = 3
     }
 }

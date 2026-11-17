@@ -69,7 +69,9 @@ constructor(
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
 
     override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> =
-        faces.selfieHead(faceKey).map { body -> body?.let { SelfieHead(it.json, it.faceLayers) } }
+        faces.selfieHead(faceKey).map { body -> body?.let { SelfieHead(it.faceLayers, it.rightLayers, it.meta) } }
+
+    override fun savedSelfFaceKey(): String? = faces.lastSelf()?.faceKey
 
     override suspend fun runner(): Outcome<AvatarRunner> = ApiErrorMapper.call { api.runner().toDomain() }
 

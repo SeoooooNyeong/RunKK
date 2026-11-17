@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieProgress
 import com.a207.runkk.app.domain.avatar.Shop
 import java.io.IOException
@@ -43,10 +44,11 @@ class MyAvatarStoreTest {
     private var resumes = 0
     private var checks = 0
 
-    private fun TestScope.store() = MyAvatarStore(
+    private fun TestScope.store(savedFaceKey: String? = null) = MyAvatarStore(
         avatars = repo,
         myGender = gender,
         heads = headsOf(repo),
+        savedFaceKey = { savedFaceKey },
         preload = { preloaded += it },
         prepare = { look, motion ->
             prepareFailure?.let { throw it }
@@ -80,6 +82,32 @@ class MyAvatarStoreTest {
         store.warm()
         runCurrent()
         assertIs<MyAvatarState.Ready>(store.state.value)
+    }
+
+    @Test
+    fun `warm은 프로필(성별)을 기다리지 않고 기기에 남긴 내 얼굴 키로 머리를 바로 받아 합성을 시작한다(S15P31A207-300)`() = runTest {
+        repo.base.headResult = Outcome.Success(SelfieHead(faceLayers))
+        repo.base.avatarResult = Outcome.Success(sample.copy(faceKey = "head:7:job-1"))
+        val store = store(savedFaceKey = "head:7:job-1")
+
+        store.warm()
+        runCurrent()
+        assertEquals(listOf("head:head:7:job-1"), repo.base.calls.filter { it.startsWith("head:") }, "성별을 모르는 동안 받는다")
+        assertIs<MyAvatarState.Loading>(store.state.value)
+
+        gender.value = Gender.MALE
+        runCurrent()
+        val ready = assertIs<MyAvatarState.Ready>(store.state.value)
+        assertEquals(faceLayers, ready.look.faceLayers)
+        assertEquals(1, repo.base.calls.count { it.startsWith("head:") }, "같은 머리를 다시 받지 않는다")
+    }
+
+    @Test
+    fun `남긴 얼굴 키가 셀카 머리가 아니거나 없으면 미리 받지 않는다`() = runTest {
+        store(savedFaceKey = "default:FOX").warm()
+        store(savedFaceKey = null).warm()
+        runCurrent()
+        assertEquals(emptyList(), repo.base.calls.filter { it.startsWith("head:") })
     }
 
     @Test

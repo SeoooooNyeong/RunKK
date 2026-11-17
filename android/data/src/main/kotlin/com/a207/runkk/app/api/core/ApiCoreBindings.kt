@@ -92,7 +92,8 @@ object ApiCoreBindings {
         .build()
 
     /**
-     * 아바타 얼굴 부위 그림. 인증된 클라이언트에 디스크 캐시(10MiB, 서버 Cache-Control을 따른다)를 얹는다.
+     * 아바타 얼굴 그림. 인증된 클라이언트에 디스크 캐시(64MiB, 서버 Cache-Control을 따른다)를 얹는다. 셀카 머리 층(S15P31A207-300)은
+     * 서버가 immutable로 주어 앱을 다시 켜도 여기서 준다: 내 머리 1024 층 여섯 장 약 4~5MB, 다른 러너 얼굴 원 512 층 세 장 수백 KB.
      * 같은 연결 풀을 쓰고 인증 헤더·토큰 갱신은 그대로다. 내 얼굴의 마지막 모습은 앱 전용 저장소(files/my-face)에 남긴다.
      */
     @Provides
@@ -110,7 +111,7 @@ object ApiCoreBindings {
 
     private const val FACE_CACHE_DIR = "avatar-face"
     private const val SELF_FACE_DIR = "my-face"
-    private const val FACE_CACHE_BYTES = 10L * 1024 * 1024
+    private const val FACE_CACHE_BYTES = 64L * 1024 * 1024
 
     @Provides
     @Singleton
