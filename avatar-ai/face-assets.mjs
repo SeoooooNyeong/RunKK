@@ -5,6 +5,7 @@ import {mobileHead} from './mobile-composition.mjs';
 import {HEAD_LAYER_VERSION,HEAD_SEGMENTATION_VERSION,HEAD_LAYOUT} from './head-layers.mjs';
 import {splitAiLayers} from './ai-head-layers.mjs';
 import sharp from 'sharp';
+import {compressHeadLayers} from './head-png.mjs';
 export const FACE_ASSETS_VERSION='runkk-face-assets-v1';
 export const FACE_IMAGE_FIELDS=Object.freeze(['frontImage','rightImage','faceImage','eyesImage','hairImage']);
 const dataUrl=buffer=>'data:image/png;base64,'+buffer.toString('base64');
@@ -55,6 +56,8 @@ export async function savedFaceResult(root,userId,findRight,headId=null,{resplit
       metadata.segmentationVersion=HEAD_SEGMENTATION_VERSION;
       metadata.layerLayout={...metadata.layerLayout,...HEAD_LAYOUT};
       metadata.mobile=await mobileHead(layers.face,metadata.alignment);
+      // 다시 쪼갠 레이어도 새 머리와 같이 줄인다(HEAD_PNG_COMPRESSION, 기본 꺼짐)
+      await compressHeadLayers(layers);
       if(persist)await saveUserHead(root,userId,layers,metadata);
     }catch(error){
       metadata.validation={...metadata.validation,resplitWarning:error.message};
