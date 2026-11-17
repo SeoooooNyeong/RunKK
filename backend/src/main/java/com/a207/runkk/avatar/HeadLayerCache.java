@@ -1,5 +1,6 @@
 package com.a207.runkk.avatar;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
@@ -13,6 +14,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,15 +30,26 @@ import org.springframework.stereotype.Component;
  *       약 4~5MB(층 6장), 얼굴 원용 512 층은 장당 수십~수백 KB다. 버린 머리는 다음 요청에 다시 받는다.
  *   <li>동시 요청: 같은 키(머리 원본, 또는 층·크기)를 여러 요청이 함께 찾으면 하나만 받거나 만들고 나머지는 그 결과를 기다린다. 실패는 담지 않고 기다린 요청에도
  *       같은 오류를 돌려준다(다음 요청이 다시 받는다).
+ *   <li>첫 적재 제한(v0.14 [임시:D-성-953]): ai 결과 받기·풀기는 동시에 [loadPermits](기본 4)개까지다. 머리 하나 적재가 약 30~40MB를
+ *       잠깐 쓰므로 힙을 지킨다. 자리를 [loadWait](기본 10초) 안에 못 얻으면 503 {@link #HEAD_BUSY}다(앱은 한 번 다시 시도). 같은
+ *       머리를 기다리는 요청은 자리를 쓰지 않고 앞 요청의 결과를 기다린다.
  *   <li>권한: 이 캐시는 권한을 보지 않는다. 부르는 쪽({@link HeadLayerService})이 매 요청 공개 규칙을 확인한다.
  *   <li>줄인 크기를 첫 요청 때 모두 만들지 않고 처음 요청된 층·크기만 만든다. 얼굴 원은 정면 세 층만, 큰 아바타는 원본(1024)만 쓰므로 쓰지 않는 크기를 만드는
  *       시간(층마다 수십 ms)으로 첫 응답을 늦추지 않는다.
  * </ul>
+ *
+ * <p>형식 판은 {@link HeadFormat#VERSION} 하나다(메타의 format과 층 주소가 그 값을 쓴다).
  */
 @Component
 public class HeadLayerCache {
-    /** 층 응답 형식 버전. 인코딩·축소 방식을 바꾸면 올린다(층·메타 ETag에 들어가 앱이 예전 사본을 버린다). */
-    public static final String FORMAT = "png1";
+    /** 첫 적재 자리를 제때 얻지 못했을 때의 사유(503, D-성-953). */
+    public static final String HEAD_BUSY = "HEAD_BUSY";
+
+    /** 동시에 받을 수 있는 머리 원본 수(D-성-953). */
+    public static final int DEFAULT_LOAD_PERMITS = 4;
+
+    /** 첫 적재 자리를 기다리는 최대 시간(D-성-953). */
+    public static final Duration DEFAULT_LOAD_WAIT = Duration.ofSeconds(10);
 
     /** 층 원본의 공통 캔버스 한 변. */
     public static final int CANVAS = 1024;
@@ -52,6 +66,8 @@ public class HeadLayerCache {
 
     private final FaceJobGateway gateway;
     private final long maxBytes;
+    private final Semaphore loadPermits;
+    private final Duration loadWait;
     private final LinkedHashMap<Object, Object> entries = new LinkedHashMap<>(64, 0.75f, true);
     private final Map<Object, CompletableFuture<Object>> loading = new ConcurrentHashMap<>();
     private long weight;
@@ -60,9 +76,19 @@ public class HeadLayerCache {
     public HeadLayerCache(
             FaceJobGateway gateway,
             @Value("${runkk.avatar.head-layer-cache-bytes:67108864}") long maxBytes) {
+        this(gateway, maxBytes, DEFAULT_LOAD_PERMITS, DEFAULT_LOAD_WAIT);
+    }
+
+    /** 첫 적재 자리 수와 기다림 상한을 정하는 생성자(시험용). */
+    HeadLayerCache(FaceJobGateway gateway, long maxBytes, int loadPermits, Duration loadWait) {
         if (maxBytes <= 0) throw new IllegalArgumentException("캐시 상한 오류");
+        if (loadPermits <= 0 || loadWait.isNegative()) {
+            throw new IllegalArgumentException("머리 적재 제한 오류");
+        }
         this.gateway = gateway;
         this.maxBytes = maxBytes;
+        this.loadPermits = new Semaphore(loadPermits, true);
+        this.loadWait = loadWait;
     }
 
     /** 이미지 없는 머리 메타데이터. */
@@ -71,18 +97,19 @@ public class HeadLayerCache {
     }
 
     /**
-     * 층 하나를 [size](공통 캔버스 한 변 기준)로 줄인 PNG. 1024는 ai 원본 그대로다. 모르는 크기는 IllegalArgumentException, 이
-     * 머리에 없는 층은 404 LAYER_NOT_FOUND다.
+     * 층 하나를 key.size(공통 캔버스 한 변 기준)로 줄인 PNG. 1024는 ai 원본 그대로다. 이 머리에 없는 층은 404 LAYER_NOT_FOUND다(크기는
+     * {@link HeadLayerKey}가 이미 확인했다).
      */
-    public byte[] layer(long ownerId, String jobId, HeadLayer layer, int size) {
-        if (!SIZES.contains(size)) throw new IllegalArgumentException("머리 층 크기 오류");
-        if (size == CANVAS) return source(ownerId, jobId).original(layer);
+    public byte[] layer(HeadLayerKey key) {
+        if (key.size() == CANVAS) return source(key.ownerId(), key.jobId()).original(key.layer());
         return (byte[])
                 load(
-                        new VariantKey(ownerId, jobId, layer, size),
+                        key,
                         () ->
                                 HeadLayerImages.downscale(
-                                        source(ownerId, jobId).original(layer), size, CANVAS));
+                                        source(key.ownerId(), key.jobId()).original(key.layer()),
+                                        key.size(),
+                                        CANVAS));
     }
 
     /** 지금 담은 바이트 합(시험용). */
@@ -94,7 +121,30 @@ public class HeadLayerCache {
         return (HeadSource)
                 load(
                         new SourceKey(ownerId, jobId),
-                        () -> HeadSource.of(gateway.result(ownerId, jobId)));
+                        () ->
+                                withLoadPermit(
+                                        () ->
+                                                HeadSource.of(
+                                                        ownerId,
+                                                        jobId,
+                                                        gateway.result(ownerId, jobId))));
+    }
+
+    /** 첫 적재 자리를 얻어 [loader]를 부른다. [loadWait] 안에 못 얻으면 503 HEAD_BUSY. 성공·실패 모두 자리를 돌려준다. */
+    private Object withLoadPermit(Supplier<Object> loader) {
+        boolean acquired;
+        try {
+            acquired = loadPermits.tryAcquire(loadWait.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            throw new FaceJobRejectedException(503, HEAD_BUSY);
+        }
+        if (!acquired) throw new FaceJobRejectedException(503, HEAD_BUSY);
+        try {
+            return loader.get();
+        } finally {
+            loadPermits.release();
+        }
     }
 
     /** 담은 값이 있으면 그것을, 없으면 한 요청만 [loader]로 만들어 담는다. 나머지는 그 결과를 기다린다. */
@@ -160,11 +210,9 @@ public class HeadLayerCache {
 
     private record SourceKey(long ownerId, String jobId) {}
 
-    private record VariantKey(long ownerId, String jobId, HeadLayer layer, int size) {}
-
     /** ai에서 받은 머리 하나: 원본 층 PNG와 이미지 없는 메타데이터. */
     private record HeadSource(HeadMeta meta, Map<HeadLayer, byte[]> originals) {
-        static HeadSource of(GeneratedHead head) {
+        static HeadSource of(long ownerId, String jobId, GeneratedHead head) {
             Map<HeadLayer, byte[]> originals = new EnumMap<>(HeadLayer.class);
             put(originals, HeadLayer.FACE, head.faceImage());
             put(originals, HeadLayer.EYES, head.eyesImage());
@@ -181,7 +229,7 @@ public class HeadLayerCache {
             originals.keySet().forEach(layer -> names.add(layer.pathName()));
             HeadMeta meta =
                     new HeadMeta(
-                            FORMAT,
+                            HeadFormat.VERSION,
                             head.headId(),
                             CANVAS,
                             head.traits(),
@@ -190,7 +238,8 @@ public class HeadLayerCache {
                             head.rightLayerLayout(),
                             withoutImages(head.mobile()),
                             Collections.unmodifiableList(names),
-                            head.createdAt());
+                            head.createdAt(),
+                            layerUrls(ownerId, jobId, originals.keySet()));
             return new HeadSource(meta, Collections.unmodifiableMap(originals));
         }
 
@@ -202,6 +251,22 @@ public class HeadLayerCache {
 
         long weight() {
             return META_WEIGHT + originals.values().stream().mapToLong(png -> png.length).sum();
+        }
+
+        /** 크기(작은 것부터) → 층 이름(층 순서) → 층 주소. 이 머리에 있는 층만. */
+        private static Map<String, Map<String, String>> layerUrls(
+                long ownerId, String jobId, Set<HeadLayer> present) {
+            Map<String, Map<String, String>> bySize = new LinkedHashMap<>();
+            for (int size : SIZES.stream().sorted().toList()) {
+                Map<String, String> urls = new LinkedHashMap<>();
+                for (HeadLayer layer : present) {
+                    urls.put(
+                            layer.pathName(),
+                            HeadFormat.layerUrl(new HeadLayerKey(ownerId, jobId, layer, size)));
+                }
+                bySize.put(Integer.toString(size), Collections.unmodifiableMap(urls));
+            }
+            return Collections.unmodifiableMap(bySize);
         }
 
         private static void put(Map<HeadLayer, byte[]> originals, HeadLayer layer, String data) {

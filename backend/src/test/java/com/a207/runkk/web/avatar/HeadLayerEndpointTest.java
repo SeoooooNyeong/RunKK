@@ -3,7 +3,9 @@ package com.a207.runkk.web.avatar;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -45,7 +47,7 @@ class HeadLayerEndpointTest extends WebTestSupport {
         String meta =
                 mvc.perform(as(viewer, get(base + "/meta")))
                         .andExpect(status().isOk())
-                        .andExpect(jsonPath("$.format").value(HeadLayerCache.FORMAT))
+                        .andExpect(jsonPath("$.format").value(HeadFormat.VERSION))
                         .andExpect(jsonPath("$.headId").value("head-l"))
                         .andExpect(jsonPath("$.canvas").value(1024))
                         .andExpect(jsonPath("$.traits.hair").value("short"))
@@ -67,8 +69,31 @@ class HeadLayerEndpointTest extends WebTestSupport {
                                                 "rightEyes",
                                                 "rightHair")))
                         .andExpect(
-                                header().string("ETag", matchesPattern("\"meta-.+-[0-9a-f]{32}\"")))
-                        .andExpect(immutable())
+                                jsonPath("$.layerUrls['256'].face")
+                                        .value(
+                                                base
+                                                        + "/layers/face?size=256&f="
+                                                        + HeadFormat.VERSION))
+                        .andExpect(
+                                jsonPath("$.layerUrls['1024'].rightHair")
+                                        .value(
+                                                base
+                                                        + "/layers/rightHair?size=1024&f="
+                                                        + HeadFormat.VERSION))
+                        .andExpect(jsonPath("$.layerUrls.*", hasSize(3)))
+                        .andExpect(jsonPath("$.layerUrls['512'].*", hasSize(6)))
+                        .andExpect(
+                                header().string(
+                                                "ETag",
+                                                matchesPattern(
+                                                        "\"meta-"
+                                                                + HeadFormat.VERSION
+                                                                + "-[0-9a-f]{32}\"")))
+                        .andExpect(header().string("Cache-Control", containsString("private")))
+                        .andExpect(
+                                header().string("Cache-Control", containsString("max-age=86400")))
+                        .andExpect(
+                                header().string("Cache-Control", not(containsString("immutable"))))
                         .andReturn()
                         .getResponse()
                         .getContentAsString();
@@ -86,10 +111,11 @@ class HeadLayerEndpointTest extends WebTestSupport {
                                         header().string(
                                                         "ETag",
                                                         SelfieJobController.layerEtag(
-                                                                owner.memberId(),
-                                                                "layer-job-1",
-                                                                HeadLayer.fromName(layer),
-                                                                size)))
+                                                                new HeadLayerKey(
+                                                                        owner.memberId(),
+                                                                        "layer-job-1",
+                                                                        HeadLayer.fromName(layer),
+                                                                        size))))
                                 .andReturn()
                                 .getResponse()
                                 .getContentAsByteArray();
@@ -100,8 +126,9 @@ class HeadLayerEndpointTest extends WebTestSupport {
         }
         // 크기를 주지 않으면 1024(원본 그대로)
         byte[] full =
-                mvc.perform(as(viewer, get(base + "/layers/face")))
+                mvc.perform(as(viewer, get(base + "/layers/face?f=" + HeadFormat.VERSION)))
                         .andExpect(status().isOk())
+                        .andExpect(immutable())
                         .andReturn()
                         .getResponse()
                         .getContentAsByteArray();
@@ -116,15 +143,13 @@ class HeadLayerEndpointTest extends WebTestSupport {
         Session viewer = signUp();
         String base = "/api/v1/avatar/heads/" + owner.memberId() + "/layer-job-2";
         String etag =
-                SelfieJobController.layerEtag(owner.memberId(), "layer-job-2", HeadLayer.HAIR, 256);
+                SelfieJobController.layerEtag(
+                        new HeadLayerKey(owner.memberId(), "layer-job-2", HeadLayer.HAIR, 256));
+        String hair256 = base + "/layers/hair?size=256&f=" + HeadFormat.VERSION;
         clearInvocations(gateway);
 
         for (String condition : List.of(etag, "W/" + etag, "\"stale\", " + etag)) {
-            mvc.perform(
-                            as(
-                                    viewer,
-                                    get(base + "/layers/hair?size=256")
-                                            .header("If-None-Match", condition)))
+            mvc.perform(as(viewer, get(hair256).header("If-None-Match", condition)))
                     .andExpect(status().isNotModified())
                     .andExpect(header().string("ETag", etag))
                     .andExpect(immutable())
@@ -132,31 +157,39 @@ class HeadLayerEndpointTest extends WebTestSupport {
         }
         String metaEtag = SelfieJobController.metaEtag(owner.memberId(), "layer-job-2");
         mvc.perform(as(viewer, get(base + "/meta").header("If-None-Match", metaEtag)))
-                .andExpect(status().isNotModified());
+                .andExpect(status().isNotModified())
+                .andExpect(header().string("ETag", metaEtag))
+                .andExpect(header().string("Cache-Control", containsString("max-age=86400")));
         verify(gateway, never()).result(anyLong(), anyString());
         // 다른 크기의 태그는 맞지 않는다
-        mvc.perform(as(viewer, get(base + "/layers/hair?size=512").header("If-None-Match", etag)))
+        mvc.perform(
+                        as(
+                                viewer,
+                                get(base + "/layers/hair?size=512&f=" + HeadFormat.VERSION)
+                                        .header("If-None-Match", etag)))
                 .andExpect(status().isOk());
 
-        mvc.perform(get(base + "/layers/hair?size=256").header("If-None-Match", etag))
+        mvc.perform(get(hair256).header("If-None-Match", etag))
                 .andExpect(status().isUnauthorized());
         mvc.perform(
                         as(
                                 viewer,
                                 get("/api/v1/avatar/heads/"
                                                 + owner.memberId()
-                                                + "/layer-job-x/layers/face")
+                                                + "/layer-job-x/layers/face?f="
+                                                + HeadFormat.VERSION)
                                         .header(
                                                 "If-None-Match",
                                                 SelfieJobController.layerEtag(
-                                                        owner.memberId(),
-                                                        "layer-job-x",
-                                                        HeadLayer.FACE,
-                                                        1024))))
+                                                        new HeadLayerKey(
+                                                                owner.memberId(),
+                                                                "layer-job-x",
+                                                                HeadLayer.FACE,
+                                                                1024)))))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.reason").value("JOB_NOT_FOUND"));
         mvc.perform(as(owner, delete("/api/v1/me"))).andExpect(status().isOk());
-        mvc.perform(as(viewer, get(base + "/layers/hair?size=256").header("If-None-Match", etag)))
+        mvc.perform(as(viewer, get(hair256).header("If-None-Match", etag)))
                 .andExpect(status().isForbidden());
         mvc.perform(as(viewer, get(base + "/meta"))).andExpect(status().isForbidden());
     }
@@ -176,6 +209,8 @@ class HeadLayerEndpointTest extends WebTestSupport {
         mvc.perform(as(viewer, get(base + "/meta")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.layers", contains("face", "eyes", "hair")))
+                .andExpect(jsonPath("$.layerUrls['256'].*", hasSize(3)))
+                .andExpect(jsonPath("$.layerUrls['256'].rightFace").doesNotExist())
                 .andExpect(jsonPath("$.rightLayerLayout").doesNotExist());
         // 아직 끝나지 않은 남의 작업·없는 작업은 기존 머리와 같은 404
         mvc.perform(as(viewer, get("/api/v1/avatar/heads/" + owner.memberId() + "/nope/meta")))
@@ -183,12 +218,70 @@ class HeadLayerEndpointTest extends WebTestSupport {
                 .andExpect(jsonPath("$.reason").value("JOB_NOT_FOUND"));
     }
 
+    @Test
+    void layerWithoutCurrentFormatServesCurrentContentButIsNotStored() throws Exception {
+        Session owner = signUp();
+        finishSelfie(owner, "layer-job-4", head(owner, true));
+        Session viewer = signUp();
+        String base = "/api/v1/avatar/heads/" + owner.memberId() + "/layer-job-4";
+
+        for (String query : List.of("?size=1024", "?size=1024&f=png1", "?size=1024&f=")) {
+            byte[] png =
+                    mvc.perform(as(viewer, get(base + "/layers/face" + query)))
+                            .andExpect(status().isOk())
+                            .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                            .andExpect(header().string("Cache-Control", "no-store"))
+                            .andExpect(header().doesNotExist("ETag"))
+                            .andReturn()
+                            .getResponse()
+                            .getContentAsByteArray();
+            assertThat(png).as(query).isEqualTo(FACE);
+        }
+        // 옛 판 URL은 태그가 맞아도 304가 아니라 지금 내용을 준다
+        String etag =
+                SelfieJobController.layerEtag(
+                        new HeadLayerKey(owner.memberId(), "layer-job-4", HeadLayer.FACE, 1024));
+        mvc.perform(
+                        as(
+                                viewer,
+                                get(base + "/layers/face?size=1024&f=png1")
+                                        .header("If-None-Match", etag)))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"));
+        // 모르는 크기·층은 판과 관계없이 400
+        mvc.perform(as(viewer, get(base + "/layers/face?size=300&f=png1")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(as(viewer, get(base + "/layers/frontImage?f=png1")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void busyFirstLoadIs503HeadBusy() throws Exception {
+        Session owner = signUp();
+        finishSelfie(owner, "layer-job-5", head(owner, true));
+        Session viewer = signUp();
+        String base = "/api/v1/avatar/heads/" + owner.memberId() + "/layer-job-5";
+        when(gateway.result(owner.memberId(), "layer-job-5"))
+                .thenThrow(new FaceJobRejectedException(503, HeadLayerCache.HEAD_BUSY));
+
+        mvc.perform(as(viewer, get(base + "/meta")))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.reason").value("HEAD_BUSY"))
+                .andExpect(header().string("Cache-Control", "no-store"));
+    }
+
     private ResultActions layer(Session viewer, String base, String layer, int size)
             throws Exception {
         return mvc.perform(
                 as(
                         viewer,
-                        get(base + "/layers/" + layer + "?size=" + size)
+                        get(base
+                                        + "/layers/"
+                                        + layer
+                                        + "?size="
+                                        + size
+                                        + "&f="
+                                        + HeadFormat.VERSION)
                                 .accept(MediaType.IMAGE_PNG, MediaType.APPLICATION_JSON)));
     }
 

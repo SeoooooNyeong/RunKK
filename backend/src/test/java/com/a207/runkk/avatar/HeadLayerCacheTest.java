@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -35,15 +36,15 @@ class HeadLayerCacheTest {
     void firstLayerFetchesHeadOnceAndOtherLayersSizesAndMetaReuseIt() {
         HeadLayerCache cache = new HeadLayerCache(gateway, HeadLayerCache.DEFAULT_MAX_BYTES);
 
-        cache.layer(7, "job-1", HeadLayer.FACE, 256);
-        cache.layer(7, "job-1", HeadLayer.EYES, 256);
-        cache.layer(7, "job-1", HeadLayer.HAIR, 512);
-        cache.layer(7, "job-1", HeadLayer.RIGHT_HAIR, 1024);
-        cache.layer(7, "job-1", HeadLayer.FACE, 256);
+        cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 256));
+        cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.EYES, 256));
+        cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.HAIR, 512));
+        cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.RIGHT_HAIR, 1024));
+        cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 256));
         cache.meta(7, "job-1");
 
         assertThat(gateway.calls.get()).isEqualTo(1);
-        cache.layer(8, "job-1", HeadLayer.FACE, 256);
+        cache.layer(new HeadLayerKey(8, "job-1", HeadLayer.FACE, 256));
         assertThat(gateway.calls.get()).as("다른 머리는 새로 받는다").isEqualTo(2);
     }
 
@@ -58,7 +59,8 @@ class HeadLayerCacheTest {
             for (int index = 0; index < 8; index++) {
                 HeadLayer layer = layers[index % layers.length];
                 int size = index % 2 == 0 ? 256 : 1024;
-                results.add(pool.submit(() -> cache.layer(7, "job-1", layer, size)));
+                results.add(
+                        pool.submit(() -> cache.layer(new HeadLayerKey(7, "job-1", layer, size))));
             }
             Thread.sleep(200);
             gateway.gate.countDown();
@@ -75,12 +77,12 @@ class HeadLayerCacheTest {
     void fullSizeIsTheOriginalPngAndSmallerSizesKeepRatioAndTransparency() throws IOException {
         HeadLayerCache cache = new HeadLayerCache(gateway, HeadLayerCache.DEFAULT_MAX_BYTES);
 
-        assertThat(cache.layer(7, "job-1", HeadLayer.FACE, 1024))
+        assertThat(cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 1024)))
                 .as("1024는 ai 원본 그대로(다시 인코딩하지 않는다)")
                 .isEqualTo(gateway.face);
         BufferedImage original = ImageIO.read(new ByteArrayInputStream(gateway.face));
         for (int size : new int[] {512, 256}) {
-            byte[] png = cache.layer(7, "job-1", HeadLayer.FACE, size);
+            byte[] png = cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, size));
             assertThat(png).startsWith(0x89, 'P', 'N', 'G');
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(png));
             assertThat(image.getWidth()).isEqualTo(size);
@@ -105,9 +107,9 @@ class HeadLayerCacheTest {
         // 머리 원본(6층) 하나만 겨우 담는 상한: 두 번째 머리가 첫 머리를 밀어낸다.
         long oneHead = gateway.headBytes() + 64 * 1024;
         HeadLayerCache cache = new HeadLayerCache(gateway, oneHead);
-        cache.layer(7, "job-1", HeadLayer.FACE, 1024);
-        cache.layer(8, "job-2", HeadLayer.FACE, 1024);
-        cache.layer(7, "job-1", HeadLayer.FACE, 1024);
+        cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 1024));
+        cache.layer(new HeadLayerKey(8, "job-2", HeadLayer.FACE, 1024));
+        cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 1024));
 
         assertThat(gateway.calls.get()).isEqualTo(3);
         assertThat(cache.weight()).isLessThanOrEqualTo(oneHead);
@@ -120,17 +122,34 @@ class HeadLayerCacheTest {
 
         HeadMeta meta = cache.meta(7, "job-1");
 
-        assertThat(meta.format()).isEqualTo(HeadLayerCache.FORMAT);
+        assertThat(meta.format()).isEqualTo(HeadFormat.VERSION);
         assertThat(meta.headId()).isEqualTo("head-1");
         assertThat(meta.canvas()).isEqualTo(1024);
         assertThat(meta.layers()).containsExactly("face", "eyes", "hair");
+        // 앱이 그대로 쓰는 층 주소: 크기 → 층 → 상대 URL(형식 판 포함), 이 머리에 있는 층만
+        assertThat(meta.layerUrls()).containsOnlyKeys("256", "512", "1024");
+        assertThat(meta.layerUrls().get("512"))
+                .containsExactly(
+                        Map.entry(
+                                "face",
+                                "/api/v1/avatar/heads/7/job-1/layers/face?size=512&f="
+                                        + HeadFormat.VERSION),
+                        Map.entry(
+                                "eyes",
+                                "/api/v1/avatar/heads/7/job-1/layers/eyes?size=512&f="
+                                        + HeadFormat.VERSION),
+                        Map.entry(
+                                "hair",
+                                "/api/v1/avatar/heads/7/job-1/layers/hair?size=512&f="
+                                        + HeadFormat.VERSION));
         assertThat(meta.mobile())
                 .containsKeys("neckMask", "skinColor")
                 .doesNotContainKey("renderFaceImage");
         assertThat(meta.traits()).containsEntry("hair", "short");
         assertThat(meta.hairLength()).isEqualTo("short");
         assertThat(meta.toString()).doesNotContain("data:image");
-        assertThatThrownBy(() -> cache.layer(7, "job-1", HeadLayer.RIGHT_FACE, 1024))
+        assertThatThrownBy(
+                        () -> cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.RIGHT_FACE, 1024)))
                 .isInstanceOfSatisfying(
                         FaceJobRejectedException.class,
                         error -> {
@@ -143,17 +162,105 @@ class HeadLayerCacheTest {
     void failedFetchIsNotCachedAndUnsupportedSizeIsRejected() {
         HeadLayerCache cache = new HeadLayerCache(gateway, HeadLayerCache.DEFAULT_MAX_BYTES);
         gateway.failure = new FaceJobRejectedException(503, "UPSTREAM_FAILED");
-        assertThatThrownBy(() -> cache.layer(7, "job-1", HeadLayer.FACE, 256))
+        assertThatThrownBy(() -> cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 256)))
                 .isInstanceOf(FaceJobRejectedException.class);
         gateway.failure = null;
-        assertThat(cache.layer(7, "job-1", HeadLayer.FACE, 256)).isNotEmpty();
+        assertThat(cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 256))).isNotEmpty();
         assertThat(gateway.calls.get()).isEqualTo(2);
 
-        assertThatThrownBy(() -> cache.layer(7, "job-1", HeadLayer.FACE, 300))
+        assertThatThrownBy(() -> cache.layer(new HeadLayerKey(7, "job-1", HeadLayer.FACE, 300)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> HeadLayer.fromName("frontImage"))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThat(HeadLayer.fromName("rightEyes")).isEqualTo(HeadLayer.RIGHT_EYES);
+    }
+
+    @Test
+    void firstLoadsBeyondPermitsWaitAndFailWithHeadBusyAfterTimeout() throws Exception {
+        HeadLayerCache cache =
+                new HeadLayerCache(
+                        gateway, HeadLayerCache.DEFAULT_MAX_BYTES, 4, Duration.ofMillis(300));
+        gateway.gate = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(5);
+        try {
+            List<Future<byte[]>> first = new ArrayList<>();
+            for (int owner = 1; owner <= 4; owner++) {
+                long id = owner;
+                first.add(
+                        pool.submit(
+                                () ->
+                                        cache.layer(
+                                                new HeadLayerKey(id, "j", HeadLayer.FACE, 1024))));
+            }
+            waitUntil(() -> gateway.calls.get() == 4);
+            Future<byte[]> fifth =
+                    pool.submit(() -> cache.layer(new HeadLayerKey(5, "j", HeadLayer.FACE, 1024)));
+            assertThatThrownBy(() -> fifth.get(5, TimeUnit.SECONDS))
+                    .hasCauseInstanceOf(FaceJobRejectedException.class)
+                    .cause()
+                    .satisfies(
+                            error -> {
+                                FaceJobRejectedException rejected =
+                                        (FaceJobRejectedException) error;
+                                assertThat(rejected.status()).isEqualTo(503);
+                                assertThat(rejected.reason()).isEqualTo("HEAD_BUSY");
+                            });
+            assertThat(gateway.calls.get()).as("다섯째는 ai를 부르지 않았다").isEqualTo(4);
+            gateway.gate.countDown();
+            for (Future<byte[]> result : first) {
+                assertThat(result.get(10, TimeUnit.SECONDS)).isNotEmpty();
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+        // 자리가 돌아오면 다섯째도 받는다(실패는 담지 않았다)
+        assertThat(cache.layer(new HeadLayerKey(5, "j", HeadLayer.FACE, 1024))).isNotEmpty();
+        assertThat(gateway.calls.get()).isEqualTo(5);
+    }
+
+    @Test
+    void waitingLoadGetsThePermitWhenAnotherFinishesInTime() throws Exception {
+        HeadLayerCache cache =
+                new HeadLayerCache(
+                        gateway, HeadLayerCache.DEFAULT_MAX_BYTES, 1, Duration.ofSeconds(10));
+        gateway.gate = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<HeadMeta> first = pool.submit(() -> cache.meta(1, "j"));
+            waitUntil(() -> gateway.calls.get() == 1);
+            Future<HeadMeta> second = pool.submit(() -> cache.meta(2, "j"));
+            Thread.sleep(100);
+            assertThat(gateway.calls.get()).as("둘째는 자리를 기다린다").isEqualTo(1);
+            gateway.gate.countDown();
+            assertThat(first.get(10, TimeUnit.SECONDS).headId()).isEqualTo("head-1");
+            assertThat(second.get(10, TimeUnit.SECONDS).headId()).isEqualTo("head-1");
+        } finally {
+            pool.shutdownNow();
+        }
+        assertThat(gateway.calls.get()).isEqualTo(2);
+    }
+
+    @Test
+    void failedLoadReturnsItsPermit() {
+        HeadLayerCache cache =
+                new HeadLayerCache(
+                        gateway, HeadLayerCache.DEFAULT_MAX_BYTES, 1, Duration.ofMillis(200));
+        gateway.failure = new FaceJobRejectedException(503, "UPSTREAM_FAILED");
+        assertThatThrownBy(() -> cache.meta(1, "j"))
+                .isInstanceOfSatisfying(
+                        FaceJobRejectedException.class,
+                        error -> assertThat(error.reason()).isEqualTo("UPSTREAM_FAILED"));
+        gateway.failure = null;
+        assertThat(cache.meta(2, "j").headId()).isEqualTo("head-1");
+    }
+
+    private static void waitUntil(java.util.function.BooleanSupplier condition)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (!condition.getAsBoolean()) {
+            if (System.nanoTime() > deadline) throw new AssertionError("조건을 기다리다 시간 초과");
+            Thread.sleep(10);
+        }
     }
 
     /** 원본 factor×factor 칸의 알파 가중 평균(반올림). */
