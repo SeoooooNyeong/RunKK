@@ -27,7 +27,7 @@
   let playing = !matchMedia('(prefers-reduced-motion: reduce)').matches;
   let time = 0, lastTime = null, isReady = false, savingTimer = null, toastTimer = null, tintFrame = null;
   let selfieUrl = null, selfieFile = null, apiReady = false, aiBusy = false;
-  let selfieQuality = null, selfieQualityError = null;
+  let selfieQuality = null, selfieQualityError = null, testMode = false;
   let avatarViews = null;
   let blinkRig=null,blinkTime=0,eyePose='auto';
   const canvas = $('avatarCanvas'), ctx = canvas.getContext('2d');
@@ -252,7 +252,7 @@
     for(const [key,label]of Object.entries(TRAIT_LABELS)){const l=document.createElement('label');l.textContent=label;const input=document.createElement('textarea');input.dataset.trait=key;input.maxLength=180;input.value=traits?.[key]||'';input.placeholder='분석 후 표시돼요';input.oninput=()=>{state.traits=readTraits();scheduleSave();};l.append(input);box.append(l);}
   }
   function readTraits(){const t={};document.querySelectorAll('[data-trait]').forEach(el=>t[el.dataset.trait]=el.value);t.hair_length=state.traits?.hair_length||'unknown';return safeTraits(t);}
-  function syncAiButtons(){for(const id of ['analyzeButton','generateButton'])$(id).disabled=aiBusy||!apiReady||!selfieFile;$('generateButton').disabled=$('generateButton').disabled||selfieQuality?.canGenerate===false;$('generateButton').title=selfieQuality?.canGenerate===false?'사진 품질을 확인하기 어려워요. 새 셀카를 선택해 주세요.':'';$('selfieFile').disabled=aiBusy;$('headFile').disabled=aiBusy;$('removeSelfie').disabled=aiBusy;$('defaultHead').disabled=aiBusy;$('resetAll').disabled=aiBusy;$('loadProject').disabled=aiBusy;$('loadLatestHead').disabled=aiBusy;$('generateBody').disabled=aiBusy||!apiReady;for(const id of ['topPart','bottomPart','shoesPart'])$(id).disabled=aiBusy||!apiReady;$('bodyPackFile').disabled=aiBusy;window.RunKKSelfieQuality.render($('selfieQuality'),{quality:selfieQuality,selected:Boolean(selfieFile),busy:aiBusy&&Boolean(selfieFile)&&!selfieQuality,error:selfieQualityError});syncViewControls();}
+  function syncAiButtons(){for(const id of ['analyzeButton','generateButton'])$(id).disabled=aiBusy||!apiReady||!selfieFile;$('generateButton').disabled=$('generateButton').disabled||selfieQuality?.canGenerate===false;$('generateButton').title=selfieQuality?.canGenerate===false?'사진 품질을 확인하기 어려워요. 새 셀카를 선택해 주세요.':'';$('selfieFile').disabled=aiBusy;$('headFile').disabled=aiBusy;$('removeSelfie').disabled=aiBusy;$('defaultHead').disabled=aiBusy;$('resetAll').disabled=aiBusy;$('loadProject').disabled=aiBusy;$('loadLatestHead').disabled=aiBusy;$('resplitLatestHead').hidden=!testMode;$('resplitLatestHead').disabled=aiBusy||!testMode;$('generateBody').disabled=aiBusy||!apiReady;for(const id of ['topPart','bottomPart','shoesPart'])$(id).disabled=aiBusy||!apiReady;$('bodyPackFile').disabled=aiBusy;window.RunKKSelfieQuality.render($('selfieQuality'),{quality:selfieQuality,selected:Boolean(selfieFile),busy:aiBusy&&Boolean(selfieFile)&&!selfieQuality,error:selfieQualityError});syncViewControls();}
   async function apiRequest(url,options={}){
     if(location.protocol==='file:')throw new Error('npm start로 서버를 실행하고 http://localhost:3000에서 열어 주세요.');
     const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),url==='/api/generate'?900000:360000);
@@ -297,7 +297,7 @@
     for(const part of ['Face','Eyes','Hair'])$('saveRight'+part+'Layer').onclick=async()=>{try{const src=avatarViews.entries.right?.['right'+part+'Image'];if(!src)return;const image=await loadImage(src),out=surface(1024,1024);out.getContext('2d').drawImage(image,0,0);saveCanvas(out,'RunKK_right_'+part.toLowerCase()+'_layer.png');}catch(error){notify(error.message);}};
   }
   async function refreshApi(){
-    try{const h=await apiRequest('/api/health');apiReady=Boolean(h.ok&&h.configured&&h.mode==='local-server-ai');$('apiState').textContent=apiReady?'GMS 로컬 서버 준비 · API 키 설정됨':'.env에 GMS_KEY를 설정하고 서버를 다시 실행해 주세요.';$('apiState').classList.toggle('error',!apiReady);$('apiState').title='키 설정 여부만 확인해요. 실제 모델 접근은 코디 생성 요청 시 확인돼요.';}catch(error){apiReady=false;$('apiState').textContent=error.message;$('apiState').classList.add('error');}syncAiButtons();
+    try{const h=await apiRequest('/api/health');testMode=h.testMode===true;apiReady=Boolean(h.ok&&h.configured&&h.mode==='local-server-ai');$('apiState').textContent=apiReady?'GMS 로컬 서버 준비 · API 키 설정됨':'.env에 GMS_KEY를 설정하고 서버를 다시 실행해 주세요.';$('apiState').classList.toggle('error',!apiReady);$('apiState').title='키 설정 여부만 확인해요. 실제 모델 접근은 코디 생성 요청 시 확인돼요.';}catch(error){apiReady=false;testMode=false;$('apiState').textContent=error.message;$('apiState').classList.add('error');}syncAiButtons();
   }
   function selfieForm(){if(!selfieFile)throw new Error('셀카 사진을 먼저 선택해 주세요.');const form=new FormData();form.append('selfie',selfieFile,selfieFile.name);form.append('userId',demoUserId);return form;}
   async function applyAiHead(data){
@@ -320,12 +320,13 @@
     $('generateButton').onclick=async()=>{
       let previewTimer=null,previewShown=false;
       try{const form=selfieForm(),traits=readTraits();if(traits?.hair.trim()&&traits?.eyes.trim())form.append('traits',JSON.stringify(traits));form.append('hairLength',state.hairLength);form.append('similarity',String(state.similarity));
-        aiBusy=true;selfieQualityError=null;syncAiButtons();$('generateButton').classList.add('busy');$('generateButton').textContent='품질 확인 · 생성 중…';$('aiMessage').textContent='사진 품질 확인 → 완성 머리 생성 → AI로 얼굴·눈·헤어 이미지 각각 생성 → 우측 모습 생성 순서로 진행해요.';status('사진 품질을 확인하고 있어요. 특징이 보이지 않으면 이미지를 생성하지 않아요.');
+        aiBusy=true;selfieQualityError=null;syncAiButtons();$('generateButton').classList.add('busy');$('generateButton').textContent='품질 확인 · 생성 중…';$('aiMessage').textContent='셀카 특징 분석 → 완성 정면 생성 → 우측 얼굴 생성 → 정면 파츠 분리 → 우측 파츠 분리 순서로 진행해요.';status('사진 품질을 확인하고 있어요. 특징이 보이지 않으면 이미지를 생성하지 않아요.');
         previewTimer=setInterval(async()=>{if(previewShown)return;try{const response=await fetch('/api/generate-preview?userId='+encodeURIComponent(demoUserId),{cache:'no-store'});if(response.status!==200)return;const preview=await response.json();if(preview.frontImage?.startsWith('data:image/png;base64,')){previewShown=true;$('headPreview').src=preview.frontImage;$('headBadge').textContent='AI 생성 원본';$('aiMessage').textContent='완성 머리를 만들었어요. AI가 얼굴·눈·헤어 파츠를 생성하는 중이에요.';}}catch{}},1000);
         const data=await apiRequest('/api/generate',{method:'POST',body:form});selfieQuality=data.quality||null;await applyAiHead(data);$('aiMessage').textContent=data.warning||'얼굴·눈·헤어 레이어를 만들었어요. 옷이나 동작을 바꿔도 각각의 레이어가 유지돼요.';status('AI 얼굴·눈·헤어 연결 완료 · 의상과 동작을 바꿔 보세요.');notify('내 얼굴·눈·헤어를 각각 연결했어요.');
       }catch(error){if(previewShown)$('headBadge').textContent='AI 생성 원본 · 파츠 확인 필요';if(error.quality)selfieQuality=error.quality;if(error.code==='SELFIE_QUALITY_UNAVAILABLE')selfieQualityError=error.message;$('aiMessage').textContent=error.message;status(error.code==='SELFIE_QUALITY_REJECTED'?'사진 품질 확인이 필요해요. 이미지를 생성하지 않았고 기존 아바타는 유지돼요.':'파츠 연결에 실패했어요. 생성 원본은 위에서 확인할 수 있어요.');notify(error.message);}finally{if(previewTimer)clearInterval(previewTimer);aiBusy=false;$('generateButton').classList.remove('busy');$('generateButton').textContent='AI 머리 생성 ↗';syncAiButtons();}
     };
     $('loadLatestHead').onclick=async()=>{try{const data=await apiRequest('/api/heads/latest?userId='+encodeURIComponent(demoUserId));await applyAiHead(data);$('aiMessage').textContent='이 사용자의 최근 머리를 불러왔어요. AI를 다시 호출하지 않았어요.';notify('최근 AI 머리를 연결했어요.');}catch(error){notify(error.message);}};
+    $('resplitLatestHead').onclick=async()=>{if(!testMode||aiBusy)return;aiBusy=true;syncAiButtons();try{const data=await apiRequest('/api/heads/latest?userId='+encodeURIComponent(demoUserId)+'&resplit=true');await applyAiHead(data);$('aiMessage').textContent='저장된 완성 얼굴은 재사용하고, 정면·우측 파츠만 다시 추출했어요.';status('저장된 완성 얼굴 재사용 · 파츠 추출 중');notify('저장된 완성 얼굴에서 파츠를 다시 추출했어요.');}catch(error){notify(error.message);}finally{aiBusy=false;syncAiButtons();}};
   }
   function validateBodyPack(value){
     if(value?.version===1)throw new Error('이전 분리 파츠 몸은 사용할 수 없어요. 새 ZIP의 body-packs 폴더에서 v2 몸 세트를 선택해 주세요.');

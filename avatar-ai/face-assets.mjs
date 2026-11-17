@@ -1,9 +1,9 @@
 import {createHash} from 'node:crypto';
 import {latestUserHead,readUserHead,saveUserHead} from './user-storage.mjs';
-import {rightLayerImages,RIGHT_IMAGE_FIELDS,RIGHT_LAYOUT} from './right-head-layers.mjs';
+import {rightLayerImages,RIGHT_IMAGE_FIELDS,RIGHT_LAYOUT,splitRightHead} from './right-head-layers.mjs';
 import {mobileHead} from './mobile-composition.mjs';
-import {HEAD_LAYER_VERSION,HEAD_SEGMENTATION_VERSION} from './head-layers.mjs';
-import {alignAiParts} from './ai-layer-align.mjs';
+import {HEAD_LAYER_VERSION,HEAD_SEGMENTATION_VERSION,HEAD_LAYOUT} from './head-layers.mjs';
+import {splitAiLayers} from './ai-head-layers.mjs';
 import sharp from 'sharp';
 export const FACE_ASSETS_VERSION='runkk-face-assets-v1';
 export const FACE_IMAGE_FIELDS=Object.freeze(['frontImage','rightImage','faceImage','eyesImage','hairImage']);
@@ -25,25 +25,41 @@ export function assertFaceResult(data){
   if(count(data)!==5+(render?1:0)+(rightLayers?3:0))throw incomplete();
   return data;
 }
-export async function savedFaceResult(root,userId,findRight,headId=null){
+export async function savedFaceResult(root,userId,findRight,headId=null,{resplit=false,persist=true,splitOptions={}}={}){
   const {metadata,layers}=headId?await readUserHead(root,userId,headId):await latestUserHead(root,userId);
-  if(['runkk-ai-identity-checked-v35','runkk-ai-registered-layers-v36'].includes(metadata.segmentationVersion) && layers.master && layers.right &&
-     ['rightFace','rightEyes','rightHair'].every(key=>Buffer.isBuffer(layers[key]))){
-    const front=await alignAiParts(layers.master,layers);
-    Object.assign(layers,front.parts);
+  // 오래된 분할 버전으로 저장된 머리를 결정론적으로 다시 쪼갠다. 완성 머리
+  // (layers.master)만 있으면 되고 모델을 부르지 않으므로 공짜다. 기존
+  // 사용자가 다시 생성하지 않아도 어긋난 레이어가 바로잡힌다.
+  //
+  // 실패해도 조회 자체를 막지 않는다. 옛 레이어를 그대로 두고 경고만 남긴다.
+  if((resplit||metadata.segmentationVersion!==HEAD_SEGMENTATION_VERSION) && Buffer.isBuffer(layers.master) && layers.master.length){
     try{
-      const right=await alignAiParts(layers.right,{face:layers.rightFace,eyes:layers.rightEyes,hair:layers.rightHair},{direction:'right'});
-      Object.assign(layers,{rightFace:right.parts.face,rightEyes:right.parts.eyes,rightHair:right.parts.hair});
-      metadata.rightLayerValidation={...metadata.rightLayerValidation,alignment:right.metrics};
+      const glassesPresent=metadata.regions?.features?.glassesPresent===true;
+      const resolvedFront=await splitAiLayers(layers.master,{...splitOptions,landmarks:metadata.regions?.landmarks,glassesPresent});
+      Object.assign(layers,{face:resolvedFront.face,eyes:resolvedFront.eyes,hair:resolvedFront.hair});
+      metadata.validation={...metadata.validation,...resolvedFront.validation,resplitFrom:metadata.segmentationVersion};
+      metadata.layerReference=resolvedFront.layerReference;
+
+      if(Buffer.isBuffer(layers.right)&&layers.right.length){
+        try{
+          const right=await splitRightHead(layers.right,{...splitOptions,glassesPresent});
+          Object.assign(layers,{rightFace:right.rightFace,rightEyes:right.rightEyes,rightHair:right.rightHair});
+          metadata.rightLayerLayout=RIGHT_LAYOUT;
+          metadata.rightLayerValidation=right.rightLayerValidation;
+        }catch(error){
+          metadata.rightLayerValidation={...metadata.rightLayerValidation,resplitWarning:error.message};
+        }
+      }
+
+      layers.composite=await sharp(layers.face).composite([{input:layers.eyes},{input:layers.hair}]).png().toBuffer();
+      metadata.segmentationVersion=HEAD_SEGMENTATION_VERSION;
+      metadata.layerLayout={...metadata.layerLayout,...HEAD_LAYOUT};
+      metadata.mobile=await mobileHead(layers.face,metadata.alignment);
+      if(persist)await saveUserHead(root,userId,layers,metadata);
     }catch(error){
-      metadata.rightLayerValidation={...metadata.rightLayerValidation,alignmentWarning:error.message};
+      metadata.validation={...metadata.validation,resplitWarning:error.message};
+      console.warn('[face-assets] 재분할 실패, 기존 레이어 유지:',error.code||error.message);
     }
-    layers.composite=await sharp(layers.face).composite([{input:layers.eyes},{input:layers.hair}]).png().toBuffer();
-    metadata.segmentationVersion=HEAD_SEGMENTATION_VERSION;
-    metadata.validation={...metadata.validation,alignment:front.metrics};
-    metadata.layerLayout={...metadata.layerLayout,segmentationVersion:HEAD_SEGMENTATION_VERSION};
-    metadata.mobile=await mobileHead(layers.face,metadata.alignment);
-    await saveUserHead(root,userId,layers,metadata);
   }
   const sourceHash=!layers.right?createHash('sha256').update(layers.master||layers.composite).digest('hex'):null;
   let rightProfile=metadata.rightProfile;

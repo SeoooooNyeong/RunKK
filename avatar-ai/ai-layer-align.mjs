@@ -33,7 +33,7 @@ async function registerToBox(png,from,to){
   return{png:output,scale,offsetX:left,offsetY:top,used:true};
 }
 
-export async function alignAiParts(master,parts,{sourceBoxes=null,layerBoxes=null}={}){
+export async function alignAiParts(master,parts,{sourceBoxes=null,layerBoxes=null,registerPixels=true}={}){
   const source=await sharp(master).ensureAlpha().raw().toBuffer({resolveWithObject:true});
   const aligned={},metrics={};
   for(const part of ['face','eyes','hair']){
@@ -46,7 +46,7 @@ export async function alignAiParts(master,parts,{sourceBoxes=null,layerBoxes=nul
     if(sourceBox&&reportedLayerBox&&!sameBox)placed=await registerToBox(parts[part],reportedLayerBox,sourceBox);
     // Hair/eyes retain source texture, allowing pixel registration to correct
     // extraction drift even when the vision model reports identical boxes.
-    const pixel=(part==='hair'||part==='eyes')?await registerLayerPixels(master,parts[part]):null;
+    const pixel=registerPixels&&(part==='hair'||part==='eyes')?await registerLayerPixels(master,parts[part]):null;
     if(pixel?.used)placed=pixel;
     const layer=await sharp(placed.png).ensureAlpha().raw().toBuffer({resolveWithObject:true});
     if(layer.info.width!==source.info.width||layer.info.height!==source.info.height)throw new Error('AI 파츠 캔버스가 원본과 달라요.');
