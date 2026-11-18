@@ -125,30 +125,6 @@ class GapMotionTest {
     }
 
     @Test
-    fun `출발 쪽 밖에서 들어오게 하면 시작 전에는 밖에 머물고 시작하면 되돌아가지 않고 제자리에 닿는다(S15P31A207-335 2차)`() {
-        val motion = GapMotion()
-        motion.enter(0.0, fromMeters = -18.0, atSeconds = 0.0)
-        assertEquals(-18.0, motion.frame(0.3))
-        assertTrue(motion.isSettled(0.3), "시작 전에는 그릴 것이 없다(준비를 기다린다)")
-        motion.receive(0.0, 0.5)
-        assertEquals(-18.0, motion.frame(0.6), "몸이 준비되기 전에는 값이 와도 밖에 머문다")
-
-        motion.startEntry(0.7)
-        assertTrue(!motion.isSettled(0.7), "들어오는 동안은 매 프레임 그린다")
-        val shown = mutableListOf<Pair<Double, Double>>()
-        var t = 0.7
-        while (t <= 3.0) {
-            shown += t to motion.frame(t)
-            t += frame
-        }
-        shown.zipWithNext { a, b -> assertTrue(b.second >= a.second - 1e-9, "되돌아가지 않는다 at ${b.first}") }
-        assertTrue(maxStep(shown) < 1.0, "한 프레임에 1 m 넘게 뛰지 않는다: ${maxStep(shown)}")
-        assertEquals(0.0, shown.last().second, 1e-6)
-        assertTrue(shown.first { it.second > -1e-6 }.first <= 0.7 + 1.0 + 1e-9, "1초 안에 제자리에 닿는다")
-        assertTrue(motion.isSettled(3.0))
-    }
-
-    @Test
     fun `창 폭(30 m)보다 크게 바뀌면 따라가지 않고 바로 옮긴다`() {
         val motion = GapMotion()
         motion.receive(-5.0, 0.0)

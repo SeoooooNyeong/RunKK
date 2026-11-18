@@ -47,10 +47,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,8 +69,9 @@ import kotlinx.coroutines.isActive
  * 트랙 보기 카드([임시:D-성-256], [임시:D-성-313], [임시:FR-성-27], 시안 350×328 모서리 26). 아래에서부터 거리 자 26, 레인 138을
  * 놓고 남은 하늘 칸에 [backdrop](내가 고른 아바타 무대 배경)을 깐다. 가로 위치는 [layout]이 정한다: 내 아바타([myAvatar])는 폭의 40%, 상대
  * ([otherAvatar])는 거리 차만큼 앞뒤다. 결승선은 [layout]에 있을 때만 그린다([임시:D-성-306]). 상대 위치는 [GapMotion]이 받은 값 사이를
- * 예측해 매 프레임 부드럽게 옮기고(S15P31A207-335, 움직임 줄이기면 바로 옮긴다), 트랙 밖이어도 자르지 않은 위치에 그려 오는 쪽 가장자리에서
- * 들어온다(카드가 잘라 보이지 않는다). 처음 받은 격차가 트랙 안(출발 때 내 자리 등)이면 출발 쪽(왼쪽) 트랙 밖에서 들어와 제자리로 간다.
+ * 예측해 매 프레임 부드럽게 옮기고(S15P31A207-335, 움직임 줄이기면 바로 옮긴다), 언제·어디서 나타나고 사라지는지는 [TrackOtherMotion]이
+ * 정한다(4차): 실제 자리가 트랙 밖(가장자리 칩)이면 몸을 그리지 않고, 몸이 준비되면 실제 자리 쪽에서 나타난다(뒤·내 자리면 출발 쪽
+ * 밖에서 들어오고, 앞이면 그 자리에서 서서히). 격차가 크게 바뀌면 보이는 채로 뛰지 않고 사라졌다가 새 자리에서 나타난다.
  * 상대 칸이 몸을 준비하는 동안([LocalTrackAvatarLoading])과 처음 구성한 프레임에는 그림자·이름표·몸을 함께 숨긴다(S15P31A207-335 2차).
  * 내 칸도 같다: 카운트다운에서 달리기 화면으로 바뀌면 트랙의 내 칸은 새 플레이어라 첫 판까지 몸이 없으므로, 그동안 그림자·이름표도
  * 숨겨 몸 없는 그림자·이름표가 보이지 않게 한다(S15P31A207-335 3차).
@@ -114,9 +118,11 @@ fun RunkkTrackCard(
     }
     val isOtherReady = isComposed && !isOtherLoading
     val isMineShown = isComposed && !isMineLoading
-    val isOtherShown = layout.otherRawX != null && isOtherReady
-    // 보이는 상대 가로 위치. 배치 단계(offset 람다)와 그리기 단계에서만 읽어 매 프레임 카드를 다시 구성하지 않는다.
-    val otherX = rememberOtherX(layout, reduceMotion, isOtherReady)
+    // 보이는 상대 가로 위치·불투명도. 배치 단계(offset 람다)와 그리기 단계에서만 읽어 매 프레임 카드를 다시 구성하지 않는다.
+    val other = rememberOtherPlacement(layout, reduceMotion, isOtherReady)
+    val otherX = other.x
+    val otherAlpha = other.alpha
+    val isOtherShown = other.isShown && isOtherReady
     BoxWithConstraints(
         modifier = modifier
             .clip(shape)
@@ -142,7 +148,7 @@ fun RunkkTrackCard(
                     .testTag(TRACK_FINISH_TAG)
             )
         }
-        // 상대는 트랙 밖일 때도 미리 그려 둔다(카드가 잘라 보이지 않는다). 가장자리를 넘어 들어오는 모습이 그대로 보인다.
+        // 상대 칸은 늘 구성해 두고(몸 준비·첫 판), 보이지 않을 때는 거의 투명하게 그린다.
         if (otherTag != null) {
             val otherSize = scene.otherSize.dp
             val otherFootY = -(maxHeight - scene.otherFootY.dp)
@@ -154,13 +160,17 @@ fun RunkkTrackCard(
                         IntOffset((width * otherX.floatValue - otherSize / 2).roundToPx(), otherFootY.roundToPx())
                     }
                     .then(
-                        if (onTrack != null && isOtherShown) {
-                            Modifier.testTag(TRACK_OTHER_TAG)
+                        if (isOtherShown) {
+                            Modifier.testTag(TRACK_OTHER_TAG).semantics {
+                                this[TrackOtherAlpha] = otherAlpha.floatValue
+                            }
                         } else {
-                            Modifier.clearAndSetSemantics {}
+                            Modifier.clearAndSetSemantics { this[TrackOtherAlpha] = PRELOAD_ALPHA }
                         }
                     )
-                    .alpha(if (isOtherShown) 1f else PRELOAD_ALPHA),
+                    .graphicsLayer {
+                        alpha = if (isOtherReady) maxOf(PRELOAD_ALPHA, otherAlpha.floatValue) else PRELOAD_ALPHA
+                    },
                 isMoving = false,
                 onLoading = { isOtherLoading = it },
                 avatar = otherAvatar
@@ -205,11 +215,12 @@ fun RunkkTrackCard(
                 contentAlignment = Alignment.Center
             ) { NameTag(TrackRunnerLabel(myTag, myPace, true), myFace, scene.runnerScale) }
         }
-        if (onTrack != null && otherTag != null && isOtherShown) {
+        if (otherTag != null && isOtherShown) {
             val otherSize = scene.otherSize.dp
             val tagY = scene.otherTagY.dp
             Box(
                 Modifier.offset { IntOffset((width * otherX.floatValue - otherSize / 2).roundToPx(), tagY.roundToPx()) }
+                    .graphicsLayer { alpha = otherAlpha.floatValue }
                     .size(scene.otherSize.dp, scene.tagHeight.dp).testTag(TRACK_OTHER_NAME_TAG),
                 contentAlignment = Alignment.Center
             ) { NameTag(TrackRunnerLabel(otherTag, otherPace, false), otherFace, scene.runnerScale) }
@@ -250,64 +261,59 @@ fun RunkkTrackAvatarWarmup(runners: List<@Composable () -> Unit>, modifier: Modi
 private val WARMUP_SIZE = 88.dp
 
 /**
- * 보이는 상대 가로 위치(폭 비율, 자르지 않음, S15P31A207-335). 거리 차가 바뀌면 [GapMotion]에 넣고 예측이 멈출 때까지 매 프레임 갱신한다.
- * 움직임 줄이기면 받은 위치로 바로 옮긴다. 카드 밖 아주 먼 자리는 [OTHER_X_LIMIT]로 묶는다(잘려 보이지 않는다).
- *
- * 등장(2차): 이 카드가 처음 받은 격차가 트랙 안쪽([ENTRY_X]..1)이면 상대를 출발 쪽 트랙 밖([ENTRY_X])에 두고, 몸이 준비되면([isReady])
- * 그때부터 제자리로 들어오게 한다. 처음 값이 이미 트랙 밖이면 그 자리에서 시작해 오는 쪽 가장자리로 들어온다. 격차를 잃었다가 다시 알게 된
- * 때는 그 자리에 바로 놓는다.
+ * 보이는 상대 가로 위치(폭 비율, 자르지 않음)와 불투명도(S15P31A207-335). 거리 차가 바뀌면 [TrackOtherMotion]에 넣고 더 그릴 것이 없을
+ * 때까지 매 프레임 갱신한다. 등장·사라짐·큰 변화·프레임 이동 상한은 [TrackOtherMotion]이 정한다(4차). 움직임 줄이기면 받은 자리로 바로
+ * 옮기고 트랙 안·몸 준비일 때만 바로 보인다. 카드 밖 아주 먼 자리는 [OTHER_X_LIMIT]로 묶는다(잘려 보이지 않는다).
  */
 @Composable
-private fun rememberOtherX(layout: TrackLayout.Result, reduceMotion: Boolean, isReady: Boolean): FloatState {
+private fun rememberOtherPlacement(
+    layout: TrackLayout.Result,
+    reduceMotion: Boolean,
+    isReady: Boolean
+): OtherPlacement {
     val raw = layout.otherRawX
     val myX = layout.myX
     val ahead = raw?.let { (it - myX).toDouble() * TrackLayout.WINDOW_METERS }
-    val motion = remember { GapMotion() }
-    val shown = remember { mutableFloatStateOf(ENTRY_X) }
-    // 마지막으로 넣은 격차와 첫 값을 받았는지. 준비 여부만 바뀌어 효과가 다시 돌 때 같은 값을 두 번 넣지 않는다.
-    val fed = remember { FedGap() }
-    LaunchedEffect(ahead, reduceMotion, isReady) {
-        if (ahead == null) {
-            motion.reset()
-            fed.ahead = null
+    val isOnTrack = layout.other is TrackLayout.Other.OnTrack
+    val motion = remember { TrackOtherMotion() }
+    val placement = remember { OtherPlacement() }
+    LaunchedEffect(ahead, reduceMotion, isReady, isOnTrack) {
+        if (ahead == null || reduceMotion) {
+            motion.forget()
+            if (raw != null) placement.x.floatValue = xOf(raw)
+            placement.show(if (raw != null && isReady && isOnTrack) 1f else 0f)
             return@LaunchedEffect
         }
-        if (reduceMotion) {
-            motion.reset()
-            fed.ahead = ahead
-            fed.hasFirst = true
-            shown.floatValue = xOf(raw)
-            return@LaunchedEffect
-        }
-        val entersFromStart = !fed.hasFirst && raw in ENTRY_X..1f
-        // 처음 값(또는 격차를 다시 알게 된 때)은 첫 프레임 전에 그 자리에 놓아 가운데에서 잠깐 보이지 않게 한다.
-        if (!motion.hasValue && !entersFromStart) shown.floatValue = xOf(raw)
-        val enterFrom = (ENTRY_X - myX).toDouble() * TrackLayout.WINDOW_METERS
-        // 값 넣기·등장 시작·그리기를 한 프레임에서 한다. 값이 올 때마다 효과가 다시 돌아도 그리지 않고 건너뛰는 프레임이 없다.
+        // 값 넣기·등장·그리기를 한 프레임에서 한다. 값이 올 때마다 효과가 다시 돌아도 그리지 않고 건너뛰는 프레임이 없다.
         while (isActive) {
             val isSettled = withFrameNanos { now ->
                 val seconds = now / NANOS_PER_SECOND
-                if (fed.ahead != ahead) {
-                    fed.ahead = ahead
-                    fed.hasFirst = true
-                    if (entersFromStart) motion.enter(ahead, enterFrom, seconds) else motion.receive(ahead, seconds)
-                }
-                if (isReady) motion.startEntry(seconds)
-                shown.floatValue = xOf(myX + (motion.frame(seconds) / TrackLayout.WINDOW_METERS).toFloat())
+                motion.receive(ahead, seconds)
+                motion.frame(seconds, isReady, isOnTrack)
+                placement.x.floatValue = xOf(myX + (motion.meters / TrackLayout.WINDOW_METERS).toFloat())
+                placement.show(motion.alpha)
                 motion.isSettled(seconds)
             }
             if (isSettled) break
         }
     }
-    return shown
+    return placement
 }
 
-private class FedGap {
-    var ahead: Double? = null
-    var hasFirst = false
+/** 보이는 상대 자리·불투명도. [isShown](불투명도 > 0)은 나타나거나 사라질 때만 바뀌어 그때만 다시 구성한다. */
+private class OtherPlacement {
+    val x = mutableFloatStateOf(ENTRY_X)
+    val alpha = mutableFloatStateOf(0f)
+    var isShown by mutableStateOf(false)
+        private set
+
+    fun show(value: Float) {
+        alpha.floatValue = value
+        isShown = value > 0f
+    }
 }
 
-/** 상대가 들어오기 시작하는 출발 쪽 트랙 밖 자리(폭 비율). 상대 칸(폭의 약 28%)이 카드 왼쪽 밖에 다 숨는다. */
+/** 아직 격차를 받기 전 상대 칸 자리(폭 비율, 출발 쪽 트랙 밖). 상대 칸(폭의 약 28%)이 카드 왼쪽 밖에 다 숨는다. */
 private const val ENTRY_X = -0.2f
 
 private fun xOf(raw: Float): Float = raw.coerceIn(-OTHER_X_LIMIT, 1f + OTHER_X_LIMIT)
@@ -571,6 +577,9 @@ private fun LogDrawn(layout: TrackLayout.Result) {
 
 /** [임시:NFR-성-7] 측정 로그 태그(`adb logcat -s RunkkNfr7`). 수신 쪽(data.live)도 같은 글자를 쓴다. */
 const val TRACK_TIMING_LOG_TAG = "RunkkNfr7"
+
+/** 시험용: 상대 주자 칸을 그리는 불투명도. */
+internal val TrackOtherAlpha = SemanticsPropertyKey<Float>("TrackOtherAlpha")
 
 /** 트랙 카드 안 자리의 시험 표지. */
 const val TRACK_ME_TAG = "track-me"
