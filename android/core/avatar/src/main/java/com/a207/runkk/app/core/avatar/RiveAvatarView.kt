@@ -57,6 +57,13 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             field = value
             players[AvatarMotion.RUN]?.playbackSpeed = value
         }
+
+    /**
+     * 서기·달리기 플레이어를 처음부터 함께 만들어 둔다(트랙 칸, S15P31A207-335). 두 동작 텍스처를 한 번에 합성하므로 자세가 바뀌어도 새
+     * 플레이어를 만들며 몸이 비지 않는다.
+     */
+    var warmAllMotions: Boolean = false
+
     private val applied = EnumSet.noneOf(AvatarMotion::class.java)
     private var frontLoader: FrontAvatarAssetLoader? = null
     private var runLoader: RunAvatarAssetLoader? = null
@@ -108,7 +115,9 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             val isNewIdentity = previous == null || previousAssets !== prepared ||
                 previous.gender != next.gender || previous.headLayers !== next.headLayers
             if (isNewIdentity) changeIdentity(next, prepared)
-            val isNewPlayer = ensurePlayer(next.motion, prepared)
+            val isNewPlayer = RivePlayerRules.motionsToCreate(next.motion, warmAllMotions)
+                .map { ensurePlayer(it, prepared) }
+                .any { it }
             val isNewLook = previous != null &&
                 (
                     previous.runningAmount != next.runningAmount ||
@@ -410,7 +419,11 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             view.scaleX = RivePlayerRules.scaleX(motion, current.mirrored)
             if (isShown) main.post { if (!isReleased) onReady() }
         }
-        val wanted = current.motion.takeIf { isResumed && it in applied }
+        // 지금 동작이 준비 전이면 보이고 있는 앞 동작을 계속 재생한다(RivePlayerRules.visibility).
+        val shown = players.keys.firstOrNull {
+            RivePlayerRules.visibility(it, current.motion, applied) == VISIBLE
+        }
+        val wanted = shown.takeIf { isResumed }
         if (wanted == playing) return
         players.forEach { (motion, view) -> if (motion != wanted) view.pause() }
         wanted?.let { players[it]?.play(RiveAvatarScene.stateMachine(it), isStateMachine = true) }

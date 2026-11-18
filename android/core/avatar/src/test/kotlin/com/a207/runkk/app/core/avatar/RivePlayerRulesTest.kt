@@ -28,6 +28,26 @@ class RivePlayerRulesTest {
     }
 
     @Test
+    fun `자세가 바뀌어 새 동작 텍스처를 기다리는 동안 앞 동작을 그대로 보여 몸이 비지 않는다(S15P31A207-335)`() {
+        AvatarMotion.entries.forEach { current ->
+            val previous = AvatarMotion.entries.single { it != current }
+            val applied = setOf(previous)
+            assertEquals(View.INVISIBLE, RivePlayerRules.visibility(current, current, applied))
+            assertEquals(View.VISIBLE, RivePlayerRules.visibility(previous, current, applied), "$previous → $current")
+        }
+        // 둘 다 준비되면 지금 동작만 보인다(겹쳐 그리지 않는다).
+        val both = AvatarMotion.entries.toSet()
+        assertEquals(View.VISIBLE, RivePlayerRules.visibility(AvatarMotion.RUN, AvatarMotion.RUN, both))
+        assertEquals(View.GONE, RivePlayerRules.visibility(AvatarMotion.STAND, AvatarMotion.RUN, both))
+    }
+
+    @Test
+    fun `트랙 칸은 서기·달리기 플레이어를 처음부터 함께 만들고 그 밖은 지금 동작만 만든다(S15P31A207-335)`() {
+        assertEquals(AvatarMotion.entries.toSet(), RivePlayerRules.motionsToCreate(AvatarMotion.STAND, warmAll = true))
+        assertEquals(setOf(AvatarMotion.RUN), RivePlayerRules.motionsToCreate(AvatarMotion.RUN, warmAll = false))
+    }
+
+    @Test
     fun `보이지 않다가 보이게 된 때만 준비 알림이다`() {
         assertTrue(RivePlayerRules.becameVisible(View.INVISIBLE, View.VISIBLE))
         assertTrue(RivePlayerRules.becameVisible(View.GONE, View.VISIBLE))

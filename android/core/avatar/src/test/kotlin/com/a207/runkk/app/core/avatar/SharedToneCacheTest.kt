@@ -66,6 +66,26 @@ class SharedToneCacheTest {
     }
 
     @Test
+    fun `같은 성별의 나와 상대 모습을 함께 담아 서로 밀어내지 않고 자리마다 최근 3개까지 둔다(S15P31A207-335)`() {
+        val mine = look
+        val theirs = look.copy(amount = 90)
+        AvatarMotion.entries.forEach { motion ->
+            cache.put(AvatarGender.MALE, motion, null, mine, mixed())
+            cache.put(AvatarGender.MALE, motion, null, theirs, mixed())
+        }
+        assertNotNull(cache.hit(AvatarGender.MALE, AvatarMotion.entries.toSet(), null, mine), "내 모습이 남는다")
+        assertNotNull(cache.hit(AvatarGender.MALE, AvatarMotion.entries.toSet(), null, theirs))
+        cache.put(AvatarGender.MALE, AvatarMotion.RUN, null, look.copy(amount = 1), mixed())
+        cache.put(AvatarGender.MALE, AvatarMotion.RUN, null, look.copy(amount = 2), mixed())
+        assertNull(cache.hit(AvatarGender.MALE, setOf(AvatarMotion.RUN), null, mine), "가장 오래된 것부터 버린다")
+        assertNotNull(cache.hit(AvatarGender.MALE, setOf(AvatarMotion.RUN), null, theirs))
+        // 다시 넣은 모습은 최근으로 올라간다.
+        cache.put(AvatarGender.MALE, AvatarMotion.RUN, null, theirs, mixed())
+        cache.put(AvatarGender.MALE, AvatarMotion.RUN, null, look.copy(amount = 3), mixed())
+        assertNotNull(cache.hit(AvatarGender.MALE, setOf(AvatarMotion.RUN), null, theirs))
+    }
+
+    @Test
     fun `몸 분리 재사용용 씨앗은 같은 머리의 두 동작을 합치고 다른 머리면 비어 있다`() {
         val head = head()
         cache.put(AvatarGender.FEMALE, AvatarMotion.STAND, head, look, mixed())
