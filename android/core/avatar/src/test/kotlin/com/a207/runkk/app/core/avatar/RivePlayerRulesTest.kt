@@ -112,6 +112,22 @@ class RivePlayerRulesTest {
     }
 
     @Test
+    fun `기다림이 끝나도 그릴 판(화면에 붙은 면)이 아직 없으면 알리지 않고 계속 기다린다(S15P31A207-335 6회차)`() {
+        var count = 0
+        val notice = FirstFrameNotice { count++ }
+        notice.shown()
+        assertTrue(notice.timedOut(canDraw = false), "면이 없으면 다시 기다린다")
+        assertEquals(0, count, "화면에 붙기 전에는 이름표가 몸보다 먼저 보이지 않게 알리지 않는다")
+        notice.frameDrawn()
+        assertEquals(1, count, "그 뒤 첫 판에 알린다")
+        assertFalse(notice.timedOut(canDraw = false), "알린 뒤에는 기다리지 않는다")
+
+        notice.shown()
+        assertFalse(notice.timedOut(canDraw = true), "면이 있는데 판이 안 오면 그대로 알린다")
+        assertEquals(2, count)
+    }
+
+    @Test
     fun `준비 알림은 보이게 된 뒤 첫 그림이 실제로 그려질 때 한 번이다(S15P31A207-335 2차)`() {
         var count = 0
         val notice = FirstFrameNotice { count++ }
@@ -123,11 +139,11 @@ class RivePlayerRulesTest {
         notice.frameDrawn()
         assertEquals(1, count)
         notice.frameDrawn()
-        notice.timedOut()
+        notice.timedOut(canDraw = true)
         assertEquals(1, count, "한 번 보인 뒤에는 다시 알리지 않는다")
 
         notice.shown()
-        notice.timedOut()
+        notice.timedOut(canDraw = true)
         assertEquals(2, count, "그림이 오지 않아도 기다림이 끝나면 알린다(숨은 채 남지 않는다)")
 
         notice.shown()

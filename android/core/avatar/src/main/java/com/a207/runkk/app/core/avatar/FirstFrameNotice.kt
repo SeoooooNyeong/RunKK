@@ -20,8 +20,16 @@ internal class FirstFrameNotice(private val notify: () -> Unit) {
         notify()
     }
 
-    /** 기다림이 끝났다(판이 오지 않았다). 기다리던 중이면 알린다. */
-    fun timedOut() = frameDrawn()
+    /**
+     * 기다림이 끝났다(판이 오지 않았다). [canDraw](화면에 붙어 그릴 면이 있다)면 기다리던 중일 때 알린다. 아직 그릴 면이 없으면 알리지
+     * 않는다. 화면에 붙기 전에 알리면 몸이 그려지기 전에 이름표가 먼저 보인다(S15P31A207-335 6회차). 계속 기다려야 하면 true.
+     */
+    fun timedOut(canDraw: Boolean): Boolean {
+        if (!isWaiting) return false
+        if (!canDraw) return true
+        frameDrawn()
+        return false
+    }
 
     /** 기다리던 알림을 버린다(정체가 바뀌거나 놓였다). */
     fun cancel() {

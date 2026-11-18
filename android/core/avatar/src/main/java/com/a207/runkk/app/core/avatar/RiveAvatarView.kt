@@ -53,7 +53,10 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     var onReady: () -> Unit = {}
 
     private val readyNotice = FirstFrameNotice { onFirstFrame() }
-    private val readyTimeout = Runnable { readyNotice.timedOut() }
+    private val readyTimeout: Runnable = Runnable {
+        val canDraw = isAttachedToWindow && state?.motion?.let { players[it] }?.isAvailable == true
+        if (readyNotice.timedOut(canDraw)) main.postDelayed(readyTimeout, READY_FRAME_TIMEOUT_MS)
+    }
 
     private val tones = SharedToneCache.shared
 
@@ -203,6 +206,8 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     }
 
     override fun onDetachedFromWindow() {
+        // 떨어진 뒤에는 첫 판 기다림을 다시 걸지 않는다(붙으면 첫 판이 알린다).
+        main.removeCallbacks(readyTimeout)
         lifecycle?.removeObserver(lifecycleObserver)
         lifecycle = null
         onPaused()
