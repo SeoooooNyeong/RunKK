@@ -75,18 +75,32 @@ internal object AvatarImages {
         return Bitmap.createBitmap(toned, width, height, Bitmap.Config.ARGB_8888)
     }
 
-    /** 측면 머리: 톤을 적용한 얼굴(내장 샘플은 목 등록 메시) 위에 눈, 헤어 순서로 얹는다. 헤어는 피부 섞인 경계만 톤을 받는다. */
+    /**
+     * 측면 머리: 몸 쪽 목 층(있으면, 얼굴과 같은 톤) 위에 톤을 적용한 얼굴(내장 샘플은 목 등록 메시, 턱 아래는 목 층 폭으로 자름), 눈,
+     * 헤어 순서로 얹는다. 헤어는 피부 섞인 경계만 톤을 받는다.
+     */
     fun composeSideHead(layers: SideHeadLayers, amount: Int): ByteArray {
         val face = decode(faceForRunningAmount(layers.face, amount))
         try {
             val result = Bitmap.createBitmap(face.width, face.height, Bitmap.Config.ARGB_8888)
             try {
                 val canvas = Canvas(result)
-                val neck = layers.neckRegistration
-                if (neck == null) {
-                    canvas.drawBitmap(face, 0f, 0f, null)
-                } else {
-                    drawRegisteredFace(canvas, face, neck)
+                val skin = Bitmap.createBitmap(face.width, face.height, Bitmap.Config.ARGB_8888)
+                try {
+                    val skinCanvas = Canvas(skin)
+                    val neck = layers.neckRegistration
+                    if (neck == null) {
+                        skinCanvas.drawBitmap(face, 0f, 0f, null)
+                    } else {
+                        drawRegisteredFace(skinCanvas, face, neck)
+                    }
+                    layers.neckUnderlay?.let { underlay ->
+                        underlay.trim(skin)
+                        underlay.draw(canvas, amount)
+                    }
+                    canvas.drawBitmap(skin, 0f, 0f, null)
+                } finally {
+                    skin.recycle()
                 }
                 drawOverlay(canvas, layers.eyes, face)
                 drawOverlay(
