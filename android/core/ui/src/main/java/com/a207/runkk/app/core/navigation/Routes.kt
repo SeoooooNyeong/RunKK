@@ -125,6 +125,13 @@ object Routes {
     @Serializable
     data class RecordDetail(val recordId: String) : NavKey
 
+    /**
+     * 기록 하나의 런바디 상세(G-20)를 바로 연다(기록 상세의 런바디 진입 카드). 러닝 선택 단계 없이 그 기록을 보이고, 뒤로 가기는 기록
+     * 상세로 돌아간다. ui.record.runbody가 그린다. 런바디 잠금(UnreleasedFeature.RUNBODY)에 딸린다.
+     */
+    @Serializable
+    data class RunBodyDetail(val recordId: String) : NavKey
+
     /** 기록 카드 팝업·공유(러닝 카드 앞뒤, FR-068·FR-069). ui.record가 그린다(ui.record → ui.share). */
     @Serializable
     data class RecordCard(val recordId: String) : NavKey

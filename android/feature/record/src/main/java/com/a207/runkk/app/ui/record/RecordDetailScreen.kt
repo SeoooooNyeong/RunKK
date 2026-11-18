@@ -50,6 +50,7 @@ import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLoading
 import com.a207.runkk.app.core.designsystem.RunkkPillButton
 import com.a207.runkk.app.core.designsystem.RunkkProgressBar
+import com.a207.runkk.app.core.designsystem.RunkkRunBodyEntryCard
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
 import com.a207.runkk.app.core.designsystem.RunkkSegmentBar
 import com.a207.runkk.app.core.designsystem.RunkkShapes
@@ -97,6 +98,7 @@ fun RecordDetailRoute(recordId: String, viewModel: RecordDetailViewModel = hiltV
         onBack = navigator::back,
         onShare = { navigator.navigate(Routes.RecordCard(recordId)) },
         onRetry = { viewModel.load(recordId, isForced = true) },
+        onRunBody = { navigator.navigate(Routes.RunBodyDetail(recordId)) },
         deleteActions = remember(viewModel) {
             RecordDeleteActions(
                 onDelete = viewModel::onDeleteTapped,
@@ -115,7 +117,8 @@ fun RecordDetailScreen(
     onShare: () -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
-    deleteActions: RecordDeleteActions = RecordDeleteActions()
+    deleteActions: RecordDeleteActions = RecordDeleteActions(),
+    onRunBody: () -> Unit = {}
 ) {
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
@@ -142,7 +145,13 @@ fun RecordDetailScreen(
             }
             val detail = state.detail
             when {
-                detail != null -> DetailBody(detail, isDeleting = state.isDeleting, onDelete = deleteActions.onDelete)
+                detail != null -> DetailBody(
+                    detail,
+                    runBody = state.runBody,
+                    isDeleting = state.isDeleting,
+                    onDelete = deleteActions.onDelete,
+                    onRunBody = onRunBody
+                )
 
                 state.isLoading -> RunkkLoading(modifier = Modifier.weight(1f))
 
@@ -168,7 +177,13 @@ fun RecordDetailScreen(
 }
 
 @Composable
-private fun DetailBody(detail: RecordDetail, isDeleting: Boolean, onDelete: () -> Unit) {
+private fun DetailBody(
+    detail: RecordDetail,
+    runBody: RecordRunBody,
+    isDeleting: Boolean,
+    onDelete: () -> Unit,
+    onRunBody: () -> Unit
+) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(
             rememberScrollState()
@@ -178,6 +193,7 @@ private fun DetailBody(detail: RecordDetail, isDeleting: Boolean, onDelete: () -
         DetailHeader(detail)
         DetailCourseCard(detail)
         DetailStats(detail.summary)
+        if (LocalReleaseScope.current.isOpen(UnreleasedFeature.RUNBODY)) RunBodyEntry(runBody, onRunBody)
         if (detail.pauseCount > 0) PausesCard(detail)
         if (detail.splitPaces.isNotEmpty()) SplitPaces(detail)
         detail.calories?.let { CaloriesCard(it) }
@@ -501,3 +517,48 @@ private fun RecordDetailPreview() {
         )
     }
 }
+
+/**
+ * 지표 카드 아래 런바디 진입 카드(피그마 G-9·G-9b, 디자인 시스템 「런바디 진입 카드」). 준비됨은 세 지표 미리보기와 「자세히 ›」, 분석 중은
+ * 「분석 중」, 볼 수 없음은 상태 확인 안내와 「자세히 ›」(눌러 상태 화면을 본다). 숨김이면 그리지 않는다.
+ */
+@Composable
+private fun RunBodyEntry(runBody: RecordRunBody, onClick: () -> Unit) {
+    val title = stringResource(R.string.record_detail_runbody_title)
+    val more = stringResource(R.string.record_detail_runbody_more)
+    when (runBody) {
+        RecordRunBody.Hidden -> Unit
+
+        RecordRunBody.Analyzing -> RunkkRunBodyEntryCard(
+            title,
+            stringResource(R.string.record_detail_runbody_analyzing),
+            stringResource(R.string.record_runbody_analyzing_short),
+            isReady = false,
+            onClick = onClick
+        )
+
+        RecordRunBody.Unavailable -> RunkkRunBodyEntryCard(
+            title,
+            stringResource(R.string.record_detail_runbody_unavailable),
+            more,
+            isReady = false,
+            onClick = onClick
+        )
+
+        is RecordRunBody.Ready -> RunkkRunBodyEntryCard(title, runBodyPreview(runBody), more, isReady = true, onClick)
+    }
+}
+
+/** "운동 강도 78 · 지구력 84 · 페이스 안정성 72"(점수 없는 지표는 뺀다). */
+@Composable
+private fun runBodyPreview(ready: RecordRunBody.Ready): String = listOfNotNull(
+    ready.intensity?.let {
+        stringResource(R.string.record_detail_runbody_axis, stringResource(R.string.record_runbody_axis_intensity), it)
+    },
+    ready.endurance?.let {
+        stringResource(R.string.record_detail_runbody_axis, stringResource(R.string.record_runbody_axis_endurance), it)
+    },
+    ready.stability?.let {
+        stringResource(R.string.record_detail_runbody_axis, stringResource(R.string.record_runbody_axis_stability), it)
+    }
+).joinToString(stringResource(R.string.record_detail_runbody_separator))

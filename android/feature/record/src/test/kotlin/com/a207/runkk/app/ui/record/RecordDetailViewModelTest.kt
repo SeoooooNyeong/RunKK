@@ -5,6 +5,11 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.runbody.RunBodyRepository
+import com.a207.runkk.app.domain.runbody.RunBodyStatus
+import com.a207.runkk.app.ui.record.runbody.FakeRunBodyRepository
+import com.a207.runkk.app.ui.record.runbody.done
+import com.a207.runkk.app.ui.record.runbody.waiting
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -19,18 +24,19 @@ class RecordDetailViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    private val runBody = FakeRunBodyRepository()
     private val records = FakeRecordRepository().apply {
         runResult = Outcome.Success(detail().copy(isDeletable = true))
     }
 
-    private fun loaded() = RecordDetailViewModel(records).apply { load("r1") }
+    private fun loaded() = RecordDetailViewModel(records, runBody).apply { load("r1") }
 
     @Test
     fun `기록 상세를 읽고 실패하면 오류를 보인다(FR-059)`() {
         val vm = loaded()
         assertEquals("12°C 맑음", vm.state.value.detail?.weather)
         records.runResult = Outcome.Failure(AppError.Network)
-        val failing = RecordDetailViewModel(records)
+        val failing = RecordDetailViewModel(records, runBody)
         failing.load("r9")
         assertNull(failing.state.value.detail)
         assertEquals(RunkkErrorText.of(AppError.Network), failing.state.value.error)
@@ -110,5 +116,43 @@ class RecordDetailViewModelTest {
         vm.onDeleteConfirmed()
         assertFalse(vm.state.value.isConfirmingDelete)
         assertEquals(emptyList(), records.deleteCalls)
+    }
+
+    @Test
+    fun `런바디 진입 카드 - 분석이 끝났으면 세 지표(운동 강도·지구력·페이스 안정성)를 담는다`() {
+        val vm = loaded()
+        assertEquals(RecordRunBody.Ready(intensity = 78, endurance = 84, stability = 72), vm.state.value.runBody)
+        assertEquals(listOf("r1"), runBody.sessionCalls)
+    }
+
+    @Test
+    fun `런바디 진입 카드 - 대기·분석 중이면 Analyzing, 실패·데이터 부족·일시 장애면 Unavailable`() {
+        runBody.reply("r1", waiting("r1", RunBodyStatus.ANALYZING))
+        assertEquals(RecordRunBody.Analyzing, loaded().state.value.runBody)
+        runBody.reply("r1", waiting("r1", RunBodyStatus.PENDING))
+        assertEquals(RecordRunBody.Analyzing, loaded().state.value.runBody)
+        runBody.reply("r1", waiting("r1", RunBodyStatus.FAILED))
+        assertEquals(RecordRunBody.Unavailable, loaded().state.value.runBody)
+        runBody.reply("r1", Outcome.Failure(AppError.Rejected(RunBodyRepository.NOT_FOUND)))
+        assertEquals(RecordRunBody.Unavailable, loaded().state.value.runBody)
+        runBody.reply("r1", Outcome.Failure(AppError.Server(503)))
+        assertEquals(RecordRunBody.Unavailable, loaded().state.value.runBody)
+    }
+
+    @Test
+    fun `런바디 진입 카드 - 기능이 꺼졌거나(FEATURE_CLOSED) 유효 러닝이 아니면 숨기고 유효 러닝이 아니면 묻지 않는다`() {
+        runBody.reply("r1", Outcome.Failure(AppError.Rejected(RunBodyRepository.FEATURE_CLOSED)))
+        assertEquals(RecordRunBody.Hidden, loaded().state.value.runBody)
+
+        runBody.sessionCalls.clear()
+        records.runResult = Outcome.Success(detail().copy(summary = summary("r1", 20, 5_020, isValid = false)))
+        assertEquals(RecordRunBody.Hidden, loaded().state.value.runBody)
+        assertEquals(emptyList(), runBody.sessionCalls)
+    }
+
+    @Test
+    fun `런바디 진입 카드 - 읽기 전에는 숨긴다`() {
+        assertEquals(RecordRunBody.Hidden, RecordDetailUiState().runBody)
+        assertEquals(done("r1").recordId, "r1")
     }
 }
