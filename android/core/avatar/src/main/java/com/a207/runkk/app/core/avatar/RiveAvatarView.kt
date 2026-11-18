@@ -25,6 +25,7 @@ import java.util.concurrent.Executors
  * - 피부톤·의상·체형 텍스처는 단일 합성 스레드에서 만든다. 계산은 한 번에 하나, 대기는 가장 최근 요청 하나만 둔다.
  *   요청 버전([toneVersion])과 정체 버전([identity])이 지금과 다르면 결과를 버린다.
  * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다. 보이게 된 뒤 첫 판이 그려진 때 [onReady].
+ * - 자세가 바뀌면 새 동작 플레이어가 첫 판을 그릴 때까지 앞 동작 플레이어를 보이게 둔다([onScreen], [RivePlayerRules.visibility]).
  * - 합성 결과는 프로세스 공용 캐시([SharedToneCache])에도 넣는다. 합성하기 전에 그 캐시를 먼저 보고, 같은 머리·모습이 있으면 합성
  *   스레드를 거치지 않고 바로 넣는다(미리 준비 [prepareRiveAvatarLook], DR-10). 같은 머리면 몸 분리 결과도 다시 쓴다.
  * - 좌우 뒤집기는 달리기 플레이어만 `scaleX = -1`이다([RivePlayerRules.scaleX], D-762).
@@ -45,7 +46,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
      */
     var onReady: () -> Unit = {}
 
-    private val readyNotice = FirstFrameNotice { if (!isReleased) onReady() }
+    private val readyNotice = FirstFrameNotice { onFirstFrame() }
     private val readyTimeout = Runnable { readyNotice.timedOut() }
 
     private val tones = SharedToneCache.shared
@@ -86,6 +87,9 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private var pendingResult: PreparedAvatarTone? = null
     private var cache = AvatarToneCache()
     private var playing: AvatarMotion? = null
+
+    /** 보이게 된 뒤 첫 판을 그린(또는 기다림이 끝난) 동작. 새 동작이 첫 판을 그릴 때까지 이 동작을 보이게 둔다. */
+    private var onScreen: AvatarMotion? = null
     private var isResumed = false
     private var isReleased = false
     private var lifecycle: Lifecycle? = null
@@ -199,6 +203,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         // 같은 머리를 다른 뷰나 미리 준비가 합성해 두었으면 몸 분리·텍스처를 다시 쓴다.
         cache = tones.seed(next.gender, next.headLayers)
         applied.clear()
+        onScreen = null
         sources = nextSources
         players.forEach { (motion, view) ->
             view.pause()
@@ -423,7 +428,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private fun updateMotion() {
         val current = state ?: return
         players.forEach { (motion, view) ->
-            val visibility = RivePlayerRules.visibility(motion, current.motion, applied)
+            val visibility = RivePlayerRules.visibility(motion, current.motion, applied, onScreen)
             val isShown = motion == current.motion && RivePlayerRules.becameVisible(view.visibility, visibility)
             view.visibility = visibility
             view.scaleX = RivePlayerRules.scaleX(motion, current.mirrored)
@@ -433,15 +438,24 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
                 main.postDelayed(readyTimeout, READY_FRAME_TIMEOUT_MS)
             }
         }
-        // 지금 동작이 준비 전이면 보이고 있는 앞 동작을 계속 재생한다(RivePlayerRules.visibility).
-        val shown = players.keys.firstOrNull {
-            RivePlayerRules.visibility(it, current.motion, applied) == VISIBLE
+        // 지금 동작이 준비됐으면 그 플레이어를 재생해 첫 판을 그리게 한다(앞 동작은 그동안 마지막 판으로 남는다). 준비 전이면 보이고 있는
+        // 앞 동작을 계속 재생한다(RivePlayerRules.visibility).
+        val shown = current.motion.takeIf { it in applied && it in players } ?: players.keys.firstOrNull {
+            RivePlayerRules.visibility(it, current.motion, applied, onScreen) == VISIBLE
         }
         val wanted = shown.takeIf { isResumed }
         if (wanted == playing) return
         players.forEach { (motion, view) -> if (motion != wanted) view.pause() }
         wanted?.let { players[it]?.play(RiveAvatarScene.stateMachine(it), isStateMachine = true) }
         playing = wanted
+    }
+
+    /** 지금 동작 플레이어가 보이게 된 뒤 첫 판을 그렸다(또는 기다림이 끝났다). 앞 동작을 거두고 알린다. */
+    private fun onFirstFrame() {
+        if (isReleased) return
+        onScreen = state?.motion
+        updateMotion()
+        onReady()
     }
 
     private fun onResumed() {

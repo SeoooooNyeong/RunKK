@@ -69,6 +69,8 @@ import kotlinx.coroutines.isActive
  * 예측해 매 프레임 부드럽게 옮기고(S15P31A207-335, 움직임 줄이기면 바로 옮긴다), 트랙 밖이어도 자르지 않은 위치에 그려 오는 쪽 가장자리에서
  * 들어온다(카드가 잘라 보이지 않는다). 처음 받은 격차가 트랙 안(출발 때 내 자리 등)이면 출발 쪽(왼쪽) 트랙 밖에서 들어와 제자리로 간다.
  * 상대 칸이 몸을 준비하는 동안([LocalTrackAvatarLoading])과 처음 구성한 프레임에는 그림자·이름표·몸을 함께 숨긴다(S15P31A207-335 2차).
+ * 내 칸도 같다: 카운트다운에서 달리기 화면으로 바뀌면 트랙의 내 칸은 새 플레이어라 첫 판까지 몸이 없으므로, 그동안 그림자·이름표도
+ * 숨겨 몸 없는 그림자·이름표가 보이지 않게 한다(S15P31A207-335 3차).
  *
  * 이름표는 아바타 머리 위에 [myTag](라임 바탕), [otherTag](표면색 바탕, null이면 없음)와 현재 페이스([myPace], [otherPace]), 얼굴 원
  * ([myFace], [otherFace], 22dp 칸)을 적는다. 가장자리 칩 [aheadChip](오른쪽), [behindChip](왼쪽)과 거리 자 가운데 알약 [rulerLabel]은
@@ -103,13 +105,15 @@ fun RunkkTrackCard(
     val isDark = LocalRunkkColors.current.isDark
     val shape = RoundedCornerShape(26.dp)
     var isOtherLoading by remember { mutableStateOf(false) }
-    // 상대 칸은 준비 중임을 효과(effect)로 알리므로 처음 구성한 프레임에는 아직 모른다. 그 한 프레임도 숨겨 그림자가 몸보다 먼저 보이지 않게 한다.
-    var isOtherComposed by remember { mutableStateOf(false) }
+    var isMineLoading by remember { mutableStateOf(false) }
+    // 아바타 칸은 준비 중임을 효과(effect)로 알리므로 처음 구성한 프레임에는 아직 모른다. 그 한 프레임도 숨겨 그림자가 몸보다 먼저 보이지 않게 한다.
+    var isComposed by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         withFrameNanos {}
-        isOtherComposed = true
+        isComposed = true
     }
-    val isOtherReady = isOtherComposed && !isOtherLoading
+    val isOtherReady = isComposed && !isOtherLoading
+    val isMineShown = isComposed && !isMineLoading
     val isOtherShown = layout.otherRawX != null && isOtherReady
     // 보이는 상대 가로 위치. 배치 단계(offset 람다)와 그리기 단계에서만 읽어 매 프레임 카드를 다시 구성하지 않는다.
     val otherX = rememberOtherX(layout, reduceMotion, isOtherReady)
@@ -167,9 +171,10 @@ fun RunkkTrackCard(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .offset(x = width * layout.myX - scene.mySize.dp / 2, y = -(maxHeight - scene.myFootY.dp))
-                .testTag(TRACK_ME_TAG),
+                .testTag(TRACK_ME_TAG)
+                .alpha(if (isMineShown) 1f else PRELOAD_ALPHA),
             isMoving = isMoving && !reduceMotion,
-            onLoading = {},
+            onLoading = { isMineLoading = it },
             avatar = myAvatar
         )
         behindChip?.let {
@@ -193,11 +198,13 @@ fun RunkkTrackCard(
             modifier = Modifier.align(Alignment.BottomCenter)
         )
         // 두 캐릭터를 모두 그린 뒤 이름표 둘을 올린다. 상대 이름표는 위 레인의 머리 위 줄을 지킨다.
-        Box(
-            Modifier.offset(x = width * layout.myX - scene.mySize.dp / 2, y = scene.myTagY.dp)
-                .size(scene.mySize.dp, scene.tagHeight.dp).testTag(TRACK_ME_NAME_TAG),
-            contentAlignment = Alignment.Center
-        ) { NameTag(TrackRunnerLabel(myTag, myPace, true), myFace, scene.runnerScale) }
+        if (isMineShown) {
+            Box(
+                Modifier.offset(x = width * layout.myX - scene.mySize.dp / 2, y = scene.myTagY.dp)
+                    .size(scene.mySize.dp, scene.tagHeight.dp).testTag(TRACK_ME_NAME_TAG),
+                contentAlignment = Alignment.Center
+            ) { NameTag(TrackRunnerLabel(myTag, myPace, true), myFace, scene.runnerScale) }
+        }
         if (onTrack != null && otherTag != null && isOtherShown) {
             val otherSize = scene.otherSize.dp
             val tagY = scene.otherTagY.dp
@@ -210,7 +217,7 @@ fun RunkkTrackCard(
     }
 }
 
-/** 트랙 밖 상대를 미리 그릴 때의 불투명도. 0이면 그리기를 건너뛰어 준비가 안 될 수 있다. */
+/** 준비 중인 주자(트랙 밖 상대, 몸 준비 전의 나)를 미리 그릴 때의 불투명도. 0이면 그리기를 건너뛰어 첫 판이 오지 않을 수 있다. */
 private const val PRELOAD_ALPHA = 0.01f
 
 /**

@@ -348,7 +348,56 @@ class RunkkTrackCardTest {
         assertEquals(0, stalled, "네 프레임 넘게 멈춰 있지 않는다")
     }
 
+    @Test
+    fun `출발 때 내 아바타는 몸이 준비될 때까지 그림자·이름표도 숨어 몸 없는 그림자·이름표 프레임이 없다(S15P31A207-335 3차)`() {
+        // 카운트다운 → 달리기 화면: 트랙의 내 칸은 새 플레이어라 첫 판까지 0.47초가 걸린다(에뮬레이터 녹화).
+        var isBodyReady = false
+        val myAvatar: @Composable () -> Unit = {
+            val report = LocalTrackAvatarLoading.current
+            var isReady by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                delay(MY_FIRST_FRAME_MILLIS)
+                isReady = true
+            }
+            DisposableEffect(isReady, report) {
+                isBodyReady = isReady
+                report(!isReady)
+                onDispose { report(false) }
+            }
+        }
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = false) {
+                RunkkTrackCard(
+                    layout = TrackLayout.of(aheadMeters = 0.0, remainingMeters = 5_000.0),
+                    myTag = "나",
+                    otherTag = "과거의 나",
+                    myAvatar = myAvatar,
+                    otherAvatar = {},
+                    modifier = Modifier.size(width = 320.dp, height = 328.dp)
+                )
+            }
+        }
+        fun isMineShown() = compose.onAllNodesWithTag(TRACK_ME_NAME_TAG).fetchSemanticsNodes().isNotEmpty()
+        // (ms, 내 그림자·이름표 보임, 몸 준비)
+        val rows = mutableListOf(Triple(0L, isMineShown(), isBodyReady))
+        var t = 0L
+        while (t < 1_000) {
+            compose.mainClock.advanceTimeByFrame()
+            t += FRAME_MILLIS
+            rows += Triple(t, isMineShown(), isBodyReady)
+        }
+        val table = rows.joinToString(separator = "\n") { (ms, shown, ready) -> "$ms\t$shown\t$ready" }
+        println("ms\tme_shown\tbody_ready\n$table")
+        val bodyless = rows.filter { (_, shown, ready) -> shown && !ready }.map { it.first }
+        assertEquals(emptyList(), bodyless, "몸 없이 그림자·이름표만 보인 프레임(ms)")
+        val firstShown = rows.first { it.second }.first
+        assertTrue(firstShown <= MY_FIRST_FRAME_MILLIS + 3 * FRAME_MILLIS, "몸이 준비되면 곧 보인다: $firstShown ms")
+        assertTrue(rows.filter { it.first >= firstShown }.all { it.second }, "한 번 보인 뒤 다시 숨지 않는다")
+    }
+
     private companion object {
         const val FRAME_MILLIS = 16L
+        const val MY_FIRST_FRAME_MILLIS = 470L
     }
 }
