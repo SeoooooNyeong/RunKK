@@ -20,7 +20,8 @@ import kotlinx.coroutines.launch
 
 /**
  * 배치고사 완료(FR-281, D-501): 본인 배치 진행(AccountRepository.placement)의 확정 티어와 센 세 판을 보인다. 완료를 읽으면 마지막 판을
- * 본 것으로 기기에 기억한다(AccountRepository.savePlacementCompleteSeen, D-531: 배치고사 진행 화면이 다시 열지 않게).
+ * 본 것으로 기기에 기억한다(AccountRepository.savePlacementCompleteSeen, D-531: 배치고사 진행 화면이 다시 열지 않게). 확정된 Runimal
+ * 유형이 있으면 Runimal 카드에 보인다.
  */
 @HiltViewModel
 class PlacementCompleteViewModel @Inject constructor(private val account: AccountRepository) : ViewModel() {
@@ -67,7 +68,8 @@ class PlacementCompleteViewModel @Inject constructor(private val account: Accoun
                             rounds = rounds,
                             wins = rounds.count { r -> r.verdict == Verdict.WIN.name },
                             losses = rounds.count { r -> r.verdict == Verdict.LOSE.name },
-                            draws = rounds.count { r -> r.verdict == Verdict.DRAW.name }
+                            draws = rounds.count { r -> r.verdict == Verdict.DRAW.name },
+                            runimalType = read.value.runimalType
                         )
                     }
                 }

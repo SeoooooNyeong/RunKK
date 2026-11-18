@@ -47,7 +47,9 @@ class BattleFeatureEntry @Inject constructor(private val sharer: InviteSharer) :
             BattleResultRoute(
                 battleId = key.battleId,
                 isJustFinished = key.isJustFinished,
-                onEvaluation = { navigator.navigate(Routes.Evaluation(it.tier, it.validRuns, it.runimalType)) }
+                onEvaluation = {
+                    navigator.navigate(Routes.Evaluation(it.tier, it.validRuns, it.runimalType, it.previousTier))
+                }
             )
         }
     }

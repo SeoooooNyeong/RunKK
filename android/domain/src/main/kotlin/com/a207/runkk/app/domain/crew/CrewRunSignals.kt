@@ -2,11 +2,14 @@ package com.a207.runkk.app.domain.crew
 
 import com.a207.runkk.app.domain.live.CrewRunChanged
 import com.a207.runkk.app.domain.live.LiveChannelProvider
+import com.a207.runkk.app.domain.live.LiveState
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -21,6 +24,28 @@ class CrewRunSignals @Inject constructor(private val live: LiveChannelProvider) 
             // 연결 직후 오는 신호를 잃지 않게 연결 전에 구독한다.
             launch(start = CoroutineStart.UNDISPATCHED) {
                 channel.messages.collect { m -> if (m is CrewRunChanged) send(m.toChange()) }
+            }
+            channel.connect()
+            awaitCancellation()
+        } finally {
+            channel.close()
+        }
+    }
+
+    /**
+     * 변경 신호와 실시간 연결 여부를 한 임대로 함께 내보낸다(크루런 결과 화면). 연결 여부는 CONNECTED만 참이고(폴링 대체·닫힘은 끊김),
+     * 바뀔 때만 [CrewRunSignal.Link]로 낸다. 수집을 멈추면 임대를 반납한다.
+     */
+    fun watch(): Flow<CrewRunSignal> = channelFlow {
+        val channel = live.open()
+        try {
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                channel.messages.collect { m -> if (m is CrewRunChanged) send(CrewRunSignal.Changed(m.toChange())) }
+            }
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                channel.state.map { it == LiveState.CONNECTED }
+                    .distinctUntilChanged()
+                    .collect { send(CrewRunSignal.Link(it)) }
             }
             channel.connect()
             awaitCancellation()

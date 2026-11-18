@@ -189,6 +189,19 @@ class RecordRepositoryV014Test {
     }
 
     @Test
+    fun `재평가는 직전 티어 previousTier를 읽고 없으면 null이다`() = runTest {
+        val head =
+            """{"summary":{"recordId":"r-1","startedAt":"2026-10-20T07:00:00+09:00","distanceMeters":5010,"elapsedSeconds":1620,
+               |"valid":true,"mode":"FREE","cardKind":"FREE_RUN"},"deletable":false,
+            """.trimMargin()
+        api.reply("""$head"evaluation":{"kind":"REEVALUATION","tier":"GOLD","validRuns":20,"previousTier":"SILVER"}}""")
+        api.reply("""$head"evaluation":{"kind":"REEVALUATION","tier":"GOLD","validRuns":20}}""")
+
+        assertEquals("SILVER", repository.run("r-1").value().evaluation?.previousTier)
+        assertEquals(null, repository.run("r-1").value().evaluation?.previousTier)
+    }
+
+    @Test
     fun `TC-9735 AN8-13 deletable이 없으면 본인 기록(owner 참)이고 집계 제외일 때만 삭제할 수 있다`() = runTest {
         fun detail(valid: Boolean, extra: String) =
             """{"summary":{"recordId":"r","startedAt":"2026-10-20T07:00:00+09:00","distanceMeters":10,"elapsedSeconds":10,

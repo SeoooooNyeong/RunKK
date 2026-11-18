@@ -44,10 +44,9 @@ import com.a207.runkk.app.core.designsystem.RunkkEmptyState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkSectionHeader
-import com.a207.runkk.app.core.designsystem.RunkkStatusChip
-import com.a207.runkk.app.core.designsystem.RunkkStatusChipTone
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
+import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PostList
@@ -80,7 +79,9 @@ internal fun LazyListScope.scheduleTabItems(state: CrewHomeUiState, actions: Cre
         }
     }
     if (hero != null) {
-        item(key = "schedule:hero:${hero.postId}") { HeroRun(hero, state.lobbyEntries[hero.postId], now, actions) }
+        item(key = "schedule:hero:${hero.postId}") {
+            HeroRun(hero, state.lobbyEntries[hero.postId], state.heroResults[hero.postId], now, actions)
+        }
     }
     scheduleGroups(upcoming.drop(1), now).forEach { (group, posts) ->
         item(key = "schedule:group:$group") { ScheduleGroupSection(group, posts, actions) }
@@ -184,9 +185,16 @@ private fun ScheduleTopRow(actions: CrewHomeActions) {
  * "n일 후 시작"), 대기실 입장 단추. 대기실이 아직 안 열렸거나 닫혔으면 단추를 누를 수 없고 기존 안내 문구를 보인다.
  */
 @Composable
-private fun HeroRun(post: PostList.Item, lobby: LobbyAvailability?, now: Instant, actions: CrewHomeActions) {
+private fun HeroRun(
+    post: PostList.Item,
+    lobby: LobbyAvailability?,
+    result: CrewRunResult?,
+    now: Instant,
+    actions: CrewHomeActions
+) {
     val run = post.crewRun ?: return
     val entry = CrewRunEntry.of(run.status, lobby)
+    val isRunning = run.status == CrewRunStatus.RUNNING
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -203,7 +211,11 @@ private fun HeroRun(post: PostList.Item, lobby: LobbyAvailability?, now: Instant
                 modifier = Modifier.weight(1f)
             )
             Text(
-                stringResource(R.string.crew_schedule_going_people, run.goingCount),
+                if (isRunning) {
+                    stringResource(R.string.crew_schedule_running_people, run.finisherCount)
+                } else {
+                    stringResource(R.string.crew_schedule_going_people, run.goingCount)
+                },
                 style = RunkkTextStyles.text(12),
                 color = RunkkColors.OnSecondary
             )
@@ -215,10 +227,11 @@ private fun HeroRun(post: PostList.Item, lobby: LobbyAvailability?, now: Instant
             chevronColor = RunkkColors.OnSecondary,
             onClick = { actions.onRunOpen(post) }
         )
-        if (run.status == CrewRunStatus.RUNNING) {
-            // 달리는 크루런: 남은 시간 대신 「달리는 중」, 대기실 대신 「중간 참여하기」(설계 05-32 흐름 2, [임시:D-성-884]).
-            RunkkStatusChip(stringResource(R.string.crew_home_run_running), RunkkStatusChipTone.Lime)
-            HeroJoinButton(post, actions)
+        if (isRunning) {
+            // 달리는 크루런(피그마 F-11e·f·g): 남은 시간 대신 내 상태의 큰 숫자, 대기실 대신 내 상태의 단추.
+            val hero = RunningHero.of(run.myRun)
+            hero.Headline(run.scheduledAt, result, now)
+            HeroRunningButton(post, hero, actions)
         } else {
             StartsIn(Duration.between(now, run.scheduledAt))
             entry.lobby?.let { HeroLobbyButton(post, it, actions) }
@@ -226,15 +239,15 @@ private fun HeroRun(post: PostList.Item, lobby: LobbyAvailability?, now: Instant
     }
 }
 
-/** 강조 카드의 흰 알약 「중간 참여하기」: 끝나기 전까지 크루원 누구나 참여한다(종료 뒤면 서버가 거부한다). */
+/** 강조 카드의 흰 알약(피그마 White 48): 내 참여 상태에 맞는 단추(중간 참여하기·이어 달리기·결과 보기). */
 @Composable
-private fun HeroJoinButton(post: PostList.Item, actions: CrewHomeActions) {
-    val text = stringResource(R.string.crew_home_run_join)
+private fun HeroRunningButton(post: PostList.Item, hero: RunningHero, actions: CrewHomeActions) {
+    val text = stringResource(hero.buttonRes)
     val label = runTitle(post).ifBlank { post.crewRun?.let { crewRunSummary(it) }.orEmpty() }
     val description = stringResource(R.string.crew_home_run_join_description, text, label)
     RunkkButton(
         text,
-        onClick = { actions.onJoinRun(post) },
+        onClick = { hero.open(post, actions) },
         modifier = Modifier.fillMaxWidth().semantics { contentDescription = description },
         style = RunkkButtonStyle.White,
         size = RunkkButtonSize.Medium

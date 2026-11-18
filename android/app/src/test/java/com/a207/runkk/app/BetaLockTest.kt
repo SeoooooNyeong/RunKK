@@ -83,6 +83,7 @@ class BetaLockTest {
         assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.COACH)))
         assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.COACH_CHAT)))
         assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.Key(Routes.COACH_CONSENTS)))
+        assertEquals(UnreleasedFeature.RUNBODY, BetaLock.featureOf(Routes.RunBodyDetail("r1")), "기록 상세에서 여는 런바디 상세")
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.a207.runkk.app.domain.crew
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.domain.live.CrewRunChanged
 import com.a207.runkk.app.domain.live.CrewRunRelay
+import com.a207.runkk.app.domain.live.LiveState
 import com.a207.runkk.app.domain.testing.FakeLiveChannelProvider
 import com.a207.runkk.app.domain.testing.T0
 import kotlin.test.Test
@@ -36,6 +37,36 @@ class CrewRealtimeReadTest {
         job.cancel()
         runCurrent()
         assertTrue(live.channel.closed, "숨으면 임대를 반납한다")
+    }
+
+    @Test
+    fun `watch는 변경 신호와 함께 실시간 연결 여부를 바뀔 때만 내보낸다`() = runTest {
+        val live = FakeLiveChannelProvider()
+        live.channel.state.value = LiveState.CONNECTING
+        val got = mutableListOf<CrewRunSignal>()
+        val job = backgroundScope.launch { CrewRunSignals(live).watch().collect { got += it } }
+        runCurrent()
+        live.channel.state.value = LiveState.CONNECTED
+        runCurrent()
+        live.channel.messages.emit(changed(18, CrewRunChanged.Resource.RESULT))
+        runCurrent()
+        live.channel.state.value = LiveState.POLLING
+        runCurrent()
+        live.channel.state.value = LiveState.CLOSED
+        runCurrent()
+        assertEquals(
+            listOf(
+                CrewRunSignal.Link(isConnected = false),
+                CrewRunSignal.Link(isConnected = true),
+                CrewRunSignal.Changed(CrewChange(7, 101, CrewChange.Resource.RESULT, 18)),
+                CrewRunSignal.Link(isConnected = false)
+            ),
+            got,
+            "POLLING·CLOSED는 끊김 하나로 본다"
+        )
+        job.cancel()
+        runCurrent()
+        assertTrue(live.channel.closed)
     }
 
     @Test

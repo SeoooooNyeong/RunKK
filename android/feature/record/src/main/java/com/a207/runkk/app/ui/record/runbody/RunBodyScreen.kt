@@ -20,6 +20,7 @@ import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -69,6 +70,30 @@ fun RunBodyRoute(viewModel: RunBodyViewModel = hiltViewModel()) {
         )
     )
     // 프로필 편집에서 출생연도를 넣고 돌아오면 분석 상태를 다시 읽는다(MR !91 e2e 1)
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
+        onPauseOrDispose {}
+    }
+}
+
+/**
+ * 기록 하나의 런바디 상세(Routes.RunBodyDetail, 기록 상세의 런바디 진입 카드): 러닝 선택 없이 그 기록의 상세(G-20)를 연다. 분석 중·실패·
+ * 데이터 부족이면 상세 자리에 그 상태를 보인다. 뒤로 가기는 기록 상세로 돌아간다.
+ */
+@Composable
+fun RunBodyDetailRoute(recordId: String, viewModel: RunBodyViewModel = hiltViewModel()) {
+    LaunchedEffect(recordId) { viewModel.openDetail(recordId) }
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val navigator = LocalRunkkNavigator.current
+    RunBodyScreen(
+        state,
+        RunBodyActions(
+            onBack = { if (!viewModel.onBack()) navigator.back() },
+            onRetrySession = viewModel::onRetrySession,
+            onEditProfile = { navigator.navigate(Routes.PROFILE_EDIT) },
+            onCoach = { navigator.navigate(Routes.COACH_CHAT) }
+        )
+    )
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
         onPauseOrDispose {}

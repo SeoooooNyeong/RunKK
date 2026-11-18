@@ -10,7 +10,9 @@ internal data class PlacementResponse(
     val nextRound: Int? = null,
     val provisionalTier: String? = null,
     val tier: String,
-    val rounds: List<Round> = emptyList()
+    val rounds: List<Round> = emptyList(),
+    /** 확정된 Runimal 유형 이름(없거나 옛 서버면 null). */
+    val runimalType: String? = null
 ) {
     /** 센 판 하나. 거리는 미터, 시간은 초, 페이스는 km당 초. */
     @Serializable

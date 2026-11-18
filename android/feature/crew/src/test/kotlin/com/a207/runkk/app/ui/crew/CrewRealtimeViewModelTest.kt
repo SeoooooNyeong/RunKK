@@ -11,6 +11,7 @@ import com.a207.runkk.app.core.model.ServerClock
 import com.a207.runkk.app.core.navigation.CrewRunReturnReceipt
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.crew.CrewChange
+import com.a207.runkk.app.domain.crew.CrewRunSignal
 import com.a207.runkk.app.domain.crew.CrewRunSignals
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.CrewRunStatus
@@ -594,7 +595,7 @@ class CrewRealtimeViewModelTest {
                 w.crews,
                 w.coordinator,
                 timeSource = testScheduler.timeSource,
-                changes = { signals },
+                signals = { signals.map { CrewRunSignal.Changed(it) } },
                 now = { start }
             ) { Outcome.Failure(AppError.Network) }
         )

@@ -57,6 +57,9 @@ class RunBodyViewModel internal constructor(
     private var trendJob: Job? = null
     private var weekJob: Job? = null
 
+    /** 기록 상세에서 바로 연 기록(Routes.RunBodyDetail). 없으면 탭 화면에서 들어왔다. */
+    private var directRecordId: String? = null
+
     init {
         refreshReport()
         refreshTrend()
@@ -189,9 +192,20 @@ class RunBodyViewModel internal constructor(
         if (_state.value.session is RunBodySessionState.Done) _state.update { it.copy(page = RunBodyPage.DETAIL) }
     }
 
-    /** 러닝 선택·상세에서 뒤로면 탭 화면으로 돌아오고 참을 돌려준다. 탭 화면이면 거짓(화면을 닫는다). */
+    /**
+     * 기록 상세에서 그 기록의 런바디 상세를 바로 연다(Routes.RunBodyDetail): 러닝 선택 단계 없이 상세 쪽으로 가서 분석을 읽는다. 분석 중·실패·
+     * 데이터 부족이면 상세 쪽이 그 상태를 보인다. 이렇게 열면 뒤로 가기는 탭 화면이 아니라 이전 화면(기록 상세)이다.
+     */
+    fun openDetail(recordId: String) {
+        if (directRecordId == recordId) return
+        directRecordId = recordId
+        _state.update { it.copy(page = RunBodyPage.DETAIL, selectedRecordId = recordId) }
+        loadSession(recordId)
+    }
+
+    /** 러닝 선택·상세에서 뒤로면 탭 화면으로 돌아오고 참을 돌려준다. 탭 화면이거나 바로 연 상세면 거짓(화면을 닫는다). */
     fun onBack(): Boolean {
-        if (_state.value.page == RunBodyPage.MAIN) return false
+        if (_state.value.page == RunBodyPage.MAIN || directRecordId != null) return false
         _state.update { it.copy(page = RunBodyPage.MAIN) }
         return true
     }

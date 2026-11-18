@@ -333,6 +333,26 @@ object RunkkIcons {
     /** 내 위치(과녁 모양, 지도 「내 위치로」 단추). */
     val MyLocation: ImageVector = line("MyLocation", circle(12f, 12f, 6f), "M12 2v4", "M12 18v4", "M2 12h4", "M18 12h4")
 
+    /** 런바디(피그마 icon/runbody, 22 격자): 바깥 오각형 선(1.8)과 안쪽 채운 오각형. */
+    val RunBody: ImageVector = ImageVector.Builder(
+        name = "Runkk.RunBody",
+        defaultWidth = 22.dp,
+        defaultHeight = 22.dp,
+        viewportWidth = 22f,
+        viewportHeight = 22f
+    ).addPath(
+        pathData = addPathNodes("M11 2.75L18.7917 8.43333L15.8583 17.6H6.14167L3.20833 8.43333L11 2.75Z"),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 1.8f,
+        strokeLineJoin = StrokeJoin.Round
+    ).addPath(
+        pathData = addPathNodes("M11 6.875L14.9417 9.71667L13.475 14.3H8.525L7.05833 9.71667L11 6.875Z"),
+        fill = SolidColor(Color.Black),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = 1.2f,
+        strokeLineJoin = StrokeJoin.Round
+    ).build()
+
     /** 채움 아이콘([viewport] 격자, 크기도 격자와 같다). 색은 tint가 정한다. */
     private fun filled(name: String, viewport: Float, path: String): ImageVector = ImageVector.Builder(
         name = "Runkk.$name",

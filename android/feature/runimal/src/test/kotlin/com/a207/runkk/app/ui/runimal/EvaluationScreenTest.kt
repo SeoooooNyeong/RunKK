@@ -3,9 +3,11 @@ package com.a207.runkk.app.ui.runimal
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.testing.RUNKK_PHONE
 import com.a207.runkk.app.core.designsystem.testing.captureRunkkScreen
+import com.a207.runkk.app.domain.runimal.TierChange
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import org.junit.Rule
@@ -15,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
-/** 평가 결과(G-11): 경로 인자만 그린다. */
+/** 티어 재평가(G-11 v2, 배치고사 완료 C-16 구성): 경로 인자만 그린다. */
 @RunWith(RobolectricTestRunner::class)
 class EvaluationScreenTest {
     @get:Rule
@@ -24,65 +26,101 @@ class EvaluationScreenTest {
     private val shown = mutableListOf<String>()
     private var confirmed = 0
 
-    private fun show(tier: String, validRuns: Int, runimalType: String?, description: String? = null) =
-        compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                EvaluationScreen(
-                    tier,
-                    validRuns,
-                    runimalType,
-                    onShowType = { shown += it },
-                    onConfirm = { confirmed++ },
-                    runimalDescription = description
-                )
-            }
+    private fun show(
+        tier: String,
+        validRuns: Int,
+        runimalType: String?,
+        description: String? = null,
+        previousTier: String? = null,
+        averageScore: Int? = null
+    ) = compose.setContent {
+        RunkkTheme(reduceMotion = true) {
+            EvaluationScreen(
+                tier,
+                validRuns,
+                runimalType,
+                onShowType = { shown += it },
+                onConfirm = { confirmed++ },
+                runimalDescription = description,
+                previousTier = previousTier,
+                averageScore = averageScore
+            )
         }
+    }
 
     @Test
     fun `TC-9737 Runimal 확정 카드는 유형 이름 아래 한 줄 설명을 보인다(G-11, R2-15)`() {
         show("GOLD", 20, "COMMUTER_TURTLE", description = "같은 길을 같은 시간에, 오래 꾸준히 달려요")
-        compose.onNodeWithText("출근도장 거북이").assertExists()
+        compose.onNodeWithText("출근도장 거북이").performScrollTo().assertExists()
         compose.onNodeWithText("같은 길을 같은 시간에, 오래 꾸준히 달려요").assertExists()
     }
 
     @Test
-    fun `TC-9737 첫 배치는 유효 러닝 3회 달성과 티어 카드만 보이고 Runimal 카드와 유형 보기가 없다`() {
-        show("BRONZE", 3, null)
-        compose.onNodeWithText("유효 러닝 3회 달성").assertExists()
-        compose.onNodeWithText("새 평가가 나왔어요").assertExists()
-        compose.onNodeWithText("브론즈").assertExists()
-        compose.onNodeWithText("Runimal 확정").assertDoesNotExist()
-        compose.onNodeWithText("유형 보기").assertDoesNotExist()
-        compose.onNodeWithText("확인").performClick()
-        assertEquals(1, confirmed)
+    fun `티어 재평가는 C-16 구성으로 제목·유지 문장·n번째 유효 러닝·직전·이번·다음 평가 행을 보인다(G-11 v2)`() {
+        show("GOLD", 20, "COMMUTER_TURTLE", previousTier = "GOLD", averageScore = 37)
+        compose.onNodeWithText("티어 재평가").assertExists()
+        compose.onNodeWithText("골드 티어를 지켰어요").assertExists()
+        compose.onNodeWithText("20번째 유효 러닝").performScrollTo().assertExists()
+        compose.onNodeWithText("최근 10회 평균 37점").assertExists()
+        compose.onNodeWithText("직전 티어").assertExists()
+        compose.onNodeWithText("이번 평가").assertExists()
+        compose.onNodeWithText("골드 · 유지").assertExists()
+        compose.onNodeWithText("다음 평가").assertExists()
+        compose.onNodeWithText("30번째 유효 러닝").assertExists()
     }
 
     @Test
-    fun `TC-9737 재평가에 확정 유형이 있으면 Runimal 확정 카드와 유형 보기, 확인을 보인다`() {
-        show("GOLD", 20, "COMMUTER_TURTLE")
-        compose.onNodeWithText("유효 러닝 20회 달성").assertExists()
-        compose.onNodeWithText("골드").assertExists()
-        compose.onNodeWithText("Runimal 확정").assertExists()
+    fun `직전 티어로 승급·강등 문장을 고르고 직전 티어가 없으면 이번 티어만 말한다`() {
+        show("GOLD", 30, null, previousTier = "SILVER")
+        compose.onNodeWithText("골드로 올라갔어요").assertExists()
+        compose.onNodeWithText("골드 · 승급").performScrollTo().assertExists()
+        compose.onNodeWithText("실버").assertExists()
+    }
+
+    @Test
+    fun `강등이면 티어가 됐어요`() {
+        show("SILVER", 30, null, previousTier = "PLATINUM")
+        compose.onNodeWithText("실버 티어가 됐어요").assertExists()
+        compose.onNodeWithText("실버 · 강등").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `직전 티어를 모르면(과거 기록·옛 서버) 티어예요 문장이고 직전 티어 행과 평균 점수가 없다`() {
+        show("PLATINUM", 10, null)
+        compose.onNodeWithText("플래티넘 티어예요").assertExists()
+        compose.onNodeWithText("직전 티어").assertDoesNotExist()
+        compose.onNodeWithText("최근 10회 평균", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("20번째 유효 러닝").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `TC-9737 이번에 Runimal이 확정되면 Runimal 카드와 Runimal 유형 보기, 확인을 보인다`() {
+        show("GOLD", 20, "COMMUTER_TURTLE", previousTier = "SILVER")
+        compose.onNodeWithText("Runimal 확정").performScrollTo().assertExists()
         compose.onNodeWithText("출근도장 거북이").assertExists()
-        compose.onNodeWithText("유형 보기").performClick()
+        compose.onNodeWithText("Runimal 유형 보기").performClick()
         compose.onNodeWithText("확인").performClick()
         assertEquals(listOf("COMMUTER_TURTLE"), shown)
         assertEquals(1, confirmed)
     }
 
     @Test
-    fun `TC-9737 재평가에 확정 유형이 없으면 티어만 보인다`() {
-        show("SILVER", 13, null)
-        compose.onNodeWithText("실버").assertExists()
+    fun `TC-9737 Runimal이 확정되지 않았으면 Runimal 카드와 유형 보기가 없다`() {
+        show("SILVER", 13, null, previousTier = "SILVER")
         compose.onNodeWithText("Runimal 확정").assertDoesNotExist()
-        compose.onNodeWithText("유형 보기").assertDoesNotExist()
-        compose.onNodeWithText("확인").assertExists()
+        compose.onNodeWithText("Runimal 유형 보기").assertDoesNotExist()
+        compose.onNodeWithText("확인").performClick()
+        assertEquals(1, confirmed)
     }
 
     @Test
-    fun `UNRANKED는 받은 값 그대로 보인다`() {
-        show("UNRANKED", 3, null)
-        compose.onNodeWithText("UNRANKED").assertExists()
+    fun `TierChange는 직전·이번 티어 순서로 승급·유지·강등을 고르고 모르면 UNKNOWN이다`() {
+        assertEquals(TierChange.UP, TierChange.of("SILVER", "GOLD"))
+        assertEquals(TierChange.KEEP, TierChange.of("GOLD", "GOLD"))
+        assertEquals(TierChange.DOWN, TierChange.of("MASTER", "PLATINUM"))
+        assertEquals(TierChange.UNKNOWN, TierChange.of(null, "GOLD"))
+        assertEquals(TierChange.UNKNOWN, TierChange.of("DIAMOND", "GOLD"))
+        assertEquals(TierChange.UNKNOWN, TierChange.of("UNRANKED", "GOLD"))
     }
 
     @Test
@@ -110,7 +148,8 @@ class EvaluationScreenshotTest {
             "COMMUTER_TURTLE",
             onShowType = {},
             onConfirm = {},
-            runimalDescription = "같은 길을 같은 시간에, 오래 꾸준히 달려요"
+            runimalDescription = "같은 길을 같은 시간에, 오래 꾸준히 달려요",
+            previousTier = "GOLD"
         )
     }
 }
