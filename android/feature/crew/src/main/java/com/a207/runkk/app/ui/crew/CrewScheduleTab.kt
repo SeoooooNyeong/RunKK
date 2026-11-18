@@ -212,7 +212,7 @@ private fun HeroRun(
             )
             Text(
                 if (isRunning) {
-                    stringResource(R.string.crew_schedule_running_people, run.finisherCount)
+                    stringResource(R.string.crew_schedule_running_people, runningPeople(run, result))
                 } else {
                     stringResource(R.string.crew_schedule_going_people, run.goingCount)
                 },
@@ -464,3 +464,10 @@ private fun lobbyButtonText(lobby: LobbyAvailability): String = when (lobby) {
 
 /** 이만큼(분) 남았을 때부터 "N분 뒤 열려요"로 센다. */
 private const val LOBBY_COUNTDOWN_MINUTES = 60L
+
+/**
+ * 달리는 크루런 카드의 「n명 달리는 중」. 결과를 읽었으면 아직 끝내지 않은 참가자 수, 못 읽었으면 목록 값(진행 참가 인원)이다.
+ * 목록 값은 끝낸 사람도 세므로, 내가 끝낸 뒤에도 같은 수가 남지 않게 결과를 먼저 본다.
+ */
+internal fun runningPeople(run: PostList.CrewRunInfo, result: CrewRunResult?): Int =
+    result?.participants?.count { !it.hasEnded } ?: run.finisherCount

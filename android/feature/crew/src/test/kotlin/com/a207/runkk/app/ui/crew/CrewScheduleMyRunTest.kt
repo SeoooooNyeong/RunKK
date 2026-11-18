@@ -56,6 +56,22 @@ class CrewScheduleMyRunTest {
     }
 
     @Test
+    fun `달리는 인원은 결과를 읽었으면 아직 끝내지 않은 참가자 수다`() {
+        val oneLeft = crewRunResult.copy(
+            participants = crewRunResult.participants.mapIndexed { i, p -> if (i == 0) p.copy(hasEnded = false) else p }
+        )
+        show(MyRunState.ENDED, mapOf(31L to oneLeft))
+        compose.onNodeWithText("1명 달리는 중").assertExists()
+        compose.onNodeWithText("3명 달리는 중").assertDoesNotExist()
+    }
+
+    @Test
+    fun `결과를 아직 못 읽었으면 달리는 인원은 목록 값을 쓴다`() {
+        show(MyRunState.NONE)
+        compose.onNodeWithText("3명 달리는 중").assertExists()
+    }
+
+    @Test
     fun `끝낸 사람은 내 거리와 완주했어요, 결과 보기를 보고 누르면 결과로 간다`() {
         show(MyRunState.ENDED, mapOf(31L to crewRunResult))
         compose.onNodeWithText("4.87km").assertExists()
