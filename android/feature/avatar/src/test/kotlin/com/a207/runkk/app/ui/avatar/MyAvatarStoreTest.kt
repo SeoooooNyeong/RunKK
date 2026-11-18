@@ -44,11 +44,17 @@ class MyAvatarStoreTest {
     private var resumes = 0
     private var checks = 0
 
+    /** 기기에 남긴 성별(D-956)과 남긴 기록. */
+    private var savedGender: Gender? = null
+    private val savedGenders = mutableListOf<Gender>()
+
     private fun TestScope.store(savedFaceKey: String? = null) = MyAvatarStore(
         avatars = repo,
         myGender = gender,
         heads = headsOf(repo),
         savedFaceKey = { savedFaceKey },
+        savedGender = { savedGender },
+        saveGender = { savedGenders += it },
         preload = { preloaded += it },
         prepare = { look, motion ->
             prepareFailure?.let { throw it }
@@ -100,6 +106,39 @@ class MyAvatarStoreTest {
         val ready = assertIs<MyAvatarState.Ready>(store.state.value)
         assertEquals(faceLayers, ready.look.faceLayers)
         assertEquals(1, repo.base.calls.count { it.startsWith("head:") }, "같은 머리를 다시 받지 않는다")
+    }
+
+    @Test
+    fun `기기에 남긴 성별이 있으면 프로필(성별) 응답을 기다리지 않고 바로 합성해 Ready가 된다(Jira 307)`() = runTest {
+        savedGender = Gender.FEMALE
+        repo.base.headResult = Outcome.Success(SelfieHead(faceLayers))
+        repo.base.avatarResult = Outcome.Success(sample.copy(faceKey = "head:7:job-1"))
+        val store = store(savedFaceKey = "head:7:job-1")
+
+        store.warm()
+        runCurrent()
+        val ready = assertIs<MyAvatarState.Ready>(store.state.value, "성별 흐름은 아직 null이다")
+        assertEquals(AvatarGender.FEMALE, ready.look.rive.gender)
+        assertEquals(faceLayers, ready.look.faceLayers)
+
+        gender.value = Gender.FEMALE
+        runCurrent()
+        assertEquals(1, prepared.count { it.second == AvatarMotion.STAND }, "같은 성별이면 다시 합성하지 않는다")
+        assertEquals(listOf(Gender.FEMALE), savedGenders, "알게 된 성별을 기기에 남긴다")
+    }
+
+    @Test
+    fun `프로필이 남긴 것과 다른 성별을 주면 다시 합성한다(Jira 307)`() = runTest {
+        savedGender = Gender.FEMALE
+        val store = store()
+        store.warm()
+        runCurrent()
+        assertEquals(AvatarGender.FEMALE, assertIs<MyAvatarState.Ready>(store.state.value).look.rive.gender)
+
+        gender.value = Gender.MALE
+        runCurrent()
+        assertEquals(AvatarGender.MALE, assertIs<MyAvatarState.Ready>(store.state.value).look.rive.gender)
+        assertEquals(listOf(Gender.MALE), savedGenders)
     }
 
     @Test

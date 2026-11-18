@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.core
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
 import com.a207.runkk.app.core.model.FacePart
+import com.a207.runkk.app.core.model.FaceUse
 import com.a207.runkk.app.core.model.Outcome
 import java.io.IOException
 import java.util.Base64
@@ -25,6 +26,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import okhttp3.CacheControl
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.HttpUrl
@@ -39,23 +41,27 @@ import okhttp3.Response
  * - 셀카 부위 얼굴("selfie:…"): GET /avatar/parts/{faceKey에서 "selfie:"를 뗀 값}/{부위}(EYES·NOSE·MOUTH·EARS·HAIR). 인증된
  *   OkHttp로 보내 Authorization 헤더가 붙고, 401이면 TokenAuthenticator가 갱신한다. 메모리 캐시는 응답의 max-age(Age를 뺀 남은
  *   시간)가 지나면 버리고, no-store·max-age가 없으면 메모리에 두지 않는다.
- * - 셀카 머리 얼굴("head:{회원ID}:{작업ID}", S15P31A207-300 레이어 합성): 머리를 층별로 받는다.
- *   - 얼굴 원([faceLayers]): 정면 세 층만 GET /avatar/heads/{회원ID}/{작업ID}/layers/{face|eyes|hair}?size=로 받아 아래부터 얼굴(EARS
- *     자리)·눈(EYES)·머리카락(HAIR) 순서로 겹친다. 다른 러너는 [CIRCLE_SIZE](512, 큰 프로필 원도 흐리지 않은 크기), 내 머리는 큰
- *     아바타와 같은 [FULL_SIZE](1024) 층을 써서 같은 그림을 한 번만 받는다. 얼굴 원 구도는 층 알파로 재므로 메타는 받지 않는다.
- *   - 큰 아바타([selfieHead]): 메타(…/meta)와 1024 층 여섯 장(정면 셋·옆모습 셋)을 함께 받는다. 예전 머리라 옆모습 층이 없으면(404)
- *     옆모습만 비운다.
- *   - 같은 주소를 여러 화면이 함께 찾으면 한 번만 보낸다(받는 중 표 [inflight]). 층·메타는 서버가 immutable(1년)로 주므로 [client]의
- *     디스크 캐시(OkHttp Cache)가 앱을 다시 켜도 서버에 묻지 않고 준다.
- *   - 예전 서버(v0.13.x)는 층 주소를 몰라 404·405를 준다. 그러면 기존 통짜 응답 GET /avatar/heads/{회원ID}/{작업ID}(Base64 PNG JSON)로
- *     받아 같은 층을 꺼낸다(서버를 먼저 배포하지 못한 경우의 대체 경로).
- *   - 받은 정면 세 층은 메모리에 [HEAD_ENTRIES]개 두고, 내 머리(키의 회원 ID = 로그인한 회원)는 [selfStore]에도 남겨 앱을 새로 켜도 바로
- *     그린다.
+ * - 셀카 머리 얼굴("head:{회원ID}:{작업ID}", 레이어 합성): 메타(…/meta, 하루 캐시)를 먼저 받고 메타의 층 주소(layerUrls: 크기 →
+ *   층 이름 → 주소, 서버 형식 판 포함)를 그대로 쓴다. 메타에 주소가 없으면(옛 서버 메타) 앱이 …/layers/{층}?size=로 만든다.
+ *   - 얼굴 원([faceLayers]): 정면 세 층을 그릴 자리([FaceUse]) 크기로 받아 아래부터 얼굴(EARS 자리)·눈(EYES)·머리카락(HAIR) 순서로
+ *     겹친다. 목록 원 256, 큰 프로필 원 512. 내 머리는 큰 아바타와 같은 1024를 써서 같은 그림을 한 번만 받는다(Jira 308·309).
+ *   - 큰 아바타([selfieHead]): 메타와 1024 층 여섯 장(정면 셋·옆모습 셋). 메타에 옆모습 주소가 없거나 층이 없으면(404
+ *     LAYER_NOT_FOUND) 옆모습만 비운다.
+ *   - 메모리 표의 열쇠는 머리(소유자, 작업)이고 값은 가진 가장 큰 크기의 정면 층이다. 더 큰 크기가 있으면 작은 크기를 받지 않고 그것을
+ *     쓰고(화면이 줄여 그린다), 작은 크기만 있는데 큰 크기가 필요하면 큰 크기를 받아 덮는다. 큰 아바타는 메모리의 1024 정면 층을 다시
+ *     받지 않는다.
+ *   - 같은 주소를 여러 화면이 함께 찾으면 한 번만 보낸다(받는 중 표 [inflight]). 다른 러너의 층·메타는 [client]의 디스크 캐시(OkHttp
+ *     Cache, 서버 Cache-Control)가 앱을 다시 켜도 준다. 내 머리(키의 회원 ID = 로그인한 회원)는 HTTP 캐시에 남기지 않고(no-store)
+ *     [selfStore]에 한 벌만 남긴다: 정면 세 층, 큰 아바타를 받았으면 옆모습 층과 메타까지. 앱을 새로 켜면 받지 않고 그것을 준다.
+ *   - 층 응답: 503 HEAD_BUSY면 한 번 다시 받는다. 404의 reason이 LAYER_NOT_FOUND면 그 층이 없는 것, JOB_NOT_FOUND·HEAD_NOT_FOUND
+ *     등이면 실패다. reason 없는 404·405만 옛 서버(v0.13.x, 층 주소 없음)로 보고 통짜 응답 GET /avatar/heads/{회원ID}/{작업ID}
+ *     (Base64 PNG JSON)에서 같은 층을 꺼낸다.
  * - 계정: 캐시는 받은 회원의 것이다. 로그인한 회원 ID([selfId], 접근 토큰 sub)가 바뀌거나 로그아웃하면(null) 메모리·디스크 캐시와 남긴
- *   내 얼굴을 비운 뒤에 받는다(다른 계정에 앞 계정의 얼굴이 나가지 않게). 앱을 새로 켠 첫 요청은 디스크 캐시를 남긴 회원([selfStore]의
- *   회원)과 같을 때만 디스크 캐시를 그대로 쓴다. 로그아웃 상태면 받지 않고 Unauthorized다.
- * - 실패: 부위·층 하나라도 받지 못하면 전체를 실패로 돌려준다(반쪽 얼굴을 그리지 않고 화면이 자리 그림을 쓴다). 서버 거부는 공통 오류
- *   응답 code(403 PERMISSION_DENIED, 409 FACE_IMAGE_NOT_FOUND)로, 연결 실패는 Network로 온다.
+ *   내 얼굴을 비운 뒤에 받는다(다른 계정에 앞 계정의 얼굴이 나가지 않게). 받는 사이 회원이 바뀌었으면 받은 것을 메모리·기기에 두지
+ *   않는다. 앱을 새로 켠 첫 요청은 디스크 캐시를 남긴 회원([selfStore]의 회원)과 같을 때만 디스크 캐시를 그대로 쓴다. 로그아웃 상태면
+ *   받지 않고 Unauthorized다.
+ * - 실패: 부위·정면 층 하나라도 받지 못하면 전체를 실패로 돌려준다(반쪽 얼굴을 그리지 않고 화면이 자리 그림을 쓴다). 서버 거부는 공통
+ *   오류 응답 code·reason(403 PERMISSION_DENIED, 409 FACE_IMAGE_NOT_FOUND, 404 JOB_NOT_FOUND 등)으로, 연결 실패는 Network로 온다.
  * - 셀카 얼굴이 아니면(기본 캐릭터·얼굴 없음) 빈 목록이다.
  * - 바로 그리기([peek]): 받아 둔 그림이 있으면 기다리지 않고 준다. 화면이 첫 그림부터 내 얼굴을 그리고 기본 머리를 거치지 않게 한다.
  */
@@ -74,9 +80,9 @@ class FaceImageSource internal constructor(
             size > MEMORY_ENTRIES
     }
 
-    /** 받은 셀카 머리 정면 세 층(머리 키 "{회원ID}:{작업ID}" → 층). */
-    private val heads = object : LinkedHashMap<String, List<FaceLayer>>(HEAD_ENTRIES, LOAD_FACTOR, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<FaceLayer>>?): Boolean =
+    /** 받은 셀카 머리 정면 세 층(머리 키 "{회원ID}:{작업ID}" → 가진 가장 큰 크기의 층). */
+    private val heads = object : LinkedHashMap<String, HeldHead>(HEAD_ENTRIES, LOAD_FACTOR, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, HeldHead>?): Boolean =
             size > HEAD_ENTRIES
     }
 
@@ -98,9 +104,11 @@ class FaceImageSource internal constructor(
         if (faceKey == null) return emptyList()
         if (faceKey.startsWith(HEAD_PREFIX)) {
             val location = faceKey.removePrefix(HEAD_PREFIX)
-            synchronized(lock) { if (cachedFor == member) heads[location] else null }?.let { return it }
+            synchronized(lock) { if (cachedFor == member) heads[location]?.layers else null }?.let { return it }
             val saved = selfStore?.layers(member, faceKey) ?: return null
-            synchronized(lock) { if (cachedFor == member || cachedFor == null) heads[location] = saved }
+            synchronized(lock) {
+                if (cachedFor == member || cachedFor == null) hold(location, HeldHead(FaceUse.FULL.size(), saved))
+            }
             return saved
         }
         val location = faceKey.takeIf { it.startsWith(SELFIE_PREFIX) }?.removePrefix(SELFIE_PREFIX)
@@ -124,11 +132,26 @@ class FaceImageSource internal constructor(
         withContext(io) { store.saveKeys(member, SelfFaceStore.Keys(faceKey, backgroundKey)) }
     }
 
+    /** 내 성별(이름)을 남긴다. 앱을 새로 켜면 프로필 응답 전에 이 성별로 큰 아바타 합성을 시작한다(Jira 307). */
+    suspend fun rememberSelfGender(gender: String) {
+        val member = selfId() ?: return
+        val store = selfStore ?: return
+        withContext(io) { store.saveGender(member, gender) }
+    }
+
     /** 내 프로필의 마지막 얼굴·배경 키(기기에 남긴 것). 모르거나 다른 회원 것이면 null. */
     internal fun lastSelf(): SelfFaceStore.Keys? = selfStore?.keys(selfId())
 
-    suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> {
-        if (faceKey != null && faceKey.startsWith(HEAD_PREFIX)) return headLayers(faceKey.removePrefix(HEAD_PREFIX))
+    /** 내 마지막 성별(기기에 남긴 것). 모르거나 다른 회원 것이면 null. */
+    internal fun lastSelfGender(): String? = selfStore?.gender(selfId())
+
+    /** [faceKey] 얼굴을 [use] 자리에 그릴 층. 셀카 부위 얼굴은 크기가 하나라 [use]를 보지 않는다. */
+    suspend fun faceLayers(faceKey: String?, use: FaceUse = FaceUse.LIST): Outcome<List<FaceLayer>> {
+        if (faceKey != null &&
+            faceKey.startsWith(HEAD_PREFIX)
+        ) {
+            return headLayers(faceKey.removePrefix(HEAD_PREFIX), use)
+        }
         val location = faceKey?.takeIf { it.startsWith(SELFIE_PREFIX) }?.removePrefix(SELFIE_PREFIX)
             ?: return Outcome.Success(emptyList())
         val segments = location.split('/')
@@ -140,35 +163,42 @@ class FaceImageSource internal constructor(
     }
 
     /**
-     * 얼굴 원의 셀카 머리("{회원ID}:{작업ID}"): 정면 세 층을 받는다. 층 하나라도 틀리면 실패다. 받은 층은 메모리에 두고(머리 키는 내용이
-     * 바뀌지 않는다), 내 머리면 기기에도 남긴다.
+     * 얼굴 원의 셀카 머리("{회원ID}:{작업ID}"): 메타를 받은 뒤 정면 세 층을 [use] 크기로 받는다(내 머리는 1024). 같은 크기 이상을 이미
+     * 가지고 있으면 받지 않는다. 층 하나라도 틀리면 실패다.
      */
-    private suspend fun headLayers(location: String): Outcome<List<FaceLayer>> {
+    private suspend fun headLayers(location: String, use: FaceUse): Outcome<List<FaceLayer>> {
         val head = HeadKey.of(location) ?: return Outcome.Failure(AppError.Rejected(FACE_IMAGE_NOT_FOUND))
         val member = selfId()
-        synchronized(lock) { if (member != null && cachedFor == member) heads[location] else null }
-            ?.let { return Outcome.Success(it) }
+        val size = sizeFor(head, member, use)
+        held(member, location, size)?.let { return Outcome.Success(it) }
         if (!ownCacheFor(member)) return Outcome.Failure(AppError.Unauthorized)
-        val size = if (head.owner == member) FULL_SIZE else CIRCLE_SIZE
-        val fetched = coroutineScope {
-            FRONT_LAYERS.map { (name, _) -> async { fetchHead(head, LAYERS_PATH + name, size) } }.awaitAll()
-        }
-        val result = if (fetched.any { it is Fetched.Unsupported }) {
-            headBody(head) { body ->
-                headOf(body)?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Server(MALFORMED))
+        val isMine = head.owner == member
+        if (isMine && member != null) {
+            selfStore?.layers(member, HEAD_PREFIX + location)?.let { saved ->
+                remember(member, head, location, FaceUse.FULL.size(), saved)
+                return Outcome.Success(saved)
             }
-        } else {
-            frontOf(fetched)
         }
+        val meta = when (val fetched = fetchHead(metaUrl(head), isMine)) {
+            is Fetched.Body -> HeadMeta.of(fetched.bytes)
+            is Fetched.Failed -> return fetched.failure
+            Fetched.Missing, Fetched.Unsupported -> return legacyFront(member, head, location)
+        }
+        val fetched = coroutineScope {
+            FRONT_LAYERS.map { (name, _) -> async { fetchLayer(head, meta, name, size, isMine) } }.awaitAll()
+        }
+        if (fetched.any { it is Fetched.Unsupported }) return legacyFront(member, head, location)
+        val result = frontOf(fetched)
         val layers = (result as? Outcome.Success)?.value ?: return result
-        remember(member, head, location, layers)
+        remember(member, head, location, size, layers)
         return result
     }
 
     /**
-     * 큰 아바타의 셀카 머리(W9 Rive 렌더러 입력): 메타와 1024 층 여섯 장을 함께 받아 정면 세 층·옆모습 세 층·메타 JSON을 준다. 옆모습
-     * 층이 없으면(404, 예전 머리) 옆모습만 빈 목록이다. 서버가 층 주소를 모르면 통짜 응답에서 꺼낸다(층 형식이 틀리면 대체 그림만 빈
-     * 목록, 받기는 성공). 셀카 머리 얼굴("head:…")이 아니면 null이다.
+     * 큰 아바타의 셀카 머리(W9 Rive 렌더러 입력): 메타와 1024 층 여섯 장(정면 셋·옆모습 셋)으로 정면 세 층·옆모습 세 층·메타 JSON을
+     * 준다. 메모리에 1024 정면 층이 있으면 그것을 쓰고, 내 머리를 기기에 남겼으면 받지 않는다. 옆모습 층이 없으면 옆모습만 빈 목록이다.
+     * 서버가 층 주소를 모르면 통짜 응답에서 꺼낸다(층 형식이 틀리면 대체 그림만 빈 목록, 받기는 성공). 셀카 머리 얼굴("head:…")이
+     * 아니면 null이다.
      */
     internal suspend fun selfieHead(faceKey: String?): Outcome<HeadBody?> {
         if (faceKey == null || !faceKey.startsWith(HEAD_PREFIX)) return Outcome.Success(null)
@@ -176,41 +206,106 @@ class FaceImageSource internal constructor(
         val head = HeadKey.of(location) ?: return Outcome.Failure(AppError.Rejected(FACE_IMAGE_NOT_FOUND))
         val member = selfId()
         if (!ownCacheFor(member)) return Outcome.Failure(AppError.Unauthorized)
-        val (meta, layers) = coroutineScope {
-            val meta = async { fetchHead(head, META_PATH, null) }
-            val layers = ALL_LAYERS.map { name -> async { fetchHead(head, LAYERS_PATH + name, FULL_SIZE) } }
-            meta.await() to layers.awaitAll()
+        val isMine = head.owner == member
+        if (isMine && member != null) {
+            selfStore?.head(member, faceKey)?.let { saved ->
+                remember(member, head, location, FaceUse.FULL.size(), saved.faceLayers)
+                return Outcome.Success(HeadBody(saved.faceLayers, saved.rightLayers, saved.meta))
+            }
         }
-        when (meta) {
-            is Fetched.Unsupported -> return headBody(head) { body -> Outcome.Success(legacyHeadOf(body)) }
-            is Fetched.Failed -> return meta.failure
-            is Fetched.Body -> Unit
+        val metaFetched = fetchHead(metaUrl(head), isMine)
+        val metaBytes = when (metaFetched) {
+            is Fetched.Body -> metaFetched.bytes
+
+            is Fetched.Failed -> return metaFetched.failure
+
+            Fetched.Missing, Fetched.Unsupported -> return headBody(head) { body ->
+                Outcome.Success(legacyHeadOf(body))
+            }
         }
-        val front = frontOf(layers.take(FRONT_LAYERS.size))
-        val faceLayers = (front as? Outcome.Success)?.value ?: return front as Outcome.Failure
-        val side = layers.drop(FRONT_LAYERS.size)
+        val meta = HeadMeta.of(metaBytes)
+        val full = FaceUse.FULL.size()
+        val known = held(member, location, full) ?: member?.takeIf { isMine }?.let { selfStore?.layers(it, faceKey) }
+        val (front, side) = coroutineScope {
+            val front = if (known == null) {
+                FRONT_LAYERS.map { (name, _) -> async { fetchLayer(head, meta, name, full, isMine) } }
+            } else {
+                null
+            }
+            val side = SIDE_LAYERS.map { name -> async { fetchLayer(head, meta, name, full, isMine) } }
+            front?.awaitAll() to side.awaitAll()
+        }
+        val faceLayers = known ?: when (val result = frontOf(front.orEmpty())) {
+            is Outcome.Success -> result.value
+            is Outcome.Failure -> return result
+        }
         side.filterIsInstance<Fetched.Failed>().firstOrNull()?.let { return it.failure }
         val rightLayers = side.map { (it as? Fetched.Body)?.bytes }.takeIf { all -> all.none { it == null } }
             ?.filterNotNull().orEmpty()
-        remember(member, head, location, faceLayers)
-        return Outcome.Success(HeadBody(faceLayers, rightLayers, (meta as Fetched.Body).bytes.decodeToString()))
+        val body = HeadBody(faceLayers, rightLayers, metaBytes.decodeToString())
+        remember(member, head, location, full, faceLayers, body)
+        return Outcome.Success(body)
     }
 
-    /** 받은 정면 세 층을 메모리에 두고, 내 머리면 기기에도 남긴다. */
-    private suspend fun remember(member: Long?, head: HeadKey, location: String, layers: List<FaceLayer>) {
-        synchronized(lock) { if (cachedFor == member) heads[location] = layers }
-        val store = selfStore
-        if (member != null && head.owner == member && store != null) {
-            withContext(io) { store.saveLayers(member, HEAD_PREFIX + location, layers) }
+    /** 이 머리를 받을 크기. 내 머리는 큰 아바타와 같은 1024다(같은 그림을 크기별로 두 번 받지 않게). */
+    private fun sizeFor(head: HeadKey, member: Long?, use: FaceUse): Int =
+        if (head.owner == member) FaceUse.FULL.size() else use.size()
+
+    /** 메모리에 [size] 이상으로 가진 정면 층. 로그인한 회원의 캐시만 본다. */
+    private fun held(member: Long?, location: String, size: Int): List<FaceLayer>? = synchronized(lock) {
+        if (member == null || cachedFor != member) return null
+        heads[location]?.takeIf { it.size >= size }?.layers
+    }
+
+    /** 가진 것보다 크거나 같은 크기만 둔다(작은 것이 큰 것을 덮지 않는다). [lock] 안에서 부른다. */
+    private fun hold(location: String, next: HeldHead) {
+        val current = heads[location]
+        if (current == null || current.size <= next.size) heads[location] = next
+    }
+
+    /**
+     * 받은 정면 세 층을 메모리에 두고, 내 머리면 기기에도 남긴다([full]이 있으면 옆모습·메타까지). 받는 사이 로그인한 회원이 바뀌었으면
+     * 두지 않는다(앞 회원의 얼굴이 다음 회원 캐시·기기에 남지 않게).
+     */
+    private suspend fun remember(
+        member: Long?,
+        head: HeadKey,
+        location: String,
+        size: Int,
+        layers: List<FaceLayer>,
+        full: HeadBody? = null
+    ) {
+        if (member == null || selfId() != member) return
+        synchronized(lock) { if (cachedFor == member) hold(location, HeldHead(size, layers)) }
+        val store = selfStore ?: return
+        if (head.owner != member) return
+        withContext(io) {
+            // 디스크에 쓰기 직전에 한 번 더 확인한다(계정 바뀜 경쟁).
+            if (selfId() != member) return@withContext
+            if (full != null) {
+                store.saveHead(member, HEAD_PREFIX + location, SelfFaceStore.Head(layers, full.rightLayers, full.meta))
+            } else {
+                store.saveLayers(member, HEAD_PREFIX + location, layers)
+            }
         }
     }
 
-    /** 정면 세 층 받기 결과 → 층. 하나라도 받지 못했으면 그 실패다. */
+    /** 옛 서버(층 주소 없음): 통짜 응답의 정면 세 층. */
+    private suspend fun legacyFront(member: Long?, head: HeadKey, location: String): Outcome<List<FaceLayer>> {
+        val result = headBody(head) { body ->
+            headOf(body)?.let { Outcome.Success(it) } ?: Outcome.Failure(AppError.Server(MALFORMED))
+        }
+        val layers = (result as? Outcome.Success)?.value ?: return result
+        remember(member, head, location, FaceUse.FULL.size(), layers)
+        return result
+    }
+
+    /** 정면 세 층 받기 결과 → 층. 하나라도 받지 못했으면 그 실패다(없는 층은 얼굴 없음). */
     private fun frontOf(fetched: List<Fetched>): Outcome<List<FaceLayer>> {
         fetched.forEach { result ->
             when (result) {
                 is Fetched.Failed -> return result.failure
-                is Fetched.Unsupported -> return Outcome.Failure(AppError.Rejected(FACE_IMAGE_NOT_FOUND))
+                Fetched.Missing, Fetched.Unsupported -> return Outcome.Failure(AppError.Rejected(FACE_IMAGE_NOT_FOUND))
                 is Fetched.Body -> Unit
             }
         }
@@ -221,50 +316,62 @@ class FaceImageSource internal constructor(
         )
     }
 
+    private fun headUrl(head: HeadKey): HttpUrl.Builder =
+        baseUrl.newBuilder().addPathSegments(HEADS_PATH).addPathSegment(head.owner.toString()).addPathSegment(head.job)
+
+    private fun metaUrl(head: HeadKey): HttpUrl = headUrl(head).addPathSegment(META_PATH).build()
+
     /**
-     * 머리 층·메타 하나(GET /avatar/heads/{회원ID}/{작업ID}/{path}[?size=]). 같은 주소를 받는 중이면 그것을 기다린다. 받기는
-     * [fetches]에서 해 부른 화면이 떠나도 끝까지 받는다.
+     * 층 하나. 메타가 층 주소를 주면(layerUrls) 그 주소를 그대로 쓰고, 그 크기에 그 층이 없으면 없는 층이다. 메타에 주소가 없으면(옛 서버
+     * 메타) 앱이 만든다.
      */
-    private suspend fun fetchHead(head: HeadKey, path: String, size: Int?): Fetched {
-        val url = baseUrl.newBuilder().addPathSegments(HEADS_PATH).addPathSegment(head.owner.toString())
-            .addPathSegment(head.job).addPathSegments(path)
-            .apply { size?.let { addQueryParameter(SIZE, it.toString()) } }
-            .build()
+    private suspend fun fetchLayer(head: HeadKey, meta: HeadMeta, name: String, size: Int, isMine: Boolean): Fetched {
+        val url = if (meta.hasUrls) {
+            meta.urlOf(size, name)?.let(::sameServer) ?: return Fetched.Missing
+        } else {
+            headUrl(head).addPathSegments(LAYERS_PATH + name).addQueryParameter(SIZE, size.toString()).build()
+        }
+        return fetchHead(url, isMine)
+    }
+
+    /** 메타의 상대 주소를 서버 주소로 푼다. 다른 서버를 가리키면(토큰을 보내지 않게) 쓰지 않는다. */
+    private fun sameServer(path: String): HttpUrl? = baseUrl.resolve(path)?.takeIf {
+        it.scheme == baseUrl.scheme && it.host == baseUrl.host &&
+            it.port == baseUrl.port
+    }
+
+    /**
+     * 머리 층·메타 하나. 같은 주소를 받는 중이면 그것을 기다린다. 받기는 [fetches]에서 해 부른 화면이 떠나도 끝까지 받는다. 내 머리
+     * ([isMine])는 HTTP 캐시에 남기지 않는다(내 얼굴 저장소에 한 벌만).
+     */
+    private suspend fun fetchHead(url: HttpUrl, isMine: Boolean): Fetched {
         val key = url.toString()
         val pending = synchronized(lock) {
-            inflight[key] ?: fetches.async { download(url) }.also { started ->
+            inflight[key] ?: fetches.async { download(url, isMine) }.also { started ->
                 inflight[key] = started
                 started.invokeOnCompletion {
-                    synchronized(lock) {
-                        if (inflight[key] ===
-                            started
-                        ) {
-                            inflight.remove(key)
-                        }
-                    }
+                    synchronized(lock) { if (inflight[key] === started) inflight.remove(key) }
                 }
             }
         }
         return pending.await()
     }
 
-    /** 층·메타 응답 하나. 404·405는 예전 서버(층 주소 없음)나 없는 층이라 [Fetched.Unsupported]다. */
-    private suspend fun download(url: HttpUrl): Fetched = try {
-        val request = Request.Builder().url(url).header(ACCEPT, LAYER_ACCEPT).build()
+    /** 층·메타 응답 하나. 503 HEAD_BUSY면 한 번 다시 받는다. */
+    private suspend fun download(url: HttpUrl, isMine: Boolean): Fetched {
+        val first = downloadOnce(url, isMine)
+        return if (first is Fetched.Failed && first.isBusy) downloadOnce(url, isMine) else first
+    }
+
+    private suspend fun downloadOnce(url: HttpUrl, isMine: Boolean): Fetched = try {
+        val request = Request.Builder().url(url).header(ACCEPT, LAYER_ACCEPT)
+            .apply { if (isMine) cacheControl(NO_STORE) }
+            .build()
         client.newCall(request).await().use { response ->
             withContext(io) {
                 when {
-                    response.code == HTTP_NOT_FOUND || response.code == HTTP_BAD_METHOD -> Fetched.Unsupported
-
-                    !response.isSuccessful -> Fetched.Failed(
-                        Outcome.Failure(ApiErrorMapper.fromHttp(response.code, response.body.string()))
-                    )
-
-                    response.body.contentLength() > MAX_LAYER_BYTES ||
-                        response.body.source().request(MAX_LAYER_BYTES + 1) ->
-                        Fetched.Failed(Outcome.Failure(AppError.Server(TOO_LARGE)))
-
-                    else -> Fetched.Body(response.body.source().readByteArray())
+                    response.isSuccessful -> bodyOf(response)
+                    else -> refusalOf(response.code, response.body.string())
                 }
             }
         }
@@ -272,14 +379,31 @@ class FaceImageSource internal constructor(
         Fetched.Failed(Outcome.Failure(AppError.Network))
     }
 
+    private fun bodyOf(response: Response): Fetched =
+        if (response.body.contentLength() > MAX_LAYER_BYTES || response.body.source().request(MAX_LAYER_BYTES + 1)) {
+            Fetched.Failed(Outcome.Failure(AppError.Server(TOO_LARGE)))
+        } else {
+            Fetched.Body(response.body.source().readByteArray())
+        }
+
+    /** 거부 응답: 404 reason(없는 층·옛 서버·실패), 405 옛 서버, 503 HEAD_BUSY 다시 받기, 그 밖은 실패. */
+    private fun refusalOf(status: Int, body: String): Fetched {
+        if (status == HTTP_BAD_METHOD) return Fetched.Unsupported
+        val error = ApiErrorMapper.fromHttp(status, body)
+        val code = (error as? AppError.Rejected)?.code
+        return when {
+            status == HTTP_NOT_FOUND && code == LAYER_NOT_FOUND -> Fetched.Missing
+            status == HTTP_NOT_FOUND && code == NOT_FOUND -> Fetched.Unsupported
+            else -> Fetched.Failed(Outcome.Failure(error), isBusy = status == HTTP_UNAVAILABLE && HEAD_BUSY in body)
+        }
+    }
+
     /**
      * 예전 통짜 응답 GET /avatar/heads/{회원ID}/{작업ID} 본문을 받아 [parse]로 바꾼다. [MAX_HEAD_BYTES]를 넘으면 실패다. 본문
      * 읽기(최대 32MiB)와 [parse](Base64·JSON)는 [io]에서 한다(부른 쪽이 주 스레드여도 막지 않는다).
      */
     private suspend fun <T> headBody(head: HeadKey, parse: (String) -> Outcome<T>): Outcome<T> {
-        val url = baseUrl.newBuilder().addPathSegments(HEADS_PATH).addPathSegment(head.owner.toString())
-            .addPathSegment(head.job).build()
-        val request = Request.Builder().url(url).header(ACCEPT, JSON).build()
+        val request = Request.Builder().url(headUrl(head).build()).header(ACCEPT, JSON).build()
         return try {
             client.newCall(request).await().use { response ->
                 withContext(io) {
@@ -465,6 +589,9 @@ class FaceImageSource internal constructor(
 
     private class Cached(val png: ByteArray, val expiresAt: Long)
 
+    /** 메모리에 둔 머리 정면 세 층과 그 크기. */
+    private class HeldHead(val size: Int, val layers: List<FaceLayer>)
+
     /** 셀카 머리 위치("{회원ID}:{작업ID}"). */
     private class HeadKey(val owner: Long, val job: String) {
         companion object {
@@ -478,14 +605,46 @@ class FaceImageSource internal constructor(
         }
     }
 
+    /**
+     * 메타가 준 층 주소(layerUrls: 크기 → 층 이름 → 상대 주소). [hasUrls]가 거짓이면 옛 서버 메타라 앱이 주소를 만든다. 메타를 읽지
+     * 못해도(JSON이 아님) 주소 없음으로 본다.
+     */
+    private class HeadMeta(private val urls: Map<String, Map<String, String>>?) {
+        val hasUrls: Boolean get() = urls != null
+
+        fun urlOf(size: Int, layer: String): String? = urls?.get(size.toString())?.get(layer)
+
+        companion object {
+            fun of(bytes: ByteArray): HeadMeta {
+                val root = try {
+                    HEAD_JSON.parseToJsonElement(bytes.decodeToString()) as? JsonObject
+                } catch (e: IllegalArgumentException) {
+                    null
+                }
+                val layerUrls = root?.get(LAYER_URLS) as? JsonObject ?: return HeadMeta(null)
+                return HeadMeta(
+                    layerUrls.mapValues { (_, layers) ->
+                        (layers as? JsonObject).orEmpty().mapNotNull { (name, url) ->
+                            (url as? JsonPrimitive)?.takeIf { it.isString }?.content?.let { name to it }
+                        }.toMap()
+                    }
+                )
+            }
+        }
+    }
+
     /** 층·메타 요청 하나의 결과. */
     private sealed interface Fetched {
         class Body(val bytes: ByteArray) : Fetched
 
-        /** 404·405: 서버가 층 주소를 모르거나(예전 서버) 그 층·머리가 없다. */
+        /** 404 LAYER_NOT_FOUND 또는 메타에 그 층 주소가 없음: 이 머리에 그 층이 없다. */
+        data object Missing : Fetched
+
+        /** reason 없는 404·405: 서버가 층 주소를 모른다(예전 서버). */
         data object Unsupported : Fetched
 
-        class Failed(val failure: Outcome.Failure) : Fetched
+        /** 실패. [isBusy]는 503 HEAD_BUSY(서버가 머리를 적재하느라 바쁘다, 한 번 다시 받는다). */
+        class Failed(val failure: Outcome.Failure, val isBusy: Boolean = false) : Fetched
     }
 
     private companion object {
@@ -494,6 +653,7 @@ class FaceImageSource internal constructor(
         const val HEADS_PATH = "avatar/heads"
         const val LAYERS_PATH = "layers/"
         const val META_PATH = "meta"
+        const val LAYER_URLS = "layerUrls"
         const val SIZE = "size"
         const val JSON = "application/json"
         const val LAYER_ACCEPT = "image/png, application/json"
@@ -502,14 +662,15 @@ class FaceImageSource internal constructor(
         const val MOBILE = "mobile"
         const val EMPTY_META = "{}"
 
-        /** 다른 러너 얼굴 원 층 크기(1024 캔버스를 줄인 한 변). 큰 프로필 원(약 100dp, xxhdpi 300px)에서도 흐리지 않다. */
-        const val CIRCLE_SIZE = 512
-
-        /** 원본 층 크기(내 머리, 큰 아바타). */
-        const val FULL_SIZE = 1024
-
         const val HTTP_NOT_FOUND = 404
         const val HTTP_BAD_METHOD = 405
+        const val HTTP_UNAVAILABLE = 503
+        const val NOT_FOUND = "NOT_FOUND"
+        const val LAYER_NOT_FOUND = "LAYER_NOT_FOUND"
+        const val HEAD_BUSY = "HEAD_BUSY"
+
+        /** 내 머리 요청은 HTTP 캐시에 남기지 않는다(내 얼굴 저장소에 한 벌만). */
+        val NO_STORE: CacheControl = CacheControl.Builder().noStore().build()
 
         /** 예전 통짜 머리 응답 한 개의 상한(정면·옆모습 층의 base64, 합성 정보, 32MiB. 서버 중계 상한과 같다). */
         const val MAX_HEAD_BYTES = 32L * 1024 * 1024
@@ -527,8 +688,8 @@ class FaceImageSource internal constructor(
             "hair" to FacePart.HAIR
         )
 
-        /** 큰 아바타가 쓰는 층(정면 셋, 옆모습 셋 순서). */
-        val ALL_LAYERS = FRONT_LAYERS.map { it.first } + listOf("rightFace", "rightEyes", "rightHair")
+        /** 큰 아바타의 옆모습 층(얼굴·눈·머리카락 순서). */
+        val SIDE_LAYERS = listOf("rightFace", "rightEyes", "rightHair")
 
         /** 통짜 응답 항목 → 그리는 순서 자리(얼굴 바탕·눈·머리카락). */
         val HEAD_FIELDS = listOf(
@@ -547,7 +708,7 @@ class FaceImageSource internal constructor(
         const val PNG = "image/png"
         const val MEMORY_ENTRIES = 40
 
-        /** 메모리에 두는 셀카 머리 수(머리 하나는 정면 세 층 PNG, 수백 KB). */
+        /** 메모리에 두는 셀카 머리 수(머리 하나는 정면 세 층 PNG, 수백 KB~수 MB). */
         const val HEAD_ENTRIES = 12
         const val LOAD_FACTOR = 0.75f
         const val MILLIS_PER_SECOND = 1_000L

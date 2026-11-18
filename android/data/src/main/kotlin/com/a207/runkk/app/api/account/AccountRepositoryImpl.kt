@@ -7,6 +7,7 @@ import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FaceUse
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunViewMode
@@ -47,7 +48,9 @@ constructor(
     private val faces: FaceImageSource,
     private val settings: SettingsRepository
 ) : AccountRepository {
-    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+    /** 계정·다른 러너 프로필의 큰 원(Jira 308). 내 머리는 FaceImageSource가 큰 아바타와 같은 1024를 쓴다. */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
+        faces.faceLayers(faceKey, FaceUse.PROFILE)
 
     override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
 
