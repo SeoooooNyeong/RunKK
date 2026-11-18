@@ -129,20 +129,12 @@ private fun RunnerAvatarStill(
 ) {
     val isFemale = received?.isFemale ?: (gender == Gender.FEMALE)
     var look by remember(isFemale, received) {
-        mutableStateOf(
-            if (received ==
-                null
-            ) {
-                defaultRiveLook(isFemale)
-            } else {
-                null
-            }
-        )
+        mutableStateOf(if (received == null) defaultRiveLook(isFemale) else resolver.peek(received))
     }
     var isFailed by remember(look) { mutableStateOf(false) }
     var isTimedOut by remember(received) { mutableStateOf(false) }
     LaunchedEffect(received) {
-        if (received != null) look = resolver.resolve(received)
+        if (received != null && look == null) look = resolver.resolve(received)
     }
     LaunchedEffect(received, look == null) {
         if (look == null) {

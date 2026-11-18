@@ -222,7 +222,8 @@ private const val PRELOAD_ALPHA = 0.01f
 
 /**
  * 트랙 주자 아바타 미리 데우기(S15P31A207-335). 출발 전(카운트다운·크루런 대기실)에 [runners]를 트랙 주자 칸 크기로 구성만 하고
- * 그리지는 않는다. 아바타 칸이 모습을 풀고 서기·달리기 텍스처를 합성해 공용 캐시에 넣으므로 출발 직후 트랙의 아바타가 비거나 깜빡이지 않고 바로 보인다.
+ * 그리지는 않는다. 아바타 칸은 [LocalTrackAvatarWarmup]을 보고 Rive 칸을 만들지 않은 채 모습을 풀고 서기·달리기 Rive 파일 가져오기와
+ * 텍스처 합성만 주 스레드 밖에서 해 붙잡아 둔다(6회차). 출발 직후 트랙의 아바타 칸이 그것을 바로 받아 비거나 깜빡이지 않고 바로 보인다.
  * 자리를 차지하지 않고(크기 0으로 배치) 보조 기술에도 보이지 않는다.
  */
 @Composable
@@ -240,7 +241,7 @@ fun RunkkTrackAvatarWarmup(runners: List<@Composable () -> Unit>, modifier: Modi
             .testTag(TRACK_WARMUP_TAG)
             .clearAndSetSemantics {}
     ) {
-        CompositionLocalProvider(LocalTrackAvatarViewport provides true) {
+        CompositionLocalProvider(LocalTrackAvatarViewport provides true, LocalTrackAvatarWarmup provides true) {
             runners.forEach { runner -> Box(Modifier.fillMaxSize()) { runner() } }
         }
     }

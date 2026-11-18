@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.view.MotionEvent
 import android.widget.FrameLayout
 import androidx.lifecycle.Lifecycle
@@ -16,12 +17,17 @@ import java.util.EnumMap
 import java.util.EnumSet
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
+import timber.log.Timber
 
 /**
  * 네이티브 Rive 아바타 뷰(PoC MainActivity의 Rive 파일 선택·FileAssetLoader·비동기 합성·캐시 버전 관리를 화면과 떼어 낸 것).
  *
  * - 동작마다 Rive 뷰 하나를 처음 필요할 때 만든다(서기 Idle, 달리기 Runner). 남녀나 머리가 바뀌면 같은 뷰에 새 파일을 다시 읽는다.
  * - Rive 파일·내장 머리·앞 단계 몸 바이트는 [RiveAvatarAssets]가 IO에서 미리 읽은 것만 쓴다(주 스레드에서 자산을 읽지 않는다).
+ * - 처음 만드는 플레이어의 파일 가져오기(.riv 읽기·내장 그림 풀기, 에뮬레이터 0.07~0.45초)는 가져오기 스레드에서 한다([RivFiles]).
+ *   한 번에 청한 동작들이 다 오면 함께 플레이어를 만든다(합성 요청 한 번). 트랙 칸([warmAllMotions])은 출발 전 데우기가 미리 가져온
+ *   파일을 바로 받는다(S15P31A207-335 6회차).
  * - 피부톤·의상·체형 텍스처는 단일 합성 스레드에서 만든다. 계산은 한 번에 하나, 대기는 가장 최근 요청 하나만 둔다.
  *   요청 버전([toneVersion])과 정체 버전([identity])이 지금과 다르면 결과를 버린다.
  * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다. 보이게 된 뒤 첫 판이 그려진 때 [onReady].
@@ -51,6 +57,12 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
 
     private val tones = SharedToneCache.shared
 
+    /** 계측 로그(`RiveAvatarLoad`·`RiveAvatarTone`·`RiveAvatarReady`)에서 뷰를 가르는 번호. */
+    private val serial = SERIALS.incrementAndGet()
+
+    /** 지금 정체를 처음 그리기 시작한 때(SystemClock.uptimeMillis). 준비 로그의 기준이다. */
+    private var identityAt = 0L
+
     // 합성 스레드가 프로세스 종료를 막지 않도록 데몬으로 둔다.
     private val io: ExecutorService = Executors.newSingleThreadExecutor { task ->
         Thread(task, "runkk-avatar-tone").apply { isDaemon = true }
@@ -72,6 +84,9 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     var warmAllMotions: Boolean = false
 
     private val applied = EnumSet.noneOf(AvatarMotion::class.java)
+
+    /** 파일을 가져오는 중인 동작 → 청한 때의 정체([identity]). 정체가 바뀐 뒤 온 파일은 버린다. */
+    private val loading = EnumMap<AvatarMotion, Int>(AvatarMotion::class.java)
     private var frontLoader: FrontAvatarAssetLoader? = null
     private var runLoader: RunAvatarAssetLoader? = null
     private var state: AvatarRenderState? = null
@@ -125,16 +140,17 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             val isNewIdentity = previous == null || previousAssets !== prepared ||
                 previous.gender != next.gender || previous.headLayers !== next.headLayers
             if (isNewIdentity) changeIdentity(next, prepared)
-            val isNewPlayer = RivePlayerRules.motionsToCreate(next.motion, warmAllMotions)
-                .map { ensurePlayer(it, prepared) }
-                .any { it }
+            val toneBefore = toneVersion
+            loadPlayers(RivePlayerRules.motionsToCreate(next.motion, warmAllMotions), prepared)
+            // 미리 가져온 파일로 플레이어를 바로 만들었으면 그때 이미 합성을 청했다(같은 요청을 두 번 하지 않는다).
+            val isToneRequested = toneVersion != toneBefore
             val isNewLook = previous != null &&
                 (
                     previous.runningAmount != next.runningAmount ||
                         previous.outfit != next.outfit ||
                         previous.shape != next.shape
                     )
-            if (isNewIdentity || isNewPlayer || isNewLook) requestTone()
+            if ((isNewIdentity || isNewLook) && !isToneRequested) requestTone()
             updateMotion()
         } catch (error: RuntimeException) {
             // 다음 render가 정체(파일·머리 원본)부터 다시 읽게 한다. 앞 그림은 그대로 둔다.
@@ -197,6 +213,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private fun changeIdentity(next: AvatarRenderState, prepared: PreparedRiveAssets) {
         val nextSources = next.headLayers?.variants?.getValue(next.gender) ?: prepared.builtIn
         identity++
+        identityAt = SystemClock.uptimeMillis()
         invalidateTone()
         readyNotice.cancel()
         head = next.headLayers
@@ -220,36 +237,93 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         frontLoader?.setVariantSources(nextSources.front)
     }
 
-    /** [motion]의 뷰가 없으면 만든다. 새로 만들었으면 true. */
-    private fun ensurePlayer(motion: AvatarMotion, prepared: PreparedRiveAssets): Boolean {
-        if (motion in players) return false
-        val loader = when (motion) {
-            AvatarMotion.STAND -> FrontAvatarAssetLoader(prepared.legacyStandingBody).also { frontLoader = it }
-            AvatarMotion.RUN -> RunAvatarAssetLoader().also { runLoader = it }
+    /**
+     * [motions] 가운데 플레이어가 없고 가져오는 중도 아닌 동작의 파일을 청한다. 한 번에 청한 것이 다 오면 함께 플레이어를 만든다
+     * ([installPlayers]). 미리 가져온 파일이 있으면 이 호출 안에서 바로 만든다.
+     */
+    private fun loadPlayers(motions: Set<AvatarMotion>, prepared: PreparedRiveAssets) {
+        val token = identity
+        val missing = motions.filter { it !in players && loading[it] != token }
+        if (missing.isEmpty()) return
+        missing.forEach { loading[it] = token }
+        val requestedAt = SystemClock.uptimeMillis()
+        val arrived = EnumMap<AvatarMotion, ImportedRiv>(AvatarMotion::class.java)
+        var failure: Throwable? = null
+        var remaining = missing.size
+        missing.forEach { motion ->
+            RivFiles.shared.request(RivKey(prepared, motion, forTrack = warmAllMotions)) { result ->
+                if (loading[motion] == token) loading.remove(motion)
+                result.onSuccess { arrived[motion] = it }.onFailure { if (failure == null) failure = it }
+                if (--remaining > 0) return@request
+                val isStale = isReleased || token != identity
+                val error = failure
+                if (isStale || error != null) {
+                    // 정체가 바뀌었거나 하나라도 실패했다. 온 파일은 놓는다(새 정체는 render가 다시 청한다).
+                    arrived.values.forEach { it.file.release() }
+                    if (!isStale && error != null) fail(error)
+                    return@request
+                }
+                Timber.d(
+                    "RiveAvatarLoad view=%d motions=%s waitMs=%d",
+                    serial,
+                    arrived.keys,
+                    SystemClock.uptimeMillis() - requestedAt
+                )
+                installPlayers(arrived)
+            }
+        }
+    }
+
+    /** 가져온 파일로 플레이어를 만들고 합성(또는 공용 캐시 텍스처)을 청한다. */
+    private fun installPlayers(arrived: Map<AvatarMotion, ImportedRiv>) {
+        try {
+            arrived.forEach { (motion, imported) -> createPlayer(motion, imported) }
+            requestTone()
+            updateMotion()
+        } catch (error: RuntimeException) {
+            // 플레이어가 되지 못한 파일은 놓는다. 다음 render가 정체부터 다시 읽게 한다.
+            arrived.filterKeys { it !in players }.values.forEach { it.file.release() }
+            state = null
+            fail(error)
+        }
+    }
+
+    /** [motion] 플레이어를 가져온 파일로 만든다(주 스레드, 파일 읽기 없음). */
+    private fun createPlayer(motion: AvatarMotion, imported: ImportedRiv) {
+        val startedAt = SystemClock.uptimeMillis()
+        when (motion) {
+            AvatarMotion.STAND -> frontLoader = imported.loader as FrontAvatarAssetLoader
+            AvatarMotion.RUN -> runLoader = imported.loader as RunAvatarAssetLoader
         }
         val view = PacedRiveAnimationView(
             RiveAnimationView.Builder(context)
-                .setResource(prepared.riv(motion))
                 .setArtboardName(RiveAvatarScene.artboard(motion))
                 .setStateMachineName(RiveAvatarScene.stateMachine(motion))
                 .setShouldLoadCDNAssets(false)
                 .setRendererType(RendererType.Rive)
                 .setFit(Fit.CONTAIN)
                 .setAutoplay(false)
-                .setAssetLoader(loader)
+                .setAssetLoader(imported.loader)
         )
         if (motion == AvatarMotion.RUN) view.playbackSpeed = runSpeed
         // 지금 동작 플레이어가 그린 판만 준비 알림으로 친다.
         view.onFrameDrawn = { if (state?.motion == motion && view.visibility == VISIBLE) readyNotice.frameDrawn() }
         view.visibility = INVISIBLE
-        // Builder는 창에 붙을 때 읽는다. 지금 한 번 읽어 자산 자리와 상태 입력을 바로 쓸 수 있게 한다
-        // (onAttachedToWindow는 이미 파일이 있으면 다시 읽지 않는다).
-        loadResource(view, motion, prepared)
+        // 컨트롤러가 파일을 붙잡는다. 가져올 때 잡은 몫은 여기서 놓는다(setRiveBytes와 같은 셈).
+        view.setRiveFile(
+            imported.file,
+            artboardName = RiveAvatarScene.artboard(motion),
+            stateMachineName = RiveAvatarScene.stateMachine(motion),
+            autoplay = false,
+            fit = Fit.CONTAIN
+        )
         players[motion] = view
+        imported.file.release()
+        setInputs(view, motion)
         addView(view, 0, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
         checkLoaded(motion)
         if (motion == AvatarMotion.STAND) frontLoader?.setVariantSources(checkNotNull(sources).front)
-        return true
+        Timber.d("RiveAvatarLoad view=%d motion=%s ms=%d", serial, motion, SystemClock.uptimeMillis() - startedAt)
     }
 
     /** 미리 읽은 Rive 파일 바이트를 넣는다(주 스레드에서 res/raw를 읽지 않는다). */
@@ -262,10 +336,14 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             autoplay = false,
             fit = Fit.CONTAIN
         )
-        if (motion == AvatarMotion.RUN) {
-            view.setBooleanState(machine, RiveAvatarScene.INPUT_IS_RUNNING, true)
-            view.setNumberState(machine, RiveAvatarScene.INPUT_OUTFIT_ID, 0f)
-        }
+        setInputs(view, motion)
+    }
+
+    private fun setInputs(view: RiveAnimationView, motion: AvatarMotion) {
+        if (motion != AvatarMotion.RUN) return
+        val machine = RiveAvatarScene.stateMachine(motion)
+        view.setBooleanState(machine, RiveAvatarScene.INPUT_IS_RUNNING, true)
+        view.setNumberState(machine, RiveAvatarScene.INPUT_OUTFIT_ID, 0f)
     }
 
     private fun checkLoaded(motion: AvatarMotion) = when (motion) {
@@ -304,6 +382,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             if (run != null) add(AvatarMotion.RUN)
         }
         val shared = tones.hit(current.gender, motions, head, current.look)
+        Timber.d("RiveAvatarTone view=%d motions=%s hit=%b", serial, motions, shared != null)
         if (shared == null) {
             pendingTone = request
             startNextTone()
@@ -330,7 +409,10 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         pendingTone = null
         isToneInFlight = true
         val snapshot = cache
+        val queuedAt = SystemClock.uptimeMillis()
         io.execute {
+            val startedAt = SystemClock.uptimeMillis()
+
             // OutOfMemoryError 같은 Error도 잡는다. 결과를 반드시 주 스레드로 돌려줘야 isToneInFlight가 풀린다.
             @Suppress("TooGenericExceptionCaught")
             val result = try {
@@ -338,6 +420,8 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             } catch (error: Throwable) {
                 Result.failure(error)
             }
+            val doneAt = SystemClock.uptimeMillis()
+            Timber.d("RiveAvatarTone view=%d waitMs=%d composeMs=%d", serial, startedAt - queuedAt, doneAt - startedAt)
             main.post { onToneComputed(request, result) }
         }
     }
@@ -454,6 +538,12 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private fun onFirstFrame() {
         if (isReleased) return
         onScreen = state?.motion
+        Timber.d(
+            "RiveAvatarReady view=%d motion=%s sinceIdentity=%d",
+            serial,
+            onScreen,
+            SystemClock.uptimeMillis() - identityAt
+        )
         updateMotion()
         onReady()
     }
@@ -481,5 +571,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
     private companion object {
         /** 보이게 된 뒤 첫 판을 기다리는 최대 시간. 넘으면 그냥 준비로 알린다(창에 붙지 않아 판이 없는 경우 등). */
         const val READY_FRAME_TIMEOUT_MS = 400L
+
+        val SERIALS = AtomicInteger()
     }
 }

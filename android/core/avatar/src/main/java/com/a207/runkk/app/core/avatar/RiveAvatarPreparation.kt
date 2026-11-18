@@ -1,12 +1,15 @@
 package com.a207.runkk.app.core.avatar
 
 import android.content.Context
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /**
  * 그 성별의 Rive 파일(서기·달리기, 최대 5MB)과 내장 머리 PNG를 IO에서 읽어 프로세스에 둔다(D-736). 이미 읽었으면 바로
@@ -40,6 +43,54 @@ suspend fun prepareRiveAvatarLook(
     motion: AvatarMotion = AvatarMotion.STAND
 ) {
     AvatarLookPreparer.shared.prepare(context, gender, outfit, bodyShape, runningAmount, headLayers, motion)
+}
+
+/**
+ * 트랙 주자 칸 미리 데우기(출발 전 카운트다운·크루런 대기실, S15P31A207-335 6회차). Rive 칸을 만들지 않고 그 모습의 서기·달리기 Rive 파일을
+ * 가져오기 스레드에서 미리 가져와 붙잡고([RivFiles]), 두 동작 텍스처를 공용 캐시에 미리 합성한다. 출발하면 트랙 칸이 붙잡아 둔 파일과
+ * 텍스처를 바로 받아 주 스레드에서 파일을 읽거나 합성을 기다리지 않는다.
+ *
+ * 취소될 때까지 붙잡는다(주 스레드 코루틴, 예: LaunchedEffect). 취소되면 놓고, 놓은 뒤 잠시 안에 트랙 칸이 가져가지 않은 파일은
+ * 버린다. 준비 실패는 던지지 않는다(트랙 칸이 다시 읽고 합성한다).
+ */
+suspend fun holdTrackRiveAvatar(context: Context, look: RiveAvatarLook) {
+    val holds = try {
+        val prepared = RiveAvatarAssets.shared.load(context, look.gender)
+        RiveRuntime.ensureInitialized(context)
+        AvatarMotion.entries.map { RivFiles.shared.hold(RivKey(prepared, it, forTrack = true)) }
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Timber.w(e, "track avatar warmup skipped")
+        emptyList()
+    } catch (e: LinkageError) {
+        Timber.w(e, "track avatar warmup skipped")
+        emptyList()
+    }
+    try {
+        AvatarMotion.entries.forEach { motion ->
+            try {
+                prepareRiveAvatarLook(
+                    context,
+                    look.gender,
+                    look.outfit,
+                    look.bodyShape,
+                    look.runningAmount,
+                    look.headLayers,
+                    motion
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Timber.w(e, "track avatar tone warmup skipped")
+            } catch (e: OutOfMemoryError) {
+                Timber.w(e, "track avatar tone warmup skipped")
+            }
+        }
+        awaitCancellation()
+    } finally {
+        holds.forEach { it.release() }
+    }
 }
 
 /** [prepareRiveAvatarLook]의 구현. 시험이 자산·캐시·합성 함수를 넣는다. */
