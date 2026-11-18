@@ -13,7 +13,6 @@ import javax.inject.Singleton
  * - 사본은 서버에서 읽을 때마다([refresh], AccountRepository.placement) 바뀐다: 앱 시작 뒤 첫 홈 읽기, 배치고사 판 결과 뒤 진행 화면의
  *   읽기, 배틀런 카드 시트 열기, 홈 다시 시도.
  * - 읽은 회원의 것이다. 로그인한 회원이 다르거나 로그아웃이면 내주지 않는다.
- * - 대결 결과를 읽으면(판 저장 뒤) [invalidate]로 비워 다음 홈 읽기가 서버에서 다시 받는다.
  * 프로세스 메모리에만 둔다(앱을 새로 켜면 첫 홈 읽기가 서버에서 한 번 받는다). 여러 스레드가 함께 써도 된다.
  */
 @Singleton
@@ -44,9 +43,5 @@ internal class PlacementCache internal constructor(
         val result = fetch()
         if (result is Outcome.Success && asked != null && asked == member()) held = Held(asked, result.value)
         return result
-    }
-
-    fun invalidate() {
-        held = null
     }
 }

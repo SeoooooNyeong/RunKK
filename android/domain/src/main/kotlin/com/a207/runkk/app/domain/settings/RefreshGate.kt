@@ -23,7 +23,9 @@ class RefreshGate(private val minInterval: Duration) {
     fun shouldRun(key: String, now: Instant, force: Boolean): Boolean {
         if (key in running) return false
         val last = lastSuccess[key]
-        val isFresh = last != null && Duration.between(last, now) < minInterval
+        val elapsed = last?.let { Duration.between(it, now) }
+        // 기기 시계를 뒤로 돌리면 경과가 음수다. 그때는 막지 않는다(시계가 따라올 때까지 홈이 멈추지 않게)
+        val isFresh = elapsed != null && !elapsed.isNegative && elapsed < minInterval
         if (!force && isFresh) return false
         running += key
         return true

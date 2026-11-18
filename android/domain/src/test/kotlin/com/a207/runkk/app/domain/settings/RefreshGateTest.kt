@@ -44,6 +44,16 @@ class RefreshGateTest {
     }
 
     @Test
+    fun `기기 시계가 뒤로 가면 간격을 막지 않는다`() {
+        val gate = RefreshGate(Duration.ofSeconds(30))
+        val t = Instant.parse("2026-11-18T03:00:00Z")
+        assertTrue(gate.shouldRun("home", t, force = false))
+        gate.markDone("home", t, ok = true)
+
+        assertTrue(gate.shouldRun("home", t.minusSeconds(3600), force = false))
+    }
+
+    @Test
     fun `열쇠마다 따로 센다`() {
         gate.shouldRun("home", t0, force = false)
         gate.markDone("home", t0, ok = true)

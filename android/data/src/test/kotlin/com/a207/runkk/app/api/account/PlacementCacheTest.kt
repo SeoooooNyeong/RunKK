@@ -36,7 +36,7 @@ class PlacementCacheTest {
     }
 
     @Test
-    fun `다른 회원이거나 로그아웃이면 내주지 않고 무효화하면 비운다`() = runTest {
+    fun `다른 회원이거나 로그아웃이면 내주지 않는다`() = runTest {
         cache.refresh()
         member = 8
         assertNull(cache.read())
@@ -44,8 +44,6 @@ class PlacementCacheTest {
         assertNull(cache.read())
         member = 7
         assertEquals(progress(1), cache.read())
-        cache.invalidate()
-        assertNull(cache.read())
     }
 
     private fun progress(counted: Int) =

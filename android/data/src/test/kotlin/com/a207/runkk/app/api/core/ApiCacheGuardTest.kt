@@ -66,6 +66,30 @@ class ApiCacheGuardTest {
     }
 
     @Test
+    fun `앞 회원 요청이 도는 사이 다른 회원이 캐시를 비웠으면 늦게 도착한 앞 회원 응답을 다음에 쓰지 않는다`() {
+        server.enqueue(MockResponse.Builder().addHeader("Cache-Control", "max-age=3600").body("B").build())
+        server.enqueue(MockResponse.Builder().addHeader("Cache-Control", "max-age=3600").body("A").build())
+        server.enqueue(MockResponse.Builder().addHeader("Cache-Control", "max-age=3600").body("B2").build())
+        lateinit var racing: OkHttpClient
+        racing = OkHttpClient.Builder().cache(cache).addInterceptor(ApiCacheGuard(cache, ownerFile) { member })
+            .addNetworkInterceptor { chain ->
+                if (chain.request().header("X-Race") != null) {
+                    member = 2
+                    val other = Request.Builder().url(server.url("/api/v1/crews/1/logo")).build()
+                    racing.newCall(other).execute().use { it.body.string() }
+                }
+                chain.proceed(chain.request())
+            }.build()
+
+        val raced = Request.Builder().url(server.url("/api/v1/crews/1/logo")).header("X-Race", "1").build()
+        assertEquals("A", racing.newCall(raced).execute().use { it.body.string() })
+        val next = Request.Builder().url(server.url("/api/v1/crews/1/logo")).build()
+
+        assertEquals("B2", racing.newCall(next).execute().use { it.body.string() }, "회원 1의 응답을 회원 2에게 주지 않는다")
+        assertEquals(3, server.requestCount)
+    }
+
+    @Test
     fun `캐시 머리글이 없는 응답은 남기지 않는다`() {
         repeat(2) { server.enqueue(MockResponse.Builder().body("me").build()) }
         get()
