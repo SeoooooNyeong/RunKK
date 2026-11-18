@@ -90,7 +90,7 @@ final class CrewScheduleDtos {
      * @param repeat 진행 중인 반복의 다가오는 회차면 WEEKLY("매주" 배지), 아니면 NONE
      * @param repeatDayOfWeek 반복 요일(MONDAY~SUNDAY), NONE이면 null
      * @param attendees 참석자(작성자가 참석 중이면 맨 앞, 나머지는 응답 순)
-     * @param myRun 열람자의 참여 상태 NONE | RUNNING | ENDED(v0.14 [임시:D-성-969])
+     * @param myRun 열람자의 참여 상태 NONE | RUNNING | ENDED(v0.14 S15P31A207-314)
      */
     record CrewRunDetailResponse(
             long postId,

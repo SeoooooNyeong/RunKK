@@ -83,7 +83,7 @@ public class MeController {
 
     /**
      * 본인 배치고사 진행(05-03 5.7.3 P1, FR-279~FR-282). 임시 티어는 이 응답에만 있다(D-485). 확정 Runimal 유형이 있으면 함께
-     * 준다(배치고사 완료 화면, v0.14 [임시:U-성-51]).
+     * 준다(배치고사 완료 화면, v0.14 S15P31A207-332).
      */
     @GetMapping("/me/placement")
     PlacementResponse placement(@RequestAttribute(MEMBER_ID) long memberId) {
@@ -230,7 +230,7 @@ public class MeController {
      * @param provisionalTier IN_PROGRESS이고 한 판 이상 셌으면 임시 티어(BRONZE~MASTER), 아니면 null
      * @param tier 회원 티어(공개 티어), IN_PROGRESS면 UNRANKED
      * @param rounds 센 판(round 오름차순), 없으면 빈 목록
-     * @param runimalType 확정 Runimal 유형 이름(배치고사 완료 화면, v0.14 [임시:U-성-51]·FR-281), 확정 전이면 null
+     * @param runimalType 확정 Runimal 유형 이름(배치고사 완료 화면, v0.14 S15P31A207-332·FR-281), 확정 전이면 null
      */
     record PlacementResponse(
             String status,

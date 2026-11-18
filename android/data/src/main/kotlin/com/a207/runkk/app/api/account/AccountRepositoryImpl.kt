@@ -7,6 +7,7 @@ import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FaceUse
 import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.RunViewMode
@@ -45,9 +46,13 @@ constructor(
     private val tokens: TokenProvider,
     private val self: SelfMember,
     private val faces: FaceImageSource,
-    private val settings: SettingsRepository
+    private val settings: SettingsRepository,
+    /** 배치 진행 기기 사본(홈이 복귀마다 서버를 부르지 않게, Jira 325). */
+    private val placementCopy: PlacementCache = PlacementCache(me, self)
 ) : AccountRepository {
-    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+    /** 계정·다른 러너 프로필의 큰 원(Jira 308). 내 머리는 FaceImageSource가 큰 아바타와 같은 1024를 쓴다. */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
+        faces.faceLayers(faceKey, FaceUse.PROFILE)
 
     override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
 
@@ -199,7 +204,10 @@ constructor(
         requireNotNull(document.url ?: document.body) { "고지문서 주소가 비었다" }
     }
 
-    override suspend fun placement(): Outcome<PlacementProgress> = ApiErrorMapper.call { me.placement().toDomain() }
+    /** 서버에서 읽고 기기 사본도 바꾼다(Jira 325). */
+    override suspend fun placement(): Outcome<PlacementProgress> = placementCopy.refresh()
+
+    override fun cachedPlacement(): PlacementProgress? = placementCopy.read()
 
     /**
      * 기기 저장에 실패한 본 판(회원 ID, 대결 ID). 이번 실행 동안만 그 회원이 본 것으로 쳐 완료 화면 ↔ 랜덤 대결 왕복을 막는다(PL3-A2).

@@ -7,6 +7,7 @@ import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FaceUse
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.domain.record.AggregationPeriod
@@ -62,8 +63,9 @@ constructor(
     override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> =
         ApiErrorMapper.call { api.crewRanking(period.name).toDomain() }
 
-    /** 랭킹 줄 얼굴 그림(S15P31A207-300). 다른 러너 셀카 머리도 프로필 얼굴 공개 규칙으로 받는다. */
-    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+    /** 랭킹 줄 얼굴 그림(S15P31A207-300). 다른 러너 셀카 머리도 프로필 얼굴 공개 규칙으로 받는다. 목록 행 얼굴 원이라 256(Jira 308). */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
+        faces.faceLayers(faceKey, FaceUse.LIST)
 
     override suspend fun setWeeklyGoal(distance: Distance, runs: Int): Outcome<Unit> =
         ApiErrorMapper.call { api.setWeeklyGoal(WeeklyGoalRequest(runs, distance.meters)) }

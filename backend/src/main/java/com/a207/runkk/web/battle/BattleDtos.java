@@ -349,7 +349,7 @@ final class BattleDtos {
      * @param tier 평가 뒤 티어
      * @param validRuns 평가를 일으킨 유효 러닝 순번(3, 10의 배수)
      * @param runimalType 그 판정에서 확정된 Runimal 유형(첫 배치·미확정이면 null)
-     * @param previousTier 평가가 바꾸기 전 티어(v0.14 [임시:D-성-972]), 열을 더하기 전 기록이면 null
+     * @param previousTier 평가가 바꾸기 전 티어(v0.14 S15P31A207-331), 열을 더하기 전 기록이면 null
      */
     record EvaluationDto(
             String kind, String tier, int validRuns, String runimalType, String previousTier) {

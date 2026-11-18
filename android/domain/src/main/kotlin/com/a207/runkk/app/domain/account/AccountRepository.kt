@@ -74,6 +74,12 @@ interface AccountRepository {
     suspend fun placement(): Outcome<PlacementProgress> = Outcome.Failure(AppError.Server(0))
 
     /**
+     * 배치 진행 기기 사본(Jira 325): 마지막으로 [placement]에서 읽은 로그인한 회원의 값. 홈이 복귀마다 서버를 부르지 않고 이것을 쓴다.
+     * 없거나 다른 회원 것이면 null(그때는 [placement]로 읽는다). 구현이 없으면 null.
+     */
+    fun cachedPlacement(): PlacementProgress? = null
+
+    /**
      * 이 기기에서 배치고사 완료 화면(FR-281)을 본 마지막 판의 대결 ID(D-531). 배치고사 진행 화면이 완료를 받았을 때 이 값이 마지막 판과
      * 다르면 완료 화면을 연다. 구현(data)은 설정 기기 사본(SettingsRepository)에 맡겨 로그아웃·탈퇴 때 함께 지운다. 기본 구현은 사본
      * 없음·저장 무시라, 구현이 없는 가짜 저장소에서는 완료를 받을 때마다 완료 화면을 연다(한 번 더 보여도 되는 쪽).

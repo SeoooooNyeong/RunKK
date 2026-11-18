@@ -300,7 +300,7 @@ class FigmaV014ControllerTest extends WebTestSupport {
 
     @Test
     @DisplayName(
-            "[임시:D-성-972] 재평가 표시를 저장하면 기록 상세 evaluation.previousTier에 바꾸기 전 티어가 나가고, 직전 티어 없이 저장한"
+            "S15P31A207-331 재평가 표시를 저장하면 기록 상세 evaluation.previousTier에 바꾸기 전 티어가 나가고, 직전 티어 없이 저장한"
                     + " 기록은 null")
     void evaluationPreviousTier_isStoredAndShown() throws Exception {
         Session a = signUp();

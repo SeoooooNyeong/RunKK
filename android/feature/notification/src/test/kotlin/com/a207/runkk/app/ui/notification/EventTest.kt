@@ -106,6 +106,29 @@ class EventTest {
     }
 
     @Test
+    fun `홈 점은 30초 안에 다시 보여도 이벤트를 서버에 다시 묻지 않고 본 목록만 다시 센다`() {
+        var now = Instant.parse("2026-11-08T00:00:00Z")
+        val ticking = object : Clock() {
+            override fun getZone() = ZoneOffset.UTC
+
+            override fun withZone(zone: java.time.ZoneId?): Clock = this
+
+            override fun instant(): Instant = now
+        }
+        val dot = EventDotViewModel(events, com.a207.runkk.app.domain.settings.RefreshGate(), ticking)
+        dot.refresh()
+        events.seen = setOf(1L, 2L)
+        now = now.plusSeconds(29)
+        dot.refresh()
+        assertEquals(1, events.eventsCalls, "30초 안은 요청 0건")
+        assertFalse(dot.hasUnseen.value, "본 목록은 기기 값이라 바로 반영한다")
+
+        now = now.plusSeconds(1)
+        dot.refresh()
+        assertEquals(2, events.eventsCalls)
+    }
+
+    @Test
     fun `상세 화면은 페이지를 열기 전에 내 참여를 한 번 읽는다`() {
         val vm = EventDetailViewModel(events)
         assertFalse(vm.isReady.value)

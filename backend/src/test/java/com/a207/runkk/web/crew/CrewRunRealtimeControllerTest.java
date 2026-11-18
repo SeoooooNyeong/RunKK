@@ -333,7 +333,7 @@ class CrewRunRealtimeControllerTest extends WebTestSupport {
 
     @Test
     @DisplayName(
-            "[임시:FR-성-401] 크루런 목록·상세의 myRun: 참여 전 NONE, 측정 중 RUNNING, 내 측정을 끝내면 ENDED, 참여하지 않은 크루원은"
+            "S15P31A207-314 크루런 목록·상세의 myRun: 참여 전 NONE, 측정 중 RUNNING, 내 측정을 끝내면 ENDED, 참여하지 않은 크루원은"
                     + " 끝까지 NONE")
     void myRun_inListAndDetail() throws Exception {
         Session leader = signUp();

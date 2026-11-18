@@ -236,6 +236,11 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
         placementCalls++
         return placementResult
     }
+
+    /** 배치 진행 기기 사본(PlacementCache). 기본은 없음. */
+    var placementCopy: com.a207.runkk.app.domain.account.PlacementProgress? = null
+
+    override fun cachedPlacement(): com.a207.runkk.app.domain.account.PlacementProgress? = placementCopy
 }
 
 fun <T> unusedOutcome(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
@@ -275,6 +280,11 @@ class FakeSettingsRepository : SettingsRepository {
     override fun isGuest(): Boolean = false
 
     override fun changes(): Flow<SettingsSnapshot> = snapshot
+
+    /** 서버 설정 사본이 있는가. 기본은 없음(홈이 서버 설정을 읽는다). */
+    var hasCopy = false
+
+    override fun hasCopy(): Boolean = hasCopy
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 

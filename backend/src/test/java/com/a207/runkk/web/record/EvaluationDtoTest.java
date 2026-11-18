@@ -7,7 +7,7 @@ import com.a207.runkk.running.EvaluationView;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 기록 상세 evaluation의 직전 티어([임시:D-성-972]): 재평가 기록은 바꾸기 전 티어, 과거 기록은 null. */
+/** 기록 상세 evaluation의 직전 티어(S15P31A207-331): 재평가 기록은 바꾸기 전 티어, 과거 기록은 null. */
 @DisplayName("RecordDtos.EvaluationDto: previousTier")
 class EvaluationDtoTest {
 

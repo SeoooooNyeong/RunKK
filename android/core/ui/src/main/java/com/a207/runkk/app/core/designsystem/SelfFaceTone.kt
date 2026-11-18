@@ -2,10 +2,11 @@ package com.a207.runkk.app.core.designsystem
 
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import com.a207.runkk.app.core.model.avatar.SkinTone
 
 /**
  * 내 셀카 얼굴의 그을림([LocalSelfFaceTone]). 몸(Rive)과 같은 규칙으로 얼굴 원의 피부 층도 그을린다: 러닝량 0~100,
- * 100이어도 가장 어두운 톤의 60%까지, 곱만 쓴다(core.avatar SkinToneFilter와 같은 값, D-852).
+ * 100이어도 가장 어두운 톤의 40%까지, 곱만 쓴다(core.avatar SkinToneFilter와 같은 core.model [SkinTone] 값).
  * 눈·헤어 층에는 쓰지 않는다. [faceKey]가 같은 얼굴에만 쓴다(다른 러너 얼굴은 그대로). 랭킹 줄처럼 다른 러너 얼굴을 그을릴 때는
  * 그 얼굴 원을 그 러너의 얼굴 키·러닝량 값으로 감싸 내려 준다(S15P31A207-300).
  * 기본 캐릭터 얼굴("default:…")도 같은 거르개를 기본 머리의 피부 층에만 씌운다(PM 2026-11-14). 다만 기본 캐릭터 키는 여러 러너가 같은
@@ -28,24 +29,16 @@ data class SelfFaceTone(
     fun skinFilterFor(key: String?): ColorFilter? {
         if (key == null || key != faceKey || runningAmount <= 0) return null
         if (RunkkAvatarArt.isDefaultKey(key) && !includesDefaultFace) return null
-        val fraction = MAX_TAN * runningAmount.coerceAtMost(MAX_AMOUNT) / MAX_AMOUNT.toFloat()
+        val (red, green, blue) = SkinTone.channelScales(runningAmount)
         return ColorFilter.colorMatrix(
             ColorMatrix(
                 floatArrayOf(
-                    1f - RED_DROP * fraction, 0f, 0f, 0f, 0f,
-                    0f, 1f - GREEN_DROP * fraction, 0f, 0f, 0f,
-                    0f, 0f, 1f - BLUE_DROP * fraction, 0f, 0f,
+                    red, 0f, 0f, 0f, 0f,
+                    0f, green, 0f, 0f, 0f,
+                    0f, 0f, blue, 0f, 0f,
                     0f, 0f, 0f, 1f, 0f
                 )
             )
         )
-    }
-
-    private companion object {
-        const val MAX_AMOUNT = 100
-        const val MAX_TAN = .60f
-        const val RED_DROP = .30f
-        const val GREEN_DROP = .50f
-        const val BLUE_DROP = .68f
     }
 }

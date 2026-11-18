@@ -7,7 +7,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-/** 열람자의 크루런 참여 상태(v0.14 [임시:D-성-969]): 참여 없음·진행 참가자 아님 NONE, 측정 중 RUNNING, 측정 끝 ENDED. */
+/** 열람자의 크루런 참여 상태(v0.14 S15P31A207-314): 참여 없음·진행 참가자 아님 NONE, 측정 중 RUNNING, 측정 끝 ENDED. */
 @DisplayName("MyRunState.of: 참여 → 내 크루런 상태")
 class MyRunStateTest {
 

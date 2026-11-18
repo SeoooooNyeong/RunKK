@@ -10,7 +10,7 @@ import com.a207.runkk.common.Tier;
  * @param tier 평가 뒤 티어
  * @param validRuns 평가를 일으킨 유효 러닝 순번(첫 배치 3, 재평가 10의 배수)
  * @param runimalType 그 판정에서 확정된 Runimal 유형 이름(첫 배치는 늘 null, 확정되지 않았으면 null)
- * @param previousTier 평가가 바꾸기 전 티어([임시:D-성-972]). 열을 더하기 전 기록은 null
+ * @param previousTier 평가가 바꾸기 전 티어(S15P31A207-331). 열을 더하기 전 기록은 null
  */
 public record EvaluationView(
         String kind, Tier tier, int validRuns, String runimalType, Tier previousTier) {}
