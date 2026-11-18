@@ -18,6 +18,7 @@ import {mobileHead,mobileBody} from './mobile-composition.mjs';
 import {RIGHT_IMAGE_FIELDS,RIGHT_LAYOUT,splitRightHead} from './right-head-layers.mjs';
 import {measuredClient,installMetrics} from './request-metrics.mjs';
 import {registerHeadJobs} from './head-jobs.mjs';
+import {compressHeadLayers,headPngCompressionMode} from './head-png.mjs';
 
 const DIR=path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({path:path.join(DIR,'.env')});
@@ -25,6 +26,8 @@ const imageModel=process.env.IMAGE_MODEL||'gpt-image-2.5-sunburst';
 const visionModel=process.env.VISION_MODEL||'gpt-4.1-mini';
 const quality=['low','medium','high','auto'].includes(process.env.IMAGE_QUALITY)?process.env.IMAGE_QUALITY:'high';
 const autoAlign=process.env.AUTO_ALIGN_HEAD!=='false';
+// 머리 레이어 PNG 압축(head-png.mjs). 코드 기본은 꺼짐이고 운영·develop은 infra compose가 palette(q95)로 켠다(S15P31A207-300)
+const headPngCompression=headPngCompressionMode();
 const testMode=process.env.AVATAR_TEST_MODE==='true'||process.env.NODE_ENV==='test';
 const baseURL=(process.env.GMS_BASE_URL||'https://gms.ssafy.io/gmsapi/api.openai.com/v1').replace(/\/+$/,'');
 const apiKey=(process.env.GMS_KEY||process.env.OPENAI_API_KEY||'').trim();
@@ -120,7 +123,7 @@ async function saveHead(userId,layers,traits,hairLength,alignment,qualityResult,
   const id=randomUUID(),metadata={id,createdAt:new Date().toISOString(),schemaVersion:FACE_ASSETS_VERSION,rightProfile,rigVersion:'runkk-front-v1',styleVersion:HEAD_LAYER_VERSION,imageModel,visionModel,traits,hairLength,alignment,quality:qualityResult,mobile,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,regions:layers.regions,validation:layers.validation,layerReference:layers.layerReference};
   return saveUserHead(DIR,userId,layers,metadata);
 }
-app.get('/api/health',(_req,res)=>res.json({ok:true,configured,imageModel,visionModel,quality,autoAlign,testMode,provider:baseURL,fields:fieldLabels,supportedHairLengths:HAIR_LENGTHS,layerLayout:LAYER_LAYOUT,selfieQualityVersion:SELFIE_QUALITY_VERSION,avatarViewVersion:AVATAR_VIEW_VERSION,faceAssetsVersion:FACE_ASSETS_VERSION,imageFields:[...FACE_IMAGE_FIELDS,...RIGHT_IMAGE_FIELDS],rightLayerLayout:RIGHT_LAYOUT,backgroundJobs:true,mode:'local-server-ai'}));
+app.get('/api/health',(_req,res)=>res.json({ok:true,configured,imageModel,visionModel,quality,autoAlign,testMode,provider:baseURL,fields:fieldLabels,supportedHairLengths:HAIR_LENGTHS,layerLayout:LAYER_LAYOUT,selfieQualityVersion:SELFIE_QUALITY_VERSION,avatarViewVersion:AVATAR_VIEW_VERSION,faceAssetsVersion:FACE_ASSETS_VERSION,imageFields:[...FACE_IMAGE_FIELDS,...RIGHT_IMAGE_FIELDS],rightLayerLayout:RIGHT_LAYOUT,backgroundJobs:true,headPngCompression,mode:'local-server-ai'}));
 app.post('/api/analyze',upload.single('selfie'),async(req,res,next)=>{try{ensureApiKey();if(!req.file)return res.status(400).json({error:'셀카 사진을 먼저 선택해 주세요.'});res.json(await analyzeSelfie(await normalizeSelfie(req.file.buffer)));}catch(e){next(e);}});
 app.get('/api/generate-preview', (req,res,next)=>{try{const userId=requireUserId(req.query.userId),preview=generationPreviews.get(userId);if(!preview)return res.sendStatus(204);res.json({frontImage:'data:image/png;base64,'+preview.toString('base64')});}catch(error){next(error);}});
 app.post('/api/generate',upload.single('selfie'),async(req,res,next)=>{
@@ -144,6 +147,7 @@ app.post('/api/generate',upload.single('selfie'),async(req,res,next)=>{
     layers.right=Buffer.from(profile.image.split(',')[1],'base64');
     for(const part of ['Face','Eyes','Hair'])layers['right'+part]=Buffer.from(profile['right'+part+'Image'].split(',')[1],'base64');
     const rightProfile=profileMetadata(profile),mobile=await mobileHead(layers.face,alignment);
+    await compressHeadLayers(layers,{mode:headPngCompression});
     let saved=null,saveWarning=null;try{saved=await saveHead(userId,layers,traits,hairLength,alignment,analysis.quality,mobile,rightProfile);}catch{saveWarning='서버 폴더에 저장하지 못했어요. 분리 레이어 PNG나 설정 JSON을 직접 저장해 주세요.';}
     res.json(assertFaceResult({userId,schemaVersion:FACE_ASSETS_VERSION,...faceImages(layers),rightProfile,rightLayerLayout:RIGHT_LAYOUT,headId:saved?.id||null,traits,hairLength,glassesPresent,alignment,mobile,quality:analysis.quality,styleVersion:HEAD_LAYER_VERSION,segmentationVersion:HEAD_SEGMENTATION_VERSION,layerLayout:HEAD_LAYOUT,validation:layers.validation,layerReference:layers.layerReference,saved:Boolean(saved),warning:saveWarning||null}));
   }catch(e){next(e);}finally{if(previewUserId)generationPreviews.delete(previewUserId);if(ownsGeneration)generating=false;}
