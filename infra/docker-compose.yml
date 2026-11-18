@@ -280,6 +280,9 @@ services:
       # OpenAI 호환 GMS 주소와 키. 키는 .env로만 넘긴다(채팅·커밋 금지)
       GMS_BASE_URL: ${AVATAR_GMS_BASE_URL:-https://gms.ssafy.io/gmsapi/api.openai.com/v1}
       GMS_KEY: ${AVATAR_GMS_KEY:-}
+      # 머리 레이어 PNG 압축(avatar-ai/head-png.mjs, S15P31A207-300). 2026-11-18 PM 결정으로 팔레트 q95가 기본이다(실측 -82%, PSNR 약 51dB).
+      # 새로 만드는 머리와 다시 쪼갠 머리에만 걸린다. 이미 저장된 머리는 scripts/recompress-heads.mjs로 줄인다(README 4절). 끄려면 off
+      HEAD_PNG_COMPRESSION: ${HEAD_PNG_COMPRESSION:-palette}
     networks:
       avatar: {}
     volumes:
