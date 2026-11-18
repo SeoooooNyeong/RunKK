@@ -778,7 +778,7 @@ class OutfitCompositeTest {
         }
         val toned = composed(100)
         val untoned = composed(0)
-        // 톤이 먹은 픽셀은 뺀다: 그을림 상한(가장 어두운 톤의 60%, D-837)이면 톤 걸린 피부도 맨살 색조라 색만으로는 못 가른다.
+        // 톤이 먹은 픽셀은 뺀다: 그을림 상한(가장 어두운 톤의 40%)이면 톤 걸린 피부도 맨살 색조라 색만으로는 못 가른다.
         val result = IntArray(size) { if (toned[it] == untoned[it]) toned[it] else 0 }
         return ExposedSkin.count(result, slot.width, slot.height) { !clothed[it] }
     }
@@ -832,12 +832,12 @@ class OutfitCompositeTest {
         return decode(bytes)
     }
 
-    /** 러닝량 100 톤(R×0.82, G×0.70, B×0.592, 가장 어두운 톤의 60%). 반투명 가장자리 반올림을 감안해 채널마다 3까지. */
+    /** 러닝량 100 톤(R×0.88, G×0.80, B×0.728, 가장 어두운 톤의 40%). 반투명 가장자리 반올림을 감안해 채널마다 3까지. */
     private fun assertToned(source: Int, actual: Int, message: String) {
         val expected = Color.rgb(
-            (Color.red(source) * .82f).toInt(),
-            (Color.green(source) * .70f).toInt(),
-            (Color.blue(source) * .592f).toInt()
+            (Color.red(source) * .88f).toInt(),
+            (Color.green(source) * .80f).toInt(),
+            (Color.blue(source) * .728f).toInt()
         )
         assertTrue(
             near(expected, actual, 3),

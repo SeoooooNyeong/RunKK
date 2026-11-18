@@ -47,7 +47,7 @@ class SkinToneLayeringTest {
 
         assertEquals(EYE, composed.getPixel(11, 11), "눈")
         assertEquals(HAIR, composed.getPixel(45, 2), "헤어")
-        assertNear(Color.rgb(199, 126, 95), composed.getPixel(30, 30), "피부(R×0.82, G×0.70, B×0.592)")
+        assertNear(Color.rgb(214, 144, 116), composed.getPixel(30, 30), "피부(R×0.88, G×0.80, B×0.728)")
         composed.recycle()
     }
 
@@ -73,7 +73,7 @@ class SkinToneLayeringTest {
             )
 
         assertEquals(SHIRT, rendered.getPixel(10, 10), "옷")
-        assertNear(Color.rgb(199, 126, 95), rendered.getPixel(120, 350), "피부(가장 어두운 톤의 60%)")
+        assertNear(Color.rgb(214, 144, 116), rendered.getPixel(120, 350), "피부(가장 어두운 톤의 40%)")
         rendered.recycle()
     }
 
@@ -165,8 +165,8 @@ class SkinToneLayeringTest {
         }
         val toned = decode(AvatarImages.hairForRunningAmount(hair, face, amount = 100))
         val fringe = toned.getPixel(16, 7)
-        // 경계: 헤어 반 + 톤을 적용한 피부 반(R×0.82, G×0.70, B×0.592)
-        assertNear(Color.rgb((90 + 199) / 2, (60 + 126) / 2, (40 + 95) / 2), fringe, "경계는 피부 몫만 어둡다")
+        // 경계: 헤어 반 + 톤을 적용한 피부 반(R×0.88, G×0.80, B×0.728)
+        assertNear(Color.rgb((90 + 214) / 2, (60 + 144) / 2, (40 + 116) / 2), fringe, "경계는 피부 몫만 어둡다")
         assertEquals(HAIR, toned.getPixel(16, 3), "헤어 고유색")
         assertEquals(FRINGE, toned.getPixel(0, 0), "얼굴에서 먼 밝은 헤어는 그대로")
         toned.recycle()
