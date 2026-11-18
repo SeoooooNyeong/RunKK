@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -64,7 +65,6 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.model.Distance
-import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import java.time.Duration
 import java.time.LocalDate
 
@@ -121,10 +121,14 @@ fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
     )
 }
 
-/** 화면에 돌아오면 시작 중 표시를 풀고, 시작되면 대결 진행으로 간다. */
+/**
+ * 화면에 돌아오면 시작 중 표시를 풀고, 시작되면 대결 진행으로 간다. 랜덤·친구 대결처럼 위치 권한이 없으면 OS 권한 창을 먼저
+ * 띄운다(답과 상관없이 간다. 거절은 진행 화면이 안내한다, S15P31A207-336). 절전 모드 안내는 시작 요청 전에 이미 끝났다.
+ */
 @Composable
 private fun RecordBattleEffects(viewModel: RecordBattleViewModel) {
-    val navigator = LocalRunkkNavigator.current
+    val open = rememberBattleOpener()
+    val currentOpen by rememberUpdatedState(open)
     LifecycleResumeEffect(viewModel) {
         viewModel.onScreenResumed()
         onPauseOrDispose {}
@@ -132,7 +136,7 @@ private fun RecordBattleEffects(viewModel: RecordBattleViewModel) {
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
             when (event) {
-                is RecordBattleEvent.Start -> navigator.navigate(event.key)
+                is RecordBattleEvent.Start -> currentOpen(event.key)
             }
         }
     }
