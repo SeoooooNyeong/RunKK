@@ -7,6 +7,7 @@ import com.a207.runkk.crew.CrewRunDetailView;
 import com.a207.runkk.crew.CrewRunEdit;
 import com.a207.runkk.crew.CrewRunRepeat;
 import com.a207.runkk.crew.CrewRunStatus;
+import com.a207.runkk.crew.MyRunState;
 import com.a207.runkk.crew.PastCrewRunsView;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
@@ -89,6 +90,7 @@ final class CrewScheduleDtos {
      * @param repeat 진행 중인 반복의 다가오는 회차면 WEEKLY("매주" 배지), 아니면 NONE
      * @param repeatDayOfWeek 반복 요일(MONDAY~SUNDAY), NONE이면 null
      * @param attendees 참석자(작성자가 참석 중이면 맨 앞, 나머지는 응답 순)
+     * @param myRun 열람자의 참여 상태 NONE | RUNNING | ENDED(v0.14 [임시:D-성-969])
      */
     record CrewRunDetailResponse(
             long postId,
@@ -109,7 +111,8 @@ final class CrewScheduleDtos {
             boolean canDelete,
             CrewRunRepeat repeat,
             String repeatDayOfWeek,
-            List<Attendee> attendees) {
+            List<Attendee> attendees,
+            MyRunState myRun) {
 
         /** faceKeys: 참석자 얼굴 키(AvatarQuery.faceKeysOf). 얼굴을 고르지 않았거나 탈퇴한 참석자는 없다. */
         static CrewRunDetailResponse of(CrewRunDetailView v, Map<Long, String> faceKeys) {
@@ -147,7 +150,8 @@ final class CrewScheduleDtos {
                                                     a.distance() == null
                                                             ? null
                                                             : a.distance().meters()))
-                            .toList());
+                            .toList(),
+                    v.myRun());
         }
 
         /**

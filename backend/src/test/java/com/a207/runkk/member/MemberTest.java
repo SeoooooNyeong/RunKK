@@ -208,13 +208,15 @@ class MemberTest {
         // 최근 10회: 38 ×3 + 46 ×7 = 43.6 → 플래티넘
         assertThat(m.getTier()).isEqualTo(Tier.PLATINUM);
         assertThat(tenth.evaluation())
-                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 10));
+                .as("재평가는 바꾸기 전 티어를 함께 담는다([임시:D-성-972])")
+                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 10, Tier.GOLD));
 
         for (int i = 11; i <= 19; i++) {
             m.recordValidRun(input(25, i), BOUNDARY, 0);
         }
         assertThat(m.getTier()).isEqualTo(Tier.PLATINUM);
-        m.recordValidRun(input(25, 20), BOUNDARY, 0);
+        assertThat(m.recordValidRun(input(25, 20), BOUNDARY, 0).evaluation())
+                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 20, Tier.PLATINUM));
         assertThat(m.getTier()).isEqualTo(Tier.BRONZE);
     }
 
@@ -243,7 +245,7 @@ class MemberTest {
         }
         assertThat(confirmedFirst.getTier()).isEqualTo(Tier.SILVER);
         assertThat(confirmedFirst.recordValidRun(input(46, 20), BOUNDARY, 10).evaluation())
-                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 20));
+                .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 20, Tier.SILVER));
         assertThat(confirmedFirst.getTier()).isEqualTo(Tier.MASTER);
     }
 

@@ -151,7 +151,12 @@ class SelfieJobControllerTest extends WebTestSupport {
                         .andExpect(jsonPath("$.alignment.pivotX").value(0.5))
                         .andExpect(jsonPath("$.createdAt").value("2026-11-17T00:00:00Z"))
                         .andExpect(
-                                header().string("ETag", matchesPattern("\"head-v2-[0-9a-f]{32}\"")))
+                                header().string(
+                                                "ETag",
+                                                matchesPattern(
+                                                        "\"head-"
+                                                                + HeadFormat.VERSION
+                                                                + "-[0-9a-f]{32}\"")))
                         .andExpect(header().string("Cache-Control", containsString("private")))
                         .andExpect(header().string("Cache-Control", containsString("no-cache")))
                         .andExpect(
@@ -172,11 +177,13 @@ class SelfieJobControllerTest extends WebTestSupport {
         }
         verify(gateway, never()).result(anyLong(), anyString());
 
-        // 형식 버전이 다른(예전) 태그는 맞지 않아 새 응답을 받는다
-        mvc.perform(as(viewer, get(path).header("If-None-Match", "\"head-v1-old\"")))
-                .andExpect(status().isOk())
-                .andExpect(header().string("ETag", etag))
-                .andExpect(jsonPath("$.faceImage").value("face-png"));
+        // 형식 버전이 다른(예전) 태그는 맞지 않아 새 응답을 받는다. v2는 PNG 압축 전 사본이라 다시 받아야 한다
+        for (String stale : List.of("\"head-v1-old\"", etag.replace("head-v3-", "head-v2-"))) {
+            mvc.perform(as(viewer, get(path).header("If-None-Match", stale)))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("ETag", etag))
+                    .andExpect(jsonPath("$.faceImage").value("face-png"));
+        }
     }
 
     @Test
