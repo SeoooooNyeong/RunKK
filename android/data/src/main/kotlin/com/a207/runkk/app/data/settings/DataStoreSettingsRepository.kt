@@ -131,6 +131,8 @@ class DataStoreSettingsRepository internal constructor(
 
     override fun isGuest(): Boolean = current().isGuest
 
+    override fun hasCopy(): Boolean = cache.value.snapshot != null
+
     /**
      * 첫 사용 가이드 기기 사본(D-277). 서버 설정 사본과 같은 파일에 두고 refresh가 덮지 않으며 [clear]가 함께 지운다.
      * 기기 파일을 읽지 못하면 사본 없음이다(서버 값을 다시 읽는다).
