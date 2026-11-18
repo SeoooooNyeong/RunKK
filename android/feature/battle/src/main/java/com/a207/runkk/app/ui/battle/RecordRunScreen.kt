@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.CelebrityPortrait
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
 import com.a207.runkk.app.core.designsystem.RunkkAlpha
@@ -65,6 +66,7 @@ import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import java.time.Duration
 import java.time.LocalDate
 
@@ -100,7 +102,7 @@ fun SelfBattleRoute(viewModel: SelfBattleViewModel = hiltViewModel()) {
     SelfBattleScreen(
         state = state,
         onSelect = viewModel::onSelect,
-        onStart = rememberRunPowerSaveStart(onStart = viewModel::onStart),
+        onStart = rememberLocationFirstStart(rememberRunPowerSaveStart(onStart = viewModel::onStart)),
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
@@ -115,20 +117,20 @@ fun CelebBattleRoute(viewModel: CelebBattleViewModel = hiltViewModel()) {
         state = state,
         onFilter = viewModel::onFilter,
         onSelect = viewModel::onSelect,
-        onStart = rememberRunPowerSaveStart(onStart = viewModel::onStart),
+        onStart = rememberLocationFirstStart(rememberRunPowerSaveStart(onStart = viewModel::onStart)),
         onRetry = viewModel::load,
         onMessageShown = viewModel::onMessageShown
     )
 }
 
 /**
- * 화면에 돌아오면 시작 중 표시를 풀고, 시작되면 대결 진행으로 간다. 랜덤·친구 대결처럼 위치 권한이 없으면 OS 권한 창을 먼저
- * 띄운다(답과 상관없이 간다. 거절은 진행 화면이 안내한다, S15P31A207-336). 절전 모드 안내는 시작 요청 전에 이미 끝났다.
+ * 화면에 돌아오면 시작 중 표시를 풀고, 시작되면 대결 진행으로 간다. 위치 권한(S15P31A207-336)과 절전 모드 안내는 시작 요청 전에
+ * 이미 끝났으므로 여기서는 다시 묻지 않는다.
  */
 @Composable
 private fun RecordBattleEffects(viewModel: RecordBattleViewModel) {
-    val open = rememberBattleOpener()
-    val currentOpen by rememberUpdatedState(open)
+    val navigator = LocalRunkkNavigator.current
+    val currentOpen by rememberUpdatedState<(NavKey) -> Unit>(navigator::navigate)
     LifecycleResumeEffect(viewModel) {
         viewModel.onScreenResumed()
         onPauseOrDispose {}

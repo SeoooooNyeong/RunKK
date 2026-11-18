@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,8 +63,9 @@ import com.a207.runkk.app.core.navigation.Routes
 // 랜덤 대결·배치고사 진행·친구 대결이 함께 쓰는 부품(피그마 61355:2909·61355:3061·61312:14822, design-oo 05-21 7.1).
 
 /**
- * 이동 함수: 경로 이름 키(Routes.Key, 랜덤 대결 ↔ 배치고사 진행)는 맨 위를 바꿔 열고(D-499), 매칭·초대 대기와 기록런(셀프런·셀럽런) 대결
- * 진행은 OS 위치 권한을 확인한 뒤 위에 연다(권한 답과 상관없이 간다. 거절은 대결 시작 때 안내한다, 배틀런 화면 D-268과 같다).
+ * 이동 함수: 경로 이름 키(Routes.Key, 랜덤 대결 ↔ 배치고사 진행)는 맨 위를 바꿔 열고(D-499), 매칭·초대 대기 같은 그 밖의 화면은 OS 위치
+ * 권한을 확인한 뒤 위에 연다(권한 답과 상관없이 간다. 거절은 대결 시작 때 안내한다, 배틀런 화면 D-268과 같다). 기록런은
+ * [rememberLocationFirstStart]로 대결을 만들기 전에 묻는다.
  */
 @Composable
 internal fun rememberBattleOpener(): (NavKey) -> Unit {
@@ -83,6 +85,29 @@ internal fun rememberBattleOpener(): (NavKey) -> Unit {
 
             else -> {
                 waiting = key
+                permission.launch(LOCATION_PERMISSIONS)
+            }
+        }
+    }
+}
+
+/**
+ * 기록런(셀프런·셀럽런) 출발(S15P31A207-336): 위치 권한이 없으면 대결을 만들기 전에 OS 권한 창을 띄우고, 답과 상관없이 [onStart]를
+ * 부른다(거절은 대결 진행 화면이 안내한다). 대결을 만든 뒤에 물으면 답하는 동안 카운트다운이 흘러 측정 시작에 실패한다. 권한이 있으면
+ * 바로 [onStart]를 부른다.
+ */
+@Composable
+internal fun rememberLocationFirstStart(onStart: () -> Unit): () -> Unit {
+    val context = LocalContext.current
+    val currentStart by rememberUpdatedState(onStart)
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        currentStart()
+    }
+    return remember(context, permission) {
+        {
+            if (LOCATION_PERMISSIONS.any { context.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }) {
+                currentStart()
+            } else {
                 permission.launch(LOCATION_PERMISSIONS)
             }
         }

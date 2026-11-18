@@ -39,8 +39,9 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 
 /**
- * 기록런 탭(셀프런·셀럽런) 시작 때 위치 권한(S15P31A207-336): 랜덤·친구 대결처럼 권한이 없으면 OS 권한 창을 먼저 띄우고, 답과
- * 상관없이 대결 진행으로 간다. 권한이 있으면 묻지 않고 바로 간다. 권한 창은 가짜 결과 등록부로 대신한다.
+ * 기록런 탭(셀프런·셀럽런) 시작 때 위치 권한(S15P31A207-336): 권한이 없으면 대결을 만들기 전에 OS 권한 창을 먼저 띄우고, 답과
+ * 상관없이 대결을 만들어 진행으로 간다. 대결을 만든 뒤에 물으면 답하는 동안 카운트다운이 흘러 측정 시작에 실패한다. 권한이 있으면 묻지
+ * 않고 바로 간다. 권한 창은 가짜 결과 등록부로 대신한다.
  */
 @RunWith(RobolectricTestRunner::class)
 class RecordRunLocationPermissionTest {
@@ -131,10 +132,13 @@ class RecordRunLocationPermissionTest {
         assertEquals(1, registry.requests.size, "위치 권한 창을 띄운다")
         assertTrue(Manifest.permission.ACCESS_FINE_LOCATION in registry.requests.single())
         assertEquals(emptyList(), navigated, "답하기 전에는 가지 않는다")
+        assertTrue(w.battles.calls.none { it.startsWith("startSelf") }, "답하기 전에는 대결을 만들지 않는다: ${w.battles.calls}")
 
         registry.answer(granted = true)
         settle()
+        assertTrue(w.battles.calls.any { it.startsWith("startSelf") }, "답한 뒤 대결을 만든다")
         assertIs<Routes.BattleRunning>(navigated.single())
+        assertEquals(1, registry.requests.size, "다시 묻지 않는다")
     }
 
     @Test
@@ -142,10 +146,12 @@ class RecordRunLocationPermissionTest {
         showCeleb()
         assertEquals(1, registry.requests.size, "위치 권한 창을 띄운다")
         assertEquals(emptyList(), navigated)
+        assertTrue(w.battles.calls.none { it.startsWith("startCeleb") }, "답하기 전에는 대결을 만들지 않는다: ${w.battles.calls}")
 
         registry.answer(granted = false)
         settle()
         assertIs<Routes.BattleRunning>(navigated.single())
+        assertEquals(1, registry.requests.size, "거절해도 다시 묻지 않는다")
     }
 
     @Test
