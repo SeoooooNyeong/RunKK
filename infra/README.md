@@ -186,6 +186,27 @@ develop 파이프라인의 수동 잡 **dev:seed**를 누르면 `dev-seed.sh`가
 - 다시 눌러도 이미 있는 더미 회원·크루·기록은 건너뜁니다.
 - 랭킹 스냅숏은 0시 집계(또는 관리 API `POST /api/v1/admin/rankings/recompute`) 뒤에, 대상 계정의 티어 누계는 0시 10분 티어 보정 뒤에 반영됩니다. 런바디 작업은 서버가 5초 안에 ai로 보냅니다.
 
+### 아바타 머리 PNG 압축 (S15P31A207-300)
+
+avatar는 `HEAD_PNG_COMPRESSION`(기본 `palette`, 2026-11-18 PM 결정 q95)으로 새 머리의 보여 주는 6레이어(face·eyes·hair·rightFace·rightEyes·rightHair)를 256색 팔레트 PNG로 저장합니다(실측 -82%, PSNR 약 51dB). 압축이 실패하거나 더 커지면 원본을 그대로 둡니다. 이미 저장된 머리는 배포 뒤 한 번 `scripts/recompress-heads.mjs`로 줄입니다. 대상은 `heads/<머리 ID>-{face,eyes,hair,right-face,right-eyes,right-hair}.png`와 `jobs/<작업 ID>/result.json`의 같은 6레이어이고, 이미 팔레트인 파일은 건너뛰므로 다시 돌려도 됩니다. 아래는 prod 기준이고 develop은 `prod`를 `develop`으로 바꿉니다.
+
+```bash
+# (a) 배포: 이 변경이 든 main을 prod에 배포하면 palette가 켜진다. 확인(palette가 나와야 함)
+docker exec runkk-prod-avatar-1 node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>r.json()).then(j=>console.log(j.headPngCompression))"
+# (b) 백업: 볼륨(runkk-prod_avatar-data)을 tar로 묶는다. 디스크 여유(df -h /var/backups)를 먼저 본다. 묶음은 매일 백업과 같이 7일 뒤 지워진다
+B=runkk-prod-avatar-before-recompress-$(date +%Y%m%d-%H%M%S).tar.gz
+docker run --rm --network none -v runkk-prod_avatar-data:/data:ro -v /var/backups/runkk/prod:/backups --entrypoint sh postgres:17-alpine   -c "tar -czf /backups/$B -C /data . && tar -tzf /backups/$B >/dev/null && chown 1000:1000 /backups/$B && chmod 600 /backups/$B" && ls -l /var/backups/runkk/prod/$B
+# (c) 미리 보기: 바꾸지 않고 대상 파일 수와 예상 감소량만 찍는다
+docker exec runkk-prod-avatar-1 node scripts/recompress-heads.mjs --data /app/data --dry-run
+# (d) 실행: 먼저 몇 개만 해 보고(--limit) 앱에서 머리를 확인한 뒤 전체를 돌린다. 기록에는 개수·바이트만 나온다. 끝 코드 1이면 실패한 파일이 있다(그 파일은 그대로)
+docker exec runkk-prod-avatar-1 node scripts/recompress-heads.mjs --data /app/data --limit 20
+docker exec runkk-prod-avatar-1 node scripts/recompress-heads.mjs --data /app/data
+```
+
+- 머리 응답 ETag는 `head-v3-…`입니다(`SelfieJobController.HEAD_FORMAT`). 이전 `head-v2` 사본을 가진 앱은 한 번 다시 받습니다. 새 api가 뜬 뒤 재압축 전에 받은 앱은 압축 전 사본을 v3로 들고 있으므로 배포 직후 바로 (c)·(d)를 돌립니다.
+- 스크립트는 파일마다 임시 파일에 쓴 뒤 바꾸고, 읽은 뒤 서버가 그 파일을 다시 썼으면 건너뜁니다(「실행 중 바뀌어 건너뜀」). 사용이 적은 시간에 돌립니다.
+- (e) 되돌리기: `.env`(CI 변수 `INFRA_ENV_PROD`)에 `HEAD_PNG_COMPRESSION=off`를 넣고 다시 배포한 뒤, 7절 「실제 복구」의 아바타 볼륨 절차에 `A=$B`(위 백업 묶음 이름)를 넣어 풉니다. 백업 뒤 새로 만든 머리는 잃으므로 복원은 그림이 깨졌을 때만 합니다.
+
 ## 5. 로컬에서 같은 구성 띄우기
 
 PC의 Docker에서도 같은 스크립트로 띄웁니다. 포트가 겹치면 `edge.env`의 `NGINX_*_PORT`를, 설정 복사 폴더는 `RUNKK_HOME`을 바꿉니다. HTTP 모드라 prod는 `NGINX_HTTP_PORT`, develop은 `NGINX_DEVELOP_PORT`(평문)입니다.

@@ -177,11 +177,13 @@ class SelfieJobControllerTest extends WebTestSupport {
         }
         verify(gateway, never()).result(anyLong(), anyString());
 
-        // 형식 버전이 다른(예전) 태그는 맞지 않아 새 응답을 받는다
-        mvc.perform(as(viewer, get(path).header("If-None-Match", "\"head-v1-old\"")))
-                .andExpect(status().isOk())
-                .andExpect(header().string("ETag", etag))
-                .andExpect(jsonPath("$.faceImage").value("face-png"));
+        // 형식 버전이 다른(예전) 태그는 맞지 않아 새 응답을 받는다. v2는 PNG 압축 전 사본이라 다시 받아야 한다
+        for (String stale : List.of("\"head-v1-old\"", etag.replace("head-v3-", "head-v2-"))) {
+            mvc.perform(as(viewer, get(path).header("If-None-Match", stale)))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("ETag", etag))
+                    .andExpect(jsonPath("$.faceImage").value("face-png"));
+        }
     }
 
     @Test
