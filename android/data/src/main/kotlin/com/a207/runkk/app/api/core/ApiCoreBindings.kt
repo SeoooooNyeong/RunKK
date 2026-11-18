@@ -117,7 +117,19 @@ object ApiCoreBindings {
 
     @Provides
     @Singleton
-    fun retrofit(client: OkHttpClient, json: Json): Retrofit = Retrofit
+    fun retrofit(client: OkHttpClient, json: Json): Retrofit = retrofitOn(client, json)
+
+    /**
+     * 업로드 전용(Jira 327): 기본 클라이언트에 요청 본문 gzip을 얹는다(newBuilder라 연결 풀·인증·갱신을 함께 쓴다). 서버가 압축을
+     * 모르면(415, 또는 400·413 뒤 무압축 재전송 성공) 인터셉터가 그 실행 동안 압축을 끈다.
+     */
+    @Provides
+    @Singleton
+    @UploadClient
+    fun uploadRetrofit(client: OkHttpClient, json: Json): Retrofit =
+        retrofitOn(client.newBuilder().addInterceptor(GzipRequestInterceptor()).build(), json)
+
+    private fun retrofitOn(client: OkHttpClient, json: Json): Retrofit = Retrofit
         .Builder()
         .baseUrl(BuildConfig.API_BASE_URL)
         .client(client)
