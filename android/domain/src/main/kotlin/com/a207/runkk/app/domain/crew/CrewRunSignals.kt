@@ -55,13 +55,6 @@ class CrewRunSignals @Inject constructor(private val live: LiveChannelProvider) 
     }
 }
 
-/** [CrewRunSignals.watch]가 내보내는 값: 변경 신호 또는 실시간 연결 여부. */
-sealed interface CrewRunSignal {
-    data class Changed(val change: CrewChange) : CrewRunSignal
-
-    data class Link(val isConnected: Boolean) : CrewRunSignal
-}
-
 /** 실시간 변경 메시지를 ui.crew가 보는 값으로 옮긴다(자원 이름은 같다). */
 private fun CrewRunChanged.toChange(): CrewChange =
     CrewChange(crewId, postId, CrewChange.Resource.valueOf(resource.name), revision)
