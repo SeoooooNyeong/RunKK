@@ -2,8 +2,12 @@ package com.a207.runkk.app.core.designsystem
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
@@ -22,12 +26,15 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.model.RunViewMode
+import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kotlinx.coroutines.delay
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** 트랙 카드, 진행 막대, 보기 전환([임시:D-성-313], [임시:D-성-268], [임시:D-성-306]). */
 @RunWith(RobolectricTestRunner::class)
@@ -232,5 +239,116 @@ class RunkkTrackCardTest {
         // 시간이 지나면 받은 자리(0.9 × 320 = 288)에 닿는다.
         compose.mainClock.advanceTimeBy(3_000)
         assertEquals(288f, centerX(TRACK_OTHER_TAG).value, 1f)
+    }
+
+    /** 몸 준비에 [readyAfterMillis]가 걸리는 상대 아바타(트랙 칸처럼 준비 중임을 카드에 알린다). */
+    private fun slowAvatar(readyAfterMillis: Long): @Composable () -> Unit = {
+        val report = LocalTrackAvatarLoading.current
+        var isReady by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) {
+            delay(readyAfterMillis)
+            isReady = true
+        }
+        DisposableEffect(isReady, report) {
+            report(!isReady)
+            onDispose { report(false) }
+        }
+    }
+
+    private fun movingCard(layout: () -> TrackLayout.Result, otherAvatar: @Composable () -> Unit) {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = false) {
+                RunkkTrackCard(
+                    layout = layout(),
+                    myTag = "나",
+                    otherTag = "과거의 나",
+                    myAvatar = {},
+                    otherAvatar = otherAvatar,
+                    modifier = Modifier.size(width = 320.dp, height = 328.dp)
+                )
+            }
+        }
+    }
+
+    private fun isOtherShown() = compose.onAllNodesWithTag(TRACK_OTHER_TAG).fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun `출발 때 상대는 몸이 준비될 때까지 그림자·이름표도 숨고 준비되면 출발 쪽 트랙 밖에서 들어와 제자리로 간다(S15P31A207-335 2차)`() {
+        // 셀프런 출발: 상대는 내 자리(격차 0)에서 시작하고 몸 준비에 0.7초가 걸린다.
+        movingCard({ TrackLayout.of(aheadMeters = 0.0, remainingMeters = 5_000.0) }, slowAvatar(readyAfterMillis = 700))
+
+        assertTrue(!isOtherShown(), "첫 프레임부터 그림자·이름표를 먼저 보이지 않는다")
+        compose.onAllNodesWithTag(TRACK_OTHER_NAME_TAG).assertCountEquals(0)
+        var t = 0L
+        while (t < 680) {
+            compose.mainClock.advanceTimeByFrame()
+            t += FRAME_MILLIS
+            assertTrue(!isOtherShown(), "몸 준비 전(${t}ms)에는 숨는다")
+            compose.onAllNodesWithTag(TRACK_OTHER_NAME_TAG).assertCountEquals(0)
+        }
+        while (!isOtherShown()) {
+            compose.mainClock.advanceTimeByFrame()
+            t += FRAME_MILLIS
+            assertTrue(t < 900, "준비되면 곧 보인다")
+        }
+        compose.onNodeWithTag(TRACK_OTHER_NAME_TAG).assertExists()
+        // 보이는 순간 상대는 출발 쪽(왼쪽) 가장자리 밖에 있다(가운데 제자리에서 생기지 않는다).
+        val first = centerX(TRACK_OTHER_TAG)
+        assertTrue(first < 0.dp, "처음 보일 때 트랙 밖 왼쪽: $first")
+        var previous = first
+        repeat(90) {
+            compose.mainClock.advanceTimeByFrame()
+            val x = centerX(TRACK_OTHER_TAG)
+            assertTrue(x >= previous - 0.5.dp, "들어오는 동안 되돌아가지 않는다: $previous → $x")
+            previous = x
+        }
+        assertEquals(128f, centerX(TRACK_OTHER_TAG).value, 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h914dp-xxhdpi")
+    fun `일정 속도 진행값이면 상대는 매 프레임 조금씩 오른쪽으로 가고 계단이 없으며 내 자리는 그대로다(S15P31A207-335 2차)`() {
+        // 상대가 1초마다 3 m씩 앞선다(정수 m 수신). 몸은 바로 준비된다.
+        var ahead by mutableStateOf(0.0)
+        movingCard({ TrackLayout.of(aheadMeters = ahead, remainingMeters = 5_000.0) }, otherAvatar = {})
+        val rows = mutableListOf<Triple<Long, Float?, Float>>()
+        var t = 0L
+        while (t <= 4_000) {
+            // 1초마다(프레임은 16ms라 1초를 넘긴 첫 프레임에) 정수 m 값이 온다.
+            val second = t / 1_000
+            if (3.0 * second != ahead) Snapshot.withMutableSnapshot { ahead = 3.0 * second }
+            compose.mainClock.advanceTimeByFrame()
+            t += FRAME_MILLIS
+            val other = if (isOtherShown()) centerX(TRACK_OTHER_TAG).value else null
+            rows += Triple(t, other, centerX(TRACK_ME_TAG).value)
+        }
+        val table = rows.filter { it.first <= 3_000 }.joinToString("\n") { (ms, other, me) ->
+            "$ms\t${other?.let { "%.2f".format(it) } ?: "-"}\t${"%.2f".format(me)}"
+        }
+        println("ms\tother_x_dp\tme_x_dp\n$table")
+        File("build/reports/track-frames").apply { mkdirs() }.resolve("constant-3mps.tsv")
+            .writeText("ms\tother_x_dp\tme_x_dp\n$table\n")
+
+        assertEquals(1, rows.map { it.third }.distinct().size, "내 자리는 폭의 40%에 고정이다(트랙 점선이 움직인다)")
+        val shown = rows.filter { it.second != null }.map { it.first to it.second!! }
+        shown.zipWithNext { a, b -> assertTrue(b.second >= a.second - 0.34f, "되돌아가지 않는다 at ${b.first}ms") }
+        // 1 m = 320/30 ≈ 10.7dp. 들어오는 동안도 한 프레임에 1 m를 넘게 뛰지 않는다.
+        val steps = shown.zipWithNext { a, b -> b.first to (b.second - a.second) }
+        assertTrue(steps.all { it.second < 10.6f }, "계단: ${steps.maxBy { it.second }}")
+        // 들어온 뒤(1.5초~) 일정 속도 3 m/s = 프레임당 0.512dp. 한 프레임 이동이 그 언저리(0.34dp 픽셀 반올림 포함)에 머문다.
+        val steady = steps.filter { it.first >= 1_500 }
+        assertTrue(
+            steady.all {
+                it.second in -0.34f..1.6f
+            },
+            "고르지 않은 한 프레임: ${steady.filter { it.second !in -0.34f..1.6f }}"
+        )
+        val stalled = steady.windowed(4).count { window -> window.sumOf { it.second.toDouble() } <= 0.0 }
+        assertEquals(0, stalled, "네 프레임 넘게 멈춰 있지 않는다")
+    }
+
+    private companion object {
+        const val FRAME_MILLIS = 16L
     }
 }

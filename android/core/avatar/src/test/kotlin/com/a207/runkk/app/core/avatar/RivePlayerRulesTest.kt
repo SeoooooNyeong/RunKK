@@ -48,6 +48,31 @@ class RivePlayerRulesTest {
     }
 
     @Test
+    fun `준비 알림은 보이게 된 뒤 첫 그림이 실제로 그려질 때 한 번이다(S15P31A207-335 2차)`() {
+        var count = 0
+        val notice = FirstFrameNotice { count++ }
+        notice.frameDrawn()
+        assertEquals(0, count, "보이기 전에 그린 판은 알리지 않는다")
+
+        notice.shown()
+        assertEquals(0, count, "보이게 된 것만으로는 아직 몸이 그려지지 않았다")
+        notice.frameDrawn()
+        assertEquals(1, count)
+        notice.frameDrawn()
+        notice.timedOut()
+        assertEquals(1, count, "한 번 보인 뒤에는 다시 알리지 않는다")
+
+        notice.shown()
+        notice.timedOut()
+        assertEquals(2, count, "그림이 오지 않아도 기다림이 끝나면 알린다(숨은 채 남지 않는다)")
+
+        notice.shown()
+        notice.cancel()
+        notice.frameDrawn()
+        assertEquals(2, count, "숨거나 정체가 바뀌면 기다리던 알림을 버린다")
+    }
+
+    @Test
     fun `보이지 않다가 보이게 된 때만 준비 알림이다`() {
         assertTrue(RivePlayerRules.becameVisible(View.INVISIBLE, View.VISIBLE))
         assertTrue(RivePlayerRules.becameVisible(View.GONE, View.VISIBLE))
