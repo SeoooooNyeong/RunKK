@@ -71,6 +71,7 @@ import com.a207.runkk.app.core.model.RunMode
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.record.RecordDetail
+import com.a207.runkk.app.domain.record.RunBodyPreview
 import com.a207.runkk.app.domain.record.RunSummary
 import java.time.Duration
 import java.time.Instant
@@ -179,7 +180,7 @@ fun RecordDetailScreen(
 @Composable
 private fun DetailBody(
     detail: RecordDetail,
-    runBody: RecordRunBody,
+    runBody: RunBodyPreview,
     isDeleting: Boolean,
     onDelete: () -> Unit,
     onRunBody: () -> Unit
@@ -523,13 +524,13 @@ private fun RecordDetailPreview() {
  * 「분석 중」, 볼 수 없음은 상태 확인 안내와 「자세히 ›」(눌러 상태 화면을 본다). 숨김이면 그리지 않는다.
  */
 @Composable
-private fun RunBodyEntry(runBody: RecordRunBody, onClick: () -> Unit) {
+private fun RunBodyEntry(runBody: RunBodyPreview, onClick: () -> Unit) {
     val title = stringResource(R.string.record_detail_runbody_title)
     val more = stringResource(R.string.record_detail_runbody_more)
     when (runBody) {
-        RecordRunBody.Hidden -> Unit
+        RunBodyPreview.Hidden -> Unit
 
-        RecordRunBody.Analyzing -> RunkkRunBodyEntryCard(
+        RunBodyPreview.Analyzing -> RunkkRunBodyEntryCard(
             title,
             stringResource(R.string.record_detail_runbody_analyzing),
             stringResource(R.string.record_runbody_analyzing_short),
@@ -537,7 +538,7 @@ private fun RunBodyEntry(runBody: RecordRunBody, onClick: () -> Unit) {
             onClick = onClick
         )
 
-        RecordRunBody.Unavailable -> RunkkRunBodyEntryCard(
+        RunBodyPreview.Unavailable -> RunkkRunBodyEntryCard(
             title,
             stringResource(R.string.record_detail_runbody_unavailable),
             more,
@@ -545,13 +546,13 @@ private fun RunBodyEntry(runBody: RecordRunBody, onClick: () -> Unit) {
             onClick = onClick
         )
 
-        is RecordRunBody.Ready -> RunkkRunBodyEntryCard(title, runBodyPreview(runBody), more, isReady = true, onClick)
+        is RunBodyPreview.Ready -> RunkkRunBodyEntryCard(title, runBodyPreview(runBody), more, isReady = true, onClick)
     }
 }
 
 /** "운동 강도 78 · 지구력 84 · 페이스 안정성 72"(점수 없는 지표는 뺀다). */
 @Composable
-private fun runBodyPreview(ready: RecordRunBody.Ready): String = listOfNotNull(
+private fun runBodyPreview(ready: RunBodyPreview.Ready): String = listOfNotNull(
     ready.intensity?.let {
         stringResource(R.string.record_detail_runbody_axis, stringResource(R.string.record_runbody_axis_intensity), it)
     },

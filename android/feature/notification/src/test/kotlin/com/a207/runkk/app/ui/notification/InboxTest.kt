@@ -242,7 +242,7 @@ class InboxTest {
         )
         assertEquals(
             V010_KEYS + V011_KEYS + WIRE_V010_KEYS + V014_KEYS + V018_KEYS + V0114_KEYS + W6_KEYS + W7_KEYS +
-                GUIDE_REPLAY_KEYS + CREW_INVITE_KEYS,
+                GUIDE_REPLAY_KEYS + CREW_INVITE_KEYS + "RunBodyDetail",
             keys
         )
     }
