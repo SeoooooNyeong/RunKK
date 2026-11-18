@@ -17,6 +17,7 @@ import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.LobbyPhase
 import com.a207.runkk.app.domain.crew.MyRecordUpload
+import com.a207.runkk.app.domain.crew.MyRunState
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import com.a207.runkk.app.domain.live.CrewRunChanged
@@ -311,6 +312,44 @@ class CrewRealtimeViewModelTest {
         runCurrent()
         assertEquals(2, lists(), "화면이 멈추면 신호를 받지 않는다")
         assertTrue(live.channel.closed > 0, "임대를 반납한다")
+    }
+
+    @Test
+    fun `S15P31A207-314 달리는 강조 카드는 그 크루런의 결과 신호에 결과만 다시 읽어 중간 참여·끝냄을 인원에 반영한다`() = main.runVmTest { vms ->
+        val repo = FakeCrewRepository()
+        val live = FakeLiveChannels()
+        val clock = MutableClock().apply { now = crewRunVoting.scheduledAt.plusSeconds(600) }
+        repo.crewRunList = PostList(
+            listOf(
+                crewRunPosts.posts[0].copy(
+                    crewRun = crewRunVoting.copy(status = CrewRunStatus.RUNNING, myRun = MyRunState.RUNNING)
+                )
+            )
+        )
+        val vm = vms.track(
+            CrewHomeViewModel(
+                repo,
+                ServerClock(clock),
+                FakeCelebrationSharer(),
+                { _, _ -> Outcome.Success(Unit) },
+                signals = CrewRunSignals(live)
+            )
+        ).also { it.bind(Routes.CrewHome(11)) }
+        vm.onTab(CrewTab.SCHEDULE)
+        runCurrent()
+        fun results() = repo.calls.count { it == "result:31" }
+        fun lists() = repo.calls.count { it == "posts:CREW_RUN" }
+        assertEquals(1, results())
+        val listsBefore = lists()
+
+        live.channel.push(changed(31, CrewRunChanged.Resource.RESULT, 2))
+        runCurrent()
+        assertEquals(2, results(), "강조 카드 크루런의 결과 신호면 결과를 다시 읽는다")
+        assertEquals(listsBefore, lists(), "목록은 다시 읽지 않는다")
+
+        live.channel.push(changed(77, CrewRunChanged.Resource.RESULT, 3))
+        runCurrent()
+        assertEquals(2, results(), "다른 크루런 결과 신호는 무시한다")
     }
 
     @Test

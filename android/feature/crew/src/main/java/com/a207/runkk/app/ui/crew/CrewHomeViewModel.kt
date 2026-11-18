@@ -72,8 +72,8 @@ class CrewHomeViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow(CrewHomeUiState())
 
-    /** 크루런 탭 목록을 다시 읽은 횟수. 달리는 강조 카드 결과를 따라 다시 읽는 신호다. */
-    private val listReads = MutableStateFlow(0)
+    /** 달리는 강조 카드 결과를 다시 읽으라는 신호 횟수(목록을 다시 읽었거나 그 크루런의 결과 신호가 왔을 때 오른다). */
+    private val heroRereads = MutableStateFlow(0)
 
     val state: StateFlow<CrewHomeUiState> = _state.asStateFlow()
 
@@ -92,7 +92,8 @@ class CrewHomeViewModel @Inject constructor(
                 .collectLatest { (runs, isTicking) -> watchLobbies(runs, isTicking) }
         }
         // 달리는 크루런 강조 카드(피그마 F-11e·f·g): 출발 시각, 내 거리, 달리는 인원을 결과에서 읽는다. 내 상태가 바뀌거나 목록을
-        // 다시 읽으면(변경 신호·당겨서 새로고침) 다시 읽어 중간 참여·끝냄이 인원에 들어가게 한다(S15P31A207-314).
+        // 다시 읽거나(변경 신호·당겨서 새로고침) 그 크루런의 결과 신호가 오면 다시 읽어 중간 참여·끝냄이 인원에 들어가게 한다
+        // (S15P31A207-314. 서버는 중간 참여·끝냄에 목록 신호 대신 결과·진행 신호를 보낸다).
         viewModelScope.launch {
             combine(
                 _state.map { st ->
@@ -100,7 +101,7 @@ class CrewHomeViewModel @Inject constructor(
                         ?.takeIf { it.crewRun?.status == CrewRunStatus.RUNNING }
                         ?.let { it.postId to it.crewRun?.myRun }
                 },
-                listReads
+                heroRereads
             ) { hero, reads -> hero?.let { it to reads } }
                 .distinctUntilChanged()
                 .collectLatest { key -> key?.let { (hero, _) -> readHeroResult(hero.first, hero.second) } }
@@ -135,12 +136,23 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    /** 이 크루의 목록 변경이면 크루런 탭이 보일 때만 다시 읽는다. 레이스·결과 신호로는 읽지 않는다. */
+    /**
+     * 이 크루의 목록 변경이면 크루런 탭이 보일 때만 다시 읽는다. 레이스 신호로는 읽지 않고, 결과 신호는 달리는 강조 카드의 크루런일
+     * 때만 그 결과를 다시 읽는다(목록은 읽지 않는다).
+     */
     private fun onChange(change: CrewChange) {
         val s = _state.value
         val isScheduleShown = s.tab == CrewTab.SCHEDULE && s.page == CrewHomePage.HOME
-        if (change.crewId == s.crewId && change.resource == CrewChange.Resource.SCHEDULE && isScheduleShown) {
-            scheduleReads.refresh()
+        if (change.crewId != s.crewId || !isScheduleShown) return
+        when (change.resource) {
+            CrewChange.Resource.SCHEDULE -> scheduleReads.refresh()
+
+            CrewChange.Resource.RESULT -> {
+                val hero = upcomingSchedules(s).firstOrNull()?.takeIf { it.crewRun?.status == CrewRunStatus.RUNNING }
+                if (hero?.postId == change.postId) heroRereads.update { it + 1 }
+            }
+
+            else -> Unit
         }
     }
 
@@ -894,7 +906,7 @@ class CrewHomeViewModel @Inject constructor(
         return when (val r = coveringPages(loaded) { cursor -> crews.activeCrewRuns(crewId, cursor) }) {
             is Outcome.Success -> {
                 _state.update { it.copy(crewRuns = r.value) }
-                listReads.update { it + 1 }
+                heroRereads.update { it + 1 }
                 null
             }
 
