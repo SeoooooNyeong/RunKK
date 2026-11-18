@@ -2,6 +2,7 @@ package com.a207.runkk.app.domain.avatar
 
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -92,6 +93,15 @@ interface AvatarRepository {
      * 합성하기 시작할 때 쓴다. 모르거나 다른 계정 것이면 null이다. 네트워크는 쓰지 않는다.
      */
     fun savedSelfFaceKey(): String? = null
+
+    /**
+     * 기기에 남긴 내 마지막 성별(Jira 307). 홈 큰 아바타가 프로필(성별) 응답을 기다리지 않고 합성을 시작한다. 모르거나 다른 회원 것이면
+     * null.
+     */
+    fun savedSelfGender(): Gender? = null
+
+    /** 알게 된 내 성별을 기기에 남긴다. 로그아웃 상태면 남기지 않는다. */
+    suspend fun rememberSelfGender(gender: Gender) {}
 }
 
 /** 구현이 없는 기본 메소드의 실패 상태(HTTP 501과 같은 뜻). */

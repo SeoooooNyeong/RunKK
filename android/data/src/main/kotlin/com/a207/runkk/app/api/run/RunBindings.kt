@@ -1,5 +1,6 @@
 package com.a207.runkk.app.api.run
 
+import com.a207.runkk.app.api.core.UploadClient
 import com.a207.runkk.app.domain.sync.DisposalRemote
 import com.a207.runkk.app.domain.sync.RunUploadRemote
 import dagger.Binds
@@ -23,5 +24,9 @@ internal abstract class RunBindings {
     companion object {
         @Provides
         fun runApi(retrofit: Retrofit): RunApi = retrofit.create()
+
+        /** 기록 전송만 업로드 전용 클라이언트(본문 gzip, Jira 327)로 보낸다. */
+        @Provides
+        fun runUploadApi(@UploadClient retrofit: Retrofit): RunUploadApi = retrofit.create()
     }
 }

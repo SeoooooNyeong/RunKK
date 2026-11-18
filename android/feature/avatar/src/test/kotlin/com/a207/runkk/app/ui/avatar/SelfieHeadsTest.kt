@@ -108,7 +108,7 @@ class SelfieHeadsTest {
     }
 
     @Test
-    fun `동시에 기다리던 받기가 실패하면 둘 다 기본 얼굴이고 다음에 다시 받는다(AR-89)`() = runTest {
+    fun `동시에 기다리던 받기가 실패하면 기다린 쪽이 한 번 직접 받고, 그래도 실패면 둘 다 기본 얼굴이며 다음에 다시 받는다`() = runTest {
         repo.headResult = Outcome.Failure(AppError.Network)
         val gate = CompletableDeferred<Unit>()
         repo.headGates["head:1:a"] = gate
@@ -120,8 +120,27 @@ class SelfieHeadsTest {
 
         assertSame(FaceLook.NONE, one.await())
         assertSame(FaceLook.NONE, two.await())
+        assertEquals(2, repo.calls.size, "기다린 쪽의 직접 받기 한 번")
         repo.headResult = Outcome.Success(SelfieHead(faceLayers))
         assertEquals(faceLayers, heads.look("head:1:a").faceLayers)
-        assertEquals(2, repo.calls.size)
+        assertEquals(3, repo.calls.size)
+    }
+
+    @Test
+    fun `앞 호출이 취소되면 같은 얼굴을 기다리던 쪽은 기본 머리로 끝내지 않고 한 번 직접 받는다(통합 리뷰 낮음 8)`() = runTest {
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
+        val gate = CompletableDeferred<Unit>()
+        repo.headGates["head:1:a"] = gate
+
+        val leaving = async { heads.look("head:1:a") }
+        val waiting = async { heads.look("head:1:a") }
+        runCurrent()
+        leaving.cancel()
+        runCurrent()
+        repo.headGates.remove("head:1:a")
+        gate.complete(Unit)
+
+        assertEquals(faceLayers, waiting.await().faceLayers)
+        assertEquals(2, repo.calls.count { it == "head:head:1:a" })
     }
 }

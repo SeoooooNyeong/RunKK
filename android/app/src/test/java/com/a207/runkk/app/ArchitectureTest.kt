@@ -60,16 +60,19 @@ class ArchitectureTest {
      * 내 러너 숫자 타일(이번 주 횟수·거리, 연속 러닝 일수, 대시보드, 05-30 D-777)이 ui.avatar → domain.record를 더해 180개다.
      * 셀카 결과 알림의 실행 인텐트 약속(SelfieNoticeIntent, 05-30 D-794)을 알림(data.push)과 읽는 쪽(app)이 함께 보려고
      * data.push → core.model을 더해 181개다(RunNoticeExtras가 data.device와 app 사이에 있는 것과 같은 자리).
+     * v0.14 그을림 상한 한 곳(S15P31A207-311)이 core.avatar → core.model(SkinTone)을, 홈 다시 읽기 문지기(S15P31A207-325)가
+     * ui.notification → domain.settings(RefreshGate, 알림 점)를 더해 183개다. 문지기를 domain.settings에 둔 것은 ui.home의 Fan-Out이
+     * 이미 7이라 새 domain 패키지를 더할 수 없어서다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 181개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 183개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(181, phone.sumOf { it.value.size })
+        assertEquals(183, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -508,8 +511,9 @@ class ArchitectureTest {
                 "core.navigation" to emptySet(),
                 "wear.contract" to emptySet(),
                 "core.designsystem" to setOf("core.model"),
-                // 공용 Rive 아바타 렌더러(:core:avatar, S15P31A207-300): 앱 패키지를 하나도 import하지 않는다.
-                "core.avatar" to emptySet(),
+                // 공용 Rive 아바타 렌더러(:core:avatar, S15P31A207-300): 앱 패키지는 그을림 상한 값(core.model SkinTone,
+                // S15P31A207-311)만 import한다.
+                "core.avatar" to setOf("core.model"),
                 "domain.settings" to setOf("core.model"),
                 "domain.live" to setOf("core.model"),
                 "domain.record" to setOf("core.model"),
@@ -610,7 +614,8 @@ class ArchitectureTest {
                 // domain.settings는 프로필 편집의 출생연도(SettingsRepository.birthYear, D106)다(v0.16 5.1.2).
                 // domain.run(R79): 설정의 "못 올린 기록 n건, 다시 보내기"(ResendRejectedRunsUseCase, W40). Fan-Out 6.
                 "ui.me" to CORE_UI + setOf("domain.account", "domain.settings", "domain.run"),
-                "ui.notification" to CORE_UI + "domain.notification",
+                // domain.settings 추가(S15P31A207-325): 홈 알림 점이 다시 읽기 문지기(RefreshGate)를 거친다.
+                "ui.notification" to CORE_UI + setOf("domain.notification", "domain.settings"),
                 // core.model: 시작 작업(AppStartup)이 기기 사본 실패(AppError)를 기록한다. v0.17(D-332, R52): 시작·로그인 때
                 // 기기 사본 맞추기는 domain.sync의 DeviceCopySync가 하고, 로그인 상태는 SessionRepository(domain.account)로 본다.
                 // domain.settings는 화면 테마(ScreenTheme)다. domain.run·domain.record·domain.notification을 뺐다(Fan-Out 9 → 6).

@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 /**
@@ -48,6 +49,9 @@ import kotlinx.coroutines.launch
  *   ([prepareRiveAvatarLook]) Ready로 둔다. Ready 뒤에 같은 모습의 달리기 동작(motion = RUN)도 이어서 미리 합성해 측정 화면 칸이
  *   Rive 파일 읽기·텍스처 합성을 기다리지 않게 한다(D-813). 달리기 준비는 Ready를 늦추지 않는다. 성별이 바뀌면 앞 그림을
  *   버리고 다시 준비한다.
+ * - 기기에 남긴 마지막 성별(AvatarRepository.savedSelfGender)이 있으면 프로필(성별) 응답을 기다리지 않고 그 성별로 바로 준비를
+ *   시작한다(Jira 307). 내 머리는 기기에 남긴 층을 쓰므로 받지 않는다. 프로필이 다른 성별을 주면 다시 준비하고, 같은 성별이면 그대로 둔다.
+ *   알게 된 성별은 기기에 남긴다.
  * - 아바타나 내 러너를 못 읽으면 Failed다. 미리 읽기·미리 합성 실패는 준비 실패로 보지 않는다(뷰가 다시 읽고 합성하며, 그래도 안 되면
  *   칸이 성별 기본 그림으로 바꾼다).
  * - 한 번에 준비 작업 하나만 돈다. 새 [refresh]·성별 바뀜은 앞 작업을 취소하고 세대 번호를 올리며, 결과는 세대가 같을 때만 쓴다
@@ -80,7 +84,11 @@ class MyAvatarStore internal constructor(
      * 기기에 남긴 내 마지막 얼굴 키(AvatarRepository.savedSelfFaceKey). [warm]이 프로필(성별) 응답을 기다리지 않고 이 키로 내 머리를
      * 받아(디스크 캐시면 바로) 합성을 시작한다(S15P31A207-300).
      */
-    private val savedFaceKey: () -> String? = { null }
+    private val savedFaceKey: () -> String? = { null },
+    /** 기기에 남긴 내 마지막 성별(AvatarRepository.savedSelfGender). 있으면 [warm]이 프로필 응답을 기다리지 않는다(Jira 307). */
+    private val savedGender: () -> Gender? = { null },
+    /** 알게 된 내 성별을 기기에 남긴다(AvatarRepository.rememberSelfGender). */
+    private val saveGender: suspend (Gender) -> Unit = {}
 ) {
     @Inject
     constructor(
@@ -114,7 +122,9 @@ class MyAvatarStore internal constructor(
         checkPending = { follower.checkNow() },
         savedTone = { FaceTonePrefs.read(context) },
         saveTone = { FaceTonePrefs.write(context, it) },
-        savedFaceKey = avatars::savedSelfFaceKey
+        savedFaceKey = avatars::savedSelfFaceKey,
+        savedGender = avatars::savedSelfGender,
+        saveGender = avatars::rememberSelfGender
     )
 
     /** 셀카 작업 진행(홈 칸의 진행 배지가 듣는다, 피그마 AV-7 4). */
@@ -162,8 +172,14 @@ class MyAvatarStore internal constructor(
         // 내 머리는 프로필(성별) 응답을 기다리지 않고 마지막 얼굴 키로 바로 받아 합성해 둔다(S15P31A207-300). 준비([load])가 같은
         // 키를 찾으면 SelfieHeads가 받는 중인 것을 기다리거나 담아 둔 것을 준다. 키가 바뀌었으면 이 결과는 쓰이지 않을 뿐이다.
         savedFaceKey()?.takeIf(::isSelfieHead)?.let { key -> scope.launch { quietly { heads.look(key) } } }
+        // 성별도 기기에 남긴 것이 있으면 프로필 응답을 기다리지 않고 그 성별로 바로 준비한다(Jira 307).
+        savedGender()?.let(::avatarGenderOf)?.let { early ->
+            gender = early
+            start(early)
+        }
         genderJob = scope.launch {
             myGender
+                .onEach { known -> if (known != null) quietly { saveGender(known) } }
                 .map { it?.let(::avatarGenderOf) }
                 .distinctUntilChanged()
                 .catch { _state.value = MyAvatarState.Failed }
@@ -235,6 +251,9 @@ class MyAvatarStore internal constructor(
     }
 
     private fun onGender(next: AvatarGender?) {
+        val current = gender
+        // 남긴 성별로 이미 준비하고 있으면: 프로필을 아직 모르는 값(null)은 기다리고, 같은 성별이면 그대로 둔다.
+        if (current != null && (next == null || next == current)) return
         gender = next
         // 다른 성별 그림을 잠깐이라도 보이지 않게 앞 결과를 버린다
         _state.value = MyAvatarState.Loading

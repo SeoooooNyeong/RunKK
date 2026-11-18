@@ -37,15 +37,23 @@ class SelfieHeads internal constructor(private val avatars: AvatarRepository, pr
     /** 받는 중인 키 → 그 받기의 결과(받지 못하면 null). 같은 키를 함께 찾은 쪽은 새로 받지 않고 이것을 기다린다. */
     private val inflight = HashMap<String, CompletableDeferred<FaceLook?>>()
 
-    /** [faceKey]의 얼굴. 얼굴이 없거나 받지 못하면 빈 얼굴(기본 캐릭터)이다. */
-    suspend fun look(faceKey: String?): FaceLook {
+    /**
+     * [faceKey]의 얼굴. 얼굴이 없거나 받지 못하면 빈 얼굴(기본 캐릭터)이다. 같은 키를 받던 앞 호출이 취소되거나 실패해 값 없이 끝나면
+     * 기다리던 쪽은 기본 머리로 끝내지 않고 한 번 직접 받는다(통합 리뷰 낮음 8).
+     */
+    suspend fun look(faceKey: String?): FaceLook = look(faceKey, isRetry = false)
+
+    private suspend fun look(faceKey: String?, isRetry: Boolean): FaceLook {
         if (faceKey == null) return FaceLook.NONE
         val mine = CompletableDeferred<FaceLook?>()
         val other = synchronized(lock) {
             cache[faceKey]?.let { return it }
             inflight[faceKey] ?: null.also { inflight[faceKey] = mine }
         }
-        if (other != null) return other.await() ?: FaceLook.NONE
+        if (other != null) {
+            other.await()?.let { return it }
+            return if (isRetry) FaceLook.NONE else look(faceKey, isRetry = true)
+        }
         var loaded: FaceLook? = null
         try {
             loaded = load(faceKey)

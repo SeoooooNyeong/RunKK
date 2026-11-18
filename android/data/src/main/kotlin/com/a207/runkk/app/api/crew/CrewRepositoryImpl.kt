@@ -6,6 +6,7 @@ import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FaceUse
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.crew.AttendanceAnswer
 import com.a207.runkk.app.domain.crew.CrewDetail
@@ -44,7 +45,9 @@ import okhttp3.RequestBody.Companion.toRequestBody
  */
 internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, private val faces: FaceImageSource) :
     CrewRepository {
-    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+    /** 목록 행 얼굴 원(Jira 308): 256. */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
+        faces.faceLayers(faceKey, FaceUse.LIST)
 
     override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
 

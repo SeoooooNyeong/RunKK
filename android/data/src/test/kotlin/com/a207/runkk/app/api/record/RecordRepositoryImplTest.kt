@@ -269,12 +269,13 @@ class RecordRepositoryImplTest {
         assertEquals(emptyList(), repository.faceLayers(null).value())
         assertEquals(emptyList(), repository.faceLayers("default:RABBIT").value())
 
-        repeat(3) { api.reply("""{}""") }
+        repeat(4) { api.reply("""{}""") }
         repository.faceLayers("head:12:abc")
+        assertEquals("/api/v1/avatar/heads/12/abc/meta", api.take().url.encodedPath, "메타를 먼저 받는다")
         assertEquals(
-            listOf("face", "eyes", "hair").map { "/api/v1/avatar/heads/12/abc/layers/$it?size=512" }.toSet(),
+            listOf("face", "eyes", "hair").map { "/api/v1/avatar/heads/12/abc/layers/$it?size=256" }.toSet(),
             List(3) { api.take().url }.map { it.encodedPath + "?" + it.encodedQuery }.toSet(),
-            "다른 러너 셀카 머리도 정면 세 층을 얼굴 원 크기로 받는다(S15P31A207-300)"
+            "다른 러너 셀카 머리는 목록 원 크기(256)로 정면 세 층을 받는다(Jira 308)"
         )
     }
 

@@ -71,6 +71,20 @@ class DataStoreSettingsRepositoryTest {
     }
 
     @Test
+    fun `사본 유무 hasCopy - 없으면 거짓, refresh 뒤 참, clear 뒤 거짓(홈이 사본이 없을 때만 서버를 읽는다)`() = runTest {
+        val repository = open()
+        repository.changes().first()
+        assertFalse(repository.hasCopy())
+
+        remote.next += Outcome.Success(CONSENTED)
+        repository.refresh()
+        assertTrue(repository.hasCopy())
+
+        repository.clear()
+        assertFalse(repository.hasCopy())
+    }
+
+    @Test
     fun `refresh는 서버 원본을 사본으로 저장하고 다시 열어도 남는다`() = runTest {
         val first = open()
         remote.next += Outcome.Success(CONSENTED)

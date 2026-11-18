@@ -61,10 +61,30 @@ object ApiCoreBindings {
         return SessionRefresher(tokens, base, refreshUrl, json)
     }
 
+    /**
+     * 인증된 기본 클라이언트. 서버가 Cache-Control을 주는 응답(크루 로고 등)은 디스크 캐시(cacheDir/api-http, 16MiB)에 남긴다(Jira 328).
+     * 로그인한 회원이 바뀌거나 로그아웃하면 다음 요청 전에 캐시를 비운다(ApiCacheGuard, 얼굴 캐시와 같은 때).
+     */
     @Provides
     @Singleton
-    fun okHttpClient(tokens: TokenProvider, refresher: SessionRefresher): OkHttpClient =
-        authenticatedClient(refresher.client, tokens, refresher)
+    internal fun okHttpClient(
+        tokens: TokenProvider,
+        refresher: SessionRefresher,
+        serverClock: ServerClock,
+        self: SelfMember,
+        @ApplicationContext context: Context
+    ): OkHttpClient {
+        val cache = Cache(File(context.cacheDir, API_CACHE_DIR), API_CACHE_BYTES)
+        return authenticatedClient(refresher.client, tokens, refresher, serverClock)
+            .newBuilder()
+            .cache(cache)
+            .addInterceptor(ApiCacheGuard(cache, File(context.cacheDir, API_CACHE_OWNER), self::memberId))
+            .build()
+    }
+
+    private const val API_CACHE_DIR = "api-http"
+    private const val API_CACHE_OWNER = "api-http.owner"
+    private const val API_CACHE_BYTES = 16L * 1024 * 1024
 
     /** 인증 없는 base 위에 접근 토큰 부착과 401 갱신을 얹는다. 갱신 요청은 base로 보낸다(시험도 이 조립을 쓴다). */
     internal fun authenticatedClient(
@@ -74,13 +94,15 @@ object ApiCoreBindings {
         json: Json
     ): OkHttpClient = authenticatedClient(base, tokens, SessionRefresher(tokens, base, refreshUrl, json))
 
+    /** [clock]을 주면 접근 토큰 만료 60초 전에 원 요청보다 먼저 갱신한다(Jira 326). */
     internal fun authenticatedClient(
         base: OkHttpClient,
         tokens: TokenProvider,
-        refresher: SessionRefresher
+        refresher: SessionRefresher,
+        clock: ServerClock? = null
     ): OkHttpClient = base
         .newBuilder()
-        .addInterceptor(AuthInterceptor(tokens))
+        .addInterceptor(AuthInterceptor(tokens, refresher.takeIf { clock != null }, clock))
         .addNetworkInterceptor { chain ->
             val request = chain.request()
             if (request.tag(BoundSession::class.java)?.isCurrent(tokens) == false) {
@@ -115,7 +137,19 @@ object ApiCoreBindings {
 
     @Provides
     @Singleton
-    fun retrofit(client: OkHttpClient, json: Json): Retrofit = Retrofit
+    fun retrofit(client: OkHttpClient, json: Json): Retrofit = retrofitOn(client, json)
+
+    /**
+     * 업로드 전용(Jira 327): 기본 클라이언트에 요청 본문 gzip을 얹는다(newBuilder라 연결 풀·인증·갱신을 함께 쓴다). 서버가 압축을
+     * 모르면(415, 또는 400·413 뒤 무압축 재전송 성공) 인터셉터가 그 실행 동안 압축을 끈다.
+     */
+    @Provides
+    @Singleton
+    @UploadClient
+    fun uploadRetrofit(client: OkHttpClient, json: Json): Retrofit =
+        retrofitOn(client.newBuilder().addInterceptor(GzipRequestInterceptor()).build(), json)
+
+    private fun retrofitOn(client: OkHttpClient, json: Json): Retrofit = Retrofit
         .Builder()
         .baseUrl(BuildConfig.API_BASE_URL)
         .client(client)
