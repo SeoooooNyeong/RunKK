@@ -26,7 +26,9 @@ internal data class CrewRunDetailResponse(
     val canDelete: Boolean = false,
     val repeat: String? = null,
     val repeatDayOfWeek: String? = null,
-    val attendees: List<Attendee> = emptyList()
+    val attendees: List<Attendee> = emptyList(),
+    /** 열람자의 참여 상태 NONE·RUNNING·ENDED. 옛 서버면 null. */
+    val myRun: String? = null
 ) {
     /**
      * 참석자. memberId는 탈퇴했으면 null, shownGender는 MALE·FEMALE이거나 null. distanceMeters는 마친 크루런에서 달린 거리(결과 화면과 같은

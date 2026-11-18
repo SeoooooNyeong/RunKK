@@ -520,6 +520,12 @@
     <string name="crew_run_join_together">함께 뛰기</string>
     <string name="crew_home_run_join">중간 참여하기</string>
     <string name="crew_home_run_running">달리는 중</string>
+    <string name="crew_home_run_resume">이어 달리기</string>
+    <string name="crew_home_run_result">결과 보기</string>
+    <string name="crew_schedule_running_people">%1$d명 달리는 중</string>
+    <string name="crew_schedule_finished">완주했어요</string>
+    <string name="crew_schedule_elapsed_running">째 달리는 중</string>
+    <string name="crew_schedule_elapsed_live">째 진행 중</string>
     <string name="crew_home_run_join_description">%1$s, %2$s</string>
     <string name="crew_error_crew_run_not_ready">준비한 크루원이 2명 이상일 때 시작할 수 있어요</string>
     <string name="crew_result_saving">기록을 올리는 중이에요</string>

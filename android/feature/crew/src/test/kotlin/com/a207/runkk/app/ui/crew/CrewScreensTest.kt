@@ -430,7 +430,7 @@ class CrewScreensTest {
     }
 
     @Test
-    fun `TC-11028 크루런 탭 - 달리는 크루런은 달리는 중과 중간 참여하기를 보이고 누르면 참여로 간다`() {
+    fun `TC-11028 크루런 탭 - 달리는 크루런은 진행 중과 중간 참여하기를 보이고 누르면 참여로 간다`() {
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
                 CrewHomeScreen(
@@ -452,7 +452,7 @@ class CrewScreensTest {
                 )
             }
         }
-        compose.onNodeWithText("달리는 중").assertExists()
+        compose.onNodeWithText("째 진행 중").assertExists()
         compose.onNodeWithText("대기실이 닫혔어요").assertDoesNotExist()
         compose.onNodeWithText("중간 참여하기").performClick()
         assertEquals(listOf("join:31"), calls)

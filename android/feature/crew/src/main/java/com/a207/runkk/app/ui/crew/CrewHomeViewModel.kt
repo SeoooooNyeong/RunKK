@@ -18,6 +18,7 @@ import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewReadSession
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunSignals
+import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
@@ -84,6 +85,22 @@ class CrewHomeViewModel @Inject constructor(
             ) { runs, isScheduleShown, resumed -> runs to (isScheduleShown && resumed) }
                 .distinctUntilChanged()
                 .collectLatest { (runs, isTicking) -> watchLobbies(runs, isTicking) }
+        }
+        // 달리는 크루런 강조 카드(피그마 F-11e·f·g): 출발 시각과 내 거리를 결과에서 한 번 읽는다(내 상태가 바뀌면 다시).
+        viewModelScope.launch {
+            _state.map { st ->
+                upcomingSchedules(st).firstOrNull()?.takeIf { it.crewRun?.status == CrewRunStatus.RUNNING }
+            }
+                .map { hero -> hero?.let { it.postId to it.crewRun?.myRun } }
+                .distinctUntilChanged()
+                .collectLatest { key -> key?.first?.let { postId -> readHeroResult(postId) } }
+        }
+    }
+
+    /** 달리는 강조 카드의 크루런 결과를 읽어 담는다. 실패하면 모집 일시 기준 시간·숫자 없는 「완주했어요」로 그린다. */
+    private suspend fun readHeroResult(postId: Long) {
+        (crews.crewRunResult(postId) as? Outcome.Success)?.value?.let { result ->
+            _state.update { it.copy(heroResults = it.heroResults + (postId to result)) }
         }
     }
 
