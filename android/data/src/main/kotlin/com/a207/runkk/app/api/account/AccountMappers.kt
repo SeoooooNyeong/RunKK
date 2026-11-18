@@ -94,7 +94,8 @@ internal fun PlacementResponse.toDomain(): PlacementProgress = PlacementProgress
             averagePace = it.averagePaceSecondsPerKm?.takeIf { pace -> pace > 0 }?.let(::Pace),
             verdict = it.verdict
         )
-    }
+    },
+    runimalType = runimalType?.takeIf { it.isNotBlank() }
 )
 
 /** 날짜를 읽지 못한 줄은 버린다(프로필 전체를 실패시키지 않는다). */

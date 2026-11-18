@@ -11,7 +11,9 @@ data class PlacementProgress(
     val nextRound: Int?,
     val provisionalTier: String?,
     val tier: String,
-    val rounds: List<PlacementRound>
+    val rounds: List<PlacementRound>,
+    /** 확정된 Runimal 유형 이름(배치고사 완료 화면의 Runimal 카드). 없으면 null. */
+    val runimalType: String? = null
 ) {
     /**
      * 배치고사를 마쳤는데 이 기기에서 그 완료 화면(FR-281)을 아직 안 봤는가(D-531, PL3-A1). [seen]은 본 마지막 판의 대결 ID

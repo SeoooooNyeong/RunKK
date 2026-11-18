@@ -1,54 +1,38 @@
 package com.a207.runkk.app.ui.runimal
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.a207.runkk.app.core.designsystem.RunimalArt
+import com.a207.runkk.app.core.designsystem.ResultBottomBar
 import com.a207.runkk.app.core.designsystem.RunkkColors
-import com.a207.runkk.app.core.designsystem.RunkkIcons
-import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
-import com.a207.runkk.app.core.designsystem.RunkkShapes
-import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.TierCelebration
+import com.a207.runkk.app.core.designsystem.TierCelebrationCard
+import com.a207.runkk.app.core.designsystem.TierCelebrationCardHeader
+import com.a207.runkk.app.core.designsystem.TierCelebrationFrame
+import com.a207.runkk.app.core.designsystem.TierCelebrationRunimalCard
+import com.a207.runkk.app.core.designsystem.TierResultRow
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
+import com.a207.runkk.app.domain.runimal.TierChange
 
 /**
- * 평가 결과(G-11, D-284). 경로 인자를 그리고, 확정 유형이 있으면 그 유형의 한 줄 설명을 유형 상세(GET /runimal/types/{type})에서
- * 읽어 이름 아래에 보인다(R2-15). 못 읽으면 설명 줄 없이 그린다. "유형 보기"는 평가 화면 자리를 유형 상세로 바꾸고(백 스택에 평가 화면
- * 하나뿐이어도 앱이 닫히지 않는다), "확인"은 닫는다. 두 버튼 모두 주 버튼이다.
+ * 티어 재평가(G-11 v2, D-284). 경로 인자를 그리고, 확정 유형이 있으면 그 유형의 한 줄 설명을 유형 상세(GET /runimal/types/{type})에서
+ * 읽어 Runimal 카드에 보인다(R2-15). 못 읽으면 설명 줄 없이 그린다. 「Runimal 유형 보기」는 평가 화면 자리를 유형 상세로 바꾸고(백 스택에
+ * 평가 화면 하나뿐이어도 앱이 닫히지 않는다), 「확인」·뒤로는 닫는다.
  */
 @Composable
 fun EvaluationRoute(
     tier: String,
     validRuns: Int,
     runimalType: String?,
+    previousTier: String? = null,
     typeViewModel: RunimalTypeViewModel = hiltViewModel()
 ) {
     val navigator = LocalRunkkNavigator.current
@@ -60,12 +44,16 @@ fun EvaluationRoute(
         runimalType = runimalType,
         onShowType = { type -> navigator.replace(Routes.RunimalType(type)) },
         onConfirm = navigator::back,
-        runimalDescription = typeState.detail?.takeIf { it.type == runimalType }?.description
+        runimalDescription = typeState.detail?.takeIf { it.type == runimalType }?.description,
+        previousTier = previousTier
     )
 }
 
 /**
- * 유효 러닝 횟수, 새 티어 카드, 확정 유형이 있으면 Runimal 확정 카드. 첫 배치(유효 3회째)는 [runimalType]이 null이라 티어만 보인다.
+ * 티어 재평가 화면(피그마 G-11 v2): 배치고사 완료(C-16)와 같은 축하 구성(core/ui TierCelebration*). 상단 「티어 재평가」, 히어로 아래 결과
+ * 문장(직전 티어와 비교해 승급·유지·강등, 직전 티어를 모르면 「○○ 티어예요」), 요약 카드(「n번째 유효 러닝」, 점수가 있으면 「최근 10회 평균
+ * ○○점」, 직전 티어·이번 평가·다음 평가 행), 이번에 Runimal이 확정되면 Runimal 카드와 보조 단추 「Runimal 유형 보기」, 주 단추 「확인」.
+ * [averageScore]는 최근 10회 평균 러닝 점수(지금 서버는 주지 않아 null, 숨긴다)다.
  */
 @Composable
 fun EvaluationScreen(
@@ -75,111 +63,97 @@ fun EvaluationScreen(
     onShowType: (String) -> Unit,
     onConfirm: () -> Unit,
     modifier: Modifier = Modifier,
-    runimalDescription: String? = null
+    runimalDescription: String? = null,
+    previousTier: String? = null,
+    averageScore: Int? = null
 ) {
-    Column(
-        modifier = modifier.fillMaxSize().background(RunkkColors.Background).padding(horizontal = 16.dp)
+    val change = TierChange.of(previousTier, tier)
+    TierCelebrationFrame(
+        title = stringResource(R.string.evaluation_title),
+        onBack = onConfirm,
+        hasBackdrop = true,
+        bottomBar = {
+            ResultBottomBar(
+                primary = stringResource(R.string.evaluation_confirm),
+                onPrimary = onConfirm,
+                secondary = runimalType?.let { stringResource(R.string.evaluation_show_type) },
+                onSecondary = { runimalType?.let(onShowType) }
+            )
+        },
+        modifier = modifier
     ) {
-        Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            Column(
-                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    stringResource(R.string.evaluation_valid_runs, validRuns),
-                    style = RunkkTextStyles.Label,
-                    color = RunkkColors.TextSecondary
-                )
-                Text(
-                    stringResource(R.string.evaluation_title),
-                    style = RunkkTextStyles.Headline,
-                    color = RunkkColors.TextPrimary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.semantics { heading() }
-                )
-                TierCard(tier)
-                runimalType?.let { RunimalConfirmedCard(it, runimalDescription) }
+        TierCelebration(title = headline(change, tier), subtitle = null, tier = tier)
+        TierCelebrationCard {
+            TierCelebrationCardHeader(
+                stringResource(R.string.evaluation_valid_runs, validRuns),
+                averageScore?.let { stringResource(R.string.evaluation_average_score, it) }
+            )
+            if (change != TierChange.UNKNOWN) {
+                Divider()
+                TierResultRow(stringResource(R.string.evaluation_row_previous), tierLabel(previousTier), previousTier)
             }
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            runimalType?.let { type ->
-                RunkkPrimaryButton(
-                    stringResource(R.string.evaluation_show_type),
-                    onClick = { onShowType(type) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            RunkkPrimaryButton(
-                stringResource(R.string.evaluation_confirm),
-                onClick = onConfirm,
-                modifier = Modifier.weight(1f)
+            Divider()
+            TierResultRow(stringResource(R.string.evaluation_row_current), currentLabel(change, tier), tier)
+            Divider()
+            TierResultRow(
+                stringResource(R.string.evaluation_row_next),
+                stringResource(R.string.evaluation_valid_runs, validRuns + NEXT_EVALUATION_RUNS)
             )
         }
+        runimalType?.let { TierCelebrationRunimalCard(it, runimalDescription) }
     }
 }
 
-/** 새 티어 카드: 별과 티어 이름. 서버 Tier 이름을 한국어로 바꾸고, UNRANKED와 모르는 값은 그대로 보인다. */
 @Composable
-private fun TierCard(tier: String) {
-    val name = EvaluationTier.of(tier)?.let { stringResource(it.nameRes) } ?: tier
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.ExtraLarge)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.BorderStrong, RunkkShapes.ExtraLarge)
-            .padding(vertical = 28.dp)
-            .semantics(mergeDescendants = true) {},
-        horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(RunkkIcons.Star, contentDescription = null, tint = RunkkColors.Lime, modifier = Modifier.size(36.dp))
-        Text(name, style = RunkkTextStyles.text(28, FontWeight.Black), color = RunkkColors.Lime)
-    }
-}
+private fun Divider() = HorizontalDivider(color = RunkkColors.Border)
 
-/** Runimal 확정 카드(G-11): 연한 둥근 네모 위 유형 그림, "Runimal 확정", 이름, 한 줄 설명(읽었을 때만, R2-15). */
+/** 티어 이름(서버 Tier 이름 → 한국어). UNRANKED와 모르는 값은 받은 그대로다. */
 @Composable
-private fun RunimalConfirmedCard(type: String, description: String?) {
-    val art = RunimalArt.of(type)
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.ExtraLarge)
-            .background(RunkkColors.Surface)
-            .border(1.dp, RunkkColors.BorderStrong, RunkkShapes.ExtraLarge)
-            .padding(16.dp)
-            .semantics(mergeDescendants = true) {},
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RunimalArtTile(art, size = 56.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(
-                stringResource(R.string.evaluation_runimal_confirmed),
-                style = RunkkTextStyles.Caption,
-                color = RunkkColors.TextSecondary
-            )
-            Text(
-                stringResource(art.nameRes),
-                style = RunkkTextStyles.text(18, FontWeight.Black),
-                color = RunkkColors.TextPrimary
-            )
-            description?.takeIf { it.isNotBlank() }?.let {
-                Text(it, style = RunkkTextStyles.Caption, color = RunkkColors.TextSecondary)
-            }
-        }
+private fun tierLabel(tier: String?): String =
+    tier?.let { EvaluationTier.of(it)?.let { known -> stringResource(known.nameRes) } ?: it }.orEmpty()
+
+/** 결과 문장: 승급 「○○로 올라갔어요」, 유지 「○○ 티어를 지켰어요」, 강등 「○○ 티어가 됐어요」, 모름 「○○ 티어예요」. */
+@Composable
+private fun headline(change: TierChange, tier: String): String {
+    val name = tierLabel(tier)
+    return when (change) {
+        TierChange.UP -> stringResource(R.string.evaluation_headline_up, name, directionParticle(name))
+        TierChange.KEEP -> stringResource(R.string.evaluation_headline_keep, name)
+        TierChange.DOWN -> stringResource(R.string.evaluation_headline_down, name)
+        TierChange.UNKNOWN -> stringResource(R.string.evaluation_headline_unknown, name)
     }
 }
 
-@Preview(name = "평가 결과", widthDp = 390, heightDp = 844)
+/** 「이번 평가」 값: 「골드 · 승급」(모르면 티어 이름만). */
+@Composable
+private fun currentLabel(change: TierChange, tier: String): String {
+    val name = tierLabel(tier)
+    val word = when (change) {
+        TierChange.UP -> stringResource(R.string.evaluation_change_up)
+        TierChange.KEEP -> stringResource(R.string.evaluation_change_keep)
+        TierChange.DOWN -> stringResource(R.string.evaluation_change_down)
+        TierChange.UNKNOWN -> return name
+    }
+    return stringResource(R.string.evaluation_current, name, word)
+}
+
+/** 방향 조사 「로」/「으로」: 받침이 없거나 ㄹ 받침이면 「로」. 한글이 아니면 「로」. */
+internal fun directionParticle(word: String): String {
+    val last = word.lastOrNull() ?: return "로"
+    if (last !in '가'..'힣') return "로"
+    val final = (last - '가') % JONGSEONG_COUNT
+    return if (final == 0 || final == RIEUL) "로" else "으로"
+}
+
+/** 재평가는 유효 러닝 10회마다다. */
+private const val NEXT_EVALUATION_RUNS = 10
+private const val JONGSEONG_COUNT = 28
+private const val RIEUL = 8
+
+@Preview(name = "티어 재평가", widthDp = 390, heightDp = 844)
 @Composable
 private fun EvaluationPreview() {
     RunkkTheme(reduceMotion = true) {
-        EvaluationScreen("GOLD", 20, "COMMUTER_TURTLE", onShowType = {}, onConfirm = {})
+        EvaluationScreen("GOLD", 20, "COMMUTER_TURTLE", onShowType = {}, onConfirm = {}, previousTier = "GOLD")
     }
 }

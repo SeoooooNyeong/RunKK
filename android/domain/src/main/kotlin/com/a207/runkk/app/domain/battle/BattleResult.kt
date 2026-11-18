@@ -50,5 +50,12 @@ data class BattleResult(
      * 본인 기록이 일으킨 티어 평가(서버 EvaluationDto, D-291·D-294). [kind]는 FIRST_PLACEMENT·REEVALUATION, [tier]는 서버 Tier 이름,
      * [validRuns]는 평가를 일으킨 유효 러닝 순번, [runimalType]은 확정된 유형(첫 배치·미확정이면 null)이다.
      */
-    data class Evaluation(val kind: String, val tier: String, val validRuns: Int, val runimalType: String?)
+    data class Evaluation(
+        val kind: String,
+        val tier: String,
+        val validRuns: Int,
+        val runimalType: String?,
+        /** 재평가 직전 티어 이름(과거 기록·옛 서버·첫 배치면 null). */
+        val previousTier: String? = null
+    )
 }

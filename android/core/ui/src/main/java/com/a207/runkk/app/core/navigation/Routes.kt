@@ -204,10 +204,16 @@ object Routes {
 
     /**
      * 평가 결과(G-11, ui.runimal EvaluationScreen, D-284). 끝낸 직후 연 러닝·대결 결과 응답에 evaluation이 있을 때 한 번 연다.
-     * [tier]는 서버 Tier 이름, [validRuns]는 evaluation.validRuns, [runimalType]은 확정 유형(첫 배치·미확정이면 null).
+     * [tier]는 서버 Tier 이름, [validRuns]는 evaluation.validRuns, [runimalType]은 확정 유형(첫 배치·미확정이면 null),
+     * [previousTier]는 재평가 직전 티어(과거 기록·옛 서버면 null).
      */
     @Serializable
-    data class Evaluation(val tier: String, val validRuns: Int, val runimalType: String?) : NavKey
+    data class Evaluation(
+        val tier: String,
+        val validRuns: Int,
+        val runimalType: String?,
+        val previousTier: String? = null
+    ) : NavKey
 
     /**
      * 배치고사 판 결과(ui.battle PlacementResultScreen, D-498·D-501, FR-280). 대결이 끝난 직후 대결 결과 대신 바꿔 연다.

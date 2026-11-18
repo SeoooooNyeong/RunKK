@@ -82,6 +82,7 @@
     <string name="core_spoken_running">측정 중</string>
     <string name="core_spoken_paused">일시정지</string>
     <string name="core_spoken_my_runimal">내 러니멀</string>
+    <string name="core_runimal_confirmed">Runimal 확정</string>
     <string name="core_spoken_crew_run">크루런</string>
     <string name="core_spoken_crew_run_result">크루런 결과</string>
     <string name="core_spoken_free_run">자유런</string>
