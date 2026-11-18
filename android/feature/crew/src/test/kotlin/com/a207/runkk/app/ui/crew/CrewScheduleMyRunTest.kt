@@ -14,6 +14,7 @@ import com.a207.runkk.app.domain.crew.MyRunState
 import com.a207.runkk.app.domain.crew.PostList
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Rule
 import org.junit.Test
@@ -124,5 +125,35 @@ class CrewScheduleMyRunViewModelTest {
         runCurrent()
         assertNull(idle.state.value.heroResults[31])
         assertEquals(1, repo.calls.count { it == "result:31" }, "투표 중 카드는 결과를 읽지 않는다")
+    }
+
+    @Test
+    fun `끝냈는데 결과에 내 기록이 아직 없으면 3초 뒤 다시 읽고 들어오면 멈춘다`() = main.runVmTest { vms ->
+        clock.now = crewRunVoting.scheduledAt.plusSeconds(600)
+        repo.crewRunList = PostList(
+            listOf(
+                crewRunPosts.posts[0].copy(
+                    crewRun = crewRunVoting.copy(status = CrewRunStatus.RUNNING, myRun = MyRunState.ENDED)
+                )
+            )
+        )
+        val notYet = crewRunResult.copy(
+            participants = crewRunResult.participants.map { if (it.isMe) it.copy(hasEnded = false) else it }
+        )
+        repo.resultState = notYet
+        val vm = vms.track(vm())
+        vm.onTab(CrewTab.SCHEDULE)
+        runCurrent()
+        assertEquals(1, repo.calls.count { it == "result:31" })
+
+        repo.resultState = crewRunResult
+        advanceTimeBy(3_001)
+        runCurrent()
+        assertEquals(2, repo.calls.count { it == "result:31" }, "내 기록이 아직 없으면 다시 읽는다")
+        assertEquals(crewRunResult, vm.state.value.heroResults[31])
+
+        advanceTimeBy(30_000)
+        runCurrent()
+        assertEquals(2, repo.calls.count { it == "result:31" }, "내 기록이 들어오면 멈춘다")
     }
 }

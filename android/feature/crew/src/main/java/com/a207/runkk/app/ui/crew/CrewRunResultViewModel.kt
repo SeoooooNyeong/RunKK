@@ -291,8 +291,10 @@ class CrewRunResultViewModel internal constructor(
             job?.cancel()
             return
         }
-        if (!wasLive || !isStarted || loaded == null || !needsMore || resultReads.isReading) return
+        if (!wasLive || !isStarted || loaded == null || !needsMore) return
         rereads = 0
+        // 읽는 중이면 그 읽기가 끝날 때 0부터 센 간격(3초)으로 다음을 정한다
+        if (resultReads.isReading) return
         scheduleNext()
     }
 

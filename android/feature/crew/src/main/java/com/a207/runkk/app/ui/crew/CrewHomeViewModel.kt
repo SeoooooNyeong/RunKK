@@ -20,6 +20,7 @@ import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunSignals
 import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.LobbyAvailability
+import com.a207.runkk.app.domain.crew.MyRunState
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
@@ -93,14 +94,19 @@ class CrewHomeViewModel @Inject constructor(
             }
                 .map { hero -> hero?.let { it.postId to it.crewRun?.myRun } }
                 .distinctUntilChanged()
-                .collectLatest { key -> key?.first?.let { postId -> readHeroResult(postId) } }
+                .collectLatest { key -> key?.let { (postId, myRun) -> readHeroResult(postId, myRun) } }
         }
     }
 
     /** 달리는 강조 카드의 크루런 결과를 읽어 담는다. 실패하면 모집 일시 기준 시간·숫자 없는 「완주했어요」로 그린다. */
-    private suspend fun readHeroResult(postId: Long) {
-        (crews.crewRunResult(postId) as? Outcome.Success)?.value?.let { result ->
+    private suspend fun readHeroResult(postId: Long, myRun: MyRunState?) {
+        repeat(HERO_READS) {
+            val result = (crews.crewRunResult(postId) as? Outcome.Success)?.value ?: return
             _state.update { it.copy(heroResults = it.heroResults + (postId to result)) }
+            // 끝냈는데 결과에 내 기록이 아직 없으면(업로드 직전) 잠시 뒤 다시 읽는다. 키가 바뀌면 collectLatest가 끊는다
+            val isSettled = myRun != MyRunState.ENDED || result.participants.any { it.isMe && it.hasEnded }
+            if (isSettled) return
+            delay(HERO_REREAD_MILLIS)
         }
     }
 
@@ -887,6 +893,12 @@ class CrewHomeViewModel @Inject constructor(
     }
 
     private companion object {
+        /** 강조 카드 결과를 읽는 최대 횟수(끝냈는데 내 기록이 아직 결과에 없을 때 다시 읽기 포함). */
+        const val HERO_READS = 4
+
+        /** 강조 카드 결과 다시 읽기 간격. */
+        const val HERO_REREAD_MILLIS = 3_000L
+
         const val LOBBY_TICK_MILLIS = 1_000L
 
         /** 새로 반영된 거리 강조 시간(설계 05-32 [임시:D-성-889]). */

@@ -99,4 +99,35 @@ class CrewRunResultRereadTest {
         runCurrent()
         assertEquals(1, reads(w))
     }
+
+    @Test
+    fun `읽는 중에 끊겨도 다음 다시 읽기는 3초부터다`() = main.runVmTest { vms ->
+        val w = crewWorld()
+        w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
+        val vm = vms.track(resultVm(w))
+        vm.load(31)
+        vm.onStart()
+        runCurrent()
+        repeat(14) {
+            advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
+            runCurrent()
+        }
+        signals.emit(CrewRunSignal.Link(isConnected = true))
+        runCurrent()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        w.crews.resultGate = gate
+        signals.emit(CrewRunSignal.Changed(CrewChange(11, 31, CrewChange.Resource.RESULT, 2)))
+        runCurrent()
+        signals.emit(CrewRunSignal.Link(isConnected = false))
+        runCurrent()
+        w.crews.resultGate = null
+        gate.complete(Unit)
+        runCurrent()
+        val before = reads(w)
+
+        advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
+        runCurrent()
+
+        assertEquals(before + 1, reads(w), "끊긴 뒤 첫 다시 읽기는 3초 뒤")
+    }
 }
