@@ -7,7 +7,7 @@ import com.a207.runkk.common.Tier;
  *
  * @param kind 첫 배치(유효 3회째) 또는 재평가(10의 배수 회차)
  * @param validRuns 평가를 일으킨 유효 러닝 순번(첫 배치 3, 재평가 10의 배수)
- * @param previousTier 평가가 바꾸기 전 티어(Member.recordValidRun이 담는다, v0.14 [임시:D-성-972]), 모르면 null
+ * @param previousTier 평가가 바꾸기 전 티어(Member.recordValidRun이 담는다, v0.14 S15P31A207-331), 모르면 null
  */
 public record TierEvaluation(EvaluationKind kind, int validRuns, Tier previousTier) {
 

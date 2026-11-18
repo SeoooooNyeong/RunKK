@@ -3,7 +3,7 @@ package com.a207.runkk.crew;
 import java.util.Optional;
 
 /**
- * 열람자의 크루런 참여 상태(v0.14 [임시:D-성-969], [임시:FR-성-401]). 크루런 목록·상세가 내주고, 앱은 RUNNING 카드의 단추를 이것으로
+ * 열람자의 크루런 참여 상태(v0.14 S15P31A207-314, S15P31A207-314). 크루런 목록·상세가 내주고, 앱은 RUNNING 카드의 단추를 이것으로
  * 고른다(ENDED → 결과 보기, RUNNING → 이어 달리기, NONE → 중간 참여하기).
  */
 public enum MyRunState {

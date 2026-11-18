@@ -809,7 +809,7 @@ final class CrewDtos {
          * @param notGoingCount 불참 인원(v0.11 FR-133)
          * @param undecidedCount 미정 인원(v0.11 FR-133)
          * @param title 제목(W6). 목록 Item.body는 이제 내용만이다
-         * @param myRun 열람자의 참여 상태 NONE | RUNNING | ENDED(v0.14 [임시:D-성-969])
+         * @param myRun 열람자의 참여 상태 NONE | RUNNING | ENDED(v0.14 S15P31A207-314)
          */
         record CrewRun(
                 Long distanceMeters,

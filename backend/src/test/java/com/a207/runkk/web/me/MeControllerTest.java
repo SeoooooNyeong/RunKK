@@ -54,7 +54,7 @@ class MeControllerTest extends WebTestSupport {
 
     @Test
     @DisplayName(
-            "[임시:U-성-51] GET /me/placement의 runimalType: 확정 Runimal 유형이 있으면 그 이름, 임시 유형만 있거나 없으면"
+            "S15P31A207-332 GET /me/placement의 runimalType: 확정 Runimal 유형이 있으면 그 이름, 임시 유형만 있거나 없으면"
                     + " null")
     void placement_carriesConfirmedRunimalType() throws Exception {
         Session none = signUp();

@@ -219,7 +219,7 @@ public class RunRecord {
     @Column(name = "evaluation_runimal_type", length = 20, insertable = false, updatable = false)
     private String evaluationRunimalType;
 
-    /** 평가가 바꾸기 전 티어([임시:D-성-972]). TierApplier가 평가 표시와 같은 갱신으로 쓴다. 열을 더하기 전 기록은 null. */
+    /** 평가가 바꾸기 전 티어(S15P31A207-331). TierApplier가 평가 표시와 같은 갱신으로 쓴다. 열을 더하기 전 기록은 null. */
     @Column(name = "evaluation_previous_tier", length = 10, insertable = false, updatable = false)
     private String evaluationPreviousTier;
 

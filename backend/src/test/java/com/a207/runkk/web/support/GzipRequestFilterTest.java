@@ -14,7 +14,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.util.StreamUtils;
 
-/** 요청 압축 해제 필터(v0.14 [임시:D-성-963]): 허용 목록(POST /api/v1/runs)의 gzip 본문만 상한 안에서 푼다. */
+/** 요청 압축 해제 필터(v0.14 S15P31A207-327): 허용 목록(POST /api/v1/runs)의 gzip 본문만 상한 안에서 푼다. */
 @DisplayName("GzipRequestFilter: POST /api/v1/runs의 gzip 본문을 상한 안에서 푼다")
 class GzipRequestFilterTest {
 
@@ -70,6 +70,36 @@ class GzipRequestFilterTest {
     }
 
     @Test
+    void unauthenticatedGzipIsNotInflated() throws Exception {
+        // 인증 머리글 없는 요청은 풀지 않고 넘긴다(보안 필터가 401). 로그인 없이 압축 폭탄으로 힙을 쓰지 못하게 한다
+        MockHttpServletRequest anonymous = new MockHttpServletRequest("POST", "/api/v1/runs");
+        anonymous.addHeader("Content-Encoding", "gzip");
+        anonymous.setContent(gzip(JSON));
+        MockHttpServletRequest basic = runs("gzip", gzip(JSON));
+        basic.removeHeader("Authorization");
+        basic.addHeader("Authorization", "Basic abc");
+
+        for (MockHttpServletRequest request : new MockHttpServletRequest[] {anonymous, basic}) {
+            MockFilterChain chain = new MockFilterChain();
+            filter.doFilter(request, new MockHttpServletResponse(), chain);
+            assertThat(chain.getRequest()).isSameAs(request);
+        }
+    }
+
+    @Test
+    void busyInflationIs503() throws Exception {
+        GzipRequestFilter oneAtATime = new GzipRequestFilter(1024, 0);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        oneAtATime.doFilter(runs("gzip", gzip(JSON)), response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(response.getContentAsString()).contains("\"code\":\"SERVICE_BUSY\"");
+        assertThat(chain.getRequest()).isNull();
+    }
+
+    @Test
     void inflatedBodyOverLimitIs413() throws Exception {
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain chain = new MockFilterChain();
@@ -114,6 +144,7 @@ class GzipRequestFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/runs");
         request.setContentType("application/json");
         if (encoding != null) request.addHeader("Content-Encoding", encoding);
+        request.addHeader("Authorization", "Bearer token");
         request.setContent(body);
         return request;
     }

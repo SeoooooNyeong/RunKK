@@ -28,7 +28,7 @@ public class RunimalQuery {
         return runimalProfileRepository.typesOf(memberIds);
     }
 
-    /** 확정 유형만(임시 유형은 보지 않는다). 배치고사 완료 화면이 쓴다([임시:U-성-51], FR-281). 없으면 비어 있다. */
+    /** 확정 유형만(임시 유형은 보지 않는다). 배치고사 완료 화면이 쓴다(S15P31A207-332, FR-281). 없으면 비어 있다. */
     @Transactional(readOnly = true)
     public Optional<RunimalType> confirmedTypeOf(long memberId) {
         return runimalProfileRepository.findOrCreate(memberId).getConfirmedType();

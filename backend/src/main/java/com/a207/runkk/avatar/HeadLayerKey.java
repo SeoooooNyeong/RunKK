@@ -3,7 +3,7 @@ package com.a207.runkk.avatar;
 import java.util.Objects;
 
 /**
- * 머리 층 하나를 가리키는 값(v0.14 [임시:D-성-955], 31장 2차안 D13). 형식 판은 컨트롤러가 다루고 여기에는 넣지 않는다.
+ * 머리 층 하나를 가리키는 값(v0.14 S15P31A207-316, 31장 2차안 D13). 형식 판은 컨트롤러가 다루고 여기에는 넣지 않는다.
  *
  * @param ownerId 머리 주인 회원 ID
  * @param jobId 셀카 작업 ID

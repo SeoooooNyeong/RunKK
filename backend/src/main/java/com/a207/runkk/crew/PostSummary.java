@@ -90,7 +90,7 @@ public record PostSummary(
      * @param myAnswer 열람자 응답, 없으면 null
      * @param finisherCount 완주 인원(지난 크루런)
      * @param linkedRecordIds 연결된 기록(크루 반영 거리 계산용)
-     * @param myRun 열람자의 참여 상태(v0.14 [임시:D-성-969])
+     * @param myRun 열람자의 참여 상태(v0.14 S15P31A207-314)
      */
     public record CrewRunInfo(
             String title,

@@ -208,7 +208,7 @@ class MemberTest {
         // 최근 10회: 38 ×3 + 46 ×7 = 43.6 → 플래티넘
         assertThat(m.getTier()).isEqualTo(Tier.PLATINUM);
         assertThat(tenth.evaluation())
-                .as("재평가는 바꾸기 전 티어를 함께 담는다([임시:D-성-972])")
+                .as("재평가는 바꾸기 전 티어를 함께 담는다(S15P31A207-331)")
                 .contains(new TierEvaluation(EvaluationKind.REEVALUATION, 10, Tier.GOLD));
 
         for (int i = 11; i <= 19; i++) {
