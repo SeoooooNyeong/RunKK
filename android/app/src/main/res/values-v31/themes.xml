@@ -3,8 +3,6 @@
     <!-- Android 12 이상 시작 화면: 가운데 앱 아이콘(R 로고)을 그리지 않고 바탕색만 잠깐 보인다(사용자 요청 2026-10-30). -->
     <style name="Theme.Runkk" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/ic_launcher_background</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowSplashScreenBackground">@color/ic_launcher_background</item>
         <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>
     </style>
