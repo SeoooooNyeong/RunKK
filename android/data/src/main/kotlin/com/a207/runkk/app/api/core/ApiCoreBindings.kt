@@ -63,8 +63,8 @@ object ApiCoreBindings {
 
     @Provides
     @Singleton
-    fun okHttpClient(tokens: TokenProvider, refresher: SessionRefresher): OkHttpClient =
-        authenticatedClient(refresher.client, tokens, refresher)
+    fun okHttpClient(tokens: TokenProvider, refresher: SessionRefresher, serverClock: ServerClock): OkHttpClient =
+        authenticatedClient(refresher.client, tokens, refresher, serverClock)
 
     /** 인증 없는 base 위에 접근 토큰 부착과 401 갱신을 얹는다. 갱신 요청은 base로 보낸다(시험도 이 조립을 쓴다). */
     internal fun authenticatedClient(
@@ -74,13 +74,15 @@ object ApiCoreBindings {
         json: Json
     ): OkHttpClient = authenticatedClient(base, tokens, SessionRefresher(tokens, base, refreshUrl, json))
 
+    /** [clock]을 주면 접근 토큰 만료 60초 전에 원 요청보다 먼저 갱신한다(Jira 326). */
     internal fun authenticatedClient(
         base: OkHttpClient,
         tokens: TokenProvider,
-        refresher: SessionRefresher
+        refresher: SessionRefresher,
+        clock: ServerClock? = null
     ): OkHttpClient = base
         .newBuilder()
-        .addInterceptor(AuthInterceptor(tokens))
+        .addInterceptor(AuthInterceptor(tokens, refresher.takeIf { clock != null }, clock))
         .addNetworkInterceptor { chain ->
             val request = chain.request()
             if (request.tag(BoundSession::class.java)?.isCurrent(tokens) == false) {
