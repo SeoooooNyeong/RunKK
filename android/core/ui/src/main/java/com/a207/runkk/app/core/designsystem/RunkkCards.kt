@@ -306,20 +306,34 @@ fun RunkkSegmentBar(segments: List<Pair<Float, Color>>, modifier: Modifier = Mod
     }
 }
 
-/** 강조 배너(라임 배경, "최장 거리 신기록") 또는 안내 배너(어두운 라임, "2km 통과"). */
+/**
+ * 강조 배너(라임 배경, "최장 거리 신기록"), 안내 배너(어두운 라임, "2km 통과") 또는 상대 쪽 배너([isRival], 표면색 배경·라벤더 테두리와
+ * 글자, "역전당했어요"). 상대 쪽 배너는 불투명해서 다른 그림 위에 겹쳐 띄워도 읽힌다(S15P31A207-334).
+ */
 @Composable
 fun RunkkBanner(
     text: String,
     modifier: Modifier = Modifier,
     isStrong: Boolean = false,
+    isRival: Boolean = false,
     leading: (@Composable () -> Unit)? = null
 ) {
+    val background = when {
+        isRival -> RunkkColors.Surface
+        isStrong -> RunkkColors.LimeFill
+        else -> RunkkColors.LimeContainer
+    }
+    val border = when {
+        isRival -> RunkkColors.Lavender
+        isStrong -> null
+        else -> RunkkColors.Lime
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RunkkShapes.Medium)
-            .background(if (isStrong) RunkkColors.LimeFill else RunkkColors.LimeContainer)
-            .then(if (isStrong) Modifier else Modifier.border(1.dp, RunkkColors.Lime, RunkkShapes.Medium))
+            .background(background)
+            .then(if (border == null) Modifier else Modifier.border(1.dp, border, RunkkShapes.Medium))
             .padding(16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -327,7 +341,7 @@ fun RunkkBanner(
         leading?.invoke()
         Text(
             text = text,
-            style = if (isStrong) {
+            style = if (isStrong || isRival) {
                 RunkkTextStyles.text(
                     15,
                     androidx.compose.ui.text.font.FontWeight.Black
@@ -335,7 +349,11 @@ fun RunkkBanner(
             } else {
                 RunkkTextStyles.BodyStrong
             },
-            color = if (isStrong) RunkkColors.OnLimeFill else RunkkColors.Lime
+            color = when {
+                isRival -> RunkkColors.Lavender
+                isStrong -> RunkkColors.OnLimeFill
+                else -> RunkkColors.Lime
+            }
         )
     }
 }

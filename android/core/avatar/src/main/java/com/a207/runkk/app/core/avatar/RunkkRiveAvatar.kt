@@ -24,6 +24,8 @@ import kotlin.coroutines.cancellation.CancellationException
  *   가운데) 서기는 늘 정면 그대로다(D-762). 진행 방향 흔들림은 [rememberRunFacingLeft]로 거른 값을 넘긴다.
  * - [onReady]: 지금 동작의 첫 텍스처가 들어가 그림이 보이게 된 때(주 스레드). 남녀·머리·동작이 바뀌어 다시 그리면 다시 온다.
  *   로딩 표시를 거둘 시점이다([AvatarLoadingPlaceholder], D-738). 끝에 둔 매개변수라 뒤붙은 람다는 이것으로 묶인다.
+ * - [warmAllMotions]: 서기·달리기 플레이어를 처음부터 함께 만들어 두 동작을 한 번에 합성한다(트랙 칸, S15P31A207-335). 자세가 바뀌는
+ *   동안에는 새 동작이 준비될 때까지 앞 동작을 보인다.
  *
  * 같은 모습을 [prepareRiveAvatarLook]으로 미리 준비했거나 다른 뷰가 그렸으면 합성을 다시 하지 않는다(공용 합성 캐시).
  *
@@ -42,7 +44,8 @@ fun RunkkRiveAvatar(
     onError: (Throwable) -> Unit = {},
     mirrored: Boolean = false,
     onReady: () -> Unit = {},
-    runSpeed: Float = 1f
+    runSpeed: Float = 1f,
+    warmAllMotions: Boolean = false
 ) {
     val amount = runningAmount.coerceIn(MIN_RUNNING_AMOUNT, MAX_RUNNING_AMOUNT)
     val currentOnError by rememberUpdatedState(onError)
@@ -73,6 +76,7 @@ fun RunkkRiveAvatar(
         onRelease = RiveAvatarView::release,
         update = { view ->
             view.runSpeed = runSpeed
+            view.warmAllMotions = warmAllMotions
             view.render(AvatarRenderState(gender, motion, outfit, bodyShape, amount, headLayers, mirrored), prepared)
         }
     )

@@ -60,7 +60,9 @@ internal fun TrackRunAvatarFigure(
                         mirrored = facingLeft,
                         runSpeed = LocalSlotAvatarRunSpeed.current,
                         onReady = onReady,
-                        onError = { onError() }
+                        onError = { onError() },
+                        // 서기·달리기를 처음부터 함께 준비해 자세가 바뀔 때 몸이 비거나 깜빡이지 않게 한다(S15P31A207-335).
+                        warmAllMotions = true
                     )
                 }
             }

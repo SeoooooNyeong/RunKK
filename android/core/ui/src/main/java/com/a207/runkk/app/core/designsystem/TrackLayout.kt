@@ -17,8 +17,12 @@ object TrackLayout {
     /** 상대를 트랙 위에 그리는 가장자리 여백. 이 안쪽([EDGE_MARGIN]..1 − [EDGE_MARGIN])에 들어올 때만 아바타를 그린다. */
     const val EDGE_MARGIN = 0.08f
 
-    /** 계산 결과. [other]가 null이면 상대를 그리지 않고(격차 모름), [finish]가 null이면 결승선을 그리지 않는다. */
-    data class Result(val myX: Float, val other: Other?, val finish: Finish?)
+    /**
+     * 계산 결과. [other]가 null이면 상대를 그리지 않고(격차 모름), [finish]가 null이면 결승선을 그리지 않는다. [otherRawX]는 자르지 않은
+     * 상대 가로 위치다(가장자리 칩일 때도 있다). 트랙 카드는 이 값으로 상대를 카드 밖에서부터 그려 오는 쪽 가장자리에서 들어오게 한다
+     * (S15P31A207-335).
+     */
+    data class Result(val myX: Float, val other: Other?, val finish: Finish?, val otherRawX: Float? = null)
 
     /** 상대 자리. */
     sealed interface Other {
@@ -36,8 +40,12 @@ object TrackLayout {
      * [aheadMeters]는 상대 − 나(m, 상대가 앞이면 양수)이고 모르면 null이다. [remainingMeters]는 목표까지 남은 거리이고 목표가 없으면
      * null이다. 결승선은 화면 안(`MY_X + r/30 ≤ 1`, 남은 약 18 m부터)에 들어올 때만 있고, 다 달렸으면 내 자리다.
      */
-    fun of(aheadMeters: Double?, remainingMeters: Double?): Result =
-        Result(myX = MY_X, other = aheadMeters?.let(::otherOf), finish = remainingMeters?.let(::finishOf))
+    fun of(aheadMeters: Double?, remainingMeters: Double?): Result = Result(
+        myX = MY_X,
+        other = aheadMeters?.let(::otherOf),
+        finish = remainingMeters?.let(::finishOf),
+        otherRawX = aheadMeters?.let(::xOf)
+    )
 
     private fun otherOf(ahead: Double): Other {
         val x = xOf(ahead)

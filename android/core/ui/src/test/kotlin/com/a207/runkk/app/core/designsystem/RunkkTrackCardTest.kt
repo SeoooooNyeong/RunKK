@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
@@ -204,5 +205,32 @@ class RunkkTrackCardTest {
         compose.onAllNodesWithTag(TRACK_DOT_OTHER_TAG)[0].assertWidthIsEqualTo(11.dp)
         compose.onNodeWithText("2.34 / 5 km").assertExists()
         compose.onNodeWithText("남은 거리 2.66 km").assertExists()
+    }
+
+    @Test
+    fun `가장자리에서 트랙에 들어온 상대는 내 자리(가운데)가 아니라 가장자리 쪽에서 시작해 부드럽게 들어온다(S15P31A207-335)`() {
+        var layout by mutableStateOf(TrackLayout.of(aheadMeters = 20.0, remainingMeters = 2_000.0))
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = false) {
+                RunkkTrackCard(
+                    layout = layout,
+                    myTag = "나",
+                    otherTag = "바람처럼",
+                    myAvatar = {},
+                    otherAvatar = {},
+                    modifier = Modifier.size(width = 320.dp, height = 328.dp)
+                )
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        Snapshot.withMutableSnapshot { layout = TrackLayout.of(aheadMeters = 15.0, remainingMeters = 2_000.0) }
+        compose.mainClock.advanceTimeByFrame()
+        compose.mainClock.advanceTimeByFrame()
+        // 20 m 앞(x 1.07) 가장자리 밖에서 오므라 들어오는 순간은 오른쪽 가장자리 근처다. 가운데(128)에서 나타나지 않는다.
+        assertTrue(centerX(TRACK_OTHER_TAG) > 272.dp, "들어오는 순간 ${centerX(TRACK_OTHER_TAG)}")
+        // 시간이 지나면 받은 자리(0.9 × 320 = 288)에 닿는다.
+        compose.mainClock.advanceTimeBy(3_000)
+        assertEquals(288f, centerX(TRACK_OTHER_TAG).value, 1f)
     }
 }
