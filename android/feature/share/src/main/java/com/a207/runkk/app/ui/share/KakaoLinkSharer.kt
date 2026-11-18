@@ -87,7 +87,7 @@ class KakaoLinkSharer @Inject constructor() {
         const val CREW_INVITE_PARAM = "crewInvite"
 
         /** 초대 카드 그림(서버 nginx 정적 파일). 앱 링크 경로(/invite/crew/, /invite/battle/) 밖이라 그림을 눌러도 앱 링크로 잡히지 않는다. */
-        const val INVITE_CARD_IMAGE = "https://k15a207.p.ssafy.io/invite/card.png"
+        const val INVITE_CARD_IMAGE = "https://k15a207.p.ssafy.io/invite/card.jpg"
     }
 }
 

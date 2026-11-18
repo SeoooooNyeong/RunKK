@@ -16,6 +16,14 @@ detect_nginx_mode
 health_curl "$RUNKK_ENV" /actuator/health | grep -q '"UP"' || die "$RUNKK_ENV api health is not UP"
 echo "$RUNKK_ENV api: UP ($NGINX_MODE)"
 
+# 앱이 부르는 대표 api 주소가 nginx를 거쳐 api에 그대로 닿는지 본다. 로그인 없이 부르므로 401이 정상이다.
+# 301·404면 nginx location이 주소를 바꾼 것이다(v0.13.3: location ^~ /api/v1/avatar/가 GET /api/v1/avatar를 301로 돌려 내 아바타가 안 떴다)
+for path in /api/v1/avatar /api/v1/avatar/runner /api/v1/me; do
+  code="$(health_curl "$RUNKK_ENV" "$path" -o /dev/null -w '%{http_code}' 2>/dev/null || true)"
+  [ "$code" = 401 ] || die "$RUNKK_ENV $path through nginx returned ${code:-no response} (expected 401)"
+done
+echo "$RUNKK_ENV api routes: reach the api (401 without login)"
+
 # ai는 외부 포트가 없어 컨테이너 헬스 상태로 본다("unhealthy"가 걸리지 않게 정확히 비교)
 [ "$(docker inspect -f '{{.State.Health.Status}}' "$APP_PROJECT-ai-1")" = healthy ] || die "$APP_PROJECT-ai-1 is not healthy"
 echo "$RUNKK_ENV ai: healthy"

@@ -5,6 +5,8 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --chown=node:node *.mjs ./
 COPY --chown=node:node public ./public
+# 운영 도구(저장된 머리 재압축 등). docker exec로 돌린다
+COPY --chown=node:node scripts ./scripts
 RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 3000

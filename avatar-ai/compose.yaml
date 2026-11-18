@@ -13,6 +13,7 @@ services:
       IMAGE_QUALITY: ${IMAGE_QUALITY:-high}
       AI_CALLBACK_URL: ${AI_CALLBACK_URL:-}
       AI_CALLBACK_TOKEN: ${AI_CALLBACK_TOKEN:-}
+      HEAD_PNG_COMPRESSION: ${HEAD_PNG_COMPRESSION:-off}
     expose:
       - "3000"
     volumes:
