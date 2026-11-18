@@ -6,6 +6,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 val LocalTrackAvatarViewport = staticCompositionLocalOf { false }
 
 /**
+ * 출발 전 트랙 주자 미리 데우기([RunkkTrackAvatarWarmup]) 안인가. 참이면 아바타 칸은 Rive 칸을 만들지 않고 그 모습의 Rive 파일 가져오기와
+ * 텍스처 합성만 미리 한다(S15P31A207-335 6회차).
+ */
+val LocalTrackAvatarWarmup = staticCompositionLocalOf { false }
+
+/**
  * 트랙 주자 칸의 아바타가 아직 준비 중인지 카드에 알리는 통로. 카드는 준비 중인 주자를 그림자와 이름표까지 숨겼다가 한 번에 보인다
  * (기본 그림이 먼저 보였다가 바뀌지 않게, [임시:D-성-181]과 같은 뜻).
  */
