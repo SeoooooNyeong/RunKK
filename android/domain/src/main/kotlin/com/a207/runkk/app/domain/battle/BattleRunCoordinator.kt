@@ -544,6 +544,11 @@ constructor(
         // 측정 서비스의 위치 구독이 이어받는다. 예열 위치는 기록에 넘기지 않았다(W55).
         run.stopGpsWarmUp()
         if (started is Outcome.Failure) {
+            // 셀프런·셀럽런은 혼자 하는 대결이라, 측정을 못 시작하면(위치 권한 거절 등) 서버 대결을 취소해 진행 중으로 남기지 않는다
+            // (S15P31A207-336). 상대가 있는 대결은 서버 규칙(시간 초과)에 맡긴다.
+            if (!run.isOffline && run.cardKind in RECORD_BATTLE_KINDS) {
+                applicationScope.launch { battleRepository.cancel(run.battleId) }
+            }
             fail(run, started.error)
             return false
         }
@@ -823,6 +828,9 @@ constructor(
     }
 
     private companion object {
+        /** 혼자 하는 기록 대결(셀프런·셀럽런). */
+        val RECORD_BATTLE_KINDS = setOf(CardKind.SELF_RUN, CardKind.CELEB_RUN)
+
         val RECORD_COUNTDOWN: Duration = Duration.ofSeconds(3)
 
         /** GPS 예열 상한(5분, 워치 W53과 같다). 출발이 늦어져도 GPS를 계속 켜 두지 않는다. */

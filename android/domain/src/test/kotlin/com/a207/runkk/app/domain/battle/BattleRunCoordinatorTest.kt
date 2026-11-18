@@ -461,6 +461,25 @@ class BattleRunCoordinatorTest {
     }
 
     @Test
+    fun `S15P31A207-336 셀프런·셀럽런이 측정을 시작하지 못하면 서버 대결을 취소한다(위치 권한 거절)`() = runTest {
+        val (_, coordinator) = setUp()
+        host.startFailure = AppError.Rejected("LOCATION_CONSENT")
+        coordinator.onRecordBattleStart(selfStart)
+        advanceTimeBy(3_001)
+        runCurrent()
+        assertEquals(listOf("battle.cancel:7"), log.calls, "시작 보고 없이 취소만 보낸다")
+        assertIs<BattleRunState.Finished>(coordinator.state.value)
+        assertEquals(AppError.Rejected("LOCATION_CONSENT"), coordinator.failure.value)
+
+        coordinator.acknowledgeFinished()
+        log.calls.clear()
+        coordinator.onRecordBattleStart(selfStart.copy(battleId = 8, cardKind = CardKind.CELEB_RUN))
+        advanceTimeBy(3_001)
+        runCurrent()
+        assertEquals(listOf("battle.cancel:8"), log.calls)
+    }
+
+    @Test
     fun `TC-9638 셀프런 카운트다운 중 다시 고르기 - 측정 없이 cancel만 보내고 Discarded로 닫는다(D119)`() = runTest {
         val (_, coordinator) = setUp()
         coordinator.onRecordBattleStart(selfStart)
