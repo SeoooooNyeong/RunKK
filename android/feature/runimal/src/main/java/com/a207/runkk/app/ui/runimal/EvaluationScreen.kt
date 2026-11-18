@@ -9,7 +9,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.a207.runkk.app.core.designsystem.AvatarExpression
 import com.a207.runkk.app.core.designsystem.ResultBottomBar
+import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.TierCelebration
@@ -18,6 +20,8 @@ import com.a207.runkk.app.core.designsystem.TierCelebrationCardHeader
 import com.a207.runkk.app.core.designsystem.TierCelebrationFrame
 import com.a207.runkk.app.core.designsystem.TierCelebrationRunimalCard
 import com.a207.runkk.app.core.designsystem.TierResultRow
+import com.a207.runkk.app.core.navigation.AvatarStillSlot
+import com.a207.runkk.app.core.navigation.AvatarStillSubject
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.runimal.TierChange
@@ -82,7 +86,10 @@ fun EvaluationScreen(
         },
         modifier = modifier
     ) {
-        TierCelebration(title = headline(change, tier), subtitle = null, tier = tier)
+        TierCelebration(title = headline(change, tier), subtitle = null, tier = tier) { size ->
+            // 내 전신 정지 그림. 칸이 비면 기쁜 기본 아바타다.
+            AvatarStillSlot(AvatarStillSubject.MINE, size) { RunkkAvatar(null, AvatarExpression.JOY, size) }
+        }
         TierCelebrationCard {
             TierCelebrationCardHeader(
                 stringResource(R.string.evaluation_valid_runs, validRuns),

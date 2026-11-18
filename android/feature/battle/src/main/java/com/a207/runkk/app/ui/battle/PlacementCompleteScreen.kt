@@ -139,10 +139,14 @@ private fun CompleteBody(tier: String, state: PlacementCompleteUiState) {
     TierCelebration(
         title = stringResource(R.string.placement_complete_headline, tierName(tier).orEmpty()),
         subtitle = null,
-        tier = tier
+        tier = tier,
+        avatar = { size ->
+            // 내 전신 정지 그림. 칸이 비면 기쁜 기본 아바타다.
+            AvatarStillSlot(MY_STILL, size) { RunkkAvatar(null, AvatarExpression.JOY, size) }
+        }
     )
     RoundsCard(state)
-    state.runimalType?.let { TierCelebrationRunimalCard(it, state.runimalDescription) }
+    state.runimalType?.let { TierCelebrationRunimalCard(it, description = null) }
 }
 
 /** 「배치고사 3판」 표(축하 요약 카드): 머리, 판 행, 산정 안내 줄. */

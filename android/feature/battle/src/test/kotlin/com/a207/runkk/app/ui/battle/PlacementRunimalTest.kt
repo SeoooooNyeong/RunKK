@@ -24,23 +24,15 @@ class PlacementRunimalViewModelTest {
     private val accounts = FakeAccounts()
 
     @Test
-    fun `확정 Runimal 유형이 있으면 유형과 한 줄 설명을 담고 없으면 비워 둔다`() = main.runVmTest { vms ->
+    fun `확정 Runimal 유형이 있으면 담고 없으면 비워 둔다`() = main.runVmTest { vms ->
         accounts.placementResult =
             Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD").copy(runimalType = "COMMUTER_TURTLE"))
-        val asked = mutableListOf<String>()
-        val vm = vms.track(
-            PlacementCompleteViewModel(accounts) { type ->
-                asked += type
-                "같은 길을 오래"
-            }
-        )
+        val vm = vms.track(PlacementCompleteViewModel(accounts))
         runCurrent()
         assertEquals("COMMUTER_TURTLE", vm.state.value.runimalType)
-        assertEquals("같은 길을 오래", vm.state.value.runimalDescription)
-        assertEquals(listOf("COMMUTER_TURTLE"), asked)
 
         accounts.placementResult = Outcome.Success(settled(PlacementStatus.COMPLETED, "GOLD"))
-        val none = vms.track(PlacementCompleteViewModel(accounts) { error("부르지 않는다") })
+        val none = vms.track(PlacementCompleteViewModel(accounts))
         runCurrent()
         assertNull(none.state.value.runimalType)
     }
@@ -59,8 +51,7 @@ class PlacementRunimalScreenTest {
                     tier = "GOLD",
                     wins = 2,
                     losses = 1,
-                    runimalType = runimalType,
-                    runimalDescription = runimalType?.let { "같은 길을 오래" }
+                    runimalType = runimalType
                 ),
                 PlacementCompleteActions()
             )
@@ -73,7 +64,6 @@ class PlacementRunimalScreenTest {
         compose.onNodeWithText("골드 티어가 됐어요").assertExists()
         compose.onNodeWithText("Runimal 확정").performScrollTo().assertExists()
         compose.onNodeWithText("출근도장 거북이").assertExists()
-        compose.onNodeWithText("같은 길을 오래").assertExists()
     }
 
     @Test

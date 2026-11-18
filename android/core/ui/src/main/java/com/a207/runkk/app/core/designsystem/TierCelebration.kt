@@ -36,8 +36,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.a207.runkk.app.core.model.TierDisplay
-import com.a207.runkk.app.core.navigation.AvatarStillSlot
-import com.a207.runkk.app.core.navigation.AvatarStillSubject
 
 /**
  * 티어 축하 화면 틀(배치고사 완료 C-16, 티어 재평가 G-11 v2): 아바타 배경(내용이 있을 때), 왼쪽 위 뒤로 + 가운데 [title] 상단 바, 스크롤 본문,
@@ -72,11 +70,12 @@ fun TierCelebrationFrame(
 
 /**
  * 축하 히어로와 제목: 흰 원 빛 위 큰 티어 배지([tier]), 기뻐하는 내 전신 아바타, 축하 조각 10개, 아래 24 Bold [title]과 [subtitle](있을 때).
- * 부품은 받은 글자만 그린다(승급·유지 문장은 부르는 화면이 고른다).
+ * 부품은 받은 글자만 그린다(승급·유지 문장은 부르는 화면이 고른다). [avatar]는 110×176 칸에 그릴 내 전신 그림이다(부르는 화면이
+ * 정지 그림 칸 AvatarStillSlot을 넘긴다: 디자인 시스템은 core.navigation을 모른다).
  */
 @Composable
-fun TierCelebration(title: String, subtitle: String?, tier: String) {
-    TierCelebrationHero(tier)
+fun TierCelebration(title: String, subtitle: String?, tier: String, avatar: @Composable (Modifier) -> Unit) {
+    TierCelebrationHero(tier, avatar)
     Text(
         title,
         style = RunkkTextStyles.text(24, FontWeight.Bold),
@@ -94,7 +93,7 @@ fun TierCelebration(title: String, subtitle: String?, tier: String) {
  * 조각 위치·크기·각도는 피그마 7-5 그대로, 색은 라임·보라·금(podiumFirst #EBC66A). 그림은 장식이라 배지 낭독만 남긴다.
  */
 @Composable
-private fun TierCelebrationHero(tier: String) {
+private fun TierCelebrationHero(tier: String, avatar: @Composable (Modifier) -> Unit) {
     val gold = LocalRunkkTierColors.current.podiumFirst
     Box(Modifier.size(width = HERO_WIDTH, height = HERO_HEIGHT)) {
         Box(
@@ -121,11 +120,9 @@ private fun TierCelebrationHero(tier: String) {
                     .background(color)
             )
         }
-        // 축하 아바타는 내 전신 정지 그림. 칸이 비면 기쁜 기본 아바타다.
+        // 축하 아바타는 내 전신 정지 그림(부르는 화면이 넘긴다). 장식이라 낭독하지 않는다.
         Box(Modifier.offset(x = 30.dp, y = 30.dp).clearAndSetSemantics {}) {
-            AvatarStillSlot(AvatarStillSubject.MINE, Modifier.size(width = 110.dp, height = 176.dp)) {
-                RunkkAvatar(null, AvatarExpression.JOY, Modifier.size(width = 110.dp, height = 176.dp))
-            }
+            avatar(Modifier.size(width = 110.dp, height = 176.dp))
         }
         TierBadgeLarge(TierDisplay.Confirmed(tier), Modifier.offset(x = 152.dp, y = 50.dp).width(136.dp))
     }

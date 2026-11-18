@@ -15,9 +15,8 @@ data class PlacementCompleteUiState(
     val losses: Int = 0,
     val draws: Int = 0,
     val error: UiText? = null,
-    /** 확정된 Runimal 유형 이름(없으면 null, Runimal 카드를 숨긴다)과 그 유형의 한 줄 설명(못 읽었으면 null). */
-    val runimalType: String? = null,
-    val runimalDescription: String? = null
+    /** 확정된 Runimal 유형 이름(없으면 null, Runimal 카드를 숨긴다). */
+    val runimalType: String? = null
 ) {
     /** 표 머리 「n승 n패」(무승부가 있으면 「n승 n패 n무」, FR-281). */
     val recordLabel: UiText
