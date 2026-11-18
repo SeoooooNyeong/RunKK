@@ -184,7 +184,8 @@ public class CrewScheduleService {
                 mine || crewAccess.allows(crew, viewerId, CrewAction.DELETE_ANY_CONTENT),
                 series.isPresent() ? CrewRunRepeat.WEEKLY : CrewRunRepeat.NONE,
                 series.map(CrewRunSeries::dayOfWeek).orElse(null),
-                attendees);
+                attendees,
+                post.myRunOf(viewerId));
     }
 
     private static CrewRunDetailView.Attendee attendee(

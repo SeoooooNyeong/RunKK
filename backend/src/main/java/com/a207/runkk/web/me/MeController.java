@@ -24,12 +24,15 @@ import com.a207.runkk.member.WithdrawalResult;
 import com.a207.runkk.member.WithdrawalService;
 import com.a207.runkk.profile.ProfileQueryService;
 import com.a207.runkk.profile.ProfileView;
+import com.a207.runkk.runimal.RunimalQuery;
+import com.a207.runkk.runimal.RunimalType;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,24 +64,31 @@ public class MeController {
     private final WithdrawalService withdrawalService;
     private final ProfileQueryService profileQueryService;
     private final PlacementService placementService;
+    private final RunimalQuery runimalQuery;
 
     public MeController(
             ProfileService profileService,
             MemberSettingService memberSettingService,
             WithdrawalService withdrawalService,
             ProfileQueryService profileQueryService,
-            PlacementService placementService) {
+            PlacementService placementService,
+            RunimalQuery runimalQuery) {
         this.profileService = profileService;
         this.memberSettingService = memberSettingService;
         this.withdrawalService = withdrawalService;
         this.profileQueryService = profileQueryService;
         this.placementService = placementService;
+        this.runimalQuery = runimalQuery;
     }
 
-    /** 본인 배치고사 진행(05-03 5.7.3 P1, FR-279~FR-282). 임시 티어는 이 응답에만 있다(D-485). */
+    /**
+     * 본인 배치고사 진행(05-03 5.7.3 P1, FR-279~FR-282). 임시 티어는 이 응답에만 있다(D-485). 확정 Runimal 유형이 있으면 함께
+     * 준다(배치고사 완료 화면, v0.14 [임시:U-성-51]).
+     */
     @GetMapping("/me/placement")
     PlacementResponse placement(@RequestAttribute(MEMBER_ID) long memberId) {
-        return PlacementResponse.of(placementService.view(memberId));
+        return PlacementResponse.of(
+                placementService.view(memberId), runimalQuery.confirmedTypeOf(memberId));
     }
 
     /** 회원 프로필(FR-005, FR-006). 공개 수준(SELF·PUBLIC·WITHDRAWN)이 정한 항목만 담긴다. 없는 회원은 400. */
@@ -220,6 +230,7 @@ public class MeController {
      * @param provisionalTier IN_PROGRESS이고 한 판 이상 셌으면 임시 티어(BRONZE~MASTER), 아니면 null
      * @param tier 회원 티어(공개 티어), IN_PROGRESS면 UNRANKED
      * @param rounds 센 판(round 오름차순), 없으면 빈 목록
+     * @param runimalType 확정 Runimal 유형 이름(배치고사 완료 화면, v0.14 [임시:U-성-51]·FR-281), 확정 전이면 null
      */
     record PlacementResponse(
             String status,
@@ -227,16 +238,18 @@ public class MeController {
             Integer nextRound,
             String provisionalTier,
             String tier,
-            List<Round> rounds) {
+            List<Round> rounds,
+            String runimalType) {
 
-        static PlacementResponse of(PlacementView v) {
+        static PlacementResponse of(PlacementView v, Optional<RunimalType> confirmedRunimal) {
             return new PlacementResponse(
                     v.status().name(),
                     v.countedRounds(),
                     v.nextRound(),
                     v.provisionalTier() == null ? null : v.provisionalTier().name(),
                     v.tier().name(),
-                    v.rounds().stream().map(Round::of).toList());
+                    v.rounds().stream().map(Round::of).toList(),
+                    confirmedRunimal.map(RunimalType::name).orElse(null));
         }
 
         /**

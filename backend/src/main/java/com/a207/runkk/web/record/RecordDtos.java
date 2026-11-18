@@ -149,15 +149,18 @@ final class RecordDtos {
      * @param tier 평가 뒤 티어
      * @param validRuns 평가를 일으킨 유효 러닝 순번(3, 10의 배수)
      * @param runimalType 그 판정에서 확정된 Runimal 유형(첫 배치·미확정이면 null)
+     * @param previousTier 평가가 바꾸기 전 티어(v0.14 [임시:D-성-972]), 열을 더하기 전 기록이면 null
      */
-    record EvaluationDto(String kind, String tier, int validRuns, String runimalType) {
+    record EvaluationDto(
+            String kind, String tier, int validRuns, String runimalType, String previousTier) {
 
         static EvaluationDto of(EvaluationView v) {
             return new EvaluationDto(
                     v.kind(),
                     v.tier() == null ? null : v.tier().name(),
                     v.validRuns(),
-                    v.runimalType());
+                    v.runimalType(),
+                    v.previousTier() == null ? null : v.previousTier().name());
         }
     }
 

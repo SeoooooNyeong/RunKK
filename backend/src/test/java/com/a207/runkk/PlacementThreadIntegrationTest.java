@@ -718,6 +718,22 @@ class PlacementThreadIntegrationTest {
         }
 
         assertThat(reevaluations(m)).as("확정 판 순번 뒤 10의 배수(20)").isEqualTo(1);
+        // 재평가 기록에 바꾸기 전 티어(배치 확정 GOLD)가 남고 기록 상세 평가에 나간다([임시:D-성-972])
+        String reevaluated =
+                jdbc.queryForObject(
+                        "select record_id from run_record where member_id = ? and"
+                                + " evaluation_kind = 'REEVALUATION'",
+                        String.class,
+                        m);
+        assertThat(
+                        jdbc.queryForObject(
+                                "select evaluation_previous_tier from run_record where record_id"
+                                        + " = ?",
+                                String.class,
+                                reevaluated))
+                .isEqualTo("GOLD");
+        assertThat(runQuery.evaluationOf(reevaluated).orElseThrow().previousTier())
+                .isEqualTo(Tier.GOLD);
     }
 
     private int reevaluations(long memberId) {

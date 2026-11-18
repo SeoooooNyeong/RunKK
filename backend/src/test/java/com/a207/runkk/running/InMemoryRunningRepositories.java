@@ -303,7 +303,13 @@ public final class InMemoryRunningRepositories {
             if (r == null || !r.markTierApplied()) {
                 return false;
             }
-            evaluation.ifPresent(e -> r.markEvaluation(e.kind(), e.tier().name(), e.validRuns()));
+            evaluation.ifPresent(
+                    e ->
+                            r.markEvaluation(
+                                    e.kind(),
+                                    e.tier().name(),
+                                    e.validRuns(),
+                                    e.previousTier() == null ? null : e.previousTier().name()));
             return true;
         }
 

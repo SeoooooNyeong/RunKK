@@ -15,6 +15,7 @@ import com.a207.runkk.running.RunQueryService;
 import com.a207.runkk.running.RunRecordRepository;
 import com.a207.runkk.running.StartDevice;
 import com.a207.runkk.web.WebTestSupport;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.HashMap;
@@ -130,6 +131,111 @@ class RunControllerTest extends WebTestSupport {
                         as(s, post("/api/v1/runs"))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private static byte[] gzip(byte[] plain) throws Exception {
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.GZIPOutputStream zip = new java.util.zip.GZIPOutputStream(out)) {
+            zip.write(plain);
+        }
+        return out.toByteArray();
+    }
+
+    @Test
+    @DisplayName("gzip 업로드(Content-Encoding: gzip)는 풀어서 저장하고 결과가 무압축 업로드와 같다(D-성-963)")
+    void gzipUpload_storesSameAsPlain() throws Exception {
+        Session s = signUp();
+        String zipped = UUID.randomUUID().toString();
+        String plain = UUID.randomUUID().toString();
+        byte[] body = write(run(zipped, 5_000, 1_500)).getBytes(StandardCharsets.UTF_8);
+        mvc.perform(
+                        as(s, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Content-Encoding", "gzip")
+                                .content(gzip(body)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("STORED"))
+                .andExpect(jsonPath("$.valid").value(true));
+        // 같은 내용을 무압축으로 다시 보내면 같은 기록으로 본다
+        mvc.perform(
+                        as(s, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("ALREADY_STORED"));
+        mvc.perform(
+                        as(s, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(run(plain, 5_000, 1_500))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("STORED"));
+        assertThat(runQuery.summary(zipped))
+                .usingRecursiveComparison()
+                .ignoringFields("recordId")
+                .isEqualTo(runQuery.summary(plain));
+        // 압축은 인증을 건너뛰게 하지 않는다
+        mvc.perform(
+                        post("/api/v1/runs")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Content-Encoding", "gzip")
+                                .content(gzip(body)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("gzip 업로드: 푼 크기가 32MB를 넘으면 413 PAYLOAD_TOO_LARGE, 깨진 gzip은 400 BAD_REQUEST")
+    void gzipUpload_rejectsBombAndBrokenStream() throws Exception {
+        Session s = signUp();
+        byte[] bomb = gzip(new byte[32 * 1024 * 1024 + 1]);
+        mvc.perform(
+                        as(s, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Content-Encoding", "gzip")
+                                .content(bomb))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.code").value("PAYLOAD_TOO_LARGE"));
+        byte[] whole = gzip(write(run(UUID.randomUUID().toString(), 1_000, 300)).getBytes());
+        byte[] cut = java.util.Arrays.copyOf(whole, whole.length / 2);
+        for (byte[] broken : List.of(cut, "not gzip".getBytes(StandardCharsets.UTF_8))) {
+            mvc.perform(
+                            as(s, post("/api/v1/runs"))
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .header("Content-Encoding", "gzip")
+                                    .content(broken))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+        }
+    }
+
+    @Test
+    @DisplayName("허용 목록 밖 경로(늦은 심박)의 gzip 본문은 풀지 않고 그대로 넘긴다")
+    void gzipOutsideAllowList_isLeftAlone() throws Exception {
+        Session owner = signUp();
+        mvc.perform(as(owner, put("/api/v1/me/consents/HEART_RATE"))).andExpect(status().isOk());
+        String id = UUID.randomUUID().toString();
+        mvc.perform(
+                        as(owner, post("/api/v1/runs"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(write(run(id, 5_000, 1_500))))
+                .andExpect(status().isOk());
+        byte[] late =
+                write(
+                                Map.of(
+                                        "samples",
+                                        List.of(
+                                                Map.of(
+                                                        "measuredAt",
+                                                        at(START.plusSeconds(20)),
+                                                        "bpm",
+                                                        160))))
+                        .getBytes(StandardCharsets.UTF_8);
+        // 풀었다면 204였을 요청이 압축 바이트 그대로 JSON 해석에 실패한다
+        mvc.perform(
+                        as(owner, post("/api/v1/runs/" + id + "/heart-rates"))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .header("Content-Encoding", "gzip")
+                                .content(gzip(late)))
                 .andExpect(status().isBadRequest());
     }
 
