@@ -24,7 +24,7 @@ import java.util.concurrent.Executors
  * - Rive 파일·내장 머리·앞 단계 몸 바이트는 [RiveAvatarAssets]가 IO에서 미리 읽은 것만 쓴다(주 스레드에서 자산을 읽지 않는다).
  * - 피부톤·의상·체형 텍스처는 단일 합성 스레드에서 만든다. 계산은 한 번에 하나, 대기는 가장 최근 요청 하나만 둔다.
  *   요청 버전([toneVersion])과 정체 버전([identity])이 지금과 다르면 결과를 버린다.
- * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다. 보이게 된 때 [onReady].
+ * - 새로 읽은 파일의 기본 그림이 보이지 않도록 그 동작의 텍스처와 body_shape를 처음 넣은 뒤에야 보인다. 보이게 된 뒤 첫 판이 그려진 때 [onReady].
  * - 합성 결과는 프로세스 공용 캐시([SharedToneCache])에도 넣는다. 합성하기 전에 그 캐시를 먼저 보고, 같은 머리·모습이 있으면 합성
  *   스레드를 거치지 않고 바로 넣는다(미리 준비 [prepareRiveAvatarLook], DR-10). 같은 머리면 몸 분리 결과도 다시 쓴다.
  * - 좌우 뒤집기는 달리기 플레이어만 `scaleX = -1`이다([RivePlayerRules.scaleX], D-762).
@@ -39,8 +39,14 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
      */
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean = false
 
-    /** 지금 동작의 플레이어가 첫 텍스처를 받아 보이게 된 때(주 스레드, 다음 메시지에서). 정체·동작이 바뀌면 다시 온다. */
+    /**
+     * 지금 동작의 플레이어가 첫 텍스처를 받아 보이게 된 뒤 첫 판이 실제로 그려진 때(주 스레드). 판이 [READY_FRAME_TIMEOUT_MS] 안에
+     * 오지 않아도 온다. 정체·동작이 바뀌면 다시 온다.
+     */
     var onReady: () -> Unit = {}
+
+    private val readyNotice = FirstFrameNotice { if (!isReleased) onReady() }
+    private val readyTimeout = Runnable { readyNotice.timedOut() }
 
     private val tones = SharedToneCache.shared
 
@@ -150,6 +156,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         isReleased = true
         io.shutdownNow()
         main.removeCallbacksAndMessages(null)
+        readyNotice.cancel()
         lifecycle?.removeObserver(lifecycleObserver)
         lifecycle = null
         players.values.forEach { it.pause() }
@@ -187,6 +194,7 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
         val nextSources = next.headLayers?.variants?.getValue(next.gender) ?: prepared.builtIn
         identity++
         invalidateTone()
+        readyNotice.cancel()
         head = next.headLayers
         // 같은 머리를 다른 뷰나 미리 준비가 합성해 두었으면 몸 분리·텍스처를 다시 쓴다.
         cache = tones.seed(next.gender, next.headLayers)
@@ -226,6 +234,8 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
                 .setAssetLoader(loader)
         )
         if (motion == AvatarMotion.RUN) view.playbackSpeed = runSpeed
+        // 지금 동작 플레이어가 그린 판만 준비 알림으로 친다.
+        view.onFrameDrawn = { if (state?.motion == motion && view.visibility == VISIBLE) readyNotice.frameDrawn() }
         view.visibility = INVISIBLE
         // Builder는 창에 붙을 때 읽는다. 지금 한 번 읽어 자산 자리와 상태 입력을 바로 쓸 수 있게 한다
         // (onAttachedToWindow는 이미 파일이 있으면 다시 읽지 않는다).
@@ -417,7 +427,11 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
             val isShown = motion == current.motion && RivePlayerRules.becameVisible(view.visibility, visibility)
             view.visibility = visibility
             view.scaleX = RivePlayerRules.scaleX(motion, current.mirrored)
-            if (isShown) main.post { if (!isReleased) onReady() }
+            if (isShown) {
+                readyNotice.shown()
+                main.removeCallbacks(readyTimeout)
+                main.postDelayed(readyTimeout, READY_FRAME_TIMEOUT_MS)
+            }
         }
         // 지금 동작이 준비 전이면 보이고 있는 앞 동작을 계속 재생한다(RivePlayerRules.visibility).
         val shown = players.keys.firstOrNull {
@@ -448,5 +462,10 @@ internal class RiveAvatarView(context: Context) : FrameLayout(context) {
 
     private fun fail(error: Throwable) {
         if (!isReleased) onError(error)
+    }
+
+    private companion object {
+        /** 보이게 된 뒤 첫 판을 기다리는 최대 시간. 넘으면 그냥 준비로 알린다(창에 붙지 않아 판이 없는 경우 등). */
+        const val READY_FRAME_TIMEOUT_MS = 400L
     }
 }

@@ -96,6 +96,7 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.rememberRunPose
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
@@ -313,8 +314,9 @@ private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () ->
         }
         Box {
             StartRing(state.countdown, total = RECORD_COUNTDOWN_SECONDS, modifier = Modifier.padding(top = 24.dp))
-            // 출발 전에 트랙의 내 아바타와 상대를 미리 그려 둔다(S15P31A207-335): 출발 직후 몸이 비거나 깜빡이지 않는다.
-            val mine: @Composable () -> Unit = { MyTrackRunner(AvatarSlotPose.STAND, null, isMoving = false) }
+            // 출발 전에 트랙의 내 아바타와 상대를 미리 그려 둔다(S15P31A207-335): 출발 직후 몸이 비거나 깜빡이지 않는다. 내 아바타는
+            // 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다).
+            val mine: @Composable () -> Unit = { MyTrackRunner(AvatarSlotPose.RUN, null, isMoving = false) }
             val theirs: @Composable () -> Unit = { OpponentRunner(state) }
             RunkkTrackAvatarWarmup(listOf(mine, theirs))
         }
@@ -504,14 +506,15 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier, overlayBo
     val opponentName = opponentLabel(state)
     val edge = layout.other as? TrackLayout.Other.Edge
     val isMoving = rememberIsMoving(state.myDistance) && state.isMeasuring && state.currentPace != null
-    // 트랙에서는 오른쪽을 보고, 멈추거나 페이스를 모르면 선다(D-856).
-    val pose = if (state.phase == BattlePhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 트랙에서는 오른쪽을 본다. 출발과 함께 달리고(움직임 판단을 기다리지 않는다), 거리가 3초 그대로면 선다(D-856, S15P31A207-335 2차).
+    val isRunPose = rememberRunPose(state.myDistance, isActive = state.phase == BattlePhase.RUNNING)
+    val pose = if (isRunPose) AvatarSlotPose.RUN else AvatarSlotPose.STAND
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     RunkkTrackCard(
         layout = layout,
         myTag = stringResource(R.string.battle_me),
         otherTag = opponentName,
-        myAvatar = { MyTrackRunner(pose, state.currentPace, isMoving) },
+        myAvatar = { MyTrackRunner(pose, state.currentPace, isMoving || isRunPose) },
         otherAvatar = { OpponentRunner(state) },
         modifier = modifier.testTag(BATTLE_TRACK_TAG),
         myPace = state.currentPace?.let { RunkkFormat.pace(it) },

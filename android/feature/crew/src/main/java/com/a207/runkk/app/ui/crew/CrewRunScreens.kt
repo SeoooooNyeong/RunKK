@@ -104,6 +104,7 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.rememberRunPose
 import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.runMotionSpeed
@@ -863,8 +864,9 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBott
     val edge = layout.other as? TrackLayout.Other.Edge
     val isMoving = rememberIsMoving(mine.distance) && !mine.isPaused && mine.currentPace != null
     val frameMillis = runFrameMillis(mine.currentPace)
-    // 트랙에서는 오른쪽을 보고, 일시정지하거나 움직임과 페이스가 없으면 선다(D-856).
-    val pose = if (state.phase == CrewRunPhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 트랙에서는 오른쪽을 본다. 출발(재개)과 함께 달리고, 일시정지하거나 거리가 3초 그대로면 선다(D-856, S15P31A207-335 2차).
+    val isRunPose = rememberRunPose(mine.distance, isActive = state.phase == CrewRunPhase.RUNNING && !mine.isPaused)
+    val pose = if (isRunPose) AvatarSlotPose.RUN else AvatarSlotPose.STAND
     val isNearestPaused = nearest?.state?.name == MateState.PAUSED.name
     val nearestName = nearest?.name.orEmpty()
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
@@ -877,7 +879,7 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBott
         },
         myAvatar = {
             RunAvatarSlot(pose, facingLeft = false, runSpeed = runMotionSpeed(mine.currentPace)) {
-                RunkkRunningFigure(isMoving, frameMillis)
+                RunkkRunningFigure(isMoving || isRunPose, frameMillis)
             }
         },
         otherAvatar = {
@@ -974,8 +976,9 @@ private fun LobbyTrackWarmup(state: CrewRunUiState, lobby: Lobby) {
         .filter { !it.isMe }
         .mapNotNull { p -> p.memberId?.let(state.looks::get) }
         .take(WARM_MATES)
+    // 내 아바타는 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다).
     val mine: @Composable () -> Unit = {
-        RunAvatarSlot(AvatarSlotPose.STAND, facingLeft = false, runSpeed = runMotionSpeed(null)) {
+        RunAvatarSlot(AvatarSlotPose.RUN, facingLeft = false, runSpeed = runMotionSpeed(null)) {
             RunkkRunningFigure(false, runFrameMillis(null))
         }
     }

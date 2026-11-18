@@ -99,6 +99,56 @@ class GapMotionTest {
     }
 
     @Test
+    fun `멈춰 있다가(그릴 것 없음) 새 값이 와도 첫 프레임에 튀지 않는다(S15P31A207-335 2차)`() {
+        val motion = GapMotion()
+        motion.receive(0.0, 0.0)
+        motion.frame(0.0)
+        assertTrue(motion.isSettled(0.0))
+        // 프레임 루프가 1초 쉬었다가 다음 값(3 m)을 받는다.
+        motion.receive(3.0, 1.0)
+        val step = motion.frame(1.0 + frame)
+        assertTrue(step < 0.5, "쉰 시간만큼 한 번에 따라가지 않는다: $step")
+    }
+
+    @Test
+    fun `두 번째 값으로 바로 상대 속도를 잡아 출발 직후에도 일정 속도로 따라간다(S15P31A207-335 2차)`() {
+        val motion = GapMotion()
+        motion.receive(0.0, 0.0)
+        motion.receive(3.0, 1.0)
+        var t = 1.0
+        while (t < 1.9) {
+            motion.frame(t)
+            t += frame
+        }
+        // 3 m/s로 예측하면 1.9초의 예측값은 5.7 m이고 보이는 값은 약 0.25초 뒤처진 4.9 m 근처다(절반 속도면 4 m 아래).
+        assertTrue(motion.frame(1.9) > 4.5, "두 번째 값부터 측정 속도를 쓴다: ${motion.frame(1.9)}")
+    }
+
+    @Test
+    fun `출발 쪽 밖에서 들어오게 하면 시작 전에는 밖에 머물고 시작하면 되돌아가지 않고 제자리에 닿는다(S15P31A207-335 2차)`() {
+        val motion = GapMotion()
+        motion.enter(0.0, fromMeters = -18.0, atSeconds = 0.0)
+        assertEquals(-18.0, motion.frame(0.3))
+        assertTrue(motion.isSettled(0.3), "시작 전에는 그릴 것이 없다(준비를 기다린다)")
+        motion.receive(0.0, 0.5)
+        assertEquals(-18.0, motion.frame(0.6), "몸이 준비되기 전에는 값이 와도 밖에 머문다")
+
+        motion.startEntry(0.7)
+        assertTrue(!motion.isSettled(0.7), "들어오는 동안은 매 프레임 그린다")
+        val shown = mutableListOf<Pair<Double, Double>>()
+        var t = 0.7
+        while (t <= 3.0) {
+            shown += t to motion.frame(t)
+            t += frame
+        }
+        shown.zipWithNext { a, b -> assertTrue(b.second >= a.second - 1e-9, "되돌아가지 않는다 at ${b.first}") }
+        assertTrue(maxStep(shown) < 1.0, "한 프레임에 1 m 넘게 뛰지 않는다: ${maxStep(shown)}")
+        assertEquals(0.0, shown.last().second, 1e-6)
+        assertTrue(shown.first { it.second > -1e-6 }.first <= 0.7 + 1.0 + 1e-9, "1초 안에 제자리에 닿는다")
+        assertTrue(motion.isSettled(3.0))
+    }
+
+    @Test
     fun `창 폭(30 m)보다 크게 바뀌면 따라가지 않고 바로 옮긴다`() {
         val motion = GapMotion()
         motion.receive(-5.0, 0.0)

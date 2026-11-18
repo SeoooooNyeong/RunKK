@@ -180,14 +180,26 @@ class CrewRunAvatarSlotTest {
     }
 
     @Test
-    fun `크루런 중이어도 페이스를 모르면 STAND이고 빠르기는 기준값이다`() {
-        compose.setContent {
-            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(probe))) {
-                RunkkTheme(reduceMotion = true) { CrewRunScreen(running(pace = null), CrewRunActions()) }
+    fun `출발하면 거리·페이스를 기다리지 않고 첫 프레임부터 RUN이고 3초 동안 거리가 그대로면 STAND다(S15P31A207-335 2차)`() {
+        val observed = mutableListOf<AvatarSlotPose>()
+        val startProbe: @Composable () -> Unit = {
+            if (LocalSlotAvatarRunSubject.current.isMine) {
+                val value = LocalSlotAvatarPose.current
+                speed = LocalSlotAvatarRunSpeed.current
+                SideEffect { observed += value }
             }
         }
-        compose.waitForIdle()
-        assertEquals(AvatarSlotPose.STAND, pose)
-        assertEquals(1f, checkNotNull(speed), 0.001f)
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(startProbe))) {
+                RunkkTheme(reduceMotion = true) { CrewRunScreen(running(distance = 0, pace = null), CrewRunActions()) }
+            }
+        }
+        compose.mainClock.advanceTimeBy(2_500)
+        assertEquals(setOf(AvatarSlotPose.RUN), observed.toSet(), "출발 직후 정면 서기를 거치지 않는다")
+        assertEquals(1f, checkNotNull(speed), 0.001f, "페이스를 모르면 빠르기는 기준값이다")
+
+        compose.mainClock.advanceTimeBy(1_000)
+        assertEquals(AvatarSlotPose.STAND, observed.last(), "3초 동안 거리가 그대로면 멈춘 것")
     }
 }

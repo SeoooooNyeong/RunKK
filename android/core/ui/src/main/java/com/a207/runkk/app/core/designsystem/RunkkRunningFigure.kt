@@ -105,6 +105,23 @@ fun rememberIsMoving(distance: Distance?): Boolean {
     return isMoving
 }
 
+/**
+ * 측정 중 내 아바타가 달리기 자세인지(S15P31A207-335 2차). [isActive](측정 중이고 멈춤 아님)가 켜지면 거리·페이스로 움직임을 판단하기를
+ * 기다리지 않고 첫 프레임부터 달린다. 그 뒤 거리([distance])가 [STILL_AFTER_MILLIS] 동안 그대로면 선다(D-856 멈춤 규칙). 측정 시작
+ * 직후에는 GPS 첫 값과 현재 페이스(30초 창, 값 두 개 필요)가 몇 초 늦어 정면 서기로 출발하던 것을 고친다.
+ */
+@Composable
+fun rememberRunPose(distance: Distance?, isActive: Boolean): Boolean {
+    var isRunning by remember { mutableStateOf(isActive) }
+    LaunchedEffect(distance, isActive) {
+        isRunning = isActive
+        if (!isActive) return@LaunchedEffect
+        delay(STILL_AFTER_MILLIS)
+        isRunning = false
+    }
+    return isActive && isRunning
+}
+
 /** 달리기 동작 한 장의 시간: 6:00/km에서 [RUN_FRAME_MILLIS_AT_REF], 빠를수록 짧게. 페이스를 모르면 기준값. */
 fun runFrameMillis(pace: Pace?): Long {
     val seconds = pace?.secondsPerKm ?: return RUN_FRAME_MILLIS_AT_REF
