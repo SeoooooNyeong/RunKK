@@ -56,6 +56,7 @@ import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.battle.BattleHistory
+import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
@@ -63,6 +64,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** 대결 화면: 디자인 문구, 주요 버튼과 접근성 라벨. */
 @RunWith(RobolectricTestRunner::class)
@@ -575,6 +577,64 @@ class BattleScreensTest {
         compose.onNodeWithText("상대 연결 확인 중")
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
         compose.onNodeWithText("잠금").assertDoesNotExist()
+    }
+
+    @Test
+    fun `대결 진행 - 추월·역전·종료 카운트다운·힌트·오류 글자가 떠도 트랙 칸 크기와 자리는 그대로다(S15P31A207-334)`() {
+        assertTrackStaysPut(OpponentKind.RANDOM)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h640dp")
+    fun `작은 화면 셀프런 - 안내가 떠도 트랙 칸과 내 아바타 자리가 그대로다(S15P31A207-334)`() {
+        assertTrackStaysPut(OpponentKind.SELF)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h914dp")
+    fun `큰 화면 셀럽런 - 안내가 떠도 트랙 칸과 내 아바타 자리가 그대로다(S15P31A207-334)`() {
+        assertTrackStaysPut(OpponentKind.CELEBRITY)
+    }
+
+    /** 안내 없는 상태에서 트랙(또는 지도) 칸과 내 아바타의 위·높이를 재고, 안내마다 같은지 본다. 안내 글자는 보이고 바로 읽힌다. */
+    private fun assertTrackStaysPut(kind: OpponentKind) {
+        val base = BattleRunningUiState(
+            battleId = 9,
+            opponentName = "바람처럼",
+            kind = kind,
+            phase = BattlePhase.RUNNING,
+            gapMeters = -12,
+            opponentDistance = Distance(2_354),
+            myDistance = Distance(2_342),
+            currentPace = Pace(330)
+        )
+        var state by mutableStateOf(base)
+        show { BattleRunningScreen(state, BattleRunningActions()) }
+        fun measure() = listOf(BATTLE_VIEW_TAG, TRACK_ME_TAG).map { tag ->
+            compose.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
+                .let { it.top to it.bottom - it.top }
+        }
+        val expected = measure()
+        val variants = listOf(
+            base.copy(guidance = BattleGuidance.Kind.OVERTOOK),
+            base.copy(guidance = BattleGuidance.Kind.OVERTAKEN),
+            base.copy(phase = BattlePhase.CLOSING, arrivedName = "바람처럼", closingSeconds = 27, closingLimitSeconds = 30),
+            base.copy(hint = UiText.Plain("길게 눌러 종료해요")),
+            base.copy(error = UiText.Plain("상대 기록을 받지 못했어요")),
+            base.copy(guidance = BattleGuidance.Kind.OVERTAKEN, hint = UiText.Plain("길게 눌러 종료해요"))
+        )
+        variants.forEach { variant ->
+            state = variant
+            compose.waitForIdle()
+            assertEquals(expected, measure(), "안내 상태 $variant")
+        }
+        state = base.copy(guidance = BattleGuidance.Kind.OVERTAKEN)
+        compose.waitForIdle()
+        compose.onNodeWithText("역전당했어요")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        state = base
+        compose.waitForIdle()
+        assertEquals(expected, measure(), "안내가 사라진 뒤")
     }
 
     @Test
