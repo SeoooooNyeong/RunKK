@@ -71,6 +71,10 @@ class CrewHomeViewModel @Inject constructor(
     private val signals: CrewRunSignals? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow(CrewHomeUiState())
+
+    /** 크루런 탭 목록을 다시 읽은 횟수. 달리는 강조 카드 결과를 따라 다시 읽는 신호다. */
+    private val listReads = MutableStateFlow(0)
+
     val state: StateFlow<CrewHomeUiState> = _state.asStateFlow()
 
     /** 화면이 RESUMED인가(LifecycleResumeEffect가 알린다). 시험처럼 알리지 않으면 RESUMED로 본다. */
@@ -87,14 +91,19 @@ class CrewHomeViewModel @Inject constructor(
                 .distinctUntilChanged()
                 .collectLatest { (runs, isTicking) -> watchLobbies(runs, isTicking) }
         }
-        // 달리는 크루런 강조 카드(피그마 F-11e·f·g): 출발 시각과 내 거리를 결과에서 한 번 읽는다(내 상태가 바뀌면 다시).
+        // 달리는 크루런 강조 카드(피그마 F-11e·f·g): 출발 시각, 내 거리, 달리는 인원을 결과에서 읽는다. 내 상태가 바뀌거나 목록을
+        // 다시 읽으면(변경 신호·당겨서 새로고침) 다시 읽어 중간 참여·끝냄이 인원에 들어가게 한다(S15P31A207-314).
         viewModelScope.launch {
-            _state.map { st ->
-                upcomingSchedules(st).firstOrNull()?.takeIf { it.crewRun?.status == CrewRunStatus.RUNNING }
-            }
-                .map { hero -> hero?.let { it.postId to it.crewRun?.myRun } }
+            combine(
+                _state.map { st ->
+                    upcomingSchedules(st).firstOrNull()
+                        ?.takeIf { it.crewRun?.status == CrewRunStatus.RUNNING }
+                        ?.let { it.postId to it.crewRun?.myRun }
+                },
+                listReads
+            ) { hero, reads -> hero?.let { it to reads } }
                 .distinctUntilChanged()
-                .collectLatest { key -> key?.let { (postId, myRun) -> readHeroResult(postId, myRun) } }
+                .collectLatest { key -> key?.let { (hero, _) -> readHeroResult(hero.first, hero.second) } }
         }
     }
 
@@ -885,6 +894,7 @@ class CrewHomeViewModel @Inject constructor(
         return when (val r = coveringPages(loaded) { cursor -> crews.activeCrewRuns(crewId, cursor) }) {
             is Outcome.Success -> {
                 _state.update { it.copy(crewRuns = r.value) }
+                listReads.update { it + 1 }
                 null
             }
 

@@ -172,4 +172,31 @@ class CrewScheduleMyRunViewModelTest {
         runCurrent()
         assertEquals(2, repo.calls.count { it == "result:31" }, "내 기록이 들어오면 멈춘다")
     }
+
+    @Test
+    fun `달리는 중 목록을 다시 읽으면 강조 카드 결과도 다시 읽어 중간 참여·끝냄을 인원에 반영한다`() = main.runVmTest { vms ->
+        clock.now = crewRunVoting.scheduledAt.plusSeconds(600)
+        repo.crewRunList = PostList(
+            listOf(
+                crewRunPosts.posts[0].copy(
+                    crewRun = crewRunVoting.copy(status = CrewRunStatus.RUNNING, myRun = MyRunState.RUNNING)
+                )
+            )
+        )
+        val onlyMe = crewRunResult.copy(participants = crewRunResult.participants.map { it.copy(hasEnded = !it.isMe) })
+        repo.resultState = onlyMe
+        val vm = vms.track(vm())
+        vm.onTab(CrewTab.SCHEDULE)
+        runCurrent()
+        assertEquals(1, repo.calls.count { it == "result:31" })
+        val run = vm.state.value.crewRuns!!.posts[0].crewRun!!
+        assertEquals(1, runningPeople(run, vm.state.value.heroResults[31]))
+
+        val joined = onlyMe.copy(participants = onlyMe.participants.map { it.copy(hasEnded = false) })
+        repo.resultState = joined
+        vm.onPullRefresh()
+        runCurrent()
+        assertEquals(2, repo.calls.count { it == "result:31" }, "목록을 다시 읽으면 결과도 다시 읽는다")
+        assertEquals(joined.participants.size, runningPeople(run, vm.state.value.heroResults[31]))
+    }
 }
