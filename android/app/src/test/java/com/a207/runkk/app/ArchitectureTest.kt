@@ -63,16 +63,17 @@ class ArchitectureTest {
      * v0.14 그을림 상한 한 곳(S15P31A207-311)이 core.avatar → core.model(SkinTone)을, 홈 다시 읽기 문지기(S15P31A207-325)가
      * ui.notification → domain.settings(RefreshGate, 알림 점)를 더해 183개다. 문지기를 domain.settings에 둔 것은 ui.home의 Fan-Out이
      * 이미 7이라 새 domain 패키지를 더할 수 없어서다.
+     * 시작 로딩 화면 에셋 미리 받기(S15P31A207-345)가 api.avatar → domain.sync(AssetPreloadSource 구현, 내 셀카 머리)를 더해 184개다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 183개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 184개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(183, phone.sumOf { it.value.size })
+        assertEquals(184, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -540,7 +541,8 @@ class ArchitectureTest {
                 "api.battle" to setOf("api.core", "domain.battle", "domain.live", "core.model"),
                 "api.crew" to setOf("api.core", "domain.crew", "core.model"),
                 "api.runimal" to setOf("api.core", "domain.runimal", "core.model"),
-                "api.avatar" to setOf("api.core", "domain.avatar", "core.model"),
+                // domain.sync 추가(S15P31A207-345): 시작 에셋 미리 받기 포트(AssetPreloadSource)를 내 셀카 머리로 구현한다.
+                "api.avatar" to setOf("api.core", "domain.avatar", "domain.sync", "core.model"),
                 // domain.settings 추가(이벤트, S15P31A207-275): 본 이벤트 ID 기기 사본을 설정 사본에 맡긴다(api.account의
                 // 배치고사 완료 사본과 같은 방식).
                 "api.notification" to setOf("api.core", "domain.notification", "domain.settings", "core.model"),

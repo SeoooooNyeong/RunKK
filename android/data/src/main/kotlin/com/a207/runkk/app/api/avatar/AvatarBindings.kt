@@ -5,6 +5,7 @@ import com.a207.runkk.app.domain.avatar.BackgroundUnlockSeenStore
 import com.a207.runkk.app.domain.avatar.PendingSelfiePhoto
 import com.a207.runkk.app.domain.avatar.SelfieJobFollower
 import com.a207.runkk.app.domain.avatar.SelfieResultNotifier
+import com.a207.runkk.app.domain.sync.AssetPreloadSource
 import dagger.Binds
 import dagger.BindsOptionalOf
 import dagger.Module
@@ -41,6 +42,10 @@ internal abstract class AvatarBindings {
 
     @Binds
     abstract fun backgroundUnlockSeenStore(impl: PreferencesBackgroundUnlockSeenStore): BackgroundUnlockSeenStore
+
+    /** 시작 로딩 화면의 에셋 미리 받기 출처: 내 셀카 머리(S15P31A207-345). */
+    @Binds
+    abstract fun assetPreloadSource(impl: AvatarAssetPreloadSource): AssetPreloadSource
 
     companion object {
         @Provides

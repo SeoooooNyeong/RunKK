@@ -198,4 +198,9 @@
     <string name="core_run_power_save_message">화면을 끄면 기록이 끊길 수 있어요.</string>
     <string name="core_run_power_save_settings">설정 열기</string>
     <string name="core_run_power_save_start">그냥 시작</string>
+    <!-- 시작 로딩 화면 에셋 미리 받기(S15P31A207-345) -->
+    <string name="core_start_loading_percent">%1$d%%</string>
+    <string name="core_start_loading_failed">에셋을 받지 못했어요</string>
+    <string name="core_start_loading_failed_hint">네트워크 연결을 확인하고 다시 시도해 주세요</string>
+    <string name="core_start_loading_retry">다시 시도</string>
 </resources>
