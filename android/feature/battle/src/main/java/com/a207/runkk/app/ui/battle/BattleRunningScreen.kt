@@ -43,13 +43,12 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
@@ -64,12 +63,13 @@ import com.a207.runkk.app.core.designsystem.ProgressDot
 import com.a207.runkk.app.core.designsystem.RunPermissionEffect
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
-import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
-import com.a207.runkk.app.core.designsystem.RunkkCountdownBanner
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkGuidanceOverlay
+import com.a207.runkk.app.core.designsystem.RunkkGuidanceToast
+import com.a207.runkk.app.core.designsystem.RunkkGuidanceTone
 import com.a207.runkk.app.core.designsystem.RunkkHint
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
@@ -347,7 +347,16 @@ private fun myCaption(state: BattleRunningUiState, distance: String): String? = 
  */
 @Composable
 private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunningActions) {
-    BigDistance(state.myDistance)
+    // 추월·역전·종료 카운트다운 안내는 큰 거리 숫자 위에 흰 띠로 겹쳐 띄운다(S15P31A207-334). 겹침 층은 숫자 칸 크기만 따르고
+    // (matchParentSize) 넘치는 띠는 아래 지표·트랙 위로 그린다(zIndex). 숫자·트랙을 가려도 되고, 어떤 요소의 자리·크기도 바뀌지 않는다.
+    Box(Modifier.fillMaxWidth().zIndex(1f)) {
+        BigDistance(state.myDistance)
+        RunkkGuidanceOverlay(
+            notice = state.takeIf { it.phase == BattlePhase.CLOSING || it.guidance != null },
+            modifier = Modifier.matchParentSize().wrapContentHeight(Alignment.Top, unbounded = true),
+            contentKey = { if (it.phase == BattlePhase.CLOSING) BattlePhase.CLOSING else it.guidance ?: Unit }
+        ) { GuidanceToast(it) }
+    }
     Stats(state)
     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         BattleTrack(
@@ -356,8 +365,7 @@ private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunn
             Modifier.fillMaxWidth().heightIn(max = TRACK_CARD_HEIGHT).fillMaxHeight()
         )
     }
-    // 안내(추월·역전·종료 카운트다운·오류·힌트)는 거리 차 줄 위에 겹쳐 띄운다. 줄 높이는 그대로라 트랙·지도 칸이 줄거나 밀리지
-    // 않는다(S15P31A207-334). 띠(약 53dp)가 거리 차 줄(32dp)과 위아래 간격(12dp씩) 안에 들어가 트랙 카드와 종료 단추를 가리지 않는다.
+    // 오류·힌트 글자는 거리 차 줄 위에 겹쳐 띄운다. 줄 높이는 그대로라 트랙·지도 칸이 줄거나 밀리지 않는다(S15P31A207-334).
     Box(Modifier.fillMaxWidth().height(GAP_ROW_HEIGHT), contentAlignment = Alignment.Center) {
         Gap(state)
         Notices(state, Modifier.wrapContentHeight(unbounded = true))
@@ -390,7 +398,8 @@ private fun BigDistance(distance: Distance) {
     RunkkRunDistance(
         distance = RunkkFormat.km(distance),
         unit = stringResource(R.string.battle_running_unit_km),
-        spoken = stringResource(R.string.battle_running_distance_spoken, RunkkFormat.km(distance))
+        spoken = stringResource(R.string.battle_running_distance_spoken, RunkkFormat.km(distance)),
+        modifier = Modifier.testTag(BATTLE_DISTANCE_TAG)
     )
 }
 
@@ -633,7 +642,7 @@ private fun OpponentRunner(state: BattleRunningUiState) {
     }
 }
 
-/** 거리 차 줄 위에 겹치는 안내 묶음. 모두 불투명 배경이라 아래 글자가 비치지 않는다. */
+/** 거리 차 줄 위에 겹치는 오류·힌트 글자. 모두 불투명 배경이라 아래 글자가 비치지 않는다. */
 @Composable
 private fun Notices(state: BattleRunningUiState, modifier: Modifier) {
     Column(
@@ -641,18 +650,22 @@ private fun Notices(state: BattleRunningUiState, modifier: Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        GuidanceBanner(state)
         state.error?.let { RunkkHint(it.asString()) }
         state.hint?.let { RunkkHint(it.asString()) }
     }
 }
 
+/**
+ * 흰 안내 띠(FR-188 추월·역전, FR-107 종료 카운트다운). 추월은 라임, 역전·카운트다운은 보라 강조다. 나타나면 바로 읽히고, 카운트다운은
+ * 바뀌는 초 대신 고정 문구를 즉시 한 번 알린다.
+ */
 @Composable
-private fun GuidanceBanner(state: BattleRunningUiState) {
+private fun GuidanceToast(state: BattleRunningUiState) {
     if (state.phase == BattlePhase.CLOSING) {
         val arrived = state.arrivedName ?: stringResource(R.string.battle_opponent)
-        RunkkCountdownBanner(
+        RunkkGuidanceToast(
             text = stringResource(R.string.battle_running_closing, arrived, state.closingSeconds ?: 0),
+            tone = RunkkGuidanceTone.Closing,
             spoken = stringResource(
                 R.string.battle_running_closing_spoken,
                 arrived,
@@ -662,7 +675,7 @@ private fun GuidanceBanner(state: BattleRunningUiState) {
         return
     }
     when (state.guidance) {
-        BattleGuidance.Kind.OVERTOOK -> RunkkBanner(
+        BattleGuidance.Kind.OVERTOOK -> RunkkGuidanceToast(
             stringResource(
                 if (state.kind ==
                     OpponentKind.SELF
@@ -672,14 +685,12 @@ private fun GuidanceBanner(state: BattleRunningUiState) {
                     R.string.battle_running_overtook
                 }
             ),
-            isStrong = true,
-            modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+            tone = RunkkGuidanceTone.Lead
         )
 
-        BattleGuidance.Kind.OVERTAKEN -> RunkkBanner(
+        BattleGuidance.Kind.OVERTAKEN -> RunkkGuidanceToast(
             stringResource(R.string.battle_running_overtaken),
-            isRival = true,
-            modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+            tone = RunkkGuidanceTone.Rival
         )
 
         null -> Unit
@@ -740,6 +751,9 @@ internal const val BATTLE_MAP_TAG = "battle-map"
 
 /** 트랙·지도 보기를 담는 카드(어느 보기든 같은 자리)의 시험 표지. */
 internal const val BATTLE_VIEW_TAG = "battle-view"
+
+/** 큰 거리 숫자의 시험 표지. */
+internal const val BATTLE_DISTANCE_TAG = "battle-distance"
 
 /** 셀프런·셀럽런 출발 전 카운트다운(3초, design-review.md M34). 고리 몫의 분모다. */
 private const val RECORD_COUNTDOWN_SECONDS = 3L
