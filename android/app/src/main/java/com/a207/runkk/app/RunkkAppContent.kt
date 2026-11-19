@@ -149,10 +149,9 @@ internal fun RunkkSplash(
         onRetry = onRetry,
         onIntroDone = onIntroDone,
         modifier = modifier
-            // 아래에 미리 그려 둔 첫 화면이 눌리지 않게 손가락을 모두 받는다(로딩 화면의 단추는 먼저 받는다)
-            .pointerInput(Unit) {
-                awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
-            }
+            // 아래에 미리 그려 둔 첫 화면이 눌리지 않게 손가락을 받되 소비하지 않는다(맨 위 형제가 받으면 아래 형제는 받지 못한다).
+            // 소비하면 「다시 시도」 단추 누름이 누르는 사이 손가락이 조금만 움직여도 취소된다(7회차 첫 누름 무반응).
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
             .semantics { contentDescription = description }
     )
 }
