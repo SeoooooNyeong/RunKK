@@ -15,10 +15,13 @@ import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.HoldSplashUntil
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
+import com.a207.runkk.app.domain.sync.PreloadProgress
+import com.a207.runkk.app.domain.sync.PreloadState
 import kotlin.test.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -133,6 +136,73 @@ class RunkkAppContentTest {
         compose.onNodeWithContentDescription("런크크 시작 중").assertExists()
         compose.mainClock.advanceTimeBy(1_500)
         compose.onNodeWithContentDescription("런크크 시작 중").assertDoesNotExist()
+    }
+
+    @Test
+    fun `에셋을 다 받기 전에는 시간이 지나도 다음 화면으로 가지 않고 막대와 퍼센트를 보인다(S15P31A207-345)`() {
+        var preload by mutableStateOf<PreloadState>(PreloadState.Loading(PreloadProgress(3, 7)))
+        loggedIn = true
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(setOf(FakeEntries), loggedIn = loggedIn, onExit = {}, preload = preload)
+            }
+        }
+        compose.mainClock.advanceTimeBy(60_000)
+        compose.onNodeWithContentDescription("런크크 시작 중").assertExists()
+        compose.onNodeWithText("42%").assertExists()
+        compose.onNodeWithText("홈 화면").assertDoesNotExist()
+
+        // 다 받으면 넘어간다(시계를 다시 흐르게 해 바뀐 상태를 그리게 한다).
+        preload = PreloadState.Ready(PreloadProgress(7, 7))
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("런크크 시작 중").assertDoesNotExist()
+        compose.onNodeWithText("홈 화면").assertExists()
+
+        // 다 받은 뒤 (로그인 전환 등으로) 다시 받기 시작해도 첫 화면을 다시 덮지 않는다.
+        preload = PreloadState.Loading(PreloadProgress(0, 7))
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("런크크 시작 중").assertDoesNotExist()
+        compose.onNodeWithText("홈 화면").assertExists()
+    }
+
+    @Test
+    fun `캐시에 다 있으면 막대 없이 바로 넘어간다`() {
+        loggedIn = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(
+                    setOf(FakeEntries),
+                    loggedIn = loggedIn,
+                    onExit = {},
+                    preload = PreloadState.Ready(PreloadProgress.UNKNOWN)
+                )
+            }
+        }
+        compose.onNodeWithText("로그인 화면").assertExists()
+        compose.onNodeWithText("100%").assertDoesNotExist()
+    }
+
+    @Test
+    fun `받지 못하면 홈으로 넘어가지 않고 다시 시도를 보이며 누르면 이어 받기를 부른다`() {
+        var retries = 0
+        loggedIn = true
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(
+                    setOf(FakeEntries),
+                    loggedIn = loggedIn,
+                    onExit = {},
+                    preload = PreloadState.Failed(PreloadProgress(3, 7), AppError.Network),
+                    onRetryPreload = { retries++ }
+                )
+            }
+        }
+        compose.onNodeWithText("에셋을 받지 못했어요").assertExists()
+        compose.onNodeWithText("홈 화면").assertDoesNotExist()
+        compose.onNodeWithText("다시 시도").performClick()
+        assertEquals(1, retries)
     }
 
     @Test

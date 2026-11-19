@@ -64,6 +64,8 @@ import okhttp3.Response
  *   오류 응답 code·reason(403 PERMISSION_DENIED, 409 FACE_IMAGE_NOT_FOUND, 404 JOB_NOT_FOUND 등)으로, 연결 실패는 Network로 온다.
  * - 셀카 얼굴이 아니면(기본 캐릭터·얼굴 없음) 빈 목록이다.
  * - 바로 그리기([peek]): 받아 둔 그림이 있으면 기다리지 않고 준다. 화면이 첫 그림부터 내 얼굴을 그리고 기본 머리를 거치지 않게 한다.
+ * - 이어 받기(S15P31A207-345, 시작 로딩 화면): 내 머리를 받다 층 하나라도 실패하면, 그 사이 얻은 메타·층은 [mine](메모리)에 두어
+ *   다시 받을 때 서버에 묻지 않고, 얻은 정면 세 층은 기기에도 남긴다. 머리 전체를 남기면 [mine]을 비운다.
  */
 class FaceImageSource internal constructor(
     private val client: OkHttpClient,
@@ -94,6 +96,9 @@ class FaceImageSource internal constructor(
 
     /** 캐시가 담고 있는 그림의 회원. */
     private var cachedFor: Long? = null
+
+    /** 내 머리를 받다 멈춘 사이 얻은 메타·층(주소 → 본문). 다시 받을 때 이어 받는다. 머리 전체를 남기거나 회원이 바뀌면 비운다. */
+    private val mine = HashMap<String, ByteArray>()
 
     /**
      * 기다리지 않고 바로 그릴 수 있는 얼굴 그림. 셀카 얼굴이 아니면(기본 캐릭터·없음) 빈 목록, 받아 둔 그림(메모리, 내 얼굴이면 기기에
@@ -195,12 +200,21 @@ class FaceImageSource internal constructor(
     }
 
     /**
+     * 내 셀카 머리 전체(정면·옆모습·메타)를 지금 형식 판으로 기기에 다 남겼는가(시작 에셋 미리 받기의 캐시 적중, S15P31A207-345).
+     * 네트워크를 쓰지 않고 그림도 읽지 않는다. 로그아웃이거나 남의 머리면 거짓.
+     */
+    internal fun hasSelfHead(faceKey: String): Boolean {
+        val member = selfId() ?: return false
+        return selfStore?.hasHead(member, faceKey) == true
+    }
+
+    /**
      * 큰 아바타의 셀카 머리(W9 Rive 렌더러 입력): 메타와 1024 층 여섯 장(정면 셋·옆모습 셋)으로 정면 세 층·옆모습 세 층·메타 JSON을
      * 준다. 메모리에 1024 정면 층이 있으면 그것을 쓰고, 내 머리를 기기에 남겼으면 받지 않는다. 옆모습 층이 없으면 옆모습만 빈 목록이다.
      * 서버가 층 주소를 모르면 통짜 응답에서 꺼낸다(층 형식이 틀리면 대체 그림만 빈 목록, 받기는 성공). 셀카 머리 얼굴("head:…")이
-     * 아니면 null이다.
+     * 아니면 null이다. [onFile]은 메타·층 파일 하나를 얻을 때마다 부른다(시작 로딩 화면의 진행 막대, 여러 스레드에서 온다).
      */
-    internal suspend fun selfieHead(faceKey: String?): Outcome<HeadBody?> {
+    internal suspend fun selfieHead(faceKey: String?, onFile: () -> Unit = {}): Outcome<HeadBody?> {
         if (faceKey == null || !faceKey.startsWith(HEAD_PREFIX)) return Outcome.Success(null)
         val location = faceKey.removePrefix(HEAD_PREFIX)
         val head = HeadKey.of(location) ?: return Outcome.Failure(AppError.Rejected(FACE_IMAGE_NOT_FOUND))
@@ -213,7 +227,7 @@ class FaceImageSource internal constructor(
                 return Outcome.Success(HeadBody(saved.faceLayers, saved.rightLayers, saved.meta))
             }
         }
-        val metaFetched = fetchHead(metaUrl(head), isMine)
+        val metaFetched = fetchHead(metaUrl(head), isMine).also { if (it is Fetched.Body) onFile() }
         val metaBytes = when (metaFetched) {
             is Fetched.Body -> metaFetched.bytes
 
@@ -227,19 +241,24 @@ class FaceImageSource internal constructor(
         val full = FaceUse.FULL.size()
         val known = held(member, location, full) ?: member?.takeIf { isMine }?.let { selfStore?.layers(it, faceKey) }
         val (front, side) = coroutineScope {
+            val counted = { fetched: Fetched -> fetched.also { if (it !is Fetched.Failed) onFile() } }
             val front = if (known == null) {
-                FRONT_LAYERS.map { (name, _) -> async { fetchLayer(head, meta, name, full, isMine) } }
+                FRONT_LAYERS.map { (name, _) -> async { counted(fetchLayer(head, meta, name, full, isMine)) } }
             } else {
                 null
             }
-            val side = SIDE_LAYERS.map { name -> async { fetchLayer(head, meta, name, full, isMine) } }
+            val side = SIDE_LAYERS.map { name -> async { counted(fetchLayer(head, meta, name, full, isMine)) } }
             front?.awaitAll() to side.awaitAll()
         }
         val faceLayers = known ?: when (val result = frontOf(front.orEmpty())) {
             is Outcome.Success -> result.value
             is Outcome.Failure -> return result
         }
-        side.filterIsInstance<Fetched.Failed>().firstOrNull()?.let { return it.failure }
+        side.filterIsInstance<Fetched.Failed>().firstOrNull()?.let { failed ->
+            // 받은 정면 세 층은 남긴다(다시 받을 때 정면은 받지 않는다, S15P31A207-345).
+            if (known == null) remember(member, head, location, full, faceLayers)
+            return failed.failure
+        }
         val rightLayers = side.map { (it as? Fetched.Body)?.bytes }.takeIf { all -> all.none { it == null } }
             ?.filterNotNull().orEmpty()
         val body = HeadBody(faceLayers, rightLayers, metaBytes.decodeToString())
@@ -283,6 +302,7 @@ class FaceImageSource internal constructor(
             // 디스크에 쓰기 직전에 한 번 더 확인한다(계정 바뀜 경쟁).
             if (selfId() != member) return@withContext
             if (full != null) {
+                synchronized(lock) { mine.clear() }
                 store.saveHead(member, HEAD_PREFIX + location, SelfFaceStore.Head(layers, full.rightLayers, full.meta))
             } else {
                 store.saveLayers(member, HEAD_PREFIX + location, layers)
@@ -347,7 +367,8 @@ class FaceImageSource internal constructor(
     private suspend fun fetchHead(url: HttpUrl, isMine: Boolean): Fetched {
         val key = url.toString()
         val pending = synchronized(lock) {
-            inflight[key] ?: fetches.async { download(url, isMine) }.also { started ->
+            if (isMine) mine[key]?.let { return Fetched.Body(it) }
+            inflight[key] ?: fetches.async { keepMine(key, isMine, download(url, isMine)) }.also { started ->
                 inflight[key] = started
                 started.invokeOnCompletion {
                     synchronized(lock) { if (inflight[key] === started) inflight.remove(key) }
@@ -355,6 +376,19 @@ class FaceImageSource internal constructor(
             }
         }
         return pending.await()
+    }
+
+    /** 내 머리 메타·층이면 얻은 본문을 [mine]에 둔다(이어 받기). 회원이 바뀌어 비운 뒤면 두지 않는다. */
+    private fun keepMine(key: String, isMine: Boolean, fetched: Fetched): Fetched {
+        if (isMine && fetched is Fetched.Body) {
+            synchronized(lock) {
+                if (cachedFor == null || cachedFor != selfId()) return fetched
+                // 머리 하나(메타 + 층 여섯)를 넘게 쌓이면(얼굴이 바뀜) 앞 것을 버린다.
+                if (mine.size >= MINE_ENTRIES) mine.clear()
+                mine[key] = fetched.bytes
+            }
+        }
+        return fetched
     }
 
     /** 층·메타 응답 하나. 503 HEAD_BUSY면 한 번 다시 받는다. */
@@ -502,6 +536,7 @@ class FaceImageSource internal constructor(
                 memory.clear()
                 heads.clear()
                 inflight.clear()
+                mine.clear()
                 cachedFor = member
             }
             different
@@ -710,6 +745,9 @@ class FaceImageSource internal constructor(
 
         /** 메모리에 두는 셀카 머리 수(머리 하나는 정면 세 층 PNG, 수백 KB~수 MB). */
         const val HEAD_ENTRIES = 12
+
+        /** 이어 받기로 메모리에 두는 내 머리 파일 수 상한(메타 1 + 층 6). */
+        const val MINE_ENTRIES = 7
         const val LOAD_FACTOR = 0.75f
         const val MILLIS_PER_SECOND = 1_000L
 

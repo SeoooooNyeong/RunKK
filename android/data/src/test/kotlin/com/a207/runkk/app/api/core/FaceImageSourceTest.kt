@@ -551,6 +551,52 @@ class FaceImageSourceTest {
         assertEquals(null, SelfFaceStore(storeDir).keys(12), "계정이 바뀌면 앞 계정의 내 얼굴을 지운다")
     }
 
+    @Test
+    fun `내 큰 아바타 머리를 받을 때 파일(메타·층) 하나를 얻을 때마다 알린다`() = runTest {
+        member = 12
+        useLayerServer()
+        val files = AtomicInteger()
+
+        source.selfieHead("head:12:job-1") { files.incrementAndGet() }
+
+        assertEquals(7, files.get(), "메타 1 + 층 6")
+        assertTrue(source.hasSelfHead("head:12:job-1"), "다 받으면 내 얼굴 저장소에 다 있다")
+        assertTrue(!source.hasSelfHead("head:7:job-1"), "남의 머리는 남기지 않는다")
+    }
+
+    @Test
+    fun `내 머리를 받다 층 하나가 실패하면 다시 받을 때 얻은 파일은 다시 받지 않고 정면 층은 기기에 남긴다`() = runTest {
+        member = 12
+        useLayerServer()
+        var isRightHairDown = true
+        reply = { segment ->
+            if (segment == "rightHair" && isRightHairDown) {
+                MockResponse.Builder().code(500).body("{}").build()
+            } else {
+                layerServer(segment)
+            }
+        }
+
+        val failed = source.selfieHead("head:12:job-1")
+        assertTrue(failed is Outcome.Failure, "$failed")
+        assertEquals(7, urls.size, "메타 + 층 여섯 번 물었다")
+        assertEquals(
+            listOf<Byte>(1, 2, 3),
+            SelfFaceStore(storeDir).layers(12, "head:12:job-1")?.map { it.png.single() },
+            "받은 정면 층은 앱을 다시 켜도 남는다"
+        )
+        assertTrue(!source.hasSelfHead("head:12:job-1"))
+
+        isRightHairDown = false
+        val files = AtomicInteger()
+        val head = (source.selfieHead("head:12:job-1") { files.incrementAndGet() } as Outcome.Success).value!!
+
+        assertEquals(listOf("rightHair"), urls.drop(7).map { it.substringBefore('?').substringAfterLast('/') })
+        assertEquals(listOf<Byte>(4, 5, 6), head.rightLayers.map { it.single() })
+        assertTrue(source.hasSelfHead("head:12:job-1"))
+        assertEquals(4, files.get(), "이미 얻은 메타·옆 층 둘 + 새로 받은 옆 층 하나(정면은 기기에서)")
+    }
+
     /**
      * 층 엔드포인트가 있는 서버. 메타는 요청 경로로 층 주소(layerUrls, 형식 판 f=v3)를 만들어 하루 캐시로 주고, 층은 이름별 PNG 한
      * 바이트(얼굴 1·눈 2·헤어 3·옆 4~6)를 immutable로 준다.
