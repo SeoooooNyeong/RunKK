@@ -67,9 +67,10 @@ class BattleRunningViewModel @Inject constructor(
      * 진행 화면 인자를 받아 조정자 상태 구독을 시작한다. 같은 대결로 다시 부르면 무시한다.
      * 조정자가 이 대결을 모르면(프로세스가 다시 떠 백 스택만 복원된 경우) [STALE_MILLIS] 뒤 실패 화면으로 바꿔 빠져나갈 수 있게 한다.
      * 키는 앱 범위에 적어 앱을 밀어 닫았다 다시 열 때 이 화면으로 돌아오게 한다(S15P31A207-278).
+     * 화면이 그릴 상태([state])를 돌려준다. 화면은 상태를 읽기 전에 불러 첫 판부터 이 대결을 그린다(S15P31A207-335 8회차).
      */
-    fun bind(key: Routes.BattleRunning) {
-        if (bound == key.battleId) return
+    fun bind(key: Routes.BattleRunning): StateFlow<BattleRunningUiState> {
+        if (bound == key.battleId) return state
         bound = key.battleId
         screens.remember(key)
         bindJobs.forEach { it.cancel() }
@@ -127,6 +128,7 @@ class BattleRunningViewModel @Inject constructor(
                 }
             }
         }
+        return state
     }
 
     /**
@@ -278,7 +280,10 @@ class BattleRunningViewModel @Inject constructor(
         route = mine.route
     )
 
-    /** 1초마다 시작 카운트다운·종료 카운트다운 남은 초를 갱신한다. 그 밖의 단계면 멈춘다. */
+    /**
+     * 시작 카운트다운은 남은 시간이 정수 초를 지날 때마다, 종료 카운트다운은 1초마다 남은 초를 갱신한다. 그 밖의 단계면 멈춘다.
+     * 시작 카운트다운은 올려 세어 3·2·1로 보인다([CountdownSeconds], S15P31A207-335 8회차).
+     */
     private fun tick() {
         if (tickJob?.isActive == true) {
             refreshClock()
@@ -286,25 +291,28 @@ class BattleRunningViewModel @Inject constructor(
         }
         tickJob = viewModelScope.launch {
             while (isActive) {
-                refreshClock()
+                val next = refreshClock()
                 val phase = _state.value.phase
                 if (phase != BattlePhase.COUNTDOWN && phase != BattlePhase.CLOSING) break
-                delay(TICK_MILLIS)
+                delay(next)
             }
         }
     }
 
-    private fun refreshClock() {
+    /** 남은 초를 고치고 다음에 고칠 때까지의 시간(ms)을 돌려준다. */
+    private fun refreshClock(): Long {
         val now = clock.instant()
+        val startIn = countdownTo?.takeIf {
+            _state.value.phase == BattlePhase.COUNTDOWN
+        }?.let { Duration.between(now, it) }
         _state.update { s ->
             s.copy(
-                countdown = countdownTo?.takeIf {
-                    s.phase == BattlePhase.COUNTDOWN
-                }?.let { Duration.between(now, it).seconds.coerceAtLeast(0) },
+                countdown = startIn?.let(CountdownSeconds::left),
                 closingSeconds = closesAt?.takeIf { s.phase == BattlePhase.CLOSING }
                     ?.let { Duration.between(now, it).seconds.coerceAtLeast(0) }
             )
         }
+        return startIn?.let(CountdownSeconds::untilNext) ?: TICK_MILLIS
     }
 
     private fun showGuidance(kind: BattleGuidance.Kind?) {

@@ -239,6 +239,40 @@ class BattleRunningViewModelTest {
     }
 
     @Test
+    fun `기록 대결 카운트다운은 화면이 늦게 붙어도 3부터 보이고 남은 시간이 정수 초를 지날 때 바로 줄어든다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
+        w.coordinator.onRecordBattleStart(
+            recordStart(Distance(5_000), com.a207.runkk.app.core.model.CardKind.SELF_RUN, "과거의 나")
+        )
+        runCurrent()
+        // 시작 응답 뒤 진행 화면이 0.15초 뒤에 붙었다(남은 2.85초)
+        w.clock.now = w.clock.now.plusMillis(150)
+        advanceTimeBy(150)
+        vm.bind(Routes.BattleRunning(42, "과거의 나", 5_000, OpponentKind.SELF.name))
+        runCurrent()
+        assertEquals(3L, vm.state.value.countdown)
+        // 남은 2.001초: 아직 3
+        w.clock.now = w.clock.now.plusMillis(849)
+        advanceTimeBy(849)
+        runCurrent()
+        assertEquals(3L, vm.state.value.countdown)
+        // 남은 2초가 되는 순간 2(1초 주기를 기다리지 않는다)
+        w.clock.now = w.clock.now.plusMillis(1)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(2L, vm.state.value.countdown)
+        w.clock.now = w.clock.now.plusMillis(1_000)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(1L, vm.state.value.countdown)
+        w.clock.now = w.clock.now.plusMillis(1_000)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
+    }
+
+    @Test
     fun `배치고사 판이면 진행 중 상대를 물음표로 그리고 아니면 상대 그림을 그린다(FR-276)`() = main.runVmTest { vms ->
         val w = world()
         val placement = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))

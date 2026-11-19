@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.navigation.EntryTransition
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
@@ -41,7 +42,10 @@ class BattleFeatureEntry @Inject constructor(private val sharer: InviteSharer) :
         builder.addEntryProvider(Routes.FriendInviteJoin::class) { key ->
             MatchRoute(MatchStart.Join(key.token), sharer)
         }
-        builder.addEntryProvider(Routes.BattleRunning::class) { key -> BattleRunningRoute(key) }
+        // 출발 카운트다운은 누르자마자 보여야 해서 앞 화면과 엇갈려 나타나지 않는다(S15P31A207-335 8회차)
+        builder.addEntryProvider(Routes.BattleRunning::class, metadata = EntryTransition.INSTANT) { key ->
+            BattleRunningRoute(key)
+        }
         builder.addEntryProvider(Routes.BattleResult::class) { key ->
             val navigator = LocalRunkkNavigator.current
             BattleResultRoute(

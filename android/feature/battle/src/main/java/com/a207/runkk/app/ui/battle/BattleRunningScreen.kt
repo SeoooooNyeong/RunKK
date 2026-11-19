@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -118,10 +119,12 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewModel = hiltViewModel()) {
-    LaunchedEffect(key) { viewModel.bind(key) }
+    // 상태를 읽기 전에 경로 인자를 넘겨 첫 판부터 카운트다운을 그린다(S15P31A207-335 8회차: 효과로 미루면 첫 판이 빈 화면이었다).
+    // bind는 같은 대결이면 다시 하지 않는다.
+    val bound = remember(key) { viewModel.bind(key) }
     // 진행 알림·신체 활동 권한을 한 번 묻는다(AN8-5, D-259, S15P31A207-242). 거부해도 대결은 이어 간다.
     RunPermissionEffect()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by bound.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -315,10 +318,17 @@ private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () ->
         Box {
             StartRing(state.countdown, total = RECORD_COUNTDOWN_SECONDS, modifier = Modifier.padding(top = 24.dp))
             // 출발 전에 트랙의 내 아바타와 상대를 미리 그려 둔다(S15P31A207-335): 출발 직후 몸이 비거나 깜빡이지 않는다. 내 아바타는
-            // 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다).
-            val mine: @Composable () -> Unit = { MyTrackRunner(AvatarSlotPose.RUN, null, isMoving = false) }
-            val theirs: @Composable () -> Unit = { OpponentRunner(state) }
-            RunkkTrackAvatarWarmup(listOf(mine, theirs))
+            // 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다). 숫자가 바로 보이게 카운트다운 첫 판 다음 판에 붙인다(8회차).
+            var isWarming by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                withFrameNanos { }
+                isWarming = true
+            }
+            if (isWarming) {
+                val mine: @Composable () -> Unit = { MyTrackRunner(AvatarSlotPose.RUN, null, isMoving = false) }
+                val theirs: @Composable () -> Unit = { OpponentRunner(state) }
+                RunkkTrackAvatarWarmup(listOf(mine, theirs))
+            }
         }
     }
     if (state.kind == OpponentKind.SELF) {
