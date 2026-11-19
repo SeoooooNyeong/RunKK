@@ -84,6 +84,23 @@ internal object AvatarStillFrame {
         }
     }
 
+    /**
+     * 다른 칸 크기로 읽어 둔 그림([width]×[height])을 [slotWidth]×[slotHeight] 칸에 그대로 써도 되는가(S15P31A207-335 8회차: 기록런 VS 칸
+     * 148 그림을 카운트다운 VS 칸 96에 쓴다). 틀([window])은 칸 비율로만 정해지고 가장 좁은 틀도 몸 전체를 담으므로, 그림 비율이 이 칸의 틀
+     * 비율보다 넓지 않으면 칸에 비율대로 줄여 발을 바닥에 붙였을 때 몸 크기·자리가 이 칸에서 새로 읽은 그림과 같다. 넓은 그림은 좁은 칸에서
+     * 몸이 작아지고, 늘려야 하는 작은 그림은 흐려져서 쓰지 않는다.
+     */
+    fun standsIn(width: Int, height: Int, slotWidth: Int, slotHeight: Int): Boolean {
+        if (width <= 0 || height <= 0 || slotWidth <= 0 || slotHeight <= 0) return false
+        val frameRatio = max(MIN_WIDTH_RATIO, slotWidth.toFloat() / slotHeight)
+        val scale = minOf(slotWidth.toFloat() / width, slotHeight.toFloat() / height)
+        return width.toFloat() / height <= frameRatio + RATIO_TOLERANCE && scale <= 1f + SCALE_TOLERANCE
+    }
+
+    /** 반올림으로 생기는 비율·배율 차이(틀·줄이기는 px로 반올림한다). */
+    private const val RATIO_TOLERANCE = 0.02f
+    private const val SCALE_TOLERANCE = 0.02f
+
     private const val ALPHA_SHIFT = 24
 
     /** 틀 높이 = 아트보드 높이 × 이 값(서기 몸이 아트보드의 약 0.6이고, 가장 큰 머리까지 들어가게 조금 더 둔다). */

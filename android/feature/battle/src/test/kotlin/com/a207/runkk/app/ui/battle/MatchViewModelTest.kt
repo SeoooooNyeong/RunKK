@@ -471,6 +471,30 @@ class MatchViewModelTest {
     }
 
     @Test
+    fun `출발까지 남은 초는 올림으로 보이고 정수 초를 지나는 순간 줄어든다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        val match = matchFound()
+        w.channels.channel.push(match)
+        runCurrent()
+        val startAt = w.clock.now.plusSeconds(10)
+        // 출발 예약이 0.3초 늦게 왔다(남은 9.7초)
+        w.clock.now = w.clock.now.plusMillis(300)
+        advanceTimeBy(300)
+        w.channels.channel.push(BattleStart(match.battleId, startAt, opponentTrack = null))
+        runCurrent()
+        assertEquals(10L, vm.state.value.startsInSeconds)
+        w.clock.now = w.clock.now.plusMillis(699)
+        advanceTimeBy(699)
+        runCurrent()
+        assertEquals(10L, vm.state.value.startsInSeconds)
+        w.clock.now = w.clock.now.plusMillis(1)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(9L, vm.state.value.startsInSeconds)
+    }
+
+    @Test
     fun `W55 성사 화면에 GPS 예열 상태를 보이고 상태만 바뀌어도 출발 카운트다운을 다시 세지 않는다`() = main.runVmTest { vms ->
         val w = world()
         val vm = quick(w, vms)

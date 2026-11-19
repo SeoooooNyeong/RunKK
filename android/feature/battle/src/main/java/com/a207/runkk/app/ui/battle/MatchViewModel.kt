@@ -734,11 +734,13 @@ class MatchViewModel @Inject constructor(
         watchStuck(s.startAt.plus(START_STUCK))
         countdownJob?.cancel()
         countdownJob = viewModelScope.launch {
+            // 올려 세고 정수 초를 지나는 순간 바꾼다(진행 화면 카운트다운과 같다, S15P31A207-335 8회차)
             while (isActive) {
-                val left = Duration.between(clock.instant(), s.startAt).seconds.coerceAtLeast(0)
+                val remaining = Duration.between(clock.instant(), s.startAt)
+                val left = CountdownSeconds.left(remaining)
                 _state.update { it.copy(startsInSeconds = left) }
                 if (left == 0L) break
-                delay(TICK_MILLIS)
+                delay(CountdownSeconds.untilNext(remaining))
             }
         }
     }
