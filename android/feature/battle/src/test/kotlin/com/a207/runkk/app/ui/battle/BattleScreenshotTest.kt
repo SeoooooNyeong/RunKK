@@ -470,6 +470,33 @@ class BattleScreenshotTest {
         )
     }
 
+    /** 추월·역전 흰 안내 띠(S15P31A207-334): 라이트·다크 모두 흰 바탕이고 큰 거리 숫자 위에 겹친다. */
+    @Test
+    fun battleRunningOvertookLight() =
+        compose.captureRunkkScreen("D3_battle_running_overtook_light", isDarkTheme = false) {
+            BattleRunningScreen(
+                running.copy(gapMeters = 42, guidance = BattleGuidance.Kind.OVERTOOK, overtakes = 1),
+                BattleRunningActions()
+            )
+        }
+
+    @Test
+    fun battleRunningOvertaken() = compose.captureRunkkScreen("D3_battle_running_overtaken") {
+        BattleRunningScreen(
+            running.copy(gapMeters = -18, guidance = BattleGuidance.Kind.OVERTAKEN),
+            BattleRunningActions()
+        )
+    }
+
+    @Test
+    fun battleRunningOvertakenLight() =
+        compose.captureRunkkScreen("D3_battle_running_overtaken_light", isDarkTheme = false) {
+            BattleRunningScreen(
+                running.copy(gapMeters = -18, guidance = BattleGuidance.Kind.OVERTAKEN),
+                BattleRunningActions()
+            )
+        }
+
     @Test
     fun battleRunningDisconnected() = compose.captureRunkkScreen("D3_battle_running_disconnected") {
         BattleRunningScreen(running.copy(isLiveLost = true), BattleRunningActions())
