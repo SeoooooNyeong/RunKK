@@ -42,18 +42,36 @@ abstract class RecordBattleViewModel(
 
     protected abstract suspend fun begin(candidate: CandidateUi): Outcome<RecordBattleStart>
 
+    /** 기기에 남긴 후보 사본(시작 로딩이 받아 둔 것, S15P31A207-345 2차). 없으면 null. */
+    protected open suspend fun cached(): RecordBattleCandidates? = null
+
     fun load() {
         loadJob?.cancel()
-        mutableState.update { it.copy(isLoading = true, error = null) }
+        mutableState.update { it.copy(isLoading = true, isShowingCopy = false, error = null) }
         loadJob = viewModelScope.launch {
+            // 처음 열 때 받아 둔 사본이 있으면 먼저 그려 네트워크 없이 고를 수 있게 하고, 뒤에서 새로 받아 바꾼다.
+            val copy = if (mutableState.value.candidates.isEmpty()) cached() else null
+            if (copy != null) {
+                mutableState.update { it.copy(candidates = copy.candidates.map(CandidateUi::of), isShowingCopy = true) }
+            }
             when (val result = fetch()) {
                 is Outcome.Success -> mutableState.update { s ->
                     val list = result.value.candidates.map(CandidateUi::of)
-                    s.copy(isLoading = false, candidates = list, selected = s.selected?.takeIf { it in list })
+                    s.copy(
+                        isLoading = false,
+                        isShowingCopy = false,
+                        candidates = list,
+                        selected = s.selected?.takeIf { it in list }
+                    )
                 }
 
+                // 사본을 그리고 있으면 오류 화면으로 덮지 않고 사본으로 고르게 둔다(대결 생성은 그대로 서버에 묻는다).
                 is Outcome.Failure -> mutableState.update {
-                    it.copy(isLoading = false, error = BattleErrorText.of(result.error))
+                    if (copy != null) {
+                        it.copy(isLoading = false)
+                    } else {
+                        it.copy(isLoading = false, error = BattleErrorText.of(result.error))
+                    }
                 }
             }
         }

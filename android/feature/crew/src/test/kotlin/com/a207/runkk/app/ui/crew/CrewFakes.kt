@@ -555,6 +555,11 @@ class FakeCrewRepository : CrewRepository {
 
     override suspend fun myCrew() = answer("myCrew", mine)
 
+    /** 기기에 남긴 내 크루 사본(S15P31A207-345 2차). null이면 없음. */
+    var mineCopy: MyCrew? = null
+
+    override suspend fun cachedMyCrew(): MyCrew? = mineCopy
+
     /** 정보 수정(changeInfo)이 받아들인 크루명. 크루 조회가 이 이름을 돌려준다. */
     private var renamed: String? = null
 

@@ -22,6 +22,9 @@ class CelebBattleViewModel @Inject constructor(battles: BattleRepository, coordi
 
     override suspend fun fetch() = battles.celebrityCandidates(CELEB_FILTERS[mutableState.value.filterIndex].second)
 
+    override suspend fun cached() =
+        battles.cachedCelebrityCandidates(CELEB_FILTERS[mutableState.value.filterIndex].second)
+
     override suspend fun begin(candidate: CandidateUi): Outcome<RecordBattleStart> {
         val id = candidate.celebrityId ?: return Outcome.Failure(AppError.Rejected("CELEBRITY_REMOVED"))
         return battles.startCelebrityBattle(id)

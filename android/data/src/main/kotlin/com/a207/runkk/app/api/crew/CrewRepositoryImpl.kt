@@ -2,6 +2,8 @@ package com.a207.runkk.app.api.crew
 
 import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.api.core.FaceImageSource
+import com.a207.runkk.app.api.core.ScreenCopyStore
+import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.ServerTime
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
@@ -42,16 +44,39 @@ import okhttp3.RequestBody.Companion.toRequestBody
 /**
  * 크루·게시판·대기실 포트를 REST로 구현한다(6.1.14 api.crew). 갈래마다 엔드포인트가 나뉜다(D-36).
  * 목록(크루·게시글)은 [PAGE_SIZE]씩 받아 커서로 이어 받는다.
+ * 내 크루 응답은 받을 때마다 기기에 남기고(내 계정 칸, S15P31A207-345 2차 [copies]) 크루 탭이 먼저 그릴 수 있게 [cachedMyCrew]로 준다.
  */
-internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, private val faces: FaceImageSource) :
-    CrewRepository {
+internal class CrewRepositoryImpl @Inject constructor(
+    private val api: CrewApi,
+    private val faces: FaceImageSource,
+    private val self: SelfMember? = null,
+    private val copies: ScreenCopyStore? = null
+) : CrewRepository {
     /** 목록 행 얼굴 원(Jira 308): 256. */
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
         faces.faceLayers(faceKey, FaceUse.LIST)
 
     override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
 
-    override suspend fun myCrew(): Outcome<MyCrew> = ApiErrorMapper.call { api.myCrew().toDomain() }
+    override suspend fun myCrew(): Outcome<MyCrew> {
+        val member = self?.memberId()
+        return ApiErrorMapper.call {
+            api.myCrew().also { response ->
+                val store = copies ?: return@also
+                if (member != null) {
+                    withContext(Dispatchers.IO) {
+                        store.write(member, MY_CREW, "", MyCrewResponse.serializer(), response)
+                    }
+                }
+            }.toDomain()
+        }
+    }
+
+    override suspend fun cachedMyCrew(): MyCrew? = withContext(Dispatchers.IO) {
+        val store = copies ?: return@withContext null
+        val member = self?.memberId() ?: return@withContext null
+        store.read(member, MY_CREW, MyCrewResponse.serializer())?.second?.toDomain()
+    }
 
     override suspend fun detail(crewId: Long): Outcome<CrewDetail> = ApiErrorMapper.call {
         api.detail(crewId).toDomain()
@@ -210,7 +235,10 @@ internal class CrewRepositoryImpl @Inject constructor(private val api: CrewApi, 
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Long, ByteArray>?): Boolean = size > LOGO_CACHE
     }
 
-    private companion object {
+    internal companion object {
+        /** 화면 사본 열쇠(시작 미리 받기 출처 CrewPreloadSource도 쓴다). */
+        const val MY_CREW = "crew-mine"
+
         /** 크루 목록·게시글 한 쪽 크기(서버 PageCursor 1~100). */
         const val PAGE_SIZE = 20
 

@@ -44,8 +44,8 @@ class AssetPreloaderTest {
         val state = assertIs<PreloadState.Ready>(preloader.state.value)
         assertFalse(state.progress.hasBar)
         assertEquals(emptyList(), source.fetched, "받지 않는다")
-        assertTrue(source.marks.any { it.startsWith("AssetPreload hit ${HEAD.key}") }, "${source.marks}")
-        assertTrue(source.marks.any { it.startsWith("AssetPreload done") }, "${source.marks}")
+        assertTrue(source.marks.any { it == "AssetPreload avatar hit ${HEAD.key}" }, "${source.marks}")
+        assertTrue(source.marks.any { it.startsWith("AssetPreload all done") }, "${source.marks}")
     }
 
     @Test
@@ -69,9 +69,9 @@ class AssetPreloaderTest {
 
         preloader.start(isLoggedIn = true)
         runCurrent()
-        assertEquals(PreloadState.Loading(PreloadProgress(0, 7)), preloader.state.value)
+        assertEquals(PreloadProgress(0, 7), assertIs<PreloadState.Loading>(preloader.state.value).progress)
         advanceTimeBy(3_500)
-        assertEquals(PreloadState.Loading(PreloadProgress(3, 7)), preloader.state.value)
+        assertEquals(PreloadProgress(3, 7), assertIs<PreloadState.Loading>(preloader.state.value).progress)
         // 시간 상한이 없다: 오래 걸려도 다 받을 때까지 준비 끝이 아니다.
         source.fileDelayMillis = 60_000
         advanceTimeBy(120_000)
@@ -90,7 +90,7 @@ class AssetPreloaderTest {
 
         assertIs<PreloadState.Ready>(preloader.state.value)
         assertEquals(3, source.fetched.size, "처음 + 자동 재시도 두 번")
-        assertEquals(2, source.marks.count { it.startsWith("AssetPreload retry") }, "${source.marks}")
+        assertEquals(2, source.marks.count { it.startsWith("AssetPreload avatar retry") }, "${source.marks}")
     }
 
     @Test
@@ -107,13 +107,17 @@ class AssetPreloaderTest {
         assertEquals(AppError.Network, failed.error)
         assertEquals(1 + AssetPreloader.RETRY_DELAYS_MILLIS.size, source.fetched.count { it == second.key })
         assertEquals(PreloadProgress(2 + 3, 9), failed.progress, "받은 것은 막대에 남는다(앞 에셋 2 + 뒤 에셋 3파일)")
-        assertTrue(source.marks.any { it.startsWith("AssetPreload failed") }, "${source.marks}")
+        assertTrue(source.marks.any { it.startsWith("AssetPreload all failed") }, "${source.marks}")
 
         // 다시 시도: 끝난 에셋은 다시 받지 않고, 덜 받은 에셋은 이미 얻은 파일 다음부터 받는다.
         source.offline = emptySet()
         val fetchedBefore = source.fetched.size
         preloader.retry()
-        assertEquals(PreloadState.Loading(PreloadProgress(5, 9)), preloader.state.value, "막대는 뒤로 가지 않는다")
+        assertEquals(
+            PreloadProgress(5, 9),
+            assertIs<PreloadState.Loading>(preloader.state.value).progress,
+            "막대는 뒤로 가지 않는다"
+        )
         advanceUntilIdle()
 
         assertEquals(PreloadState.Ready(PreloadProgress(9, 9)), preloader.state.value)
@@ -146,7 +150,7 @@ class AssetPreloaderTest {
 
         assertEquals(PreloadState.Ready(PreloadProgress(7, 7)), preloader.state.value)
         assertEquals(1, source.fetched.size, "거부는 다시 받지 않는다")
-        assertTrue(source.marks.any { it.startsWith("AssetPreload skip") }, "${source.marks}")
+        assertTrue(source.marks.any { it.startsWith("AssetPreload avatar skip") }, "${source.marks}")
     }
 
     @Test
@@ -160,7 +164,7 @@ class AssetPreloaderTest {
         assertEquals(PreloadState.Ready(PreloadProgress.UNKNOWN), preloader.state.value)
         assertEquals(emptyList(), source.fetched)
         assertEquals(1, source.memberAsked, "다시 해도 같은 실패는 다시 묻지 않는다")
-        assertTrue(source.marks.any { it.startsWith("AssetPreload skip member") }, "${source.marks}")
+        assertTrue(source.marks.any { it.startsWith("AssetPreload all skip member") }, "${source.marks}")
     }
 
     @Test
@@ -174,7 +178,127 @@ class AssetPreloaderTest {
         assertEquals(1, source.fetched.size)
     }
 
-    private fun TestScope.preloader(source: FakeSource) = AssetPreloader(source, this)
+    @Test
+    fun `여러 종류 출처의 파일 수를 합쳐 막대를 내고 단계마다 남은 파일 수를 함께 낸다`() = runTest {
+        val avatar =
+            FakeSource(member = listOf(HEAD.copy(stage = PreloadStage.MY_AVATAR_FETCH)), fileDelayMillis = 1_000)
+        val ranking = FakeSource(member = listOf(RANKING), fileDelayMillis = 10_000)
+        val preloader = preloader(avatar, ranking)
+
+        preloader.start(isLoggedIn = true)
+        runCurrent()
+        val first = assertIs<PreloadState.Loading>(preloader.state.value)
+        assertEquals(PreloadProgress(0, 7 + 3), first.progress, "내 머리 7 + 랭킹 3")
+        assertEquals(mapOf(PreloadStage.MY_AVATAR_FETCH to 7, PreloadStage.RANKING to 3), first.remaining)
+
+        advanceTimeBy(7_500)
+        val later = assertIs<PreloadState.Loading>(preloader.state.value)
+        assertEquals(PreloadProgress(7, 10), later.progress)
+        assertEquals(mapOf(PreloadStage.MY_AVATAR_FETCH to 0, PreloadStage.RANKING to 3), later.remaining)
+        advanceUntilIdle()
+        assertEquals(PreloadState.Ready(PreloadProgress(10, 10)), preloader.state.value)
+        assertTrue(ranking.marks.isEmpty(), "표식은 기록 포트 하나로 모은다")
+        assertTrue(avatar.marks.any { it == "AssetPreload ranking fetch ${RANKING.key}" }, "${avatar.marks}")
+    }
+
+    @Test
+    fun `한 번에 받는 에셋은 동시 요청 상한(4)을 넘지 않는다`() = runTest {
+        val many = List(10) { PreloadAsset("records:$it", files = 1) }
+        val source = FakeSource(member = many, fileDelayMillis = 1_000)
+        val preloader = preloader(source)
+
+        preloader.start(isLoggedIn = true)
+        advanceUntilIdle()
+
+        assertEquals(PreloadState.Ready(PreloadProgress(10, 10)), preloader.state.value)
+        assertEquals(AssetPreloader.MAX_PARALLEL, source.maxInFlight, "상한까지 함께 받고 넘지 않는다")
+        assertEquals(4, AssetPreloader.MAX_PARALLEL)
+    }
+
+    @Test
+    fun `앞당기기 에셋은 연결 실패여도 다시 받지 않고 건너뛰어 준비를 막지 않는다`() = runTest {
+        val optional =
+            PreloadAsset("avatar:prepare", files = 2, stage = PreloadStage.MY_AVATAR_PREPARE, isOptional = true)
+        val source = FakeSource(member = listOf(optional), failures = mutableListOf(AppError.Network))
+        val preloader = preloader(source)
+
+        preloader.start(isLoggedIn = true)
+        advanceUntilIdle()
+
+        assertEquals(PreloadState.Ready(PreloadProgress(2, 2)), preloader.state.value)
+        assertEquals(1, source.fetched.size, "자동 재시도 없이 한 번")
+        assertTrue(source.marks.any { it.startsWith("AssetPreload avatar skip avatar:prepare") }, "${source.marks}")
+    }
+
+    @Test
+    fun `자동 재시도를 기다리는 동안은 재시도 중으로 낸다`() = runTest {
+        val source = FakeSource(member = listOf(HEAD), failures = mutableListOf(AppError.Network))
+        val preloader = preloader(source)
+
+        preloader.start(isLoggedIn = true)
+        runCurrent()
+        assertTrue(assertIs<PreloadState.Loading>(preloader.state.value).isRetrying)
+        advanceTimeBy(1_500)
+        runCurrent()
+        assertIs<PreloadState.Ready>(preloader.state.value)
+    }
+
+    @Test
+    fun `회원 에셋을 다 받아 본 적이 없을 때만 처음 실행으로 내고 다 받으면 기억한다`() = runTest {
+        val source = FakeSource(member = listOf(HEAD), fileDelayMillis = 1_000)
+        val first = preloader(source)
+        first.start(isLoggedIn = true)
+        runCurrent()
+        assertTrue(assertIs<PreloadState.Loading>(first.state.value).isFirstRun)
+        advanceUntilIdle()
+        assertTrue(source.hasFinished)
+
+        val again = preloader(FakeSource(member = listOf(HEAD), fileDelayMillis = 1_000).apply { hasFinished = true })
+        again.start(isLoggedIn = true)
+        runCurrent()
+        assertFalse(assertIs<PreloadState.Loading>(again.state.value).isFirstRun)
+
+        val loggedOut = FakeSource(public = listOf(PUBLIC), fileDelayMillis = 1_000)
+        val beforeLogin = preloader(loggedOut)
+        beforeLogin.start(isLoggedIn = false)
+        runCurrent()
+        assertFalse(assertIs<PreloadState.Loading>(beforeLogin.state.value).isFirstRun, "로그인 전은 처음 실행 안내 없음")
+        advanceUntilIdle()
+        assertFalse(loggedOut.hasFinished, "로그인 전 공용만 받은 것은 기억하지 않는다")
+    }
+
+    @Test
+    fun `한 출처의 목록이 인증 만료여도 다른 출처는 받는다`() = runTest {
+        val expired = FakeSource(member = listOf(HEAD), memberError = AppError.Unauthorized)
+        val ranking = FakeSource(member = listOf(RANKING))
+        val preloader = preloader(expired, ranking)
+
+        preloader.start(isLoggedIn = true)
+        advanceUntilIdle()
+
+        assertEquals(PreloadState.Ready(PreloadProgress(3, 3)), preloader.state.value)
+        assertEquals(listOf(RANKING.key), ranking.fetched)
+    }
+
+    @Test
+    fun `네트워크가 돌아온 뒤 다시 시도를 한 번 누르면 바로 받기 시작한다`() = runTest {
+        val source = FakeSource(member = listOf(HEAD), offline = setOf(HEAD.key))
+        val preloader = preloader(source)
+        preloader.start(isLoggedIn = true)
+        advanceUntilIdle()
+        assertIs<PreloadState.Failed>(preloader.state.value)
+
+        source.offline = emptySet()
+        preloader.retry()
+        assertIs<PreloadState.Loading>(preloader.state.value, "첫 누름에 바로 받기 시작한다")
+        advanceUntilIdle()
+        assertIs<PreloadState.Ready>(preloader.state.value)
+        preloader.retry()
+        assertIs<PreloadState.Ready>(preloader.state.value, "준비가 끝난 뒤 누름은 아무것도 하지 않는다")
+    }
+
+    private fun TestScope.preloader(source: FakeSource, vararg more: AssetPreloadSource) =
+        AssetPreloader(listOf(source) + more, source, this)
 
     /**
      * 가짜 출처. [offline]에 든 에셋은 앞 3파일만 주고 Network로 실패한다(이어 받기 시험). 파일은 받은 만큼 [filesServed]에 남고 다음
@@ -189,7 +313,8 @@ class AssetPreloaderTest {
         var fileDelayMillis: Long = 0,
         private var planFailures: Int = 0,
         private val memberError: AppError? = null
-    ) : AssetPreloadSource {
+    ) : AssetPreloadSource,
+        PreloadJournal {
         val fetched = mutableListOf<String>()
         val marks = mutableListOf<String>()
         val filesServed = mutableMapOf<String, Int>()
@@ -214,7 +339,20 @@ class AssetPreloaderTest {
 
         override fun isCached(asset: PreloadAsset): Boolean = asset.key in cached || asset.key in done
 
+        var maxInFlight = 0
+        private var inFlight = 0
+
         override suspend fun fetch(asset: PreloadAsset, onFile: () -> Unit): Outcome<Unit> {
+            inFlight++
+            maxInFlight = maxOf(maxInFlight, inFlight)
+            try {
+                return serve(asset, onFile)
+            } finally {
+                inFlight--
+            }
+        }
+
+        private suspend fun serve(asset: PreloadAsset, onFile: () -> Unit): Outcome<Unit> {
             fetched += asset.key
             failures.removeFirstOrNull()?.let { return Outcome.Failure(it) }
             val served = filesServed[asset.key] ?: 0
@@ -230,14 +368,23 @@ class AssetPreloaderTest {
             return Outcome.Success(Unit)
         }
 
+        var hasFinished = false
+
         override fun mark(line: String) {
             marks += line
+        }
+
+        override fun hasFinishedBefore(): Boolean = hasFinished
+
+        override fun markFinished() {
+            hasFinished = true
         }
     }
 
     private companion object {
         val HEAD = PreloadAsset("head:7:job-1", files = 7)
         val PUBLIC = PreloadAsset("public:stage", files = 1)
+        val RANKING = PreloadAsset("ranking:personal", files = 3, stage = PreloadStage.RANKING)
         const val OFFLINE_FILES = 3
     }
 }

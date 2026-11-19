@@ -64,10 +64,60 @@ class SelfFaceStoreTest {
     @Test
     fun `형식 판을 적지 않은 옛 사본은 다시 받는다`() {
         SelfFaceStore(dir, format = "v3").saveHead(MEMBER, KEY, head(1))
-        val meta = File(dir, "meta.properties")
+        val meta = File(dir, "m$MEMBER/meta.properties")
         meta.writeText(meta.readLines().filterNot { it.startsWith("format=") }.joinToString("\n"))
 
         assertFalse(SelfFaceStore(dir, format = "v3").hasHead(MEMBER, KEY))
+    }
+
+    @Test
+    fun `계정마다 칸을 나눠 다른 계정이 남겨도 앞 계정 것을 지우지 않고 돌아오면 바로 준다`() {
+        val store = SelfFaceStore(dir, format = "v3")
+        store.saveKeys(MEMBER, SelfFaceStore.Keys(KEY, "bg-a"))
+        store.saveGender(MEMBER, "FEMALE")
+        store.saveHead(MEMBER, KEY, head(1))
+
+        store.saveKeys(OTHER, SelfFaceStore.Keys(OTHER_KEY, "bg-b"))
+        store.saveGender(OTHER, "MALE")
+        store.saveHead(OTHER, OTHER_KEY, head(2))
+        assertNull(store.head(OTHER, KEY), "다른 계정은 앞 계정 머리를 받지 않는다")
+        assertNull(store.keys(null), "로그아웃이면 아무 칸도 내주지 않는다")
+
+        // 새 실행에서도 칸마다 그대로 남는다.
+        val reopened = SelfFaceStore(dir, format = "v3")
+        assertEquals(SelfFaceStore.Keys(KEY, "bg-a"), reopened.keys(MEMBER))
+        assertEquals("FEMALE", reopened.gender(MEMBER))
+        assertTrue(reopened.hasHead(MEMBER, KEY))
+        assertEquals(1, reopened.head(MEMBER, KEY)?.faceLayers?.first()?.png?.single()?.toInt())
+        assertEquals(SelfFaceStore.Keys(OTHER_KEY, "bg-b"), reopened.keys(OTHER))
+        assertEquals(2, reopened.head(OTHER, OTHER_KEY)?.faceLayers?.first()?.png?.single()?.toInt())
+    }
+
+    @Test
+    fun `예전 한 칸 사본은 그 회원 칸으로 옮겨 다시 받지 않는다`() {
+        dir.mkdirs()
+        listOf("EARS", "EYES", "HAIR").forEach { File(dir, "$it.png").writeBytes(byteArrayOf(5)) }
+        repeat(3) { File(dir, "side$it.png").writeBytes(byteArrayOf(6)) }
+        File(dir, "head-meta.json").writeText("""{"format":"v3"}""")
+        File(dir, "meta.properties").writeText(
+            listOf(
+                "member=12",
+                "hasKeys=1",
+                "faceKey=$KEY",
+                "layersKey=$KEY",
+                "headKey=$KEY",
+                "sideCount=3",
+                "format=v3",
+                "gender=MALE"
+            )
+                .joinToString(System.lineSeparator())
+        )
+
+        val store = SelfFaceStore(dir, format = "v3")
+        assertTrue(store.hasHead(MEMBER, KEY))
+        assertEquals(5, store.head(MEMBER, KEY)?.faceLayers?.first()?.png?.single()?.toInt())
+        assertEquals("MALE", store.gender(MEMBER))
+        assertNull(store.keys(OTHER))
     }
 
     private fun head(byte: Int) = SelfFaceStore.Head(
@@ -80,5 +130,6 @@ class SelfFaceStoreTest {
         const val MEMBER = 12L
         const val OTHER = 99L
         const val KEY = "head:12:job-1"
+        const val OTHER_KEY = "head:99:job-5"
     }
 }

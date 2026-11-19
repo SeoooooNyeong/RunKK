@@ -29,6 +29,7 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
 import com.a207.runkk.app.domain.sync.PreloadProgress
+import com.a207.runkk.app.domain.sync.PreloadStage
 import com.a207.runkk.app.domain.sync.PreloadState
 import kotlin.test.assertEquals
 import org.junit.Rule
@@ -219,7 +220,8 @@ class RunkkAppContentTest {
                 )
             }
         }
-        compose.onNodeWithText("에셋을 받지 못했어요").assertExists()
+        compose.onNodeWithText("준비를 마치지 못했어요").assertExists()
+        compose.onNodeWithText("인터넷 연결을 확인해 주세요").assertExists()
         compose.onNodeWithText("홈 화면").assertDoesNotExist()
         compose.onNodeWithText("다시 시도").performClick()
         assertEquals(1, retries)
@@ -261,6 +263,32 @@ class RunkkAppContentTest {
         compose.onRoot().performTouchInput { click(center) }
         compose.onNodeWithContentDescription("런크크 시작 중").assertExists()
         assertEquals(0, taps, "덮인 첫 화면은 손가락을 받지 않는다")
+    }
+
+    @Test
+    fun `받는 동안 남은 것이 가장 많은 단계 문구를 잠시 뒤 띄우고 처음 설치면 안내를 덧붙인다`() {
+        loggedIn = true
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(
+                    setOf(FakeEntries),
+                    loggedIn = loggedIn,
+                    onExit = {},
+                    preload = PreloadState.Loading(
+                        PreloadProgress(2, 10),
+                        remaining = mapOf(PreloadStage.RANKING to 8, PreloadStage.MY_AVATAR_FETCH to 0),
+                        isFirstRun = true
+                    )
+                )
+            }
+        }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("랭킹을 불러오고 있어요").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("랭킹을 불러오고 있어요").assertExists()
+        compose.onNodeWithText("처음 실행을 준비하고 있어요").assertExists()
+        compose.onNodeWithText("20%").assertExists()
     }
 
     @Test

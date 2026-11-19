@@ -237,7 +237,7 @@ fun CelebBattleScreen(
             }
             Box(modifier = Modifier.weight(1f).padding(top = 12.dp)) {
                 when {
-                    state.isLoading -> RunkkLoading()
+                    state.isLoading && !state.isShowingCopy -> RunkkLoading()
 
                     state.error != null -> RunkkErrorState(state.error.asString(), onRetry = onRetry)
 

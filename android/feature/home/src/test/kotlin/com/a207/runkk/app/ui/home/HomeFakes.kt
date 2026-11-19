@@ -79,6 +79,12 @@ class FakeRecordRepository : RecordRepository {
         return dashboardResult
     }
 
+    /** 기기에 남긴 대시보드 사본(S15P31A207-345 2차). */
+    var dashboardCopy: Pair<LocalDate, Dashboard>? = null
+
+    override suspend fun cachedDashboard(baseDate: LocalDate): Dashboard? =
+        dashboardCopy?.takeIf { it.first == baseDate }?.second
+
     override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> = unused()
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = unused()
@@ -170,6 +176,11 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
         summaryCalls++
         return summaryResult
     }
+
+    /** 기기에 남긴 내 요약 사본(S15P31A207-345 2차). */
+    var summaryCopy: com.a207.runkk.app.domain.account.MySummary? = null
+
+    override suspend fun cachedMySummary(): com.a207.runkk.app.domain.account.MySummary? = summaryCopy
 
     override suspend fun profile(memberId: Long): Outcome<com.a207.runkk.app.domain.account.Profile> {
         profileIds += memberId

@@ -172,10 +172,23 @@ class FakeBattleRepository : BattleRepository {
         return selfResult
     }
 
+    /** 있으면 셀럽 후보 응답을 이 값이 끝날 때까지 미룬다(사본 먼저 보이기 시험). */
+    var celebGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /** 기기에 남긴 사본(S15P31A207-345 2차). null이면 없음. */
+    var celebCopy: RecordBattleCandidates? = null
+    var historyCopy: BattleHistory? = null
+
     override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> {
         calls += "celeb:${distance?.meters}"
+        celebGate?.await()
         return celebResult
     }
+
+    override suspend fun cachedCelebrityCandidates(distance: Distance?): RecordBattleCandidates? =
+        celebCopy?.takeIf { distance == null }
+
+    override suspend fun cachedHistory(filter: BattleHistory.Type?): BattleHistory? = historyCopy
 
     override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
         Outcome.Failure(AppError.Rejected("UNUSED"))

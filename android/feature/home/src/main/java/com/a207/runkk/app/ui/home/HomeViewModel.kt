@@ -77,6 +77,9 @@ class HomeViewModel @Inject constructor(
 
     private var refreshJob: Job? = null
 
+    /** 받아 둔 사본을 한 번 그려 보았는가(S15P31A207-345 2차). */
+    private var hasTriedCopy = false
+
     /** 서버 읽기 차례. 취소된 앞 읽기가 문지기의 진행 중 표시를 풀지 않게 마지막 차례만 끝을 알린다. */
     private var loadTurn = 0
 
@@ -191,6 +194,27 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * 처음 읽을 때 한 번: 받아 둔 오늘 대시보드·내 요약 사본(시작 로딩이 남긴 것, S15P31A207-345 2차)이 있으면 먼저 그린다. 둘 다 있으면
+     * 첫 화면을 바로 그리고(로딩 끝), 서버에서 새로 읽은 값이 오면 바꾼다.
+     */
+    private suspend fun showCopy(today: LocalDate) {
+        if (hasTriedCopy) return
+        hasTriedCopy = true
+        val summary = records.cachedDashboard(today)
+        val me = account.cachedMySummary()
+        if (summary == null && me == null) return
+        _state.update {
+            val withSummary = if (summary != null) it.withSummary(summary, today) else it
+            withSummary.copy(
+                isLoading = it.isLoading && (summary == null || me == null),
+                header = me?.let { p -> HomeHeader(p.displayName, p.tier, p.level, summary?.rewardBalance) }
+                    ?: it.header,
+                isHeaderLoading = it.isHeaderLoading && me == null
+            )
+        }
+    }
+
     /** 러닝 설정 기기 사본이 있으면 자유런 카드의 음성·진동을 그 값으로 바꾼다(서버를 부르지 않는다). */
     private fun applySettingsCopy() {
         if (!settings.hasCopy()) return
@@ -201,6 +225,7 @@ class HomeViewModel @Inject constructor(
     /** 홈 값을 서버에서 읽어 상태에 넣는다. 대시보드를 읽었으면 참(문지기에 성공으로 남긴다). */
     private suspend fun read(today: LocalDate, isPlacementFromServer: Boolean): Boolean = coroutineScope {
         checkResendReminder()
+        showCopy(today)
         val dashboard = async { records.dashboard(today) }
         val plan = async { records.todayPlan() }
         val profile = async { account.mySummary().getOrNull() }
