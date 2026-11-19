@@ -84,6 +84,8 @@ class RecordListViewModel internal constructor(
         monthJob = viewModelScope.launch {
             // 이번 달이면 오늘 하나로 월 요약과 연속 일수를 함께 읽고, 지난 달이면 그 달 첫날과 오늘을 따로 읽는다.
             val base = if (YearMonth.from(today) == month) today else month.atDay(1)
+            // 이번 달 첫 표시면 받아 둔 사본(시작 로딩이 남긴 것, S15P31A207-345 2차)을 먼저 그리고 뒤에서 새로 받아 바꾼다.
+            val hasCopy = base == today && _state.value.runs.isEmpty() && showCopy(month, today)
             val monthDashboard = async { records.dashboard(base) }
             val todayDashboard = if (base == today) monthDashboard else async { records.dashboard(today) }
             val result = records.runs(RecordRepository.SELF, month.atDay(1), month.atEndOfMonth())
@@ -94,29 +96,55 @@ class RecordListViewModel internal constructor(
                     s
                 } else {
                     when (result) {
-                        is Outcome.Success -> {
-                            val runs = result.value.runs.sortedByDescending { it.startedAt }
+                        is Outcome.Success -> s.withMonth(month, result.value.runs, monthValue, todayValue)
+
+                        // 사본을 그리고 있으면 오류 화면으로 덮지 않고 사본을 둔다(오래돼도 보여 준다).
+                        is Outcome.Failure -> if (hasCopy) {
+                            s.copy(isLoading = false)
+                        } else {
                             s.copy(
                                 isLoading = false,
-                                runs = runs,
-                                dailyDistance = dailyValidDistance(runs, s.zone),
-                                summary = monthSummary(monthValue, runs, todayValue),
-                                selectedDate = s.selectedDate?.takeIf { YearMonth.from(it) == month }
-                                    ?: runs.firstOrNull()?.startedAt?.atZone(s.zone)?.toLocalDate()
+                                runs = emptyList(),
+                                dailyDistance = emptyMap(),
+                                summary = null,
+                                error = RunkkErrorText.of(result.error)
                             )
                         }
-
-                        is Outcome.Failure -> s.copy(
-                            isLoading = false,
-                            runs = emptyList(),
-                            dailyDistance = emptyMap(),
-                            summary = null,
-                            error = RunkkErrorText.of(result.error)
-                        )
                     }
                 }
             }
         }
+    }
+
+    /** 이번 달 기록·오늘 대시보드 사본이 있으면 먼저 그린다(받는 중 표시는 그대로). 그렸으면 참. */
+    private suspend fun showCopy(month: YearMonth, today: LocalDate): Boolean {
+        val runs = records.cachedRuns(month.atDay(1), month.atEndOfMonth()) ?: return false
+        val dashboard = records.cachedDashboard(today)
+        _state.update { s ->
+            if (s.month != month || s.runs.isNotEmpty()) {
+                s
+            } else {
+                s.withMonth(month, runs.runs, dashboard, dashboard).copy(isLoading = true)
+            }
+        }
+        return true
+    }
+
+    private fun RecordListUiState.withMonth(
+        month: YearMonth,
+        list: List<RunSummary>,
+        monthValue: Dashboard?,
+        todayValue: Dashboard?
+    ): RecordListUiState {
+        val runs = list.sortedByDescending { it.startedAt }
+        return copy(
+            isLoading = false,
+            runs = runs,
+            dailyDistance = dailyValidDistance(runs, zone),
+            summary = monthSummary(monthValue, runs, todayValue),
+            selectedDate = selectedDate?.takeIf { YearMonth.from(it) == month }
+                ?: runs.firstOrNull()?.startedAt?.atZone(zone)?.toLocalDate()
+        )
     }
 
     fun onPreviousMonth() = moveMonth(-1)

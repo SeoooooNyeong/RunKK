@@ -329,7 +329,7 @@ class FaceImageSourceTest {
     }
 
     @Test
-    fun `층 그림은 디스크(HTTP 캐시)에 남아 새 실행에서도 서버에 다시 묻지 않고, 계정이 바뀌면 비운다`() = runTest {
+    fun `층 그림은 디스크(HTTP 캐시)에 남아 새 실행에서도 서버에 다시 묻지 않고, 계정이 바뀌어도 같이 쓴다`() = runTest {
         member = 12
         useLayerServer()
         val cacheDir = kotlin.io.path.createTempDirectory("face-http").toFile()
@@ -355,7 +355,7 @@ class FaceImageSourceTest {
 
             member = 99
             restarted.faceLayers("head:7:job-9", FaceUse.LIST)
-            assertEquals(sent + 4, urls.size, "다른 계정이면 디스크 캐시를 비우고 다시 받는다")
+            assertEquals(sent, urls.size, "다른 러너 머리는 공용이라 다른 계정도 디스크 캐시를 같이 쓴다(지우지 않는다)")
             secondCache.close()
         } finally {
             cacheDir.deleteRecursively()
@@ -533,7 +533,7 @@ class FaceImageSourceTest {
     }
 
     @Test
-    fun `다른 러너 머리는 기기에 남기지 않고 다른 계정이면 남긴 내 얼굴을 내주지 않는다`() = runTest {
+    fun `다른 러너 머리는 기기에 남기지 않고 다른 계정이면 남긴 내 얼굴을 내주지 않되 지우지도 않는다`() = runTest {
         member = 7
         useLayerServer()
         source.faceLayers("head:12:job-1")
@@ -548,7 +548,14 @@ class FaceImageSourceTest {
         assertEquals(null, source.lastSelfGender())
         assertEquals(null, source.peek("head:12:job-2"))
         source.faceLayers("selfie:face/99/s1")
-        assertEquals(null, SelfFaceStore(storeDir).keys(12), "계정이 바뀌면 앞 계정의 내 얼굴을 지운다")
+        assertEquals(
+            SelfFaceStore.Keys("head:12:job-2", null),
+            SelfFaceStore(storeDir).keys(12),
+            "계정이 바뀌어도 앞 계정의 내 얼굴은 그 칸에 남는다"
+        )
+        member = 12
+        assertEquals(SelfFaceStore.Keys("head:12:job-2", null), source.lastSelf(), "돌아오면 앞 계정 칸을 바로 쓴다")
+        assertEquals("MALE", source.lastSelfGender())
     }
 
     @Test

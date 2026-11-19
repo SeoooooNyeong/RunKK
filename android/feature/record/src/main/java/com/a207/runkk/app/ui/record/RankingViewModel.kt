@@ -99,6 +99,9 @@ class RankingViewModel internal constructor(
         }
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
+            // 받아 둔 첫 화면(시작 로딩이 남긴 사본, S15P31A207-345 2차)이 있으면 먼저 그리고 뒤에서 새로 받아 바꾼다.
+            val copy = if (s.scope == RankingScope.PERSONAL) records.cachedPersonalRanking(s.period) else null
+            if (copy != null) _state.update { if (it.ranking == null) it.copy(ranking = copy) else it }
             val result = when (s.scope) {
                 RankingScope.PERSONAL -> records.personalRanking(s.period)
                 RankingScope.CREW -> records.crewRanking(s.period)
@@ -106,8 +109,13 @@ class RankingViewModel internal constructor(
             when (result) {
                 is Outcome.Success -> _state.update { it.copy(isLoading = false, ranking = result.value) }
 
+                // 사본을 그리고 있으면 오류 화면으로 덮지 않고 사본을 둔다(오래돼도 보여 준다).
                 is Outcome.Failure -> _state.update {
-                    it.copy(isLoading = false, ranking = null, error = RunkkErrorText.of(result.error))
+                    if (copy != null) {
+                        it.copy(isLoading = false)
+                    } else {
+                        it.copy(isLoading = false, ranking = null, error = RunkkErrorText.of(result.error))
+                    }
                 }
             }
         }

@@ -5,6 +5,7 @@ import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.api.core.SelfFaceStore
 import com.a207.runkk.app.api.core.value
 import com.a207.runkk.app.domain.sync.PreloadAsset
+import com.a207.runkk.app.domain.sync.PreloadStage
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.AfterTest
@@ -61,8 +62,7 @@ class AvatarAssetPreloadSourceTest {
         selfStore = SelfFaceStore(storeDir)
     )
 
-    private fun source(faces: FaceImageSource = faces(), marks: MutableList<String> = mutableListOf()) =
-        AvatarAssetPreloadSource(api.retrofit.create(), faces) { marks += it }
+    private fun source(faces: FaceImageSource = faces()) = AvatarAssetPreloadSource(api.retrofit.create(), faces)
 
     @AfterTest
     fun tearDown() {
@@ -78,7 +78,10 @@ class AvatarAssetPreloadSourceTest {
 
     @Test
     fun `내 얼굴 키를 모르면 GET avatar로 묻고 셀카 머리면 메타와 층 여섯 장을 받을 목록에 넣는다`() = runTest {
-        assertEquals(listOf(PreloadAsset(HEAD, files = 7)), source().memberAssets().value())
+        assertEquals(
+            listOf(PreloadAsset(HEAD, files = 7, stage = PreloadStage.MY_AVATAR_FETCH)),
+            source().memberAssets().value()
+        )
         assertEquals(listOf("/api/v1/avatar"), paths.toList())
     }
 
@@ -86,7 +89,10 @@ class AvatarAssetPreloadSourceTest {
     fun `기기에 남긴 얼굴 키가 있으면 묻지 않고, 셀카 머리가 아니면(기본 캐릭터) 받을 것이 없다`() = runTest {
         val faces = faces()
         faces.rememberSelf(HEAD, null)
-        assertEquals(listOf(PreloadAsset(HEAD, files = 7)), source(faces).memberAssets().value())
+        assertEquals(
+            listOf(PreloadAsset(HEAD, files = 7, stage = PreloadStage.MY_AVATAR_FETCH)),
+            source(faces).memberAssets().value()
+        )
         faces.rememberSelf(null, null)
         assertEquals(emptyList(), source(faces).memberAssets().value())
         assertTrue(paths.isEmpty(), "네트워크를 쓰지 않는다: $paths")
@@ -95,7 +101,7 @@ class AvatarAssetPreloadSourceTest {
     @Test
     fun `받은 머리는 내 얼굴 저장소에 남아 앱을 새로 켜도 적중하고 다시 받지 않는다`() = runTest {
         val first = source()
-        val asset = PreloadAsset(HEAD, files = 7)
+        val asset = PreloadAsset(HEAD, files = 7, stage = PreloadStage.MY_AVATAR_FETCH)
         assertFalse(first.isCached(asset))
         val files = AtomicInteger()
 
@@ -109,13 +115,6 @@ class AvatarAssetPreloadSourceTest {
         val head = restarted.selfieHead(HEAD).value()
         assertEquals(6, head!!.faceLayers.size + head.rightLayers.size)
         assertEquals(7, paths.size, "화면은 다시 받지 않는다")
-    }
-
-    @Test
-    fun `표식은 한 줄씩 남긴다`() {
-        val marks = mutableListOf<String>()
-        source(marks = marks).mark("AssetPreload hit $HEAD")
-        assertEquals(listOf("AssetPreload hit $HEAD"), marks)
     }
 
     private fun avatarJson() =

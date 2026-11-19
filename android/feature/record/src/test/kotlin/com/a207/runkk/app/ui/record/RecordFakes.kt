@@ -121,8 +121,12 @@ class FakeRecordRepository : RecordRepository {
         return dashboardOf(baseDate)
     }
 
+    /** 있으면 기록 목록 응답을 이 값이 끝날 때까지 미룬다(사본 먼저 보이기 시험). */
+    var runsGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> {
         runsCalls += Triple(ownerId, from, to)
+        runsGate?.await()
         return runsResult
     }
 
@@ -161,6 +165,18 @@ class FakeRecordRepository : RecordRepository {
         rankingGates[period]?.await()
         return rankingByPeriod[period] ?: rankingResult
     }
+
+    /** 기기에 남긴 사본(S15P31A207-345 2차). 비어 있으면 사본 없음. */
+    val rankingCopies = mutableMapOf<AggregationPeriod, Ranking>()
+    var dashboardCopy: Pair<LocalDate, Dashboard>? = null
+    var runsCopy: RecordList? = null
+
+    override suspend fun cachedPersonalRanking(period: AggregationPeriod): Ranking? = rankingCopies[period]
+
+    override suspend fun cachedDashboard(baseDate: LocalDate): Dashboard? =
+        dashboardCopy?.takeIf { it.first == baseDate }?.second
+
+    override suspend fun cachedRuns(from: LocalDate, to: LocalDate): RecordList? = runsCopy
 
     override suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking> {
         calls += "crew:$period"

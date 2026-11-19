@@ -64,16 +64,19 @@ class ArchitectureTest {
      * ui.notification → domain.settings(RefreshGate, 알림 점)를 더해 183개다. 문지기를 domain.settings에 둔 것은 ui.home의 Fan-Out이
      * 이미 7이라 새 domain 패키지를 더할 수 없어서다.
      * 시작 로딩 화면 에셋 미리 받기(S15P31A207-345)가 api.avatar → domain.sync(AssetPreloadSource 구현, 내 셀카 머리)를 더해 184개다.
+     * 그 2차(받을 수 있는 것 모두)가 api.record·api.battle·api.crew·api.account → domain.sync(랭킹·기록, 셀럽런·친구, 크루, 홈 요약 출처)와
+     * domain.sync → domain.avatar(홈 큰 아바타 미리 준비 포트를 감싼 출처)를 더해 189개다. 홈 아바타 준비 구현은 ui.avatar(Fan-Out 7)가
+     * domain.sync를 보지 않도록 domain.avatar 포트로 둔다.
      * 워치는 design-review 23장 R75 사용자 결정 (가)로 core.model을 폰과 같이 센다(기준 하나). 그러면 watch.ui가 8이라 대결 흐름을
      * watch.battle로 옮겼다(W30): ui → domain.battle·watch.cache 둘이 ui → watch.battle 하나가 되고 watch.battle이 다섯을 갖는다.
      * R76으로 쓰지 않는 watch.guide → domain.settings를 뺐다. 워치 코드 28 + core.model 다섯 줄 + battle 다섯 − ui 하나 = 37개다.
      */
     @Test
-    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 184개·워치 37개다`() {
+    fun `모듈 Fan-Out은 7 이하이고 허용 표는 폰 189개·워치 37개다`() {
         val over = ALLOWED.filterValues { it.size > MAX_FAN_OUT }.mapValues { it.value.size }
         assertEquals(emptyMap(), over)
         val (watch, phone) = ALLOWED.entries.partition { it.key.startsWith("watch.") || it.key == "wear.contract" }
-        assertEquals(184, phone.sumOf { it.value.size })
+        assertEquals(189, phone.sumOf { it.value.size })
         assertEquals(37, watch.sumOf { it.value.size })
     }
 
@@ -528,18 +531,28 @@ class ArchitectureTest {
                 "domain.run" to setOf("domain.settings", "core.model"),
                 // v0.17(D-332): 기기 사본 조정자 DeviceCopySync가 설정 사본(domain.settings), 푸시 토큰(domain.notification),
                 // 오늘 계획(domain.record)을 서버와 맞춘다. 네 모듈 모두 domain.sync를 모른다(순환 0).
+                // domain.avatar 추가(S15P31A207-345 2차): 홈 큰 아바타 미리 준비 포트(MyAvatarPreparation)를 시작 미리 받기 출처로 감싼다
+                // (AvatarPrepareSource). domain.avatar는 domain.sync를 모른다(순환 0).
                 "domain.sync" to
-                    setOf("domain.run", "domain.settings", "domain.notification", "domain.record", "core.model"),
+                    setOf(
+                        "domain.run",
+                        "domain.settings",
+                        "domain.notification",
+                        "domain.record",
+                        "domain.avatar",
+                        "core.model"
+                    ),
                 "domain.account" to setOf("domain.run", "domain.settings", "core.model"),
                 "domain.battle" to setOf("domain.run", "domain.live", "core.model"),
                 "domain.crew" to setOf("domain.run", "domain.live", "core.model"),
                 "api.core" to setOf("core.model"),
-                "api.account" to setOf("api.core", "domain.account", "domain.settings", "core.model"),
+                // domain.sync 추가(S15P31A207-345 2차): 시작 미리 받기 출처(홈 내 요약)를 구현한다. 아래 record·battle·crew도 같다.
+                "api.account" to setOf("api.core", "domain.account", "domain.settings", "domain.sync", "core.model"),
                 "api.run" to setOf("api.core", "domain.sync", "domain.run", "core.model"),
-                "api.record" to setOf("api.core", "domain.record", "core.model"),
+                "api.record" to setOf("api.core", "domain.record", "domain.sync", "core.model"),
                 // domain.live 추가: RecordBattleStart.track(OpponentTrack)은 OpponentTrack.from(TrackTable)로만 만든다(M39). A2 결정.
-                "api.battle" to setOf("api.core", "domain.battle", "domain.live", "core.model"),
-                "api.crew" to setOf("api.core", "domain.crew", "core.model"),
+                "api.battle" to setOf("api.core", "domain.battle", "domain.live", "domain.sync", "core.model"),
+                "api.crew" to setOf("api.core", "domain.crew", "domain.sync", "core.model"),
                 "api.runimal" to setOf("api.core", "domain.runimal", "core.model"),
                 // domain.sync 추가(S15P31A207-345): 시작 에셋 미리 받기 포트(AssetPreloadSource)를 내 셀카 머리로 구현한다.
                 "api.avatar" to setOf("api.core", "domain.avatar", "domain.sync", "core.model"),

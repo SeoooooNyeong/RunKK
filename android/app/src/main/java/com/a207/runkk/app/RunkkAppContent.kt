@@ -20,6 +20,7 @@ import com.a207.runkk.app.core.designsystem.FirstScreenGate
 import com.a207.runkk.app.core.designsystem.LocalCoveredBySplash
 import com.a207.runkk.app.core.designsystem.LocalFirstScreenGate
 import com.a207.runkk.app.core.designsystem.RunkkStartLoading
+import com.a207.runkk.app.core.designsystem.rememberStartLoadingMessage
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.sync.PreloadProgress
@@ -132,8 +133,13 @@ internal fun startRouteFor(loggedIn: Boolean): String = if (loggedIn) Routes.HOM
 
 /**
  * 스플래시(시작 로딩 화면): 창 배경과 같은 색 위에 "런크크" 워드마크(RR 아이콘은 쓰지 않는다, 사용자 요청 2026-10-30).
- * 글자가 차례로 한 번 뛰어오르고 끝나면 [onIntroDone]을 부른다. 에셋을 받는 중이면([preload]에 받을 파일이 있음) 워드마크 아래 진행 막대와
- * 퍼센트를, 받지 못했으면 안내와 「다시 시도」([onRetry])를 보인다(S15P31A207-345).
+ * 글자가 차례로 한 번 뛰어오르고 끝나면 [onIntroDone]을 부른다. 에셋을 받는 중이면([preload]에 받을 파일이 있음) 워드마크 아래 상태
+ * 문구(단계별, startLoadingMessageOf + 최소 유지)·처음 설치 안내와 진행 막대·퍼센트를, 받지 못했으면 안내와 「다시 시도」([onRetry])를
+ * 보인다(S15P31A207-345).
+ *
+ * 아래에 미리 그려 둔 첫 화면이 눌리지 않게 손가락을 받되 소비하지는 않는다: 맨 위 형제(스플래시)가 손가락을 받으면 아래 형제는 받지
+ * 못한다(Compose 형제 적중 규칙). 소비하면 「다시 시도」 단추의 누름이 누르는 사이 손가락이 조금만 움직여도 취소된다(Main 단계에서 부모가
+ * 움직임을 소비하면 자식 탭 감지가 Final 단계에서 취소로 본다, 7회차 「첫 누름 무반응」).
  */
 @Composable
 internal fun RunkkSplash(
@@ -143,16 +149,16 @@ internal fun RunkkSplash(
     onRetry: () -> Unit = {}
 ) {
     val description = stringResource(R.string.app_splash_description)
+    val message = rememberStartLoadingMessage(preload?.let(::startLoadingMessageOf))
     RunkkStartLoading(
         percent = preload?.progress?.takeIf { it.hasBar && preload !is PreloadState.Ready }?.percent,
         isFailed = preload is PreloadState.Failed,
         onRetry = onRetry,
         onIntroDone = onIntroDone,
+        message = message.takeUnless { preload is PreloadState.Failed },
+        isFirstInstall = (preload as? PreloadState.Loading)?.isFirstRun == true,
         modifier = modifier
-            // 아래에 미리 그려 둔 첫 화면이 눌리지 않게 손가락을 모두 받는다(로딩 화면의 단추는 먼저 받는다)
-            .pointerInput(Unit) {
-                awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
-            }
+            .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
             .semantics { contentDescription = description }
     )
 }

@@ -66,6 +66,9 @@ interface AccountRepository {
      */
     suspend fun mySummary(): Outcome<MySummary>
 
+    /** 기기에 남긴 내 요약 사본(내 계정 칸, S15P31A207-345 2차). 없으면 null. 네트워크를 쓰지 않는다. */
+    suspend fun cachedMySummary(): MySummary? = null
+
     /**
      * 본인 배치고사 진행(GET /me/placement, FR-279~FR-282, D-488·D-493). 홈 헤더 배지·진입 시트, 마이, 배치고사 화면이 읽는다.
      * 임시 티어는 이 응답에만 있다(FR-282). 모르는 상태 값은 실패(Server(0))다. 기본 구현은 실패라 구현이 없는 가짜 저장소에서는

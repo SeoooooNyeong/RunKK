@@ -1,16 +1,24 @@
 package com.a207.runkk.app
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.navigation3.runtime.EntryProviderScope
 import androidx.navigation3.runtime.NavKey
 import com.a207.runkk.app.core.designsystem.HoldSplashUntil
@@ -21,6 +29,7 @@ import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.core.navigation.route
 import com.a207.runkk.app.domain.sync.PreloadProgress
+import com.a207.runkk.app.domain.sync.PreloadStage
 import com.a207.runkk.app.domain.sync.PreloadState
 import kotlin.test.assertEquals
 import org.junit.Rule
@@ -54,6 +63,18 @@ private class HoldingEntries(private val isReady: () -> Boolean) : FeatureEntry 
         builder.route(Routes.HOME) {
             HoldSplashUntil(isReady = isReady())
             Text("홈 화면")
+        }
+    }
+}
+
+/** 스플래시를 계속 붙잡고 화면 전체가 눌리는 가짜 홈(덮인 동안 손가락이 새지 않는지). */
+private class TappableHoldingEntries(private val onTap: () -> Unit) : FeatureEntry {
+    override val route: String = Routes.HOME
+
+    override fun register(builder: EntryProviderScope<NavKey>) {
+        builder.route(Routes.HOME) {
+            HoldSplashUntil(isReady = false)
+            Box(Modifier.fillMaxSize().clickable(onClick = onTap))
         }
     }
 }
@@ -199,10 +220,75 @@ class RunkkAppContentTest {
                 )
             }
         }
-        compose.onNodeWithText("에셋을 받지 못했어요").assertExists()
+        compose.onNodeWithText("준비를 마치지 못했어요").assertExists()
+        compose.onNodeWithText("인터넷 연결을 확인해 주세요").assertExists()
         compose.onNodeWithText("홈 화면").assertDoesNotExist()
         compose.onNodeWithText("다시 시도").performClick()
         assertEquals(1, retries)
+    }
+
+    @Test
+    fun `실패 화면의 다시 시도는 누르는 동안 손가락이 조금 움직여도 첫 누름에 이어 받기를 부른다`() {
+        var retries = 0
+        loggedIn = true
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(
+                    setOf(FakeEntries),
+                    loggedIn = loggedIn,
+                    onExit = {},
+                    preload = PreloadState.Failed(PreloadProgress(3, 7), AppError.Network),
+                    onRetryPreload = { retries++ }
+                )
+            }
+        }
+        // 실기기 손가락은 누르는 사이 몇 픽셀 움직인다(움직임 이벤트가 끼어든다).
+        compose.onNodeWithText("다시 시도").performTouchInput {
+            down(center)
+            moveBy(Offset(0f, 2f))
+            up()
+        }
+        assertEquals(1, retries, "첫 누름에 다시 시도한다")
+    }
+
+    @Test
+    fun `스플래시가 덮은 동안 아래 첫 화면은 눌리지 않는다`() {
+        var taps = 0
+        loggedIn = true
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(setOf(TappableHoldingEntries { taps++ }), loggedIn = loggedIn, onExit = {})
+            }
+        }
+        compose.onRoot().performTouchInput { click(center) }
+        compose.onNodeWithContentDescription("런크크 시작 중").assertExists()
+        assertEquals(0, taps, "덮인 첫 화면은 손가락을 받지 않는다")
+    }
+
+    @Test
+    fun `받는 동안 남은 것이 가장 많은 단계 문구를 잠시 뒤 띄우고 처음 설치면 안내를 덧붙인다`() {
+        loggedIn = true
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            RunkkTheme(reduceMotion = true) {
+                RunkkAppContent(
+                    setOf(FakeEntries),
+                    loggedIn = loggedIn,
+                    onExit = {},
+                    preload = PreloadState.Loading(
+                        PreloadProgress(2, 10),
+                        remaining = mapOf(PreloadStage.RANKING to 8, PreloadStage.MY_AVATAR_FETCH to 0),
+                        isFirstRun = true
+                    )
+                )
+            }
+        }
+        compose.mainClock.advanceTimeBy(100)
+        compose.onNodeWithText("랭킹을 불러오고 있어요").assertDoesNotExist()
+        compose.mainClock.advanceTimeBy(1_000)
+        compose.onNodeWithText("랭킹을 불러오고 있어요").assertExists()
+        compose.onNodeWithText("처음 실행을 준비하고 있어요").assertExists()
+        compose.onNodeWithText("20%").assertExists()
     }
 
     @Test

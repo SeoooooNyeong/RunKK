@@ -12,15 +12,17 @@ import java.util.Properties
  * 세 층, 큰 아바타를 받았으면 옆모습 층과 메타 JSON까지). 앱을 새로 켜도 홈·마이·결과 화면이 첫 그림부터 내 얼굴을 그리고, 홈 큰 아바타가
  * 프로필(성별) 응답을 기다리지 않고 합성을 시작하게 한다(Jira 307). 다른 회원 얼굴은 남기지 않는다.
  *
- * - 내 머리 층은 디스크에 이것 한 벌만 둔다(내 머리 요청은 HTTP 캐시에 남기지 않는다, FaceImageSource).
- * - 저장한 회원과 지금 로그인한 회원이 다르면(계정 바뀜, 로그아웃) 아무것도 내주지 않고, [clearUnless]가 지운다.
+ * - 계정별 칸(S15P31A207-345 2차, 받아 둔 것은 지우지 않는다): 회원마다 [root] 아래 따로 칸(m{회원ID})을 두고, 계정이 바뀌거나
+ *   로그아웃해도 지우지 않는다. 다른 계정은 앞 계정 칸을 보지 못하고(앞 계정 얼굴이 섞이지 않는다), 앞 계정으로 돌아오면 그 칸을 바로
+ *   준다. 한 칸만 두던 예전 사본([root] 바로 아래)은 처음 열 때 그 회원 칸으로 옮긴다.
+ * - 한 칸의 내 머리 층은 디스크에 한 벌만 둔다(내 머리 요청은 HTTP 캐시에 남기지 않는다, FaceImageSource).
  * - 처음 물을 때 한 번 읽어 메모리에 두고 그 뒤로는 메모리에서 준다(작은 파일 몇 개라 주 스레드에서 읽어도 짧다).
  * - 읽기·쓰기 실패는 남긴 것이 없는 것으로 본다(화면은 받아서 그린다).
  * - 형식 판(S15P31A207-345): 머리 층은 남길 때의 앱 형식 판 [format]과 함께 둔다. 판이 다르거나(앱 갱신으로 판을 올림) 판을 적지 않은
  *   옛 사본은 없는 것으로 보아 다시 받고, 다시 받은 것은 같은 얼굴 키여도 덮어쓴다. 얼굴·배경 키와 성별은 판과 상관없다.
  * 여러 스레드가 함께 써도 된다.
  */
-internal class SelfFaceStore(private val dir: File, private val format: String = HEAD_FORMAT) {
+internal class SelfFaceStore(private val root: File, private val format: String = HEAD_FORMAT) {
 
     /** 내 프로필의 얼굴 키·배경 키. */
     data class Keys(val faceKey: String?, val backgroundKey: String?)
@@ -29,7 +31,6 @@ internal class SelfFaceStore(private val dir: File, private val format: String =
     class Head(val faceLayers: List<FaceLayer>, val rightLayers: List<ByteArray>, val meta: String)
 
     private data class Saved(
-        val member: Long,
         val keys: Keys? = null,
         val layersKey: String? = null,
         val headKey: String? = null,
@@ -40,22 +41,20 @@ internal class SelfFaceStore(private val dir: File, private val format: String =
     )
 
     private val lock = Any()
-    private var isLoaded = false
-    private var saved: Saved? = null
+    private var isMigrated = false
+    private val slots = HashMap<Long, Slot>()
 
-    /** 읽어 둔 층(층 키와 함께). */
-    private var layers: Pair<String, List<FaceLayer>>? = null
+    /** [member]의 마지막 얼굴·배경 키. 남긴 적이 없거나 로그아웃(null)이면 null. */
+    fun keys(member: Long?): Keys? = synchronized(lock) { slot(member)?.load()?.keys }
 
-    /** [member]의 마지막 얼굴·배경 키. 남긴 적이 없거나 다른 회원 것이면 null. */
-    fun keys(member: Long?): Keys? = synchronized(lock) { load()?.takeIf { it.member == member }?.keys }
-
-    /** [member]의 마지막 성별(이름). 남긴 적이 없거나 다른 회원 것이면 null. */
-    fun gender(member: Long?): String? = synchronized(lock) { load()?.takeIf { it.member == member }?.gender }
+    /** [member]의 마지막 성별(이름). 남긴 적이 없거나 로그아웃(null)이면 null. */
+    fun gender(member: Long?): String? = synchronized(lock) { slot(member)?.load()?.gender }
 
     /** [member]가 남긴 [faceKey] 얼굴의 정면 층. 다른 얼굴이거나 없으면 null. */
     fun layers(member: Long?, faceKey: String): List<FaceLayer>? = synchronized(lock) {
-        load()?.takeIf { it.member == member && it.layersKey == faceKey && it.format == format } ?: return null
-        frontOf(faceKey)
+        val slot = slot(member) ?: return null
+        slot.load()?.takeIf { it.layersKey == faceKey && it.format == format } ?: return null
+        slot.frontOf(faceKey)
     }
 
     /**
@@ -63,66 +62,72 @@ internal class SelfFaceStore(private val dir: File, private val format: String =
      * 미리 받기의 캐시 적중 판단, S15P31A207-345).
      */
     fun hasHead(member: Long?, faceKey: String): Boolean = synchronized(lock) {
-        val current = load()?.takeIf { isHeadOf(it, member, faceKey) } ?: return false
-        File(dir, META_JSON).isFile &&
-            FRONT_PARTS.all { File(dir, it.name + PNG).isFile } &&
-            (0 until current.sideCount).all { File(dir, SIDE + it + PNG).isFile }
+        val slot = slot(member) ?: return false
+        val current = slot.load()?.takeIf { isHeadOf(it, faceKey) } ?: return false
+        File(slot.dir, META_JSON).isFile &&
+            FRONT_PARTS.all { File(slot.dir, it.name + PNG).isFile } &&
+            (0 until current.sideCount).all { File(slot.dir, SIDE + it + PNG).isFile }
     }
 
-    private fun isHeadOf(saved: Saved, member: Long?, faceKey: String): Boolean =
-        saved.member == member && saved.headKey == faceKey && saved.layersKey == faceKey && saved.format == format
+    private fun isHeadOf(saved: Saved, faceKey: String): Boolean =
+        saved.headKey == faceKey && saved.layersKey == faceKey && saved.format == format
 
     /** [member]가 남긴 [faceKey] 머리 전체(정면·옆모습·메타). 큰 아바타를 받아 남긴 적이 없으면 null. */
     fun head(member: Long?, faceKey: String): Head? = synchronized(lock) {
-        val current = load()?.takeIf { isHeadOf(it, member, faceKey) } ?: return null
-        val front = frontOf(faceKey) ?: return null
+        val slot = slot(member) ?: return null
+        val current = slot.load()?.takeIf { isHeadOf(it, faceKey) } ?: return null
+        val front = slot.frontOf(faceKey) ?: return null
         try {
-            val side = (0 until current.sideCount).map { File(dir, SIDE + it + PNG).readBytes() }
-            Head(front, side, File(dir, META_JSON).readText())
+            val side = (0 until current.sideCount).map { File(slot.dir, SIDE + it + PNG).readBytes() }
+            Head(front, side, File(slot.dir, META_JSON).readText())
         } catch (e: IOException) {
             null
         }
     }
 
     fun saveKeys(member: Long, keys: Keys) = synchronized(lock) {
-        val before = load()?.takeIf { it.member == member }
+        val slot = slotOf(member)
+        val before = slot.load()
         if (before?.keys == keys) return@synchronized
-        write((before ?: Saved(member)).copy(keys = keys))
+        slot.write((before ?: Saved()).copy(keys = keys))
     }
 
     fun saveGender(member: Long, gender: String) = synchronized(lock) {
-        val before = load()?.takeIf { it.member == member }
+        val slot = slotOf(member)
+        val before = slot.load()
         if (before?.gender == gender) return@synchronized
-        write((before ?: Saved(member)).copy(gender = gender))
+        slot.write((before ?: Saved()).copy(gender = gender))
     }
 
     fun saveLayers(member: Long, faceKey: String, faceLayers: List<FaceLayer>) = synchronized(lock) {
-        val before = load()?.takeIf { it.member == member }
+        val slot = slotOf(member)
+        val before = slot.load()
         val isCurrent = before?.format == format
-        if (before?.layersKey == faceKey && isCurrent && layers?.first == faceKey) return@synchronized
-        if (!writeFront(faceLayers)) return@synchronized
-        layers = faceKey to faceLayers
+        if (before?.layersKey == faceKey && isCurrent && slot.layers?.first == faceKey) return@synchronized
+        if (!slot.writeFront(faceLayers)) return@synchronized
+        slot.layers = faceKey to faceLayers
         // 정면을 바꿨으므로 다른 얼굴(또는 옛 형식 판)의 옆모습·메타는 더 이상 짝이 아니다.
         val headKey = before?.headKey?.takeIf { it == faceKey && isCurrent }
-        write((before ?: Saved(member)).copy(layersKey = faceKey, headKey = headKey, format = format))
+        slot.write((before ?: Saved()).copy(layersKey = faceKey, headKey = headKey, format = format))
     }
 
     /** 내 머리 전체를 남긴다(정면 층은 [saveLayers]와 같은 파일 한 벌). */
     fun saveHead(member: Long, faceKey: String, head: Head) = synchronized(lock) {
-        val before = load()?.takeIf { it.member == member }
+        val slot = slotOf(member)
+        val before = slot.load()
         val isCurrent = before?.format == format
         if (before?.headKey == faceKey && before.layersKey == faceKey && isCurrent) return@synchronized
-        val isFrontSaved = before?.layersKey == faceKey && isCurrent && layers?.first == faceKey
-        if (!isFrontSaved && !writeFront(head.faceLayers)) return@synchronized
+        val isFrontSaved = before?.layersKey == faceKey && isCurrent && slot.layers?.first == faceKey
+        if (!isFrontSaved && !slot.writeFront(head.faceLayers)) return@synchronized
         try {
-            head.rightLayers.forEachIndexed { index, png -> atomicWrite(File(dir, SIDE + index + PNG), png) }
-            atomicWrite(File(dir, META_JSON), head.meta.toByteArray())
+            head.rightLayers.forEachIndexed { index, png -> slot.atomicWrite(File(slot.dir, SIDE + index + PNG), png) }
+            slot.atomicWrite(File(slot.dir, META_JSON), head.meta.toByteArray())
         } catch (e: IOException) {
             return@synchronized
         }
-        layers = faceKey to head.faceLayers
-        write(
-            (before ?: Saved(member)).copy(
+        slot.layers = faceKey to head.faceLayers
+        slot.write(
+            (before ?: Saved()).copy(
                 layersKey = faceKey,
                 headKey = faceKey,
                 sideCount = head.rightLayers.size,
@@ -131,114 +136,124 @@ internal class SelfFaceStore(private val dir: File, private val format: String =
         )
     }
 
-    /** 남긴 것의 회원(이 기기의 얼굴 캐시를 마지막으로 쓴 회원). 남긴 것이 없으면 null. */
-    fun owner(): Long? = synchronized(lock) { load()?.member }
+    /** 로그인한 회원의 칸. 로그아웃(null)이면 칸이 없다. [lock] 안에서 부른다. */
+    private fun slot(member: Long?): Slot? = member?.let(::slotOf)
 
-    /**
-     * 얼굴 캐시(디스크 HTTP 캐시 포함)를 [member]가 쓴다고 남긴다. 다른 회원 것이 남아 있으면 먼저 [clearUnless]로 지운 뒤에 부른다.
-     * 앱을 새로 켰을 때 디스크 캐시가 같은 회원 것인지 이것으로 가린다(S15P31A207-300).
-     */
-    fun claim(member: Long) = synchronized(lock) {
-        val before = load()
-        if (before?.member == member) return@synchronized
-        write(Saved(member))
+    private fun slotOf(member: Long): Slot {
+        migrate()
+        return slots.getOrPut(member) { Slot(member, File(root, SLOT_PREFIX + member)) }
     }
 
-    /** 저장한 회원이 [member]가 아니면(계정 바뀜·로그아웃이면 null) 지운다. */
-    fun clearUnless(member: Long?) = synchronized(lock) {
-        val current = load() ?: return@synchronized
-        if (current.member == member) return@synchronized
-        dir.listFiles()?.forEach { it.delete() }
-        saved = null
-        layers = null
+    /** 한 칸만 두던 예전 사본([root] 바로 아래 파일)을 그 회원 칸으로 옮긴다. 옮기지 못한 파일은 그대로 둔다(지우지 않는다). */
+    private fun migrate() {
+        if (isMigrated) return
+        isMigrated = true
+        val meta = File(root, META)
+        if (!meta.isFile) return
+        val member = try {
+            Properties().apply { meta.inputStream().use(::load) }.getProperty(MEMBER)?.toLongOrNull()
+        } catch (e: IOException) {
+            null
+        } ?: return
+        val target = File(root, SLOT_PREFIX + member)
+        if (target.exists() || !target.mkdirs()) return
+        root.listFiles()?.filter { it.isFile }?.forEach { it.renameTo(File(target, it.name)) }
     }
 
-    private fun frontOf(faceKey: String): List<FaceLayer>? {
-        layers?.takeIf { it.first == faceKey }?.let { return it.second }
-        val read = readLayers() ?: return null
-        layers = faceKey to read
-        return read
-    }
+    /** 회원 한 명의 칸(파일 폴더 [dir]). 바깥 [lock] 안에서만 쓴다. */
+    private inner class Slot(private val member: Long, val dir: File) {
+        private var isLoaded = false
+        private var saved: Saved? = null
 
-    private fun writeFront(faceLayers: List<FaceLayer>): Boolean = try {
-        dir.mkdirs()
-        FacePart.entries.forEach { File(dir, it.name + PNG).delete() }
-        faceLayers.forEach { layer -> atomicWrite(File(dir, layer.part.name + PNG), layer.png) }
-        true
-    } catch (e: IOException) {
-        false
-    }
+        /** 읽어 둔 층(층 키와 함께). */
+        var layers: Pair<String, List<FaceLayer>>? = null
 
-    /** 남긴 메타를 한 번 읽는다. */
-    private fun load(): Saved? {
-        if (isLoaded) return saved
-        isLoaded = true
-        saved = try {
-            val file = File(dir, META)
-            if (!file.isFile) return null
-            val props = Properties().apply { file.inputStream().use(::load) }
-            val member = props.getProperty(MEMBER)?.toLongOrNull() ?: return null
-            val keys = if (props.getProperty(HAS_KEYS) == "1") {
-                Keys(props.getProperty(FACE_KEY), props.getProperty(BACKGROUND_KEY))
-            } else {
+        fun frontOf(faceKey: String): List<FaceLayer>? {
+            layers?.takeIf { it.first == faceKey }?.let { return it.second }
+            val read = readLayers() ?: return null
+            layers = faceKey to read
+            return read
+        }
+
+        fun writeFront(faceLayers: List<FaceLayer>): Boolean = try {
+            dir.mkdirs()
+            FacePart.entries.forEach { File(dir, it.name + PNG).delete() }
+            faceLayers.forEach { layer -> atomicWrite(File(dir, layer.part.name + PNG), layer.png) }
+            true
+        } catch (e: IOException) {
+            false
+        }
+
+        /** 남긴 메타를 한 번 읽는다. 다른 회원 것이 적혀 있으면(손상) 없는 것으로 본다. */
+        fun load(): Saved? {
+            if (isLoaded) return saved
+            isLoaded = true
+            saved = try {
+                val file = File(dir, META)
+                if (!file.isFile) return null
+                val props = Properties().apply { file.inputStream().use(::load) }
+                if (props.getProperty(MEMBER)?.toLongOrNull() != member) return null
+                val keys = if (props.getProperty(HAS_KEYS) == "1") {
+                    Keys(props.getProperty(FACE_KEY), props.getProperty(BACKGROUND_KEY))
+                } else {
+                    null
+                }
+                Saved(
+                    keys = keys,
+                    layersKey = props.getProperty(LAYERS_KEY),
+                    headKey = props.getProperty(HEAD_KEY),
+                    sideCount = props.getProperty(SIDE_COUNT)?.toIntOrNull() ?: 0,
+                    gender = props.getProperty(GENDER),
+                    format = props.getProperty(FORMAT)
+                )
+            } catch (e: IOException) {
+                null
+            } catch (e: IllegalArgumentException) {
                 null
             }
-            Saved(
-                member = member,
-                keys = keys,
-                layersKey = props.getProperty(LAYERS_KEY),
-                headKey = props.getProperty(HEAD_KEY),
-                sideCount = props.getProperty(SIDE_COUNT)?.toIntOrNull() ?: 0,
-                gender = props.getProperty(GENDER),
-                format = props.getProperty(FORMAT)
-            )
+            return saved
+        }
+
+        fun write(next: Saved) {
+            val props = Properties()
+            props.setProperty(MEMBER, member.toString())
+            next.keys?.let { keys ->
+                props.setProperty(HAS_KEYS, "1")
+                keys.faceKey?.let { props.setProperty(FACE_KEY, it) }
+                keys.backgroundKey?.let { props.setProperty(BACKGROUND_KEY, it) }
+            }
+            next.layersKey?.let { props.setProperty(LAYERS_KEY, it) }
+            next.headKey?.let {
+                props.setProperty(HEAD_KEY, it)
+                props.setProperty(SIDE_COUNT, next.sideCount.toString())
+            }
+            next.gender?.let { props.setProperty(GENDER, it) }
+            next.format?.let { props.setProperty(FORMAT, it) }
+            try {
+                val bytes = ByteArrayOutputStream().also { props.store(it, null) }.toByteArray()
+                atomicWrite(File(dir, META), bytes)
+                saved = next
+            } catch (e: IOException) {
+                // 남기지 못하면 다음 실행에서 받아서 그린다.
+            }
+        }
+
+        private fun readLayers(): List<FaceLayer>? = try {
+            FacePart.entries.mapNotNull { part ->
+                File(dir, part.name + PNG).takeIf { it.isFile }?.let { FaceLayer(part, it.readBytes()) }
+            }.takeIf { it.isNotEmpty() }
         } catch (e: IOException) {
             null
-        } catch (e: IllegalArgumentException) {
-            null
         }
-        return saved
-    }
 
-    private fun write(next: Saved) {
-        val props = Properties()
-        props.setProperty(MEMBER, next.member.toString())
-        next.keys?.let { keys ->
-            props.setProperty(HAS_KEYS, "1")
-            keys.faceKey?.let { props.setProperty(FACE_KEY, it) }
-            keys.backgroundKey?.let { props.setProperty(BACKGROUND_KEY, it) }
-        }
-        next.layersKey?.let { props.setProperty(LAYERS_KEY, it) }
-        next.headKey?.let {
-            props.setProperty(HEAD_KEY, it)
-            props.setProperty(SIDE_COUNT, next.sideCount.toString())
-        }
-        next.gender?.let { props.setProperty(GENDER, it) }
-        next.format?.let { props.setProperty(FORMAT, it) }
-        try {
+        fun atomicWrite(target: File, bytes: ByteArray) {
             dir.mkdirs()
-            val bytes = ByteArrayOutputStream().also { props.store(it, null) }.toByteArray()
-            atomicWrite(File(dir, META), bytes)
-            saved = next
-        } catch (e: IOException) {
-            // 남기지 못하면 다음 실행에서 받아서 그린다.
-        }
-    }
-
-    private fun readLayers(): List<FaceLayer>? = try {
-        FacePart.entries.mapNotNull { part ->
-            File(dir, part.name + PNG).takeIf { it.isFile }?.let { FaceLayer(part, it.readBytes()) }
-        }.takeIf { it.isNotEmpty() }
-    } catch (e: IOException) {
-        null
-    }
-
-    private fun atomicWrite(target: File, bytes: ByteArray) {
-        val temp = File(dir, target.name + ".tmp")
-        temp.writeBytes(bytes)
-        if (!temp.renameTo(target)) {
-            target.delete()
-            if (!temp.renameTo(target)) throw IOException("rename failed: ${target.name}")
+            val temp = File(dir, target.name + ".tmp")
+            temp.writeBytes(bytes)
+            if (!temp.renameTo(target)) {
+                target.delete()
+                if (!temp.renameTo(target)) throw IOException("rename failed: ${target.name}")
+            }
         }
     }
 
@@ -251,6 +266,9 @@ internal class SelfFaceStore(private val dir: File, private val format: String =
 
         /** 큰 아바타 정면 세 층 자리(얼굴·눈·머리카락). */
         private val FRONT_PARTS = listOf(FacePart.EARS, FacePart.EYES, FacePart.HAIR)
+
+        /** 회원 칸 폴더 이름 앞부분(m{회원ID}). */
+        private const val SLOT_PREFIX = "m"
         private const val FORMAT = "format"
         private const val META = "meta.properties"
         private const val META_JSON = "head-meta.json"

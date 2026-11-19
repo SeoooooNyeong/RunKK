@@ -63,7 +63,7 @@ object ApiCoreBindings {
 
     /**
      * 인증된 기본 클라이언트. 서버가 Cache-Control을 주는 응답(크루 로고 등)은 디스크 캐시(cacheDir/api-http, 16MiB)에 남긴다(Jira 328).
-     * 로그인한 회원이 바뀌거나 로그아웃하면 다음 요청 전에 캐시를 비운다(ApiCacheGuard, 얼굴 캐시와 같은 때).
+     * 캐시는 계정별 칸으로 나눠 계정이 바뀌어도 비우지 않는다(ApiCacheGuard, S15P31A207-345 2차).
      */
     @Provides
     @Singleton
@@ -78,12 +78,11 @@ object ApiCoreBindings {
         return authenticatedClient(refresher.client, tokens, refresher, serverClock)
             .newBuilder()
             .cache(cache)
-            .addInterceptor(ApiCacheGuard(cache, File(context.cacheDir, API_CACHE_OWNER), self::memberId))
+            .addInterceptor(ApiCacheGuard(self::memberId))
             .build()
     }
 
     private const val API_CACHE_DIR = "api-http"
-    private const val API_CACHE_OWNER = "api-http.owner"
     private const val API_CACHE_BYTES = 16L * 1024 * 1024
 
     /** 인증 없는 base 위에 접근 토큰 부착과 401 갱신을 얹는다. 갱신 요청은 base로 보낸다(시험도 이 조립을 쓴다). */
@@ -125,12 +124,26 @@ object ApiCoreBindings {
         self: SelfMember,
         @ApplicationContext context: Context
     ): FaceImageSource = FaceImageSource(
-        client.newBuilder().cache(Cache(File(context.cacheDir, FACE_CACHE_DIR), FACE_CACHE_BYTES)).build(),
+        client.newBuilder()
+            // 다른 러너 머리는 공용이라 계정 칸을 나누지 않는다(내 머리는 HTTP 캐시에 남기지 않고 내 얼굴 저장소의 계정 칸에 둔다).
+            .apply { interceptors().removeAll { it is ApiCacheGuard } }
+            .cache(Cache(File(context.cacheDir, FACE_CACHE_DIR), FACE_CACHE_BYTES))
+            .build(),
         BuildConfig.API_BASE_URL.toHttpUrl(),
         selfId = self::memberId,
         selfStore = SelfFaceStore(File(context.filesDir, SELF_FACE_DIR))
     )
 
+    /**
+     * 화면 첫 응답 사본(S15P31A207-345 2차): files/screen-copy에 계정별 칸·공용 칸으로 둔다(캐시 폴더가 아니라 시스템이 지우지 않는다).
+     * 로그아웃·계정 바뀜에도 지우지 않는다.
+     */
+    @Provides
+    @Singleton
+    internal fun screenCopyStore(json: Json, @ApplicationContext context: Context): ScreenCopyStore =
+        ScreenCopyStore(File(context.filesDir, SCREEN_COPY_DIR), json)
+
+    private const val SCREEN_COPY_DIR = "screen-copy"
     private const val FACE_CACHE_DIR = "avatar-face"
     private const val SELF_FACE_DIR = "my-face"
     private const val FACE_CACHE_BYTES = 64L * 1024 * 1024

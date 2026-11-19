@@ -45,6 +45,10 @@ class FriendBattleViewModel @Inject constructor(
     init {
         viewModelScope.launch { battles.preferredDistance()?.let { d -> _state.update { it.copy(distance = d) } } }
         viewModelScope.launch {
+            // 받아 둔 최근 친구(시작 로딩이 남긴 사본, S15P31A207-345 2차)를 먼저 그리고 뒤에서 새로 받아 바꾼다.
+            battles.cachedHistory(BattleHistory.Type.FRIEND)?.let { copy ->
+                _state.update { if (it.friends.isEmpty()) it.copy(friends = RecentFriends.of(copy.entries)) else it }
+            }
             val history = (battles.history(BattleHistory.Type.FRIEND) as? Outcome.Success)?.value ?: return@launch
             _state.update { it.copy(friends = RecentFriends.of(history.entries)) }
         }

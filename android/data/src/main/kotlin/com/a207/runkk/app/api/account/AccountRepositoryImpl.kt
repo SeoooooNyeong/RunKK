@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.account
 import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.api.core.BoundSession
 import com.a207.runkk.app.api.core.FaceImageSource
+import com.a207.runkk.app.api.core.ScreenCopyStore
 import com.a207.runkk.app.api.core.SelfMember
 import com.a207.runkk.app.api.core.TokenProvider
 import com.a207.runkk.app.core.model.AppError
@@ -28,9 +29,11 @@ import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 
 /**
@@ -48,7 +51,9 @@ constructor(
     private val faces: FaceImageSource,
     private val settings: SettingsRepository,
     /** 배치 진행 기기 사본(홈이 복귀마다 서버를 부르지 않게, Jira 325). */
-    private val placementCopy: PlacementCache = PlacementCache(me, self)
+    private val placementCopy: PlacementCache = PlacementCache(me, self),
+    /** 화면 첫 응답 사본(S15P31A207-345 2차): 내 프로필 응답을 내 계정 칸에 남겨 홈이 먼저 그린다. 없으면(시험) 남기지 않는다. */
+    private val copies: ScreenCopyStore? = null
 ) : AccountRepository {
     /** 계정·다른 러너 프로필의 큰 원(Jira 308). 내 머리는 FaceImageSource가 큰 아바타와 같은 1024를 쓴다. */
     override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
@@ -144,7 +149,16 @@ constructor(
 
     override suspend fun profile(memberId: Long): Outcome<Profile> {
         val id = self.resolve(memberId, AccountRepository.SELF) ?: return Outcome.Failure(AppError.Unauthorized)
-        val result = ApiErrorMapper.call { me.profile(id).toDomain() }
+        val result = ApiErrorMapper.call {
+            me.profile(id).also { response ->
+                val store = copies
+                if (memberId == AccountRepository.SELF && store != null) {
+                    withContext(Dispatchers.IO) {
+                        store.write(id, MY_PROFILE, "", ProfileResponse.serializer(), response)
+                    }
+                }
+            }.toDomain()
+        }
         if (memberId == AccountRepository.SELF && result is Outcome.Success) {
             currentGender.value = result.value.gender
             // 다음 실행의 첫 그림부터 내 얼굴을 그리게 얼굴·배경 키를 남긴다.
@@ -155,6 +169,12 @@ constructor(
 
     /** 본인 프로필 응답 하나에서 요약을 옮긴다(D-331). profile(SELF)를 거치므로 내 성별도 함께 갱신한다. */
     override suspend fun mySummary(): Outcome<MySummary> = profile(AccountRepository.SELF).map { it.toMySummary() }
+
+    override suspend fun cachedMySummary(): MySummary? = withContext(Dispatchers.IO) {
+        val store = copies ?: return@withContext null
+        val member = self.memberId() ?: return@withContext null
+        store.read(member, MY_PROFILE, ProfileResponse.serializer())?.second?.toDomain()?.toMySummary()
+    }
 
     /** 태그는 v0.11에서 지웠다(D-91). 나이대·성별 공개를 함께 보낸다(D-287). */
     override suspend fun editProfile(edit: ProfileEdit): Outcome<Unit> {
@@ -243,7 +263,10 @@ constructor(
 
     override suspend fun settings(): Outcome<MemberSettings> = ApiErrorMapper.call { me.settings().toMemberSettings() }
 
-    private companion object {
+    internal companion object {
+        /** 화면 사본 열쇠(시작 미리 받기 출처 AccountPreloadSource도 쓴다). */
+        const val MY_PROFILE = "home-my-profile"
+
         /** 서버 ReasonCode와 같은 이름. */
         const val AUTH_FAILED = "AUTH_FAILED"
         const val SIGN_UP_TICKET_INVALID = "SIGN_UP_TICKET_INVALID"

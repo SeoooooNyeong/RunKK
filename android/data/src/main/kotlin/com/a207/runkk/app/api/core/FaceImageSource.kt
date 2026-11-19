@@ -56,10 +56,10 @@ import okhttp3.Response
  *   - 층 응답: 503 HEAD_BUSY면 한 번 다시 받는다. 404의 reason이 LAYER_NOT_FOUND면 그 층이 없는 것, JOB_NOT_FOUND·HEAD_NOT_FOUND
  *     등이면 실패다. reason 없는 404·405만 옛 서버(v0.13.x, 층 주소 없음)로 보고 통짜 응답 GET /avatar/heads/{회원ID}/{작업ID}
  *     (Base64 PNG JSON)에서 같은 층을 꺼낸다.
- * - 계정: 캐시는 받은 회원의 것이다. 로그인한 회원 ID([selfId], 접근 토큰 sub)가 바뀌거나 로그아웃하면(null) 메모리·디스크 캐시와 남긴
- *   내 얼굴을 비운 뒤에 받는다(다른 계정에 앞 계정의 얼굴이 나가지 않게). 받는 사이 회원이 바뀌었으면 받은 것을 메모리·기기에 두지
- *   않는다. 앱을 새로 켠 첫 요청은 디스크 캐시를 남긴 회원([selfStore]의 회원)과 같을 때만 디스크 캐시를 그대로 쓴다. 로그아웃 상태면
- *   받지 않고 Unauthorized다.
+ * - 계정(S15P31A207-345 2차, 받아 둔 것은 지우지 않는다): 로그인한 회원 ID([selfId], 접근 토큰 sub)가 바뀌거나 로그아웃하면(null)
+ *   메모리 캐시만 비운다. 디스크 캐시의 다른 러너 머리는 공용이라 계정과 상관없이 같이 쓰고, 내 얼굴은 [selfStore]가 계정별 칸에 두어
+ *   다른 계정에 섞이지 않고 앞 계정으로 돌아오면 바로 준다. 받는 사이 회원이 바뀌었으면 받은 내 머리를 메모리·기기에 두지 않는다.
+ *   로그아웃 상태면 받지 않고 Unauthorized다.
  * - 실패: 부위·정면 층 하나라도 받지 못하면 전체를 실패로 돌려준다(반쪽 얼굴을 그리지 않고 화면이 자리 그림을 쓴다). 서버 거부는 공통
  *   오류 응답 code·reason(403 PERMISSION_DENIED, 409 FACE_IMAGE_NOT_FOUND, 404 JOB_NOT_FOUND 등)으로, 연결 실패는 Network로 온다.
  * - 셀카 얼굴이 아니면(기본 캐릭터·얼굴 없음) 빈 목록이다.
@@ -524,36 +524,19 @@ class FaceImageSource internal constructor(
     }
 
     /**
-     * 캐시를 [member]의 것으로 맞춘다. 회원이 바뀌었거나 로그아웃(null)이면 비운다. 앱을 새로 켠 첫 요청(앞 회원 모름)은 디스크 캐시를
-     * 남긴 회원([SelfFaceStore.owner])이 같으면 디스크 캐시를 그대로 쓴다. 로그인 상태면 참.
+     * 메모리 캐시를 [member]의 것으로 맞춘다. 회원이 바뀌었거나 로그아웃(null)이면 메모리(받는 중 합치기·이어 받기 포함)를 비운다.
+     * 디스크(HTTP 캐시의 다른 러너 머리)와 내 얼굴 저장소는 비우지 않는다(S15P31A207-345 2차, 받아 둔 것은 지우지 않는다): 다른 러너
+     * 머리는 공용이라 계정과 상관없이 같이 쓰고, 내 얼굴은 저장소가 계정별 칸으로 나눠 다른 계정에 섞이지 않는다. 로그인 상태면 참.
      */
     private fun ownCacheFor(member: Long?): Boolean {
-        var previous: Long? = null
-        val changed = synchronized(lock) {
-            previous = cachedFor
-            val different = cachedFor != member
-            if (different) {
+        synchronized(lock) {
+            if (cachedFor != member) {
                 memory.clear()
                 heads.clear()
                 inflight.clear()
                 mine.clear()
                 cachedFor = member
             }
-            different
-        }
-        if (changed) {
-            val store = selfStore
-            val keepDisk = previous == null && member != null && store?.owner() == member
-            // 앞 회원이 남긴 내 얼굴도 지운다(다른 계정에 앞 계정 얼굴이 첫 그림으로 나가지 않게).
-            store?.clearUnless(member)
-            if (!keepDisk) {
-                try {
-                    client.cache?.evictAll()
-                } catch (e: IOException) {
-                    // 디스크 캐시를 비우지 못하면 다음 요청이 서버에 다시 확인하도록 둔다(메모리는 비웠다).
-                }
-            }
-            if (member != null) store?.claim(member)
         }
         return member != null
     }
