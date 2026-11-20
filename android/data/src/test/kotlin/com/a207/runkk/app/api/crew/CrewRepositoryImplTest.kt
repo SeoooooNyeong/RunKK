@@ -21,6 +21,7 @@ import com.a207.runkk.app.domain.crew.JoinPolicy
 import com.a207.runkk.app.domain.crew.JoinResult
 import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.MyCrew
+import com.a207.runkk.app.domain.crew.MyRunState
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
 import java.time.Duration
@@ -408,5 +409,30 @@ class CrewRepositoryImplTest {
         assertEquals("POST /api/v1/crew-runs/77/pause", "${pause.method} ${pause.url.encodedPath}")
         assertEquals("""{"elapsedSeconds":754}""", pause.body!!.utf8())
         assertEquals("""{}""", api.take().body!!.utf8())
+    }
+
+    @Test
+    fun `크루런 목록·상세는 내 참여 상태 myRun을 읽고 없거나 모르는 값이면 NONE이다`() = runTest {
+        fun post(myRun: String) =
+            """{"postId":3,"kind":"CREW_RUN","authorName":"곰","body":"","writtenAt":"2026-10-20T07:00:00",
+               |"crewRun":{"scheduledAt":"2026-10-25T06:00:00","status":"RUNNING"$myRun}}
+            """.trimMargin()
+        api.reply("""{"posts":[${post(""","myRun":"ENDED"""")},${post(""","myRun":"RUNNING"""")}]}""")
+        api.reply("""{"posts":[${post("")},${post(""","myRun":"FUTURE"""")}]}""")
+
+        val known = repository.posts(5, PostList.Kind.CREW_RUN).value().posts.map { it.crewRun?.myRun }
+        val unknown = repository.posts(5, PostList.Kind.CREW_RUN).value().posts.map { it.crewRun?.myRun }
+
+        assertEquals(listOf(MyRunState.ENDED, MyRunState.RUNNING), known)
+        assertEquals(listOf(MyRunState.NONE, MyRunState.NONE), unknown, "옛 서버·모르는 값은 NONE")
+
+        val detail =
+            """{"postId":42,"crewId":7,"title":"토요일 한강","writtenAt":"2026-10-21T10:12:00+09:00",
+               |"scheduledAt":"2026-10-24T07:00:00+09:00","status":"RUNNING""""
+                .trimMargin()
+        api.reply("""$detail,"myRun":"RUNNING"}""")
+        api.reply("""$detail}""")
+        assertEquals(MyRunState.RUNNING, repository.crewRun(42).value().myRun)
+        assertEquals(MyRunState.NONE, repository.crewRun(42).value().myRun)
     }
 }

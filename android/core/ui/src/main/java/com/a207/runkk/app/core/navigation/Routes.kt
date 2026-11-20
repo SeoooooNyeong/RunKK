@@ -125,6 +125,13 @@ object Routes {
     @Serializable
     data class RecordDetail(val recordId: String) : NavKey
 
+    /**
+     * 기록 하나의 런바디 상세(G-20)를 바로 연다(기록 상세의 런바디 진입 카드). 러닝 선택 단계 없이 그 기록을 보이고, 뒤로 가기는 기록
+     * 상세로 돌아간다. ui.record.runbody가 그린다. 런바디 잠금(UnreleasedFeature.RUNBODY)에 딸린다.
+     */
+    @Serializable
+    data class RunBodyDetail(val recordId: String) : NavKey
+
     /** 기록 카드 팝업·공유(러닝 카드 앞뒤, FR-068·FR-069). ui.record가 그린다(ui.record → ui.share). */
     @Serializable
     data class RecordCard(val recordId: String) : NavKey
@@ -197,10 +204,16 @@ object Routes {
 
     /**
      * 평가 결과(G-11, ui.runimal EvaluationScreen, D-284). 끝낸 직후 연 러닝·대결 결과 응답에 evaluation이 있을 때 한 번 연다.
-     * [tier]는 서버 Tier 이름, [validRuns]는 evaluation.validRuns, [runimalType]은 확정 유형(첫 배치·미확정이면 null).
+     * [tier]는 서버 Tier 이름, [validRuns]는 evaluation.validRuns, [runimalType]은 확정 유형(첫 배치·미확정이면 null),
+     * [previousTier]는 재평가 직전 티어(과거 기록·옛 서버면 null).
      */
     @Serializable
-    data class Evaluation(val tier: String, val validRuns: Int, val runimalType: String?) : NavKey
+    data class Evaluation(
+        val tier: String,
+        val validRuns: Int,
+        val runimalType: String?,
+        val previousTier: String? = null
+    ) : NavKey
 
     /**
      * 배치고사 판 결과(ui.battle PlacementResultScreen, D-498·D-501, FR-280). 대결이 끝난 직후 대결 결과 대신 바꿔 연다.

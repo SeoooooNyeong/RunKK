@@ -43,6 +43,7 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
         return try {
             when (type) {
                 "MatchFound" -> liveJson.decodeFromJsonElement(MatchFoundJson.serializer(), message).toDomain()
+                    .also { logStartTiming(type, it.battleId) }
 
                 "MatchFailed" -> liveJson.decodeFromJsonElement(MatchFailedJson.serializer(), message).toDomain()
 
@@ -57,6 +58,7 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
                 ).toDomain()
 
                 "BattleStart" -> liveJson.decodeFromJsonElement(BattleStartJson.serializer(), message).toDomain()
+                    .also { logStartTiming(type, it.battleId) }
 
                 "OpponentProgress" -> liveJson.decodeFromJsonElement(
                     OpponentProgressJson.serializer(),
@@ -125,6 +127,15 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
         Timber.tag(TRACK_TIMING_LOG_TAG).d("recv ahead=%d at=%d", -progress.gapMeters, SystemClock.uptimeMillis())
     }
 
+    /**
+     * 성사·출발 예약을 받은 시각(S15P31A207-335 9회차 계측, 디버그 빌드에서만): 성사 알림을 받은 순간부터 성사 화면의 출발 숫자가 그려질
+     * 때까지를 녹화와 맞춰 잰다.
+     */
+    private fun logStartTiming(type: String, battleId: Long) {
+        if (Timber.treeCount == 0) return
+        Timber.tag(START_TIMING_LOG_TAG).d("recv %s battle=%d", type, battleId)
+    }
+
     /** 모르는 삭제 사유는 그 메시지만 버리고 로그를 남긴다(D-85, TC-6470). */
     private fun decodeRemoved(message: JsonObject): ServerMessage? {
         val removed = liveJson.decodeFromJsonElement(CrewChatRemovedJson.serializer(), message)
@@ -140,5 +151,8 @@ class ServerMessageDecoder internal constructor(private val selfId: () -> Long? 
 
         /** core.designsystem의 TRACK_TIMING_LOG_TAG와 같은 글자다(data는 화면 모듈을 보지 않는다). */
         const val TRACK_TIMING_LOG_TAG = "RunkkNfr7"
+
+        /** 성사·출발 예약 받은 시각 로그 태그(S15P31A207-335 9회차 계측). */
+        const val START_TIMING_LOG_TAG = "BattleStartTiming"
     }
 }

@@ -1,10 +1,13 @@
 package com.a207.runkk.app.core.avatar
 
 import android.content.res.AssetManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 
 /**
  * 한 몸체(남녀)에 넣을 머리 원본: 정면 다섯 층(face_layer·hair_layer·eyes_open·eyes_half·eyes_closed), 측면 세 층, 체형 1·2단계
  * 볼 레이어(정면·측면). 내장 기본 머리는 assets/avatars/{female,male}/에서 읽고, 생성 머리는 [GeneratedAvatarLayers]가 만든다.
+ * 두 머리 모두 정면 얼굴 아래에 몸 쪽 목 층을 굽고, 측면은 합성할 때 깐다([NeckUnderlay]).
  * 바이트는 읽기 전용이다(쓰는 쪽은 풀어서만 쓴다).
  */
 internal class AvatarVariantAssets(
@@ -36,9 +39,11 @@ internal class AvatarVariantAssets(
                 }
                 return bytes
             }
+            val face = read("face")
+            val skin = builtInSkin(face, gender)
             return AvatarVariantAssets(
                 front = mapOf(
-                    "face_layer" to read("face"),
+                    "face_layer" to withNeck(face, NeckUnderlay(BodyNeck.front(gender), skin)),
                     "hair_layer" to read("hair"),
                     "eyes_open" to read("eyes_open"),
                     "eyes_half" to read("eyes_half"),
@@ -48,11 +53,43 @@ internal class AvatarVariantAssets(
                     read("side_face"),
                     read("side_eyes"),
                     read("side_hair"),
-                    SideNeckRegistration.builtInFor(gender)
+                    SideNeckRegistration.builtInFor(gender),
+                    NeckUnderlay(BodyNeck.side(gender), skin)
                 ),
                 frontFullness = (1..2).associateWith { read("front_fullness_$it") },
                 sideFullness = (1..2).associateWith { read("side_fullness_$it") }
             )
         }
+
+        /** 기본 머리의 피부색: 정면 얼굴의 몸체 턱 위 피부 중앙값([GeneratedHeadGeometry.skinColor], 셀카 메타가 없을 때와 같은 규칙). */
+        private fun builtInSkin(face: ByteArray, gender: AvatarGender): Int {
+            val bitmap = decode(face)
+            try {
+                val size = HeadResultPolicy.CANVAS
+                val pixels = IntArray(size * size).also { bitmap.getPixels(it, 0, size, 0, 0, size, size) }
+                val target = HeadTarget.front(gender)
+                return GeneratedHeadGeometry.skinColor(pixels, size, size, target.centerX, target.chinY)
+            } finally {
+                bitmap.recycle()
+            }
+        }
+
+        /** 정면 얼굴 아래에 몸 쪽 목 층을 구운 PNG. */
+        private fun withNeck(face: ByteArray, underlay: NeckUnderlay): ByteArray {
+            val bitmap = decode(face)
+            try {
+                val necked = underlay.under(bitmap)
+                try {
+                    return AvatarImages.encode(necked)
+                } finally {
+                    necked.recycle()
+                }
+            } finally {
+                bitmap.recycle()
+            }
+        }
+
+        private fun decode(bytes: ByteArray): Bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            ?: throw IllegalArgumentException("unreadable avatar layer")
     }
 }

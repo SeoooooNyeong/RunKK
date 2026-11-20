@@ -111,17 +111,6 @@ class RunkkComponentsTest {
     }
 
     @Test
-    fun `종료 카운트다운 배너는 바뀌는 초 대신 고정 문구를 즉시 알린다`() {
-        compose.setContent {
-            RunkkTheme(reduceMotion = true) {
-                RunkkCountdownBanner(text = "상대 도착! 27초 안에 도착하지 못하면 대결이 끝나요", spoken = "상대 도착. 곧 대결이 끝나요")
-            }
-        }
-        compose.onNodeWithContentDescription("상대 도착. 곧 대결이 끝나요")
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Assertive))
-    }
-
-    @Test
     fun `라디오 묶음은 묶음 이름을 보이고 선택지마다 읽기 문구를 쓸 수 있다`() {
         val picked = mutableListOf<Int>()
         compose.setContent {

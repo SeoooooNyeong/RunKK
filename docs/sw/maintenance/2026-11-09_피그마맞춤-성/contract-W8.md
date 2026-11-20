@@ -243,7 +243,7 @@ E6 잠긴 아이템 구매: `409 {"code": "ITEM_LOCKED", "message": "아직 해�
 - 모든 PNG는 `data:image/png;base64,…`, **1024×1024 공통 좌표**이고 잘라 내지 않았다. 서버는 PNG 머리표지와 크기(1024 이하)를 검사하고 맞지 않으면 503 `UPSTREAM_FAILED`다.
 - 신규 5개 이미지와 `rightLayerLayout`은 **값이 없으면 JSON에서 빠진다**(null을 싣지 않는다). 예전에 만든 얼굴이나 ai가 아직 옆모습을 주지 않으면 없다. 앱은 `rightFaceImage`·`rightEyesImage`·`rightHairImage` 셋이 모두 있을 때만 옆모습(달리기)에 셀카 머리를 쓰고, 하나라도 없으면 달리기 장면은 정면 레이어를 쓰거나 기본 머리로 그린다.
 - 그리는 순서(PoC 규칙): 몸 피부(톤 적용) → 의상 → 얼굴 → 눈 → 헤어. 같은 위치·배율. 피부톤 필터는 눈·헤어·안경·옷에 적용하지 않는다. 정면용 `mobile.anchor`·`renderFaceImage`는 옆모습 좌표가 아니므로 옆모습에 다시 쓰지 않는다.
-- 서버는 이미지를 저장하지 않고 ai(avatar-ai)가 저장한 결과를 전달만 한다(기존 패턴, D-59). 응답은 `Cache-Control: no-store`다.
+- 서버는 이미지를 저장하지 않고 ai(avatar-ai)가 저장한 결과를 전달만 한다(기존 패턴, D-59). 응답은 `Cache-Control: no-store`다. (v0.43 변경, 핫픽스 666bcbd1, 2026-11-17) `GET /api/v1/avatar/heads/{ownerId}/{jobId}`만은 앱이 쓰지 않는 `frontImage`, `rightImage`, `mobile.renderFaceImage`를 빼고(약 44% 축소), `Cache-Control: no-cache, private`와 강한 ETag(`"head-v2-<소유자·작업 ID SHA-256 앞 16바이트>"`)를 준다. If-None-Match가 맞으면 공개 규칙 검사만 거쳐 ai를 부르지 않고 304를 준다. 셀카 작업 결과 등 다른 응답은 그대로다. 같은 작업 ID의 머리 내용이 바뀌는 변경을 배포할 때는 `SelfieJobController.HEAD_FORMAT`을 올린다.
 
 응답 표본 `GET /api/v1/avatar/heads/{ownerId}/{jobId}` (PNG는 줄임, 실제는 1024×1024 PNG 전체 Data URL):
 

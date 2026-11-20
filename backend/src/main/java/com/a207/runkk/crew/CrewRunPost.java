@@ -606,8 +606,14 @@ public class CrewRunPost extends SchedulePost {
                         counts(),
                         participationOf(viewerId).map(CrewRunParticipation::answer).orElse(null),
                         finishers,
-                        linkedRecordIds());
+                        linkedRecordIds(),
+                        myRunOf(viewerId));
         return baseSummary(viewerId).withCrewRun(run);
+    }
+
+    /** 열람자의 참여 상태(v0.14 S15P31A207-314): 참여 없음·진행 참가자 아님 NONE, 측정 중 RUNNING, 측정 끝 ENDED. */
+    public MyRunState myRunOf(long viewerId) {
+        return MyRunState.of(participationOf(viewerId));
     }
 
     /** 진행 참가자(출발한 후보와 중간 참여자), 참여 순. */

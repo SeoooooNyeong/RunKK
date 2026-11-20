@@ -2,6 +2,7 @@ package com.a207.runkk.runimal;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,5 +26,11 @@ public class RunimalQuery {
             return Map.of();
         }
         return runimalProfileRepository.typesOf(memberIds);
+    }
+
+    /** 확정 유형만(임시 유형은 보지 않는다). 배치고사 완료 화면이 쓴다(S15P31A207-332, FR-281). 없으면 비어 있다. */
+    @Transactional(readOnly = true)
+    public Optional<RunimalType> confirmedTypeOf(long memberId) {
+        return runimalProfileRepository.findOrCreate(memberId).getConfirmedType();
     }
 }

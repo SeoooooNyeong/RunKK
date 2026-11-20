@@ -3,6 +3,7 @@ package com.a207.runkk.app.api.chat
 import com.a207.runkk.app.api.core.ApiErrorMapper
 import com.a207.runkk.app.api.core.FaceImageSource
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FaceUse
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.domain.chat.ChatMessage
 import com.a207.runkk.app.domain.chat.ChatPage
@@ -20,7 +21,9 @@ internal class ChatRepositoryImpl
 @Inject
 constructor(private val api: ChatApi, private val faces: FaceImageSource) :
     ChatRepository {
-    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+    /** 목록 행 얼굴 원(Jira 308): 256. */
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
+        faces.faceLayers(faceKey, FaceUse.LIST)
 
     override fun cachedFaceLayers(faceKey: String?): List<FaceLayer>? = faces.peek(faceKey)
 

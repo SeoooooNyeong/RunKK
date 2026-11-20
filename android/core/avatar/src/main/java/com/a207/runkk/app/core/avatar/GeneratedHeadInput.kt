@@ -39,12 +39,7 @@ internal class GeneratedHeadInput(
         private const val CHANNEL_MAX = 255
 
         fun parse(text: String): GeneratedHeadInput {
-            HeadResultPolicy.checkResultLength(text.length)
-            val root = try {
-                json.parseToJsonElement(text) as? JsonObject
-            } catch (error: SerializationException) {
-                throw IllegalArgumentException("avatar result is not JSON", error)
-            } ?: throw IllegalArgumentException("avatar result is not a JSON object")
+            val root = objectOf(text)
 
             fun required(field: String) = HeadResultPolicy.decodePng(
                 field,
@@ -65,6 +60,43 @@ internal class GeneratedHeadInput(
                 neckMask = (mobile?.get("neckMask") as? JsonObject)?.let(::neck),
                 skinColor = (mobile?.get("skinColor") as? JsonArray)?.let(::skin)
             )
+        }
+
+        /**
+         * 층별로 받은 PNG 여섯 장과 이미지 없는 메타 JSON(서버 …/meta, 또는 mobile만 남긴 통짜 응답)으로 만든다(S15P31A207-300).
+         * 층마다 1024×1024 PNG인지 본다. 완성 원본(frontImage·rightImage)은 받지 않으므로 null이다.
+         */
+        fun of(
+            face: ByteArray,
+            eyes: ByteArray,
+            hair: ByteArray,
+            rightFace: ByteArray,
+            rightEyes: ByteArray,
+            rightHair: ByteArray,
+            metaJson: String
+        ): GeneratedHeadInput {
+            val mobile = objectOf(metaJson)["mobile"] as? JsonObject
+            return GeneratedHeadInput(
+                face = HeadResultPolicy.checkPng("face", face),
+                eyes = HeadResultPolicy.checkPng("eyes", eyes),
+                hair = HeadResultPolicy.checkPng("hair", hair),
+                rightFace = HeadResultPolicy.checkPng("rightFace", rightFace),
+                rightEyes = HeadResultPolicy.checkPng("rightEyes", rightEyes),
+                rightHair = HeadResultPolicy.checkPng("rightHair", rightHair),
+                frontImage = null,
+                rightImage = null,
+                neckMask = (mobile?.get("neckMask") as? JsonObject)?.let(::neck),
+                skinColor = (mobile?.get("skinColor") as? JsonArray)?.let(::skin)
+            )
+        }
+
+        private fun objectOf(text: String): JsonObject {
+            HeadResultPolicy.checkResultLength(text.length)
+            return try {
+                json.parseToJsonElement(text) as? JsonObject
+            } catch (error: SerializationException) {
+                throw IllegalArgumentException("avatar result is not JSON", error)
+            } ?: throw IllegalArgumentException("avatar result is not a JSON object")
         }
 
         private fun JsonObject.string(field: String): String? = (this[field] as? JsonPrimitive)

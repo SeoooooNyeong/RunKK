@@ -1,5 +1,6 @@
 package com.a207.runkk.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesPattern;
@@ -24,6 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 
 /**
@@ -291,6 +293,57 @@ class FigmaV014ControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.evaluation").value(nullValue()));
         mvc.perform(as(a, get("/api/v1/runs/" + valid)))
                 .andExpect(jsonPath("$.evaluation").value(nullValue()));
+    }
+
+    @Autowired private com.a207.runkk.running.RunRecordRepository runRecords;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @Test
+    @DisplayName(
+            "S15P31A207-331 재평가 표시를 저장하면 기록 상세 evaluation.previousTier에 바꾸기 전 티어가 나가고, 직전 티어 없이 저장한"
+                    + " 기록은 null")
+    void evaluationPreviousTier_isStoredAndShown() throws Exception {
+        Session a = signUp();
+        String withPrevious = upload(a, 5_000, 1_500);
+        String withoutPrevious = upload(a, 5_000, 1_500);
+        for (String id : List.of(withPrevious, withoutPrevious)) {
+            jdbc.update("update run_record set tier_applied = false where record_id = ?", id);
+        }
+        tx.executeWithoutResult(
+                status -> {
+                    assertThat(
+                                    runRecords.markTierApplied(
+                                            withPrevious,
+                                            java.util.Optional.of(
+                                                    new com.a207.runkk.running.EvaluationView(
+                                                            "REEVALUATION",
+                                                            com.a207.runkk.common.Tier.GOLD,
+                                                            10,
+                                                            null,
+                                                            com.a207.runkk.common.Tier.SILVER))))
+                            .isTrue();
+                    assertThat(
+                                    runRecords.markTierApplied(
+                                            withoutPrevious,
+                                            java.util.Optional.of(
+                                                    new com.a207.runkk.running.EvaluationView(
+                                                            "REEVALUATION",
+                                                            com.a207.runkk.common.Tier.GOLD,
+                                                            20,
+                                                            null,
+                                                            null))))
+                            .isTrue();
+                });
+
+        mvc.perform(as(a, get("/api/v1/runs/" + withPrevious)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evaluation.kind").value("REEVALUATION"))
+                .andExpect(jsonPath("$.evaluation.tier").value("GOLD"))
+                .andExpect(jsonPath("$.evaluation.previousTier").value("SILVER"));
+        mvc.perform(as(a, get("/api/v1/runs/" + withoutPrevious)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.evaluation.validRuns").value(20))
+                .andExpect(jsonPath("$.evaluation.previousTier").value(nullValue()));
     }
 
     private static String row(String recordId, String field) {

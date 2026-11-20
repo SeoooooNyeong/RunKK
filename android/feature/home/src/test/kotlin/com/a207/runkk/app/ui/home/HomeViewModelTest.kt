@@ -40,8 +40,15 @@ class HomeViewModelTest {
     private val todayPlans = TodayPlanCache()
     private val pendingRuns = FakePendingRunRepository()
 
-    private fun viewModel() =
-        HomeViewModel(records, account, LocationConsentUseCase(account, settings), todayPlans, pendingRuns, clock)
+    private fun viewModel() = HomeViewModel(
+        records,
+        account,
+        LocationConsentUseCase(account, settings),
+        todayPlans,
+        pendingRuns,
+        clock,
+        settings
+    )
 
     @Test
     fun `W48 TC-3184 미전송 기록이 안내 기준을 넘으면 홈 상단에 재전송 안내를 보인다`() {
@@ -186,12 +193,12 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `처음 재개는 다시 읽지 않고, 다시 보일 때마다 다시 읽는다`() {
+    fun `처음 재개는 다시 읽지 않고, 다시 보일 때마다(30초 간격 문지기는 HomeRefreshGateTest) 다시 읽는다`() {
         val vm = viewModel()
         vm.onResumed()
         assertEquals(1, records.dashboardDates.size)
         records.dashboardResult = Outcome.Success(sampleDashboard.copy(streakWeeks = 5))
-        vm.onResumed()
+        vm.refresh()
         assertEquals(2, records.dashboardDates.size)
         assertEquals(5, vm.state.value.streakWeeks)
     }
@@ -282,7 +289,8 @@ class HomeViewModelTest {
                 LocationConsentUseCase(account, settings),
                 todayPlans,
                 pendingRuns,
-                utcClock
+                utcClock,
+                settings
             )
         val monday = LocalDate.of(2026, 11, 2)
 

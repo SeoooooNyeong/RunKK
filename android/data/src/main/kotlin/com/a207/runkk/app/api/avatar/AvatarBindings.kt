@@ -5,12 +5,15 @@ import com.a207.runkk.app.domain.avatar.BackgroundUnlockSeenStore
 import com.a207.runkk.app.domain.avatar.PendingSelfiePhoto
 import com.a207.runkk.app.domain.avatar.SelfieJobFollower
 import com.a207.runkk.app.domain.avatar.SelfieResultNotifier
+import com.a207.runkk.app.domain.sync.AssetPreloadSource
+import com.a207.runkk.app.domain.sync.PreloadJournal
 import dagger.Binds
 import dagger.BindsOptionalOf
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoSet
 import retrofit2.Retrofit
 import retrofit2.create
 
@@ -41,6 +44,15 @@ internal abstract class AvatarBindings {
 
     @Binds
     abstract fun backgroundUnlockSeenStore(impl: PreferencesBackgroundUnlockSeenStore): BackgroundUnlockSeenStore
+
+    /** 시작 로딩 화면의 에셋 미리 받기 출처: 내 셀카 머리(S15P31A207-345). */
+    @Binds
+    @IntoSet
+    abstract fun assetPreloadSource(impl: AvatarAssetPreloadSource): AssetPreloadSource
+
+    /** 시작 에셋 미리 받기 표식·처음 실행 기록(S15P31A207-345 2차). */
+    @Binds
+    abstract fun preloadJournal(impl: PreferencesPreloadJournal): PreloadJournal
 
     companion object {
         @Provides

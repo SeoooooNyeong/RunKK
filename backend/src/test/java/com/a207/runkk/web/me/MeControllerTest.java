@@ -14,7 +14,9 @@ import com.a207.runkk.web.WebTestSupport;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
  * PATCH /me/profile, GET·PATCH /me/settings, PUT·DELETE /me/consents/{item}, GET /legal/{type},
@@ -46,6 +48,39 @@ class MeControllerTest extends WebTestSupport {
                 .andExpect(jsonPath("$.nextRound").value(nullValue()))
                 .andExpect(jsonPath("$.tier").value("SILVER"));
         mvc.perform(get("/api/v1/me/placement")).andExpect(status().isUnauthorized());
+    }
+
+    @Autowired private JdbcTemplate jdbc;
+
+    @Test
+    @DisplayName(
+            "S15P31A207-332 GET /me/placement의 runimalType: 확정 Runimal 유형이 있으면 그 이름, 임시 유형만 있거나 없으면"
+                    + " null")
+    void placement_carriesConfirmedRunimalType() throws Exception {
+        Session none = signUp();
+        mvc.perform(as(none, get("/api/v1/me/placement")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runimalType").value(nullValue()));
+
+        Session provisional = signUp();
+        runimal(provisional.memberId(), "WHEEL_HAMSTER", null);
+        mvc.perform(as(provisional, get("/api/v1/me/placement")))
+                .andExpect(jsonPath("$.runimalType").value(nullValue()));
+
+        Session confirmed = signUp();
+        runimal(confirmed.memberId(), "WHEEL_HAMSTER", "MORNING_SPARROW");
+        mvc.perform(as(confirmed, get("/api/v1/me/placement")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runimalType").value("MORNING_SPARROW"));
+    }
+
+    private void runimal(long memberId, String provisional, String confirmed) {
+        jdbc.update(
+                "insert into runimal_profile (member_id, valid_run_count, provisional_type,"
+                        + " confirmed_type, version) values (?, 10, ?, ?, 0)",
+                memberId,
+                provisional,
+                confirmed);
     }
 
     @Test

@@ -32,6 +32,18 @@ interface RecordRepository {
     suspend fun crewRanking(period: AggregationPeriod): Outcome<Ranking>
 
     /**
+     * 기기에 남긴 개인 랭킹 첫 화면 사본(S15P31A207-345 2차, 시작 로딩이 받아 둔 것). 내 계정 칸의 것(내 순위 포함)이 없으면 공용 칸의
+     * 것(내 순위 없음)을 준다. 없으면 null. 네트워크를 쓰지 않는다. 화면은 이것을 먼저 그리고 [personalRanking]으로 바꾼다.
+     */
+    suspend fun cachedPersonalRanking(period: AggregationPeriod): Ranking? = null
+
+    /** 기기에 남긴 [baseDate] 대시보드 사본(내 계정 칸). 다른 날짜의 사본이거나 없으면 null. 네트워크를 쓰지 않는다. */
+    suspend fun cachedDashboard(baseDate: LocalDate): Dashboard? = null
+
+    /** 기기에 남긴 내 기록 목록 사본(내 계정 칸, [from]~[to]가 같을 때만). 없으면 null. 네트워크를 쓰지 않는다. */
+    suspend fun cachedRuns(from: LocalDate, to: LocalDate): RecordList? = null
+
+    /**
      * 랭킹 줄 얼굴 그림(S15P31A207-300): 줄 모습의 얼굴 키([RunnerLook.faceKey])로 셀카 얼굴 층을 받는다(AccountRepository.faceLayers와
      * 같은 그림, 다른 러너 얼굴도 받는다). 셀카가 아니면(기본 캐릭터·없음) 빈 목록이다. 구현이 없으면 빈 목록(기본 머리).
      */

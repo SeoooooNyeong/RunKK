@@ -2,8 +2,10 @@ package com.a207.runkk.app.core.avatar
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 /**
  * 전신 정지 그림의 자르기·줄이기 계산과 캐시 키(랭킹 TOP3·기록런 VS 칸, S15P31A207-300). 그림 읽기는 Rive 네이티브가 있어야 해
@@ -79,5 +81,18 @@ class AvatarStillFrameTest {
         assertEquals(980, b.bottom)
         // 틀은 아트보드 가운데에 놓인다(몸 가운데로 옮기지 않아 남녀가 같은 자리에 선다)
         assertEquals(400 - a.right, a.left)
+    }
+
+    @Test
+    fun `같은 비율이거나 더 좁은 그림은 작은 칸에 줄여 쓰고 넓은 그림이나 늘려야 하는 그림은 쓰지 않는다`() {
+        // 기록런 VS 칸(정사각) 그림 → 카운트다운 VS 칸(정사각, 더 작다)
+        assertTrue(AvatarStillFrame.standsIn(388, 388, 252, 252))
+        // 좁은 틀(0.66) 그림은 어느 칸에도 몸 크기가 같다(성사 대기 칸 150×240 → 정사각 칸)
+        assertTrue(AvatarStillFrame.standsIn(394, 597, 252, 252))
+        // 정사각 그림을 좁고 긴 칸(70×130)에 쓰면 몸이 작아진다
+        assertFalse(AvatarStillFrame.standsIn(388, 388, 184, 341))
+        // 작은 칸 그림을 큰 칸에 늘리지 않는다
+        assertFalse(AvatarStillFrame.standsIn(252, 252, 388, 388))
+        assertFalse(AvatarStillFrame.standsIn(0, 10, 10, 10))
     }
 }

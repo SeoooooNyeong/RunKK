@@ -173,6 +173,19 @@ class BattleRepositoryImplTest {
     }
 
     @Test
+    fun `대결 결과의 재평가는 직전 티어 previousTier를 읽는다`() = runTest {
+        api.reply(
+            """{"battleId":9,"pending":false,"recordId":"r","opponentName":"바람",
+               |"evaluation":{"kind":"REEVALUATION","tier":"GOLD","validRuns":30,"runimalType":null,"previousTier":"GOLD"}}
+            """.trimMargin()
+        )
+        assertEquals(
+            BattleResult.Evaluation("REEVALUATION", "GOLD", 30, null, previousTier = "GOLD"),
+            repository.result(9).value().evaluation
+        )
+    }
+
+    @Test
     fun `친구 초대 만들기는 거리를 보내고 링크·만료 시각을 읽는다(D-270)`() = runTest {
         api.reply(
             """{"inviteId":41,"token":"aB3-_xY0aB3-_xY0aB3-_x",

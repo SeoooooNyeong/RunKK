@@ -67,7 +67,9 @@ internal data class PostListResponse(val posts: List<Item> = emptyList(), val ne
             val raceContributionMeters: Long? = null,
             val notGoingCount: Int = 0,
             val undecidedCount: Int = 0,
-            val title: String? = null
+            val title: String? = null,
+            /** 열람자의 참여 상태 NONE·RUNNING·ENDED. 옛 서버면 null. */
+            val myRun: String? = null
         )
     }
 }

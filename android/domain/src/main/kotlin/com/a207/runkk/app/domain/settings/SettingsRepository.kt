@@ -30,6 +30,9 @@ interface SettingsRepository {
     /** 값이 바뀔 때마다 알린다. WatchLink가 동의 철회를 바로 반영한다. */
     fun changes(): Flow<SettingsSnapshot>
 
+    /** 서버 설정 사본이 기기에 있는가(Jira 325: 홈은 사본이 없을 때만 서버 설정을 읽는다). 구현이 없으면 거짓. */
+    fun hasCopy(): Boolean = false
+
     /**
      * 첫 사용 가이드 기기 사본(D-277). 가이드 말고는 쓰는 곳이 없어 기본 구현(사본 없음, 저장은 무시)을 둔다.
      * 구현(data.settings)은 같은 기기 파일에 두고 [clear] 때 함께 지운다(다른 회원이 로그인하면 서버 값을 다시 읽는다).

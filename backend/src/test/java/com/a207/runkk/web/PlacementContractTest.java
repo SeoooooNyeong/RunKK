@@ -26,7 +26,8 @@ class PlacementContractTest {
             delimiter = '|',
             value = {
                 "web.me.MeController$PlacementResponse"
-                        + "|status,countedRounds,nextRound,provisionalTier,tier,rounds",
+                        // + runimalType: 확정 Runimal 유형(S15P31A207-332, Jira 332), 뒤에 붙이기만 한다
+                        + "|status,countedRounds,nextRound,provisionalTier,tier,rounds,runimalType",
                 "web.me.MeController$PlacementResponse$Round"
                         + "|round,battleId,battleDistanceMeters,distanceMeters,elapsedSeconds,"
                         + "averagePaceSecondsPerKm,verdict",

@@ -871,7 +871,7 @@ private fun AchievementLine(row: AchievementRow) {
 fun ResultBottomBar(
     primary: String,
     onPrimary: () -> Unit,
-    secondary: String,
+    secondary: String?,
     onSecondary: () -> Unit,
     modifier: Modifier = Modifier,
     isSecondaryEnabled: Boolean = true
@@ -898,6 +898,8 @@ fun ResultBottomBar(
         ) {
             Text(primary, style = RunkkTextStyles.text(14, FontWeight.Medium), color = RunkkColors.OnLimeFill)
         }
+        // 보조 글자 단추가 없으면(null) 주 단추만 둔다(티어 재평가에서 Runimal이 확정되지 않았을 때).
+        if (secondary == null) return@Column
         Box(
             modifier = Modifier
                 .fillMaxWidth()

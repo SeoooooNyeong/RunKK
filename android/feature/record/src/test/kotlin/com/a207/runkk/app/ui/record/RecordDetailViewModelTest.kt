@@ -5,6 +5,8 @@ import com.a207.runkk.app.core.designsystem.RunkkErrorText
 import com.a207.runkk.app.core.designsystem.UiText
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Outcome
+import com.a207.runkk.app.domain.record.RunBodyPreview
+import com.a207.runkk.app.domain.record.RunBodyPreviewSource
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
@@ -19,18 +21,23 @@ class RecordDetailViewModelTest {
     @get:Rule
     val main = MainDispatcherRule()
 
+    private val previewCalls = mutableListOf<String>()
+    private val runBody = RunBodyPreviewSource { id ->
+        previewCalls += id
+        RunBodyPreview.Ready(intensity = 78, endurance = 84, stability = 72)
+    }
     private val records = FakeRecordRepository().apply {
         runResult = Outcome.Success(detail().copy(isDeletable = true))
     }
 
-    private fun loaded() = RecordDetailViewModel(records).apply { load("r1") }
+    private fun loaded() = RecordDetailViewModel(records, runBody).apply { load("r1") }
 
     @Test
     fun `기록 상세를 읽고 실패하면 오류를 보인다(FR-059)`() {
         val vm = loaded()
         assertEquals("12°C 맑음", vm.state.value.detail?.weather)
         records.runResult = Outcome.Failure(AppError.Network)
-        val failing = RecordDetailViewModel(records)
+        val failing = RecordDetailViewModel(records, runBody)
         failing.load("r9")
         assertNull(failing.state.value.detail)
         assertEquals(RunkkErrorText.of(AppError.Network), failing.state.value.error)
@@ -110,5 +117,20 @@ class RecordDetailViewModelTest {
         vm.onDeleteConfirmed()
         assertFalse(vm.state.value.isConfirmingDelete)
         assertEquals(emptyList(), records.deleteCalls)
+    }
+
+    @Test
+    fun `런바디 진입 카드 - 유효 러닝이면 진입 카드 상태를 한 번 읽어 담는다`() {
+        val vm = loaded()
+        assertEquals(RunBodyPreview.Ready(intensity = 78, endurance = 84, stability = 72), vm.state.value.runBody)
+        assertEquals(listOf("r1"), previewCalls)
+    }
+
+    @Test
+    fun `런바디 진입 카드 - 유효 러닝이 아니면 묻지 않고 숨긴다, 읽기 전에도 숨긴다`() {
+        assertEquals(RunBodyPreview.Hidden, RecordDetailUiState().runBody)
+        records.runResult = Outcome.Success(detail().copy(summary = summary("r1", 20, 5_020, isValid = false)))
+        assertEquals(RunBodyPreview.Hidden, loaded().state.value.runBody)
+        assertEquals(emptyList(), previewCalls)
     }
 }

@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.avatar.Avatar
 import com.a207.runkk.app.domain.avatar.AvatarRepository
 import com.a207.runkk.app.domain.avatar.AvatarRunner
 import com.a207.runkk.app.domain.avatar.ItemSlot
+import com.a207.runkk.app.domain.avatar.SelfieHead
 import com.a207.runkk.app.domain.avatar.SelfieProgress
 import com.a207.runkk.app.domain.avatar.Shop
 import java.io.IOException
@@ -43,10 +44,17 @@ class MyAvatarStoreTest {
     private var resumes = 0
     private var checks = 0
 
-    private fun TestScope.store() = MyAvatarStore(
+    /** 기기에 남긴 성별(D-956)과 남긴 기록. */
+    private var savedGender: Gender? = null
+    private val savedGenders = mutableListOf<Gender>()
+
+    private fun TestScope.store(savedFaceKey: String? = null) = MyAvatarStore(
         avatars = repo,
         myGender = gender,
         heads = headsOf(repo),
+        savedFaceKey = { savedFaceKey },
+        savedGender = { savedGender },
+        saveGender = { savedGenders += it },
         preload = { preloaded += it },
         prepare = { look, motion ->
             prepareFailure?.let { throw it }
@@ -80,6 +88,65 @@ class MyAvatarStoreTest {
         store.warm()
         runCurrent()
         assertIs<MyAvatarState.Ready>(store.state.value)
+    }
+
+    @Test
+    fun `warm은 프로필(성별)을 기다리지 않고 기기에 남긴 내 얼굴 키로 머리를 바로 받아 합성을 시작한다(S15P31A207-300)`() = runTest {
+        repo.base.headResult = Outcome.Success(SelfieHead(faceLayers))
+        repo.base.avatarResult = Outcome.Success(sample.copy(faceKey = "head:7:job-1"))
+        val store = store(savedFaceKey = "head:7:job-1")
+
+        store.warm()
+        runCurrent()
+        assertEquals(listOf("head:head:7:job-1"), repo.base.calls.filter { it.startsWith("head:") }, "성별을 모르는 동안 받는다")
+        assertIs<MyAvatarState.Loading>(store.state.value)
+
+        gender.value = Gender.MALE
+        runCurrent()
+        val ready = assertIs<MyAvatarState.Ready>(store.state.value)
+        assertEquals(faceLayers, ready.look.faceLayers)
+        assertEquals(1, repo.base.calls.count { it.startsWith("head:") }, "같은 머리를 다시 받지 않는다")
+    }
+
+    @Test
+    fun `기기에 남긴 성별이 있으면 프로필(성별) 응답을 기다리지 않고 바로 합성해 Ready가 된다(Jira 307)`() = runTest {
+        savedGender = Gender.FEMALE
+        repo.base.headResult = Outcome.Success(SelfieHead(faceLayers))
+        repo.base.avatarResult = Outcome.Success(sample.copy(faceKey = "head:7:job-1"))
+        val store = store(savedFaceKey = "head:7:job-1")
+
+        store.warm()
+        runCurrent()
+        val ready = assertIs<MyAvatarState.Ready>(store.state.value, "성별 흐름은 아직 null이다")
+        assertEquals(AvatarGender.FEMALE, ready.look.rive.gender)
+        assertEquals(faceLayers, ready.look.faceLayers)
+
+        gender.value = Gender.FEMALE
+        runCurrent()
+        assertEquals(1, prepared.count { it.second == AvatarMotion.STAND }, "같은 성별이면 다시 합성하지 않는다")
+        assertEquals(listOf(Gender.FEMALE), savedGenders, "알게 된 성별을 기기에 남긴다")
+    }
+
+    @Test
+    fun `프로필이 남긴 것과 다른 성별을 주면 다시 합성한다(Jira 307)`() = runTest {
+        savedGender = Gender.FEMALE
+        val store = store()
+        store.warm()
+        runCurrent()
+        assertEquals(AvatarGender.FEMALE, assertIs<MyAvatarState.Ready>(store.state.value).look.rive.gender)
+
+        gender.value = Gender.MALE
+        runCurrent()
+        assertEquals(AvatarGender.MALE, assertIs<MyAvatarState.Ready>(store.state.value).look.rive.gender)
+        assertEquals(listOf(Gender.MALE), savedGenders)
+    }
+
+    @Test
+    fun `남긴 얼굴 키가 셀카 머리가 아니거나 없으면 미리 받지 않는다`() = runTest {
+        store(savedFaceKey = "default:FOX").warm()
+        store(savedFaceKey = null).warm()
+        runCurrent()
+        assertEquals(emptyList(), repo.base.calls.filter { it.startsWith("head:") })
     }
 
     @Test
@@ -200,6 +267,30 @@ class MyAvatarStoreTest {
             "칸에 넘길 것과 같은 모습을 서기 먼저, 달리기 다음으로 미리 준비한다"
         )
         prepared.forEach { assertSame(look.rive, it.first) }
+    }
+
+    @Test
+    fun `서기 톤이 기기 사본으로 바로 끝나면 riv 미리 읽기를 기다리지 않고 Ready다(S15P31A207-345 10회차)`() = runTest {
+        val riv = CompletableDeferred<Unit>()
+        val store = MyAvatarStore(
+            avatars = repo,
+            myGender = gender,
+            heads = headsOf(repo),
+            preload = { riv.await() },
+            // 톤 디스크 적중: 합성 없이 바로 끝난다(riv가 필요 없다)
+            prepare = { look, motion -> prepared += look to motion },
+            scope = backgroundScope,
+            loggedIn = loggedIn
+        )
+        store.warm()
+        gender.value = Gender.MALE
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value, "riv 읽기가 끝나기 전에도 Ready다")
+        assertEquals(AvatarMotion.STAND, prepared.first().second)
+
+        riv.complete(Unit)
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value)
     }
 
     @Test

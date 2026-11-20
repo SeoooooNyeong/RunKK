@@ -36,6 +36,11 @@ internal object HeadResultPolicy {
         } catch (error: IllegalArgumentException) {
             throw IllegalArgumentException("$field is not base64", error)
         }
+        return checkPng(field, bytes)
+    }
+
+    /** [bytes]가 1024×1024 PNG면 그대로, 아니면 IllegalArgumentException(층별로 받은 머리, S15P31A207-300). */
+    fun checkPng(field: String, bytes: ByteArray): ByteArray {
         require(pngSize(bytes) == CANVAS to CANVAS) { "$field must be a ${CANVAS}x$CANVAS PNG" }
         return bytes
     }

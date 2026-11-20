@@ -16,15 +16,16 @@ internal class AvatarStillKey private constructor(
     private val gender: AvatarGender,
     private val look: AvatarLookKey,
     private val head: GeneratedHeadLayers?,
-    private val width: Int,
-    private val height: Int
+    val width: Int,
+    val height: Int
 ) {
     override fun equals(other: Any?): Boolean = other is AvatarStillKey &&
-        gender == other.gender &&
-        look == other.look &&
-        head === other.head &&
+        isSameLook(other) &&
         width == other.width &&
         height == other.height
+
+    /** 칸 크기를 빼고 같은 모습인가(다른 칸 크기로 읽은 그림을 빌려 쓸 때, [AvatarStillCache.get]). */
+    fun isSameLook(other: AvatarStillKey): Boolean = gender == other.gender && look == other.look && head === other.head
 
     override fun hashCode(): Int {
         var result = gender.hashCode()

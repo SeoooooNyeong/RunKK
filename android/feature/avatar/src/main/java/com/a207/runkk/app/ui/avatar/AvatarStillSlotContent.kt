@@ -129,20 +129,12 @@ private fun RunnerAvatarStill(
 ) {
     val isFemale = received?.isFemale ?: (gender == Gender.FEMALE)
     var look by remember(isFemale, received) {
-        mutableStateOf(
-            if (received ==
-                null
-            ) {
-                defaultRiveLook(isFemale)
-            } else {
-                null
-            }
-        )
+        mutableStateOf(if (received == null) defaultRiveLook(isFemale) else resolver.peek(received))
     }
     var isFailed by remember(look) { mutableStateOf(false) }
     var isTimedOut by remember(received) { mutableStateOf(false) }
     LaunchedEffect(received) {
-        if (received != null) look = resolver.resolve(received)
+        if (received != null && look == null) look = resolver.resolve(received)
     }
     LaunchedEffect(received, look == null) {
         if (look == null) {
@@ -170,11 +162,12 @@ private fun RunnerAvatarStill(
 @Composable
 private fun RankingAvatarStill(heads: SelfieHeads, subject: AvatarStillSubject, hasShown: Boolean) {
     val faceKey = subject.look?.faceKey?.takeIf(::isSelfieHead)
-    // 셀카 머리를 받는 동안 null(비움). 셀카 머리가 아니면 기다릴 것이 없다
-    var face by remember(faceKey) { mutableStateOf(if (faceKey == null) FaceLook.NONE else null) }
+    // 셀카 머리를 받는 동안 null(비움). 셀카 머리가 아니면 기다릴 것이 없다. 시작 로딩이 받아 둔 머리면 첫 판부터 쓴다(S15P31A207-345
+    // 9회차: 정지 그림 캐시가 같은 머리 인스턴스로 적중해 첫 판에 그림이 보인다).
+    var face by remember(faceKey) { mutableStateOf(if (faceKey == null) FaceLook.NONE else heads.peek(faceKey)) }
     var isTimedOut by remember(faceKey) { mutableStateOf(false) }
     LaunchedEffect(faceKey) {
-        if (faceKey != null) face = heads.look(faceKey)
+        if (faceKey != null && face == null) face = heads.look(faceKey)
     }
     LaunchedEffect(faceKey, face == null) {
         if (face == null) {

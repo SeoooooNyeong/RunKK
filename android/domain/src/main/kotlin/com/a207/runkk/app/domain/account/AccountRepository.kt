@@ -66,12 +66,21 @@ interface AccountRepository {
      */
     suspend fun mySummary(): Outcome<MySummary>
 
+    /** 기기에 남긴 내 요약 사본(내 계정 칸, S15P31A207-345 2차). 없으면 null. 네트워크를 쓰지 않는다. */
+    suspend fun cachedMySummary(): MySummary? = null
+
     /**
      * 본인 배치고사 진행(GET /me/placement, FR-279~FR-282, D-488·D-493). 홈 헤더 배지·진입 시트, 마이, 배치고사 화면이 읽는다.
      * 임시 티어는 이 응답에만 있다(FR-282). 모르는 상태 값은 실패(Server(0))다. 기본 구현은 실패라 구현이 없는 가짜 저장소에서는
      * 화면이 진행을 모르는 상태(배지 없음, 진입 시트 랜덤 → 배치고사 화면)로 동작한다.
      */
     suspend fun placement(): Outcome<PlacementProgress> = Outcome.Failure(AppError.Server(0))
+
+    /**
+     * 배치 진행 기기 사본(Jira 325): 마지막으로 [placement]에서 읽은 로그인한 회원의 값. 홈이 복귀마다 서버를 부르지 않고 이것을 쓴다.
+     * 없거나 다른 회원 것이면 null(그때는 [placement]로 읽는다). 구현이 없으면 null.
+     */
+    fun cachedPlacement(): PlacementProgress? = null
 
     /**
      * 이 기기에서 배치고사 완료 화면(FR-281)을 본 마지막 판의 대결 ID(D-531). 배치고사 진행 화면이 완료를 받았을 때 이 값이 마지막 판과

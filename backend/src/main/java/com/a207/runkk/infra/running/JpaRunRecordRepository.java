@@ -222,8 +222,8 @@ public class JpaRunRecordRepository implements RunRecordRepository {
         return entityManager
                 .createQuery(
                         "select r.evaluationKind, r.evaluationTier, r.evaluationValidRuns,"
-                                + " r.evaluationRunimalType from RunRecord r"
-                                + " where r.recordId = :id and r.evaluationKind is not null",
+                            + " r.evaluationRunimalType, r.evaluationPreviousTier from RunRecord r"
+                            + " where r.recordId = :id and r.evaluationKind is not null",
                         Object[].class)
                 .setParameter("id", recordId)
                 .getResultList()
@@ -235,7 +235,8 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                                         (String) row[0],
                                         row[1] == null ? null : Tier.valueOf((String) row[1]),
                                         row[2] == null ? 0 : (Integer) row[2],
-                                        (String) row[3]));
+                                        (String) row[3],
+                                        row[4] == null ? null : Tier.valueOf((String) row[4])));
     }
 
     @Override
@@ -653,11 +654,17 @@ public class JpaRunRecordRepository implements RunRecordRepository {
                         .createNativeQuery(
                                 "update run_record set tier_applied = true,"
                                         + " evaluation_kind = :kind, evaluation_tier = :tier,"
-                                        + " evaluation_valid_runs = :runs"
+                                        + " evaluation_valid_runs = :runs,"
+                                        + " evaluation_previous_tier = :previous"
                                         + " where record_id = :id and tier_applied = false")
                         .setParameter("kind", evaluation.get().kind())
                         .setParameter("tier", evaluation.get().tier().name())
                         .setParameter("runs", evaluation.get().validRuns())
+                        .setParameter(
+                                "previous",
+                                evaluation.get().previousTier() == null
+                                        ? null
+                                        : evaluation.get().previousTier().name())
                         .setParameter("id", recordId)
                         .executeUpdate()
                 > 0;

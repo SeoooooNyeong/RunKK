@@ -7,6 +7,8 @@ import com.a207.runkk.app.api.core.enumByName
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.FaceLayer
+import com.a207.runkk.app.core.model.FaceUse
+import com.a207.runkk.app.core.model.Gender
 import com.a207.runkk.app.core.model.Outcome
 import com.a207.runkk.app.core.model.getOrNull
 import com.a207.runkk.app.core.model.map
@@ -66,10 +68,19 @@ constructor(
         photo.clear()
     }
 
-    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> = faces.faceLayers(faceKey)
+    override suspend fun faceLayers(faceKey: String?): Outcome<List<FaceLayer>> =
+        faces.faceLayers(faceKey, FaceUse.PROFILE)
 
     override suspend fun selfieHead(faceKey: String?): Outcome<SelfieHead?> =
-        faces.selfieHead(faceKey).map { body -> body?.let { SelfieHead(it.json, it.faceLayers) } }
+        faces.selfieHead(faceKey).map { body -> body?.let { SelfieHead(it.faceLayers, it.rightLayers, it.meta) } }
+
+    override fun savedSelfFaceKey(): String? = faces.lastSelf()?.faceKey
+
+    override fun savedSelfGender(): Gender? = faces.lastSelfGender()?.let { name ->
+        Gender.entries.firstOrNull { it.name == name }
+    }
+
+    override suspend fun rememberSelfGender(gender: Gender) = faces.rememberSelfGender(gender.name)
 
     override suspend fun runner(): Outcome<AvatarRunner> = ApiErrorMapper.call { api.runner().toDomain() }
 

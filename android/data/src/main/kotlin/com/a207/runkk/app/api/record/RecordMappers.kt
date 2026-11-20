@@ -64,7 +64,7 @@ private fun List<Double>.toShapePoint(): ShapePoint? =
 private fun RecordDetailResponse.EvaluationDto.toDomain(): Evaluation? {
     val tier = tier?.takeIf { it.isNotBlank() } ?: return null
     val kind = enumByName<Evaluation.Kind>(kind) ?: return null
-    return Evaluation(kind, tier, validRuns, runimalType)
+    return Evaluation(kind, tier, validRuns, runimalType, previousTier?.takeIf { it.isNotBlank() })
 }
 
 private fun Map<String, Long>.toGrass(): Map<LocalDate, Distance> =

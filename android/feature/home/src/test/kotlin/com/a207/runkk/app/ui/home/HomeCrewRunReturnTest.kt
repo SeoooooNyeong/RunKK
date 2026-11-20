@@ -37,7 +37,8 @@ class HomeCrewRunReturnTest {
         LocationConsentUseCase(account, FakeSettingsRepository()),
         TodayPlanCache(),
         FakePendingRunRepository(),
-        clock
+        clock,
+        FakeSettingsRepository()
     )
 
     private fun receipt(id: String = "rec-1", meters: Long = 800) =
@@ -78,7 +79,7 @@ class HomeCrewRunReturnTest {
         vm.onResumed(receipt())
         runCurrent()
         assertNull(vm.state.value.weeklyHighlight, "같은 기록은 다시 강조하지 않는다")
-        assertEquals(reads + 1, records.dashboardDates.size, "재개라서 읽기는 한다")
+        assertEquals(reads, records.dashboardDates.size, "이미 쓴 복귀 값은 강제가 아니라 30초 안이면 다시 읽지 않는다")
         vm.onResumed(receipt("rec-2", meters = 0))
         runCurrent()
         assertNull(vm.state.value.weeklyHighlight, "valid=false(유효 거리 0)는 강조하지 않는다")
