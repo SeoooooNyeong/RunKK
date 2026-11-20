@@ -25,8 +25,21 @@ internal class ScreenCopyStore(private val root: File, private val json: Json) {
     private val memory = HashMap<String, Copy?>()
 
     /** [member] 칸(null이면 공용 칸)의 [key] 사본을 [serializer]로 푼다. 없거나 풀지 못하면 null. */
-    fun <T> read(member: Long?, key: String, serializer: KSerializer<T>): Pair<String, T>? {
-        val copy = copyOf(member, key) ?: return null
+    fun <T> read(member: Long?, key: String, serializer: KSerializer<T>): Pair<String, T>? =
+        decode(copyOf(member, key), serializer)
+
+    /**
+     * [read]와 같되 파일을 읽지 않고 이미 메모리에 올린 사본만 푼다(주 스레드에서 불러도 된다, S15P31A207-345 9회차). 시작 로딩이 받았거나
+     * 적중을 확인한 사본은 메모리에 있다. 없으면 null.
+     */
+    fun <T> peek(member: Long?, key: String, serializer: KSerializer<T>): Pair<String, T>? {
+        val path = fileOf(member, key).path
+        val copy = synchronized(lock) { memory[path] }
+        return decode(copy, serializer)
+    }
+
+    private fun <T> decode(copy: Copy?, serializer: KSerializer<T>): Pair<String, T>? {
+        copy ?: return null
         return try {
             copy.param to json.decodeFromString(serializer, copy.body)
         } catch (e: SerializationException) {

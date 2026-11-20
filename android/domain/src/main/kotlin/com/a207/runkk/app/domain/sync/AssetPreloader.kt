@@ -151,16 +151,21 @@ class AssetPreloader internal constructor(
             gate.withPermit {
                 mark("fetch", asset)
                 val seen = AtomicInteger()
-                guarded {
-                    source.fetch(asset) {
-                        val now = seen.incrementAndGet().coerceAtMost(asset.files)
-                        val before = counted.getAndAccumulate(now, ::maxOf)
-                        if (now > before) {
-                            run.add(asset, now - before)
-                            synchronized(lock) { partial[asset.key] = counted.get() }
-                            run.publish()
+                run.active(asset, isActive = true)
+                try {
+                    guarded {
+                        source.fetch(asset) {
+                            val now = seen.incrementAndGet().coerceAtMost(asset.files)
+                            val before = counted.getAndAccumulate(now, ::maxOf)
+                            if (now > before) {
+                                run.add(asset, now - before)
+                                synchronized(lock) { partial[asset.key] = counted.get() }
+                                run.publish()
+                            }
                         }
                     }
+                } finally {
+                    run.active(asset, isActive = false)
                 }
             }
         }
@@ -223,8 +228,17 @@ class AssetPreloader internal constructor(
         private val waiting = AtomicInteger()
         private val left = ConcurrentHashMap<String, Pair<PreloadStage, AtomicInteger>>()
 
+        /** 지금 받고 있는(동시 받기 자리를 얻은) 에셋 키. */
+        private val fetching: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
         @Volatile
         private var total = 0
+
+        /** [asset]이 받기 자리를 얻었다([isActive] 참)거나 놓았다. 단계 문구가 지금 받는 일을 따르게 바로 낸다. */
+        fun active(asset: PreloadAsset, isActive: Boolean) {
+            if (isActive) fetching += asset.key else fetching -= asset.key
+            publish()
+        }
 
         fun begin(missing: List<PreloadAsset>, earlier: Int) {
             total = earlier + missing.sumOf { it.files }
@@ -255,13 +269,18 @@ class AssetPreloader internal constructor(
             val remaining = left.values
                 .groupBy({ it.first }, { it.second.get().coerceAtLeast(0) })
                 .mapValues { (_, counts) -> counts.sum() }
+            val active = left.filterKeys { it in fetching }.values
+                .groupBy({ it.first }, { it.second.get().coerceAtLeast(0) })
+                .mapValues { (_, counts) -> counts.sum() }
+                .filterValues { it > 0 }
             _state.update { current ->
                 val shown = (current as? PreloadState.Loading)?.progress?.takeIf { it.total == total }?.done ?: 0
                 val next = PreloadState.Loading(
                     PreloadProgress(maxOf(now, shown), total),
                     remaining,
                     isRetrying,
-                    isFirstRun
+                    isFirstRun,
+                    active
                 )
                 if (current is PreloadState.Loading && current.progress.done > now && current.progress.total == total) {
                     // 늦게 온 작은 값: 막대는 그대로 두고 단계·재시도만 바꾼다.

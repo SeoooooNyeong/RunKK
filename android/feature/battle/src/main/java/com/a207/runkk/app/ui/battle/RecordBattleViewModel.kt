@@ -45,13 +45,25 @@ abstract class RecordBattleViewModel(
     /** 기기에 남긴 후보 사본(시작 로딩이 받아 둔 것, S15P31A207-345 2차). 없으면 null. */
     protected open suspend fun cached(): RecordBattleCandidates? = null
 
+    /** [cached] 가운데 기다리지 않고 바로 줄 수 있는 것(이미 읽어 둔 사본, S15P31A207-345 9회차). 없으면 null. */
+    protected open fun peek(): RecordBattleCandidates? = null
+
     fun load() {
         loadJob?.cancel()
-        mutableState.update { it.copy(isLoading = true, isShowingCopy = false, error = null) }
+        // 이미 읽어 둔 사본이 있으면 첫 상태부터 그것으로 그려 로딩 원을 한 프레임도 그리지 않는다(9회차).
+        val peeked = if (mutableState.value.candidates.isEmpty()) peek() else null
+        mutableState.update {
+            it.copy(
+                isLoading = true,
+                isShowingCopy = peeked != null,
+                error = null,
+                candidates = peeked?.candidates?.map(CandidateUi::of) ?: it.candidates
+            )
+        }
         loadJob = viewModelScope.launch {
             // 처음 열 때 받아 둔 사본이 있으면 먼저 그려 네트워크 없이 고를 수 있게 하고, 뒤에서 새로 받아 바꾼다.
-            val copy = if (mutableState.value.candidates.isEmpty()) cached() else null
-            if (copy != null) {
+            val copy = peeked ?: if (mutableState.value.candidates.isEmpty()) cached() else null
+            if (copy != null && peeked == null) {
                 mutableState.update { it.copy(candidates = copy.candidates.map(CandidateUi::of), isShowingCopy = true) }
             }
             when (val result = fetch()) {

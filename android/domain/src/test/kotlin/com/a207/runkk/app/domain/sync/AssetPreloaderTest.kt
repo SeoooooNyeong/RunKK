@@ -334,6 +334,26 @@ class AssetPreloaderTest {
         assertEquals(PreloadState.Ready(PreloadProgress(2, 2)), preloader.state.value)
     }
 
+    @Test
+    fun `단계 문구용 진행 중 단계는 지금 받고 있는 에셋만 센다(차례를 기다리는 에셋은 빼고)`() = runTest {
+        val ranking = FakeSource(member = listOf(RANKING), fileDelayMillis = 1_000)
+        val avatar =
+            FakeSource(member = listOf(HEAD.copy(stage = PreloadStage.MY_AVATAR_FETCH)), fileDelayMillis = 1_000)
+        val preloader = AssetPreloader(listOf(ranking, avatar), ranking, this, maxParallel = 1)
+
+        preloader.start(isLoggedIn = true)
+        runCurrent()
+        val first = assertIs<PreloadState.Loading>(preloader.state.value)
+        assertEquals(mapOf(PreloadStage.RANKING to 3, PreloadStage.MY_AVATAR_FETCH to 7), first.remaining)
+        assertEquals(mapOf(PreloadStage.RANKING to 3), first.active, "랭킹만 받는 중")
+
+        advanceTimeBy(3_500)
+        val later = assertIs<PreloadState.Loading>(preloader.state.value)
+        assertEquals(mapOf(PreloadStage.MY_AVATAR_FETCH to 7), later.active, "랭킹이 끝나면 내 아바타 받기")
+        advanceUntilIdle()
+        assertIs<PreloadState.Ready>(preloader.state.value)
+    }
+
     /** 홈 아바타 미리 준비 포트 가짜: [results]를 차례로 돌려주고(없으면 성공), [gate]가 있으면 열릴 때까지 기다린다. */
     private class FakePreparation(
         val results: MutableList<Outcome<Unit>> = mutableListOf(),

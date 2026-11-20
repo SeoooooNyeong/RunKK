@@ -115,7 +115,7 @@ class RecordScreenCopyTest {
         api.reply(RANKING)
         var files = 0
         assertEquals(Outcome.Success(Unit), source.fetch(ranking) { files++ })
-        assertEquals(1, files, "머리가 없는 랭킹은 응답 한 파일")
+        assertEquals(ranking.files, files, "머리가 없는 랭킹은 응답을 받자마자 머리 칸까지 다 채운다")
         assertEquals("/api/v1/rankings/personal?period=WEEKLY", api.take().target)
 
         api.reply(DASHBOARD)
@@ -132,7 +132,22 @@ class RecordScreenCopyTest {
         assertFalse(source.isCached(records), "다른 계정 칸에는 없다")
     }
 
+    @Test
+    fun `랭킹 칸은 응답을 받자마자 쓰지 않는 머리 칸과 내 머리 칸을 채운다(내 머리는 내 아바타 받기가 받는다)`() = runTest {
+        val ranking = source.memberAssets().value().first()
+        api.reply(RANKING_WITH_MY_HEAD)
+        var files = 0
+        val result = source.fetch(ranking) { files++ }
+
+        assertEquals(Outcome.Success(Unit), result, "내 머리 받기를 기다리지 않는다")
+        assertEquals(ranking.files, files, "응답 1 + 머리 10칸을 다 채운다")
+        assertEquals(1, api.server.requestCount, "내 머리(head:7:…)는 랭킹 칸이 받지 않는다")
+    }
+
     private companion object {
+        const val RANKING_WITH_MY_HEAD =
+            """{"entries":[{"rank":1,"name":"나","distanceMeters":42000,"look":{"faceKey":"head:7:job-1"}},""" +
+                """{"rank":2,"name":"바람","distanceMeters":30000}],"mine":{"rank":1,"name":"나","distanceMeters":42000}}"""
         const val RANKING =
             """{"entries":[{"rank":1,"name":"바람","distanceMeters":42000}],"mine":{"rank":12,"name":"나","distanceMeters":15000},"gapToNextMeters":800}"""
         const val DASHBOARD = """{"todayMeters":1000,"totalMeters":5000}"""
