@@ -282,8 +282,11 @@ class MyAvatarStore internal constructor(
     }
 
     private suspend fun load(target: AvatarGender): MyAvatarState = coroutineScope {
+        // riv는 뒤에서 읽어 두기만 하고 기다리지 않는다(S15P31A207-345 10회차). 서기 톤이 기기 사본으로 끝나면 이 판에는 riv가
+        // 필요 없고, 사본이 없어 합성해야 하면 prepare가 같은 읽기를 기다린다(RiveAvatarAssets가 겹친 읽기를 하나로 묶는다).
+        // 이 작업의 자식으로 두지 않아 load가 riv 읽기를 기다리지 않는다.
         val rivAt = AvatarPrepareTrace.now()
-        val riv = launch {
+        scope.launch {
             quietly { preload(target) }
             AvatarPrepareTrace.mark("riv-read", rivAt, "gender=$target")
         }
@@ -314,9 +317,6 @@ class MyAvatarStore internal constructor(
             runningAmount = runner.value.runAmount,
             headLayers = face.headLayers
         )
-        val rivWaitAt = AvatarPrepareTrace.now()
-        riv.join()
-        AvatarPrepareTrace.mark("riv-wait", rivWaitAt)
         val toneAt = AvatarPrepareTrace.now()
         quietly { prepare(rive, AvatarMotion.STAND) }
         AvatarPrepareTrace.mark("tone", toneAt, "motion=STAND")

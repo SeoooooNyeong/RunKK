@@ -1,14 +1,20 @@
 package com.a207.runkk.app.core.avatar
 
+import java.io.IOException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.CoroutineContext
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -55,6 +61,36 @@ class RiveAvatarAssetsTest {
             assertContentEquals(raw(R.raw.avatar_legacy_standing_body), prepared.legacyStandingBody)
             assertEquals(AvatarVariantAssets.FRONT_SLOTS, prepared.builtIn.front.keys)
         }
+    }
+
+    @Test
+    fun `겹친 읽기는 하나로 묶어 한 번만 읽고 같은 자산을 준다(S15P31A207-345 10회차)`() = runBlocking {
+        val reads = AtomicInteger()
+        val gate = CountDownLatch(1)
+        val shared = RiveAvatarAssets(Dispatchers.IO) { ctx, gender ->
+            reads.incrementAndGet()
+            gate.await(5, TimeUnit.SECONDS)
+            PreparedRiveAssets.read(ctx, gender)
+        }
+        val first = async(Dispatchers.Default) { shared.load(context, AvatarGender.MALE) }
+        val second = async(Dispatchers.Default) { shared.load(context, AvatarGender.MALE) }
+        delay(200)
+        gate.countDown()
+
+        assertSame(first.await(), second.await())
+        assertEquals(1, reads.get(), "앞 읽기가 끝나기 전에 온 두 번째 요청은 같은 읽기를 기다린다")
+    }
+
+    @Test
+    fun `읽기가 실패하면 그 예외를 주고 다음 요청은 다시 읽는다`() = runBlocking {
+        val reads = AtomicInteger()
+        val flaky = RiveAvatarAssets(Dispatchers.IO) { ctx, gender ->
+            if (reads.incrementAndGet() == 1) throw IOException("disk")
+            PreparedRiveAssets.read(ctx, gender)
+        }
+        assertFailsWith<IOException> { flaky.load(context, AvatarGender.FEMALE) }
+        assertEquals(AvatarGender.FEMALE, flaky.load(context, AvatarGender.FEMALE).gender)
+        assertEquals(2, reads.get())
     }
 
     @Test

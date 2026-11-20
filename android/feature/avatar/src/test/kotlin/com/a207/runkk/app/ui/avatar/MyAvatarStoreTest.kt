@@ -270,6 +270,30 @@ class MyAvatarStoreTest {
     }
 
     @Test
+    fun `서기 톤이 기기 사본으로 바로 끝나면 riv 미리 읽기를 기다리지 않고 Ready다(S15P31A207-345 10회차)`() = runTest {
+        val riv = CompletableDeferred<Unit>()
+        val store = MyAvatarStore(
+            avatars = repo,
+            myGender = gender,
+            heads = headsOf(repo),
+            preload = { riv.await() },
+            // 톤 디스크 적중: 합성 없이 바로 끝난다(riv가 필요 없다)
+            prepare = { look, motion -> prepared += look to motion },
+            scope = backgroundScope,
+            loggedIn = loggedIn
+        )
+        store.warm()
+        gender.value = Gender.MALE
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value, "riv 읽기가 끝나기 전에도 Ready다")
+        assertEquals(AvatarMotion.STAND, prepared.first().second)
+
+        riv.complete(Unit)
+        runCurrent()
+        assertIs<MyAvatarState.Ready>(store.state.value)
+    }
+
+    @Test
     fun `달리기 동작 준비는 Ready를 늦추지 않는다(서기만 끝나면 Ready, D-813)`() = runTest {
         val running = CompletableDeferred<Unit>()
         val store = MyAvatarStore(
