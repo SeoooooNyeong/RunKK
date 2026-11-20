@@ -177,7 +177,12 @@ fun MatchScreen(state: MatchUiState, actions: MatchActions, modifier: Modifier =
 
             MatchPhase.CONFIRMING, MatchPhase.JOINING -> Confirming(state, actions)
 
-            MatchPhase.MATCHED -> state.match?.let { Matched(it, state, actions.onForfeit) }
+            // 출발 예약을 받기 전 잠깐은 앞 화면을 그대로 그려 성사 판과 숫자가 한 판에 나온다(S15P31A207-335 9회차).
+            MatchPhase.MATCHED -> when {
+                state.isAwaitingStart && state.invite != null -> Confirming(state, actions)
+                state.isAwaitingStart -> Waiting(state, actions)
+                else -> state.match?.let { Matched(it, state, actions.onForfeit) }
+            }
         }
     }
     state.notice?.let { notice ->

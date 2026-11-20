@@ -35,6 +35,7 @@ import com.a207.runkk.crew.JoinPolicy;
 import com.a207.runkk.crew.LobbyView;
 import com.a207.runkk.crew.MeetupDraft;
 import com.a207.runkk.crew.MyCrewView;
+import com.a207.runkk.crew.MyRunState;
 import com.a207.runkk.crew.NoticeDraft;
 import com.a207.runkk.crew.ParticipationView;
 import com.a207.runkk.crew.PollDraft;
@@ -808,6 +809,7 @@ final class CrewDtos {
          * @param notGoingCount 불참 인원(v0.11 FR-133)
          * @param undecidedCount 미정 인원(v0.11 FR-133)
          * @param title 제목(W6). 목록 Item.body는 이제 내용만이다
+         * @param myRun 열람자의 참여 상태 NONE | RUNNING | ENDED(v0.14 S15P31A207-314)
          */
         record CrewRun(
                 Long distanceMeters,
@@ -820,7 +822,8 @@ final class CrewDtos {
                 Long raceContributionMeters,
                 int notGoingCount,
                 int undecidedCount,
-                String title) {
+                String title,
+                MyRunState myRun) {
 
             static CrewRun of(PostSummary.CrewRunInfo run, Distance contribution) {
                 return new CrewRun(
@@ -834,7 +837,8 @@ final class CrewDtos {
                         meters(contribution),
                         run.counts().notGoing(),
                         run.counts().undecided(),
-                        run.title());
+                        run.title(),
+                        run.myRun());
             }
         }
     }

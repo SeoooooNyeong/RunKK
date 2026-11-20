@@ -41,6 +41,8 @@ internal data class BattleResultResponse(
         val kind: String? = null,
         val tier: String? = null,
         val validRuns: Int = 0,
-        val runimalType: String? = null
+        val runimalType: String? = null,
+        /** 재평가 직전 티어 이름(과거 기록·옛 서버면 null). */
+        val previousTier: String? = null
     )
 }

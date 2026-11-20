@@ -13,6 +13,7 @@ import androidx.work.testing.TestListenableWorkerBuilder
 import androidx.work.testing.WorkManagerTestInitHelper
 import com.a207.runkk.app.api.core.ApiTestServer
 import com.a207.runkk.app.api.run.RunApi
+import com.a207.runkk.app.api.run.RunUploadApi
 import com.a207.runkk.app.api.run.RunUploadRemoteImpl
 import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
@@ -200,7 +201,7 @@ class UploadWorkerTest {
                 .client(client)
                 .addConverterFactory(api.json.asConverterFactory("application/json".toMediaType()))
                 .build()
-        return RunUploadRemoteImpl(retrofit.create<RunApi>())
+        return RunUploadRemoteImpl(retrofit.create<RunApi>(), retrofit.create<RunUploadApi>())
     }
 
     private fun run(id: String) = CompletedRun(

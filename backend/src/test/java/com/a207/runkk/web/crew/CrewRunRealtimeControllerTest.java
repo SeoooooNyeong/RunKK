@@ -313,6 +313,63 @@ class CrewRunRealtimeControllerTest extends WebTestSupport {
         assertThat(lobby(leader, run).get("phase").asText()).isEqualTo("FINISHED");
     }
 
+    private String myRunInList(Session s, long crewId, long run) throws Exception {
+        for (JsonNode post :
+                json(call(s, get("/api/v1/crews/" + crewId + "/posts"), null)
+                                .andExpect(status().isOk()))
+                        .get("posts")) {
+            if (post.get("postId").asLong() == run) {
+                return post.get("crewRun").get("myRun").asText();
+            }
+        }
+        throw new AssertionError("목록에 크루런이 없다: " + run);
+    }
+
+    private String myRunInDetail(Session s, long run) throws Exception {
+        return json(call(s, get("/api/v1/crew-runs/" + run), null).andExpect(status().isOk()))
+                .get("myRun")
+                .asText();
+    }
+
+    @Test
+    @DisplayName(
+            "S15P31A207-314 크루런 목록·상세의 myRun: 참여 전 NONE, 측정 중 RUNNING, 내 측정을 끝내면 ENDED, 참여하지 않은"
+                    + " 크루원은 끝까지 NONE")
+    void myRun_inListAndDetail() throws Exception {
+        Session leader = signUp();
+        Session a = signUp();
+        Session b = signUp();
+        long crewId = crewOf(leader, a, b);
+        long run = crewRun(leader, crewId, slotIn(20), "내 상태");
+        for (Session s : List.of(leader, a, b)) {
+            assertThat(myRunInList(s, crewId, run)).isEqualTo("NONE");
+            assertThat(myRunInDetail(s, run)).isEqualTo("NONE");
+        }
+        for (Session s : List.of(leader, a)) {
+            call(s, post("/api/v1/crew-runs/" + run + "/lobby/enter"), null)
+                    .andExpect(status().isOk());
+            call(s, put("/api/v1/crew-runs/" + run + "/lobby/ready"), Map.of("ready", true))
+                    .andExpect(status().isOk());
+        }
+        assertThat(myRunInList(a, crewId, run)).as("카운트다운은 아직 측정 전").isEqualTo("NONE");
+        crewRunService.tick(localOf(lobby(a, run).get("startAt")));
+
+        assertThat(myRunInList(a, crewId, run)).isEqualTo("RUNNING");
+        assertThat(myRunInDetail(a, run)).isEqualTo("RUNNING");
+        call(
+                        a,
+                        post("/api/v1/crew-runs/" + run + "/quit"),
+                        Map.of("distanceMeters", 1200, "elapsedSeconds", 420))
+                .andExpect(status().isNoContent());
+
+        assertThat(myRunInList(a, crewId, run)).isEqualTo("ENDED");
+        assertThat(myRunInDetail(a, run)).isEqualTo("ENDED");
+        assertThat(myRunInList(leader, crewId, run)).isEqualTo("RUNNING");
+        assertThat(myRunInDetail(leader, run)).isEqualTo("RUNNING");
+        assertThat(myRunInList(b, crewId, run)).isEqualTo("NONE");
+        assertThat(myRunInDetail(b, run)).isEqualTo("NONE");
+    }
+
     @Test
     @DisplayName(
             "[임시:TC-성-11033] 진행 크루런 날짜순 목록: (예정일시, ID) 오름차순, 같은 일시는 ID순, 페이지 중복 0, 지운 기준 행 cursor는"

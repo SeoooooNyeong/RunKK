@@ -26,7 +26,14 @@ import com.a207.runkk.app.ui.record.R
  */
 @Composable
 internal fun RunBodyDetailPage(state: RunBodyUiState, actions: RunBodyActions) {
-    val result = (state.session as? RunBodySessionState.Done)?.result ?: return
+    val result = (state.session as? RunBodySessionState.Done)?.result
+    if (result == null) {
+        // 기록 상세에서 바로 열었는데 결과가 아직 없다: 러닝별 탭과 같은 상태 칸(분석 중·실패·데이터 부족 등)을 보인다
+        RunBodyFrame(stringResource(R.string.record_runbody_detail_title), onBack = actions.onBack, onCoach = null) {
+            SessionSection(state.session, state.selectedRun, state.zone, actions)
+        }
+        return
+    }
     RunBodyFrame(
         stringResource(R.string.record_runbody_detail_title),
         onBack = actions.onBack,

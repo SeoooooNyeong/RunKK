@@ -244,6 +244,12 @@
     <string name="record_runbody_axis_score">%1$s %2$d점</string>
     <string name="record_runbody_analyzing">분석 중이에요</string>
     <string name="record_runbody_analyzing_short">분석 중</string>
+    <string name="record_detail_runbody_title">런바디 분석</string>
+    <string name="record_detail_runbody_more">자세히 ›</string>
+    <string name="record_detail_runbody_analyzing">분석하고 있어요 · 보통 1분 안에 끝나요</string>
+    <string name="record_detail_runbody_unavailable">분석 상태를 확인해 보세요</string>
+    <string name="record_detail_runbody_axis">%1$s %2$d</string>
+    <string name="record_detail_runbody_separator">" · "</string>
     <string name="record_runbody_analyzing_message">러닝 기록을 분석 중이에요. 완료되면 결과가 표시돼요.</string>
     <string name="record_runbody_detail_open">구간과 피드백 자세히 보기</string>
     <string name="record_runbody_detail_wait">분석 완료 후 상세보기</string>

@@ -720,6 +720,17 @@ class AccountRepositoryImplTest {
     }
 
     @Test
+    fun `배치 진행 응답의 확정 Runimal 유형을 읽고 없으면 null이다`() = runTest {
+        api.reply(
+            """{"status":"COMPLETED","countedRounds":3,"tier":"SILVER","rounds":[],"runimalType":"COMMUTER_TURTLE"}"""
+        )
+        api.reply("""{"status":"COMPLETED","countedRounds":3,"tier":"SILVER","rounds":[]}""")
+
+        assertEquals("COMMUTER_TURTLE", repository.placement().value().runimalType)
+        assertNull(repository.placement().value().runimalType)
+    }
+
+    @Test
     fun `TC-5827 배치 진행 응답을 도메인으로 바꾼다`() = runTest {
         api.reply(
             """{"status":"IN_PROGRESS","countedRounds":1,"nextRound":2,"provisionalTier":"GOLD","tier":"UNRANKED",

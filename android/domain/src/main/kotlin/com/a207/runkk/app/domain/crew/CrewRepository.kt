@@ -19,6 +19,9 @@ interface CrewRepository {
     /** 본인 소속 크루와 대기 중인 본인 가입 신청(GET /crews/me, 크루 탭 재진입). */
     suspend fun myCrew(): Outcome<MyCrew>
 
+    /** 기기에 남긴 내 크루 사본(내 계정 칸, S15P31A207-345 2차). 없으면 null. 네트워크를 쓰지 않는다. */
+    suspend fun cachedMyCrew(): MyCrew? = null
+
     /** 크루 한 곳(GET /crews/{id}). 비공개 크루를 크루 밖에서 보면 CREW_NOT_FOUND. 초대 코드는 크루장에게만 온다. */
     suspend fun detail(crewId: Long): Outcome<CrewDetail>
 

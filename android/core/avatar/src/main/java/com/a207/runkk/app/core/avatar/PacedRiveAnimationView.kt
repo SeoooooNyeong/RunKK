@@ -1,5 +1,6 @@
 package com.a207.runkk.app.core.avatar
 
+import android.graphics.SurfaceTexture
 import app.rive.runtime.kotlin.RiveAnimationView
 import app.rive.runtime.kotlin.renderers.Renderer
 import app.rive.runtime.kotlin.renderers.RiveArtboardRenderer
@@ -9,6 +10,14 @@ import app.rive.runtime.kotlin.renderers.RiveArtboardRenderer
  * [playbackSpeed]를 곱한다(1 = 원래 빠르기). 러닝 중 달리기 동작을 페이스에 맞춰 빠르게·느리게 돌릴 때 쓴다.
  */
 internal class PacedRiveAnimationView(builder: Builder) : RiveAnimationView(builder) {
+    /** 판 하나가 화면 텍스처에 들어올 때마다(주 스레드). 보이게 된 뒤 첫 판을 기다리는 데 쓴다(S15P31A207-335 2차). */
+    var onFrameDrawn: () -> Unit = {}
+
+    override fun onSurfaceTextureUpdated(surface: SurfaceTexture) {
+        super.onSurfaceTextureUpdated(surface)
+        onFrameDrawn()
+    }
+
     @Volatile
     var playbackSpeed: Float = 1f
 

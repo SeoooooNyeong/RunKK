@@ -86,6 +86,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.job
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -172,10 +173,31 @@ class FakeBattleRepository : BattleRepository {
         return selfResult
     }
 
+    /** 있으면 셀럽 후보 응답을 이 값이 끝날 때까지 미룬다(사본 먼저 보이기 시험). */
+    var celebGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    /** 기기에 남긴 사본(S15P31A207-345 2차). null이면 없음. */
+    var celebCopy: RecordBattleCandidates? = null
+    var historyCopy: BattleHistory? = null
+
     override suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates> {
         calls += "celeb:${distance?.meters}"
+        celebGate?.await()
         return celebResult
     }
+
+    /** 있으면 사본 읽기(기기 파일 읽기)를 이 값이 끝날 때까지 미룬다(실제처럼 IO로 넘어가는 동안의 첫 프레임 시험). */
+    var celebCopyGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    override suspend fun cachedCelebrityCandidates(distance: Distance?): RecordBattleCandidates? {
+        celebCopyGate?.await()
+        return celebCopy?.takeIf { distance == null }
+    }
+
+    override fun peekCelebrityCandidates(distance: Distance?): RecordBattleCandidates? =
+        celebCopy?.takeIf { distance == null }
+
+    override suspend fun cachedHistory(filter: BattleHistory.Type?): BattleHistory? = historyCopy
 
     override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
         Outcome.Failure(AppError.Rejected("UNUSED"))
@@ -183,13 +205,18 @@ class FakeBattleRepository : BattleRepository {
     override suspend fun celebrityTrack(celebrityId: Long): Outcome<RecordTrack> =
         Outcome.Failure(AppError.Rejected("UNUSED"))
 
+    /** 있으면 셀프런·셀럽런 대결 만들기 응답을 이 신호까지 늦춘다(누르자마자 카운트다운 시험, S15P31A207-335 9회차). */
+    var startGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
     override suspend fun startSelfBattle(distance: Distance): Outcome<RecordBattleStart> {
         calls += "startSelf:${distance.meters}"
+        startGate?.await()
         return startResult ?: Outcome.Success(recordStart(distance, CardKind.SELF_RUN, "과거의 나"))
     }
 
     override suspend fun startCelebrityBattle(celebrityId: Long): Outcome<RecordBattleStart> {
         calls += "startCeleb:$celebrityId"
+        startGate?.await()
         return startResult ?: Outcome.Success(recordStart(Distance(10_000), CardKind.CELEB_RUN, "번개발"))
     }
 
@@ -636,9 +663,15 @@ class BattleWorld(
     val screens = OpenBattleScreen(coordinator)
 
     companion object {
-        /** 조정자 범위: 시험 스케줄러를 쓰는 표준 디스패처(직렬화용 limitedParallelism을 쓰려면 Unconfined가 아니어야 한다). */
-        fun TestScope.world(): BattleWorld = BattleWorld(
-            CoroutineScope(StandardTestDispatcher(testScheduler) + Job(backgroundScope.coroutineContext.job))
+        /**
+         * 조정자 범위: 시험 스케줄러를 쓰는 표준 디스패처(직렬화용 limitedParallelism을 쓰려면 Unconfined가 아니어야 한다).
+         * [paused]면 따로 둔 스케줄러를 써 조정자 범위가 돌지 않는다(화면이 조정자 상태를 기다리지 않는지 보는 시험).
+         */
+        fun TestScope.world(paused: Boolean = false): BattleWorld = BattleWorld(
+            CoroutineScope(
+                StandardTestDispatcher(if (paused) TestCoroutineScheduler() else testScheduler) +
+                    Job(backgroundScope.coroutineContext.job)
+            )
         )
     }
 }

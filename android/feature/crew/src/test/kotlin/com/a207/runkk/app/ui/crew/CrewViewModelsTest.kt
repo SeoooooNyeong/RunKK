@@ -54,6 +54,24 @@ class CrewFindViewModelTest {
     }
 
     @Test
+    fun `받아 둔 내 크루 사본을 먼저 그리고 새로 받지 못해도 오류로 덮지 않는다(S15P31A207-345 2차)`() {
+        repo.mineCopy = MyCrew(crewDetail(11), emptyList())
+        repo.fail["myCrew"] = AppError.Network
+        val vm = CrewFindViewModel(repo)
+        assertEquals(11L, vm.state.value.mine?.crewId, "사본의 내 크루를 그린다")
+        assertFalse(vm.state.value.isCheckingMine)
+        assertNull(vm.state.value.mineError)
+    }
+
+    @Test
+    fun `받아 둔 사본보다 새로 받은 내 크루가 이긴다`() {
+        repo.mineCopy = MyCrew(crewDetail(11), emptyList())
+        repo.mine = MyCrew(crewDetail(12), emptyList())
+        val vm = CrewFindViewModel(repo)
+        assertEquals(12L, vm.state.value.mine?.crewId)
+    }
+
+    @Test
     fun `크루 탭에 다시 들어왔을 때 소속 크루가 있으면 찾기 목록을 읽지 않고 내 크루를 보인다`() {
         repo.mine = MyCrew(crewDetail(11), emptyList())
         val vm = CrewFindViewModel(repo)

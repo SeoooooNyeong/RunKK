@@ -34,7 +34,7 @@ class KakaoInviteSharerTest {
 
     @Test
     fun `AN8-9 카드 그림은 앱 링크 경로 밖에 있다`() {
-        assertEquals("https://k15a207.p.ssafy.io/invite/card.png", KakaoInviteSharer.INVITE_CARD_IMAGE)
+        assertEquals("https://k15a207.p.ssafy.io/invite/card.jpg", KakaoInviteSharer.INVITE_CARD_IMAGE)
         assertFalse(KakaoInviteSharer.INVITE_CARD_IMAGE.contains("/invite/battle/"))
     }
 }

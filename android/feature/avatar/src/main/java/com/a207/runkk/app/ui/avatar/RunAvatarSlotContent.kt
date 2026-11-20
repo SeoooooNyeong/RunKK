@@ -105,11 +105,14 @@ private fun RunnerRunAvatar(subject: RunAvatarSubject, resolver: RunnerLookResol
     val rawLeft = LocalSlotAvatarFacingLeft.current
     val facingLeft = rememberRunFacingLeft(rawLeft)
     val received = subject.look
-    var look by remember(subject) { mutableStateOf(if (received == null) defaultRiveLook(subject.isFemale) else null) }
+    // 이미 만든 모습(출발 전 데우기 등)이면 기다리지 않고 첫 구성부터 그린다(S15P31A207-335 6회차).
+    var look by remember(subject) {
+        mutableStateOf(if (received == null) defaultRiveLook(subject.isFemale) else resolver.peek(received))
+    }
     var isRiveFailed by remember(look) { mutableStateOf(false) }
     var isReadyTimedOut by remember(subject) { mutableStateOf(false) }
     LaunchedEffect(subject) {
-        if (received != null) look = resolver.resolve(received)
+        if (received != null && look == null) look = resolver.resolve(received)
     }
     LaunchedEffect(subject, look == null) {
         if (look == null) {

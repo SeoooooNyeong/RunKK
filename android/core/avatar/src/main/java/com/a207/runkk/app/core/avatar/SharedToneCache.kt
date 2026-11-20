@@ -4,8 +4,9 @@ import java.lang.ref.WeakReference
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 프로세스 공용 합성 결과 캐시(design-oo 05-30 5.4, D-737, DR-10). 남녀 × 동작마다 마지막 모습 하나만 두어
- * 상한이 4묶음이다. 키는 성별·동작·머리 동일성(생성 머리 참조, 내장 머리는 null)·[AvatarLookKey]다.
+ * 프로세스 공용 합성 결과 캐시(design-oo 05-30 5.4, D-737, DR-10). 남녀 × 동작 자리마다 최근 모습 [LOOKS_PER_SLOT]개를 두어
+ * 상한이 12묶음이다(같은 성별의 나와 트랙 상대·크루원을 함께 미리 준비해도 서로 밀어내지 않게, S15P31A207-335). 키는 성별·동작·머리
+ * 동일성(생성 머리 참조, 내장 머리는 null)·[AvatarLookKey]다.
  *
  * - [prepareRiveAvatarLook]이 Rive 뷰 없이 채우고, [RiveAvatarView]는 합성 결과를 여기에도 넣는다.
  * - 뷰는 합성하기 전에 [hit]을 먼저 본다. 맞으면 합성 스레드를 거치지 않고 바로 텍스처를 넣는다(준비된 경우의 첫 표시).
@@ -31,11 +32,14 @@ internal class SharedToneCache {
         }
     }
 
-    private val entries = ConcurrentHashMap<Pair<AvatarGender, AvatarMotion>, Entry>()
+    /** 자리마다 최근 것이 앞인 목록. 목록은 바꾸지 않고 통째로 갈아 끼운다. */
+    private val entries = ConcurrentHashMap<Pair<AvatarGender, AvatarMotion>, List<Entry>>()
 
+    /** 채워진 자리(성별 × 동작) 수. */
     val size: Int get() = entries.size
 
-    fun entry(gender: AvatarGender, motion: AvatarMotion): Entry? = entries[gender to motion]
+    /** 그 자리의 가장 최근 모습. */
+    fun entry(gender: AvatarGender, motion: AvatarMotion): Entry? = entries[gender to motion]?.firstOrNull()
 
     /** [motion] 자리를 [cache] 가운데 그 동작의 텍스처로 바꾼다. */
     fun put(
@@ -45,7 +49,10 @@ internal class SharedToneCache {
         look: AvatarLookKey,
         cache: AvatarToneCache
     ) {
-        entries[gender to motion] = Entry(head, look, cache.only(motion))
+        val added = Entry(head, look, cache.only(motion))
+        entries.compute(gender to motion) { _, before ->
+            (listOf(added) + before.orEmpty().filterNot { it.look == look && it.isFor(head) }).take(LOOKS_PER_SLOT)
+        }
     }
 
     /** [motions] 모두가 같은 머리·모습으로 들어 있으면 합친 캐시, 하나라도 아니면 null. */
@@ -57,19 +64,22 @@ internal class SharedToneCache {
     ): AvatarToneCache? {
         if (motions.isEmpty()) return null
         val found = motions.map { motion ->
-            entries[gender to motion]?.takeIf { it.isFor(head) && it.look == look } ?: return null
+            entries[gender to motion]?.firstOrNull { it.isFor(head) && it.look == look } ?: return null
         }
         return found.fold(AvatarToneCache()) { merged, entry -> merged.merged(entry.cache) }
     }
 
     /** 같은 머리의 동작별 캐시를 합친 것(모습이 달라도 몸 분리·남은 텍스처를 다시 쓴다). 없으면 빈 캐시. */
     fun seed(gender: AvatarGender, head: GeneratedHeadLayers?): AvatarToneCache = AvatarMotion.entries
-        .mapNotNull { motion -> entries[gender to motion]?.takeIf { it.isFor(head) } }
+        .mapNotNull { motion -> entries[gender to motion]?.firstOrNull { it.isFor(head) } }
         .fold(AvatarToneCache()) { merged, entry -> merged.merged(entry.cache) }
 
     fun clear() = entries.clear()
 
     companion object {
+        /** 자리마다 둘 최근 모습 수. */
+        const val LOOKS_PER_SLOT = 3
+
         /** 앱 프로세스 공용. */
         val shared = SharedToneCache()
     }

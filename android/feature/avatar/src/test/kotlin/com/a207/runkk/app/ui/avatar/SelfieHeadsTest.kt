@@ -20,7 +20,7 @@ class SelfieHeadsTest {
 
     @Test
     fun `셀카 머리는 본문을 한 번만 받아 대체 그림과 머리 레이어를 같은 본문에서 만들고 두 화면이 같은 값을 쓴다`() = runTest {
-        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
 
         val runner = heads.look("head:7:job-1")
         val decorate = heads.look("head:7:job-1")
@@ -32,7 +32,7 @@ class SelfieHeadsTest {
 
     @Test
     fun `형식 실패는 다시 받지 않고 기본 머리로 둔다`() = runTest {
-        repo.headResult = Outcome.Success(SelfieHead("not json", emptyList()))
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers, List(3) { byteArrayOf(1) }, "not json"))
 
         val first = heads.look("head:7:job-1")
         heads.look("head:7:job-1")
@@ -45,7 +45,7 @@ class SelfieHeadsTest {
     fun `받기 실패는 두지 않고 다음에 다시 받는다`() = runTest {
         repo.headResult = Outcome.Failure(AppError.Network)
         assertNull(heads.look("head:7:job-1").headLayers)
-        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
         assertEquals(faceLayers, heads.look("head:7:job-1").faceLayers)
         assertEquals(2, repo.calls.count { it.startsWith("head:") })
     }
@@ -60,7 +60,7 @@ class SelfieHeadsTest {
 
     @Test
     fun `최근 얼굴 몇 개만 두고 오래된 것은 다시 받는다`() = runTest {
-        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
         listOf("a", "b", "c", "d", "e", "f", "g").forEach { heads.look("head:7:$it") }
         heads.look("head:7:a")
         assertEquals(2, repo.calls.count { it == "head:head:7:a" })
@@ -68,7 +68,7 @@ class SelfieHeadsTest {
 
     @Test
     fun `내 얼굴과 랭킹 시상대 세 러너, 막 바꾼 얼굴까지는 다시 받지 않는다(S15P31A207-300)`() = runTest {
-        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
         val keys = listOf("head:7:me", "head:1:a", "head:2:b", "head:3:c", "head:7:new")
         keys.forEach { heads.look(it) }
         keys.forEach { heads.look(it) }
@@ -77,7 +77,7 @@ class SelfieHeadsTest {
 
     @Test
     fun `서로 다른 얼굴은 한 머리를 받는 동안에도 함께 받는다(AR-89)`() = runTest {
-        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
         val slow = CompletableDeferred<Unit>()
         repo.headGates["head:1:a"] = slow
 
@@ -94,7 +94,7 @@ class SelfieHeadsTest {
 
     @Test
     fun `같은 얼굴을 동시에 찾으면 한 번만 받고 기다린 쪽도 같은 값을 쓴다(AR-89)`() = runTest {
-        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
         val gate = CompletableDeferred<Unit>()
         repo.headGates["head:1:a"] = gate
 
@@ -108,7 +108,7 @@ class SelfieHeadsTest {
     }
 
     @Test
-    fun `동시에 기다리던 받기가 실패하면 둘 다 기본 얼굴이고 다음에 다시 받는다(AR-89)`() = runTest {
+    fun `동시에 기다리던 받기가 실패하면 기다린 쪽이 한 번 직접 받고, 그래도 실패면 둘 다 기본 얼굴이며 다음에 다시 받는다`() = runTest {
         repo.headResult = Outcome.Failure(AppError.Network)
         val gate = CompletableDeferred<Unit>()
         repo.headGates["head:1:a"] = gate
@@ -120,8 +120,27 @@ class SelfieHeadsTest {
 
         assertSame(FaceLook.NONE, one.await())
         assertSame(FaceLook.NONE, two.await())
-        repo.headResult = Outcome.Success(SelfieHead("{}", faceLayers))
+        assertEquals(2, repo.calls.size, "기다린 쪽의 직접 받기 한 번")
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
         assertEquals(faceLayers, heads.look("head:1:a").faceLayers)
-        assertEquals(2, repo.calls.size)
+        assertEquals(3, repo.calls.size)
+    }
+
+    @Test
+    fun `앞 호출이 취소되면 같은 얼굴을 기다리던 쪽은 기본 머리로 끝내지 않고 한 번 직접 받는다(통합 리뷰 낮음 8)`() = runTest {
+        repo.headResult = Outcome.Success(SelfieHead(faceLayers))
+        val gate = CompletableDeferred<Unit>()
+        repo.headGates["head:1:a"] = gate
+
+        val leaving = async { heads.look("head:1:a") }
+        val waiting = async { heads.look("head:1:a") }
+        runCurrent()
+        leaving.cancel()
+        runCurrent()
+        repo.headGates.remove("head:1:a")
+        gate.complete(Unit)
+
+        assertEquals(faceLayers, waiting.await().faceLayers)
+        assertEquals(2, repo.calls.count { it == "head:head:1:a" })
     }
 }

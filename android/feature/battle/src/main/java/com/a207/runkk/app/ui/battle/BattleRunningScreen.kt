@@ -7,7 +7,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +51,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
@@ -64,16 +66,18 @@ import com.a207.runkk.app.core.designsystem.ProgressDot
 import com.a207.runkk.app.core.designsystem.RunPermissionEffect
 import com.a207.runkk.app.core.designsystem.RunkkAvatar
 import com.a207.runkk.app.core.designsystem.RunkkAvatarCircle
-import com.a207.runkk.app.core.designsystem.RunkkBanner
 import com.a207.runkk.app.core.designsystem.RunkkColors
 import com.a207.runkk.app.core.designsystem.RunkkConfirmDialog
-import com.a207.runkk.app.core.designsystem.RunkkCountdownBanner
 import com.a207.runkk.app.core.designsystem.RunkkErrorState
 import com.a207.runkk.app.core.designsystem.RunkkFormat
+import com.a207.runkk.app.core.designsystem.RunkkGuidanceOverlay
+import com.a207.runkk.app.core.designsystem.RunkkGuidanceToast
+import com.a207.runkk.app.core.designsystem.RunkkGuidanceTone
 import com.a207.runkk.app.core.designsystem.RunkkHint
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkMeMap
+import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
 import com.a207.runkk.app.core.designsystem.RunkkRunDistance
 import com.a207.runkk.app.core.designsystem.RunkkRunLabel
@@ -81,11 +85,11 @@ import com.a207.runkk.app.core.designsystem.RunkkRunStat
 import com.a207.runkk.app.core.designsystem.RunkkRunStats
 import com.a207.runkk.app.core.designsystem.RunkkRunningFigure
 import com.a207.runkk.app.core.designsystem.RunkkSecondaryButton
-import com.a207.runkk.app.core.designsystem.RunkkShapes
 import com.a207.runkk.app.core.designsystem.RunkkStatusPill
 import com.a207.runkk.app.core.designsystem.RunkkStopSquare
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTheme
+import com.a207.runkk.app.core.designsystem.RunkkTrackAvatarWarmup
 import com.a207.runkk.app.core.designsystem.RunkkTrackCard
 import com.a207.runkk.app.core.designsystem.RunkkTrackProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkViewModeToggle
@@ -96,9 +100,11 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.rememberRunPose
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.runMotionSpeed
 import com.a207.runkk.app.core.model.Distance
+import com.a207.runkk.app.core.model.Pace
 import com.a207.runkk.app.core.model.RunViewMode
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
 import com.a207.runkk.app.core.navigation.LocalRunkkNavigator
@@ -116,10 +122,12 @@ import kotlinx.coroutines.delay
  */
 @Composable
 fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewModel = hiltViewModel()) {
-    LaunchedEffect(key) { viewModel.bind(key) }
+    // 상태를 읽기 전에 경로 인자를 넘겨 첫 판부터 카운트다운을 그린다(S15P31A207-335 8회차: 효과로 미루면 첫 판이 빈 화면이었다).
+    // bind는 같은 대결이면 다시 하지 않는다.
+    val bound = remember(key) { viewModel.bind(key) }
     // 진행 알림·신체 활동 권한을 한 번 묻는다(AN8-5, D-259, S15P31A207-242). 거부해도 대결은 이어 간다.
     RunPermissionEffect()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by bound.collectAsStateWithLifecycle()
     val navigator = LocalRunkkNavigator.current
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -135,7 +143,8 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
         viewModel.onFailureClosed()
         navigator.back()
     }
-    // 뒤로가기는 그만두기와 같다: 포기 확인을 띄운다(셀프런·셀럽런 출발 전이면 취소 확인, D-337). 시작하지 못한 화면은 닫는다.
+    // 뒤로가기는 그만두기와 같다: 포기 확인을 띄운다(셀프런·셀럽런 출발 전이면 취소 확인, D-337, 대결 만들기 실패로 멈췄으면 바로 닫는다).
+    // 시작하지 못한 화면은 닫는다.
     BackHandler {
         if (state.phase == BattlePhase.FAILED) close() else viewModel.onForfeitLongPressed()
     }
@@ -150,6 +159,8 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
             onCancelConfirm = viewModel::onCancelConfirmed,
             onCancelDismiss = viewModel::onCancelDismissed,
             onReselect = viewModel::onReselect,
+            onRetryStart = viewModel::onRetryStart,
+            onLeave = viewModel::onForfeitLongPressed,
             onClose = close,
             onViewModeChange = viewModel::onViewModeChange
         )
@@ -166,6 +177,10 @@ data class BattleRunningActions(
     val onCancelConfirm: () -> Unit = {},
     val onCancelDismiss: () -> Unit = {},
     val onReselect: () -> Unit = {},
+    /** 대결 만들기 실패로 멈춘 카운트다운의 「다시 시도」(S15P31A207-335 9회차). */
+    val onRetryStart: () -> Unit = {},
+    /** 대결 만들기 실패로 멈춘 셀럽런 카운트다운의 「돌아가기」(셀프런은 「다시 고르기」). */
+    val onLeave: () -> Unit = {},
     val onClose: () -> Unit = {},
     val onViewModeChange: (RunViewMode) -> Unit = {}
 )
@@ -181,7 +196,7 @@ fun BattleRunningScreen(state: BattleRunningUiState, actions: BattleRunningActio
     ) {
         Header(state)
         when (state.phase) {
-            BattlePhase.STARTING, BattlePhase.COUNTDOWN -> Countdown(state, actions.onReselect)
+            BattlePhase.STARTING, BattlePhase.COUNTDOWN, BattlePhase.START_FAILED -> Countdown(state, actions)
 
             BattlePhase.FAILED -> RunkkErrorState(
                 state.error?.asString() ?: stringResource(R.string.battle_running_start_failed),
@@ -275,7 +290,7 @@ internal fun opponentLabel(state: BattleRunningUiState): String = when (state.ki
  * 배틀런은 성사 화면이 카운트다운을 그리므로 여기서는 고리만 보인다(진행 화면을 다시 연 경우).
  */
 @Composable
-private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () -> Unit) {
+private fun ColumnScope.Countdown(state: BattleRunningUiState, actions: BattleRunningActions) {
     val distance = distanceLabel(state.distance).asString()
     val opponent = opponentLabel(state)
     Column(
@@ -310,12 +325,62 @@ private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () ->
                 }
             )
         }
-        StartRing(state.countdown, total = RECORD_COUNTDOWN_SECONDS, modifier = Modifier.padding(top = 24.dp))
+        if (state.phase == BattlePhase.START_FAILED) {
+            StartFailedNotice(state.error, actions.onRetryStart)
+        } else {
+            Box {
+                StartRing(state.countdown, total = RECORD_COUNTDOWN_SECONDS, modifier = Modifier.padding(top = 24.dp))
+                // 출발 전에 트랙의 내 아바타와 상대를 미리 그려 둔다(S15P31A207-335): 출발 직후 몸이 비거나 깜빡이지 않는다. 내 아바타는
+                // 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다). 숫자가 바로 보이게 카운트다운 첫 판 다음 판에 붙인다(8회차).
+                var isWarming by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    withFrameNanos { }
+                    isWarming = true
+                }
+                if (isWarming) {
+                    val mine: @Composable () -> Unit = { MyTrackRunner(AvatarSlotPose.RUN, null, isMoving = false) }
+                    val theirs: @Composable () -> Unit = { OpponentRunner(state) }
+                    RunkkTrackAvatarWarmup(listOf(mine, theirs))
+                }
+            }
+        }
     }
     if (state.kind == OpponentKind.SELF) {
         RunkkSecondaryButton(
             stringResource(R.string.battle_countdown_reselect),
-            onClick = onReselect,
+            onClick = actions.onReselect,
+            modifier = Modifier.fillMaxWidth()
+        )
+    } else if (state.phase == BattlePhase.START_FAILED) {
+        RunkkSecondaryButton(
+            stringResource(R.string.battle_running_back),
+            onClick = actions.onLeave,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * 누르자마자 연 카운트다운이 대결 만들기 실패(또는 제한 시간 안에 응답 없음)로 멈췄다(S15P31A207-335 9회차): 숫자 고리 자리에 사유와
+ * 「다시 시도」. 다시 시도하면 대결을 다시 만들고 3부터 센다.
+ */
+@Composable
+private fun StartFailedNotice(error: UiText?, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            error?.asString() ?: stringResource(R.string.battle_running_start_failed),
+            style = RunkkTextStyles.Body,
+            color = RunkkColors.TextPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        RunkkPrimaryButton(
+            stringResource(R.string.battle_countdown_retry),
+            onClick = onRetry,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -338,8 +403,16 @@ private fun myCaption(state: BattleRunningUiState, distance: String): String? = 
  */
 @Composable
 private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunningActions) {
-    GuidanceBanner(state)
-    BigDistance(state.myDistance)
+    // 추월·역전·종료 카운트다운 안내는 큰 거리 숫자 위에 흰 띠로 겹쳐 띄운다(S15P31A207-334). 겹침 층은 숫자 칸 크기만 따르고
+    // (matchParentSize) 넘치는 띠는 아래 지표·트랙 위로 그린다(zIndex). 숫자·트랙을 가려도 되고, 어떤 요소의 자리·크기도 바뀌지 않는다.
+    Box(Modifier.fillMaxWidth().zIndex(1f)) {
+        BigDistance(state.myDistance)
+        RunkkGuidanceOverlay(
+            notice = state.takeIf { it.phase == BattlePhase.CLOSING || it.guidance != null },
+            modifier = Modifier.matchParentSize().wrapContentHeight(Alignment.Top, unbounded = true),
+            contentKey = { if (it.phase == BattlePhase.CLOSING) BattlePhase.CLOSING else it.guidance ?: Unit }
+        ) { GuidanceToast(it) }
+    }
     Stats(state)
     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
         BattleTrack(
@@ -348,16 +421,11 @@ private fun ColumnScope.Running(state: BattleRunningUiState, actions: BattleRunn
             Modifier.fillMaxWidth().heightIn(max = TRACK_CARD_HEIGHT).fillMaxHeight()
         )
     }
-    Gap(state)
-    state.error?.let {
-        Text(
-            it.asString(),
-            style = RunkkTextStyles.Caption,
-            color = RunkkColors.Lavender,
-            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
-        )
+    // 오류·힌트 글자는 거리 차 줄 위에 겹쳐 띄운다. 줄 높이는 그대로라 트랙·지도 칸이 줄거나 밀리지 않는다(S15P31A207-334).
+    Box(Modifier.fillMaxWidth().height(GAP_ROW_HEIGHT), contentAlignment = Alignment.Center) {
+        Gap(state)
+        Notices(state, Modifier.wrapContentHeight(unbounded = true))
     }
-    state.hint?.let { RunkkHint(it.asString(), modifier = Modifier.align(Alignment.CenterHorizontally)) }
     // 자유런처럼 왼쪽에 취소(기록 없음, 셀프런·셀럽런만), 가운데에 길게 눌러 그만두기(패배로 기록)
     Box(modifier = Modifier.fillMaxWidth()) {
         if (state.kind.isCancellable) {
@@ -386,7 +454,8 @@ private fun BigDistance(distance: Distance) {
     RunkkRunDistance(
         distance = RunkkFormat.km(distance),
         unit = stringResource(R.string.battle_running_unit_km),
-        spoken = stringResource(R.string.battle_running_distance_spoken, RunkkFormat.km(distance))
+        spoken = stringResource(R.string.battle_running_distance_spoken, RunkkFormat.km(distance)),
+        modifier = Modifier.testTag(BATTLE_DISTANCE_TAG)
     )
 }
 
@@ -433,7 +502,7 @@ private fun BattleTrack(
     var isMapFailed by remember { mutableStateOf(false) }
     val isMapAvailable = canShowKakaoMap(LocalKakaoMapKey.current, isMapFailed)
     val mode = shownViewMode(state.viewMode, isMapAvailable)
-    Box(modifier.clip(RoundedCornerShape(26.dp))) {
+    Box(modifier.clip(RoundedCornerShape(26.dp)).testTag(BATTLE_VIEW_TAG)) {
         when (mode) {
             RunViewMode.TRACK -> TrackView(state, Modifier.fillMaxSize(), if (isMapAvailable) 91.dp else 55.dp)
 
@@ -502,19 +571,15 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier, overlayBo
     val opponentName = opponentLabel(state)
     val edge = layout.other as? TrackLayout.Other.Edge
     val isMoving = rememberIsMoving(state.myDistance) && state.isMeasuring && state.currentPace != null
-    val frameMillis = runFrameMillis(state.currentPace)
-    // 트랙에서는 오른쪽을 보고, 멈추거나 페이스를 모르면 선다(D-856).
-    val pose = if (state.phase == BattlePhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 트랙에서는 오른쪽을 본다. 출발과 함께 달리고(움직임 판단을 기다리지 않는다), 거리가 3초 그대로면 선다(D-856, S15P31A207-335 2차).
+    val isRunPose = rememberRunPose(state.myDistance, isActive = state.phase == BattlePhase.RUNNING)
+    val pose = if (isRunPose) AvatarSlotPose.RUN else AvatarSlotPose.STAND
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
     RunkkTrackCard(
         layout = layout,
         myTag = stringResource(R.string.battle_me),
         otherTag = opponentName,
-        myAvatar = {
-            RunAvatarSlot(pose, facingLeft = false, runSpeed = runMotionSpeed(state.currentPace)) {
-                RunkkRunningFigure(isMoving, frameMillis)
-            }
-        },
+        myAvatar = { MyTrackRunner(pose, state.currentPace, isMoving || isRunPose) },
         otherAvatar = { OpponentRunner(state) },
         modifier = modifier.testTag(BATTLE_TRACK_TAG),
         myPace = state.currentPace?.let { RunkkFormat.pace(it) },
@@ -540,6 +605,14 @@ private fun TrackView(state: BattleRunningUiState, modifier: Modifier, overlayBo
             }
         }
     )
+}
+
+/** 트랙 아래 레인의 내 아바타. 트랙은 오른쪽을 본다. */
+@Composable
+private fun MyTrackRunner(pose: AvatarSlotPose, pace: Pace?, isMoving: Boolean) {
+    RunAvatarSlot(pose, facingLeft = false, runSpeed = runMotionSpeed(pace)) {
+        RunkkRunningFigure(isMoving, runFrameMillis(pace))
+    }
 }
 
 /** 내 얼굴 원(이름표 22, 지도 위 내 위치 44): 홈과 같은 내 얼굴이다. */
@@ -625,12 +698,30 @@ private fun OpponentRunner(state: BattleRunningUiState) {
     }
 }
 
+/** 거리 차 줄 위에 겹치는 오류·힌트 글자. 모두 불투명 배경이라 아래 글자가 비치지 않는다. */
 @Composable
-private fun GuidanceBanner(state: BattleRunningUiState) {
+private fun Notices(state: BattleRunningUiState, modifier: Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        state.error?.let { RunkkHint(it.asString()) }
+        state.hint?.let { RunkkHint(it.asString()) }
+    }
+}
+
+/**
+ * 흰 안내 띠(FR-188 추월·역전, FR-107 종료 카운트다운). 추월은 라임, 역전·카운트다운은 보라 강조다. 나타나면 바로 읽히고, 카운트다운은
+ * 바뀌는 초 대신 고정 문구를 즉시 한 번 알린다.
+ */
+@Composable
+private fun GuidanceToast(state: BattleRunningUiState) {
     if (state.phase == BattlePhase.CLOSING) {
         val arrived = state.arrivedName ?: stringResource(R.string.battle_opponent)
-        RunkkCountdownBanner(
+        RunkkGuidanceToast(
             text = stringResource(R.string.battle_running_closing, arrived, state.closingSeconds ?: 0),
+            tone = RunkkGuidanceTone.Closing,
             spoken = stringResource(
                 R.string.battle_running_closing_spoken,
                 arrived,
@@ -640,7 +731,7 @@ private fun GuidanceBanner(state: BattleRunningUiState) {
         return
     }
     when (state.guidance) {
-        BattleGuidance.Kind.OVERTOOK -> RunkkBanner(
+        BattleGuidance.Kind.OVERTOOK -> RunkkGuidanceToast(
             stringResource(
                 if (state.kind ==
                     OpponentKind.SELF
@@ -650,20 +741,12 @@ private fun GuidanceBanner(state: BattleRunningUiState) {
                     R.string.battle_running_overtook
                 }
             ),
-            isStrong = true,
-            modifier = Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite }
+            tone = RunkkGuidanceTone.Lead
         )
 
-        BattleGuidance.Kind.OVERTAKEN -> Text(
+        BattleGuidance.Kind.OVERTAKEN -> RunkkGuidanceToast(
             stringResource(R.string.battle_running_overtaken),
-            style = RunkkTextStyles.text(15, FontWeight.Black),
-            color = RunkkColors.Lavender,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RunkkShapes.Medium)
-                .border(1.dp, RunkkColors.Lavender, RunkkShapes.Medium)
-                .padding(16.dp)
-                .semantics { liveRegion = LiveRegionMode.Polite }
+            tone = RunkkGuidanceTone.Rival
         )
 
         null -> Unit
@@ -704,6 +787,9 @@ internal fun gapMetersLabel(gap: Int): String = if (gap >= 0) "+$gap m" else "$g
 
 private const val PAST_SELF_ALPHA = 0.78f
 
+/** 거리 차 줄 높이. 안내는 이 줄 위에 겹치므로 안내가 떠도 바뀌지 않는다. */
+private val GAP_ROW_HEIGHT = 32.dp
+
 /** 트랙 카드 높이(시안 350×328). 화면이 낮으면 남는 높이만큼 줄어든다. */
 private val TRACK_CARD_HEIGHT = 328.dp
 
@@ -718,6 +804,12 @@ private const val METERS_PER_KM = 1_000L
 /** 트랙 카드와 지도 카드의 시험 표지. */
 internal const val BATTLE_TRACK_TAG = "battle-track"
 internal const val BATTLE_MAP_TAG = "battle-map"
+
+/** 트랙·지도 보기를 담는 카드(어느 보기든 같은 자리)의 시험 표지. */
+internal const val BATTLE_VIEW_TAG = "battle-view"
+
+/** 큰 거리 숫자의 시험 표지. */
+internal const val BATTLE_DISTANCE_TAG = "battle-distance"
 
 /** 셀프런·셀럽런 출발 전 카운트다운(3초, design-review.md M34). 고리 몫의 분모다. */
 private const val RECORD_COUNTDOWN_SECONDS = 3L

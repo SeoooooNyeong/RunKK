@@ -17,6 +17,18 @@ interface BattleRepository {
     suspend fun celebrityCandidates(distance: Distance?): Outcome<RecordBattleCandidates>
 
     /**
+     * 기기에 남긴 셀럽 후보 사본(S15P31A207-345 2차, 시작 로딩이 받아 둔 전체 거리 목록). 내 계정 칸의 것(내 최고 기록 포함)이 없으면
+     * 공용 칸의 것(내 기록 없음)을 준다. [distance]가 null(전체)일 때만 있고 없으면 null. 네트워크를 쓰지 않는다.
+     */
+    suspend fun cachedCelebrityCandidates(distance: Distance?): RecordBattleCandidates? = null
+
+    /**
+     * [cachedCelebrityCandidates]를 기다리지 않고(파일을 읽지 않고) 이미 읽어 둔 사본만 준다(S15P31A207-345 9회차). 시작 로딩이 받아 둔
+     * 사본이면 있다. 셀럽 탭이 첫 상태를 이것으로 시작해 로딩 원을 한 프레임도 그리지 않는다. 없으면 null.
+     */
+    fun peekCelebrityCandidates(distance: Distance?): RecordBattleCandidates? = null
+
+    /**
      * 셀프·셀럽 상대 기록과 진행용 구간 기록을 미리 받는다(GET /battles/record-tracks?kind=, D-377, U3 (나)). 서버에 대결을 만들지 않는다.
      * 셀프런은 거리별 내 최고 기록(기록 없는 거리는 없음), 셀럽런은 공개된 셀럽 기록 전부다. 거리 오름차순, 같은 거리는 완주 시간 오름차순.
      * 셀럽런 목록은 구간 기록이 비어 있다(W31): 고를 때 [celebrityTrack]으로 받는다.
@@ -52,6 +64,9 @@ interface BattleRepository {
      * 결과의 nextCursor가 null이면 끝이다.
      */
     suspend fun history(filter: BattleHistory.Type?, cursor: Long? = null): Outcome<BattleHistory>
+
+    /** 기기에 남긴 대결 이력 첫 쪽 사본(내 계정 칸, [filter]마다). 없으면 null. 네트워크를 쓰지 않는다(S15P31A207-345 2차). */
+    suspend fun cachedHistory(filter: BattleHistory.Type?): BattleHistory? = null
 
     /** 친구 대결 초대 만들기(POST /battles/friend-invites, D-270). 거부는 Rejected(INVITE_ALREADY_PENDING 등). */
     suspend fun createFriendInvite(distance: Distance): Outcome<FriendInvite>

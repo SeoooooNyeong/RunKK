@@ -79,6 +79,12 @@ class FakeRecordRepository : RecordRepository {
         return dashboardResult
     }
 
+    /** 기기에 남긴 대시보드 사본(S15P31A207-345 2차). */
+    var dashboardCopy: Pair<LocalDate, Dashboard>? = null
+
+    override suspend fun cachedDashboard(baseDate: LocalDate): Dashboard? =
+        dashboardCopy?.takeIf { it.first == baseDate }?.second
+
     override suspend fun runs(ownerId: Long, from: LocalDate, to: LocalDate): Outcome<RecordList> = unused()
 
     override suspend fun run(recordId: String): Outcome<RecordDetail> = unused()
@@ -171,6 +177,11 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
         return summaryResult
     }
 
+    /** 기기에 남긴 내 요약 사본(S15P31A207-345 2차). */
+    var summaryCopy: com.a207.runkk.app.domain.account.MySummary? = null
+
+    override suspend fun cachedMySummary(): com.a207.runkk.app.domain.account.MySummary? = summaryCopy
+
     override suspend fun profile(memberId: Long): Outcome<com.a207.runkk.app.domain.account.Profile> {
         profileIds += memberId
         return unusedOutcome()
@@ -236,6 +247,11 @@ class FakeAccountRepository : com.a207.runkk.app.domain.account.AccountRepositor
         placementCalls++
         return placementResult
     }
+
+    /** 배치 진행 기기 사본(PlacementCache). 기본은 없음. */
+    var placementCopy: com.a207.runkk.app.domain.account.PlacementProgress? = null
+
+    override fun cachedPlacement(): com.a207.runkk.app.domain.account.PlacementProgress? = placementCopy
 }
 
 fun <T> unusedOutcome(): Outcome<T> = Outcome.Failure(AppError.Rejected("UNUSED"))
@@ -275,6 +291,11 @@ class FakeSettingsRepository : SettingsRepository {
     override fun isGuest(): Boolean = false
 
     override fun changes(): Flow<SettingsSnapshot> = snapshot
+
+    /** 서버 설정 사본이 있는가. 기본은 없음(홈이 서버 설정을 읽는다). */
+    var hasCopy = false
+
+    override fun hasCopy(): Boolean = hasCopy
 
     override suspend fun clear(): Outcome<Unit> = Outcome.Success(Unit)
 

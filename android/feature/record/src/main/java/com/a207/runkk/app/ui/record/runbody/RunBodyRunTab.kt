@@ -118,7 +118,7 @@ private fun DropTriangle() {
 }
 
 @Composable
-private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: ZoneId, actions: RunBodyActions) {
+internal fun SessionSection(session: RunBodySessionState, run: RunSummary?, zone: ZoneId, actions: RunBodyActions) {
     when (session) {
         RunBodySessionState.Loading -> RunBodyCard(null) {
             RunkkLoading(height = SESSION_LOADING_HEIGHT)
@@ -128,16 +128,21 @@ private fun SessionSection(session: RunBodySessionState, run: RunSummary, zone: 
             stringResource(R.string.record_runbody_pending_title),
             titleSize = 16
         ) {
-            val start = run.startedAt.atZone(zone)
-            val day = DateTimeFormatter.ofPattern(stringResource(R.string.record_runbody_day_pattern), Locale.KOREAN)
-            RunBodyCaption(
-                stringResource(
-                    R.string.record_runbody_pending_run,
-                    day.format(start),
-                    stringResource(timeOfDayRes(start.hour)),
-                    RunkkFormat.kmShort(run.distance)
+            run?.let {
+                val start = it.startedAt.atZone(zone)
+                val day = DateTimeFormatter.ofPattern(
+                    stringResource(R.string.record_runbody_day_pattern),
+                    Locale.KOREAN
                 )
-            )
+                RunBodyCaption(
+                    stringResource(
+                        R.string.record_runbody_pending_run,
+                        day.format(start),
+                        stringResource(timeOfDayRes(start.hour)),
+                        RunkkFormat.kmShort(it.distance)
+                    )
+                )
+            }
             RunBodyCaption(stringResource(R.string.record_runbody_pending_message))
             RecheckButton(actions.onRetrySession)
         }

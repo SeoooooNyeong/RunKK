@@ -219,6 +219,10 @@ public class RunRecord {
     @Column(name = "evaluation_runimal_type", length = 20, insertable = false, updatable = false)
     private String evaluationRunimalType;
 
+    /** 평가가 바꾸기 전 티어(S15P31A207-331). TierApplier가 평가 표시와 같은 갱신으로 쓴다. 열을 더하기 전 기록은 null. */
+    @Column(name = "evaluation_previous_tier", length = 10, insertable = false, updatable = false)
+    private String evaluationPreviousTier;
+
     @Transient private RunTrack track;
 
     @Transient private List<PauseInterval> pauses;
@@ -594,14 +598,18 @@ public class RunRecord {
                         evaluationKind,
                         evaluationTier == null ? null : Tier.valueOf(evaluationTier),
                         evaluationValidRuns == null ? 0 : evaluationValidRuns,
-                        evaluationRunimalType));
+                        evaluationRunimalType,
+                        evaluationPreviousTier == null
+                                ? null
+                                : Tier.valueOf(evaluationPreviousTier)));
     }
 
     /** 메모리 위 엔티티의 평가 표시를 쓴다. 저장소 구현이 조건부 갱신과 함께 부른다(시험의 인메모리 저장소). */
-    void markEvaluation(String kind, String tier, int validRuns) {
+    void markEvaluation(String kind, String tier, int validRuns, String previousTier) {
         this.evaluationKind = kind;
         this.evaluationTier = tier;
         this.evaluationValidRuns = validRuns;
+        this.evaluationPreviousTier = previousTier;
     }
 
     /** 메모리 위 엔티티의 Runimal 확정 유형을 쓴다(시험의 인메모리 저장소). */

@@ -37,6 +37,7 @@ import com.a207.runkk.app.domain.record.NewRecordMark
 import com.a207.runkk.app.domain.record.RecordBattleType
 import com.a207.runkk.app.domain.record.RecordDetail
 import com.a207.runkk.app.domain.record.RecordVerdict
+import com.a207.runkk.app.domain.record.RunBodyPreview
 import com.a207.runkk.app.domain.record.RunSummary
 import java.time.Duration
 import java.time.LocalDate
@@ -260,6 +261,52 @@ class RecordScreensTest {
         }
         compose.onNodeWithText("카드 공유").performClick()
         assertEquals(1, shared)
+    }
+
+    private fun showRunBody(runBody: RunBodyPreview, scope: ReleaseScope = ReleaseScope.ALL_OPEN): MutableList<String> {
+        val opened = mutableListOf<String>()
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides scope) {
+                RunkkTheme(reduceMotion = true) {
+                    RecordDetailScreen(
+                        RecordDetailUiState(isLoading = false, recordId = "r1", detail = detail(), runBody = runBody),
+                        onBack = {},
+                        onShare = {},
+                        onRetry = {},
+                        onRunBody = { opened += "runbody" }
+                    )
+                }
+            }
+        }
+        return opened
+    }
+
+    @Test
+    fun `기록 상세 런바디 카드 - 준비됨이면 세 지표와 자세히를 보이고 누르면 런바디 상세로 간다(G-9)`() {
+        val opened = showRunBody(RunBodyPreview.Ready(intensity = 78, endurance = 84, stability = 72))
+        compose.onNodeWithText("런바디 분석").performScrollTo().assertExists()
+        compose.onNodeWithText("운동 강도 78 · 지구력 84 · 페이스 안정성 72").assertExists()
+        compose.onNodeWithText("자세히 ›").performClick()
+        assertEquals(listOf("runbody"), opened)
+    }
+
+    @Test
+    fun `기록 상세 런바디 카드 - 분석 중이면 분석 중을 보인다(G-9b)`() {
+        showRunBody(RunBodyPreview.Analyzing)
+        compose.onNodeWithText("분석하고 있어요 · 보통 1분 안에 끝나요").performScrollTo().assertExists()
+        compose.onNodeWithText("분석 중").assertExists()
+    }
+
+    @Test
+    fun `기록 상세 런바디 카드 - 숨김이거나 런바디가 닫힌 배포면 카드가 없다`() {
+        showRunBody(RunBodyPreview.Hidden)
+        compose.onNodeWithText("런바디 분석").assertDoesNotExist()
+    }
+
+    @Test
+    fun `기록 상세 런바디 카드 - 런바디가 닫힌 배포면 준비됨이어도 카드가 없다`() {
+        showRunBody(RunBodyPreview.Analyzing, ReleaseScope.FIRST_RELEASE)
+        compose.onNodeWithText("런바디 분석").assertDoesNotExist()
     }
 
     @Test

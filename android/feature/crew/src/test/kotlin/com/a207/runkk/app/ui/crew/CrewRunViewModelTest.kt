@@ -480,6 +480,7 @@ class CrewRunViewModelTest {
         w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
         val vm = vms.track(resultVm(w))
         vm.load(31)
+        vm.onStart()
         runCurrent()
         advanceTimeBy(3_100)
         runCurrent()
@@ -497,6 +498,7 @@ class CrewRunViewModelTest {
         w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING, myRecordId = null)
         val vm = vms.track(resultVm(w))
         vm.load(31)
+        vm.onStart()
         runCurrent()
         w.crews.resultState = crewRunResult
         advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
@@ -512,6 +514,7 @@ class CrewRunViewModelTest {
         val vm = vms.track(resultVm(w))
         fun reads() = w.crews.calls.count { it.startsWith("result") }
         vm.load(31)
+        vm.onStart()
         runCurrent()
         advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS * CrewRunResultViewModel.REREADS + 1)
         runCurrent()
@@ -543,6 +546,7 @@ class CrewRunViewModelTest {
         val vm = vms.track(resultVm(w))
         fun reads() = w.crews.calls.count { it.startsWith("result") }
         vm.load(31)
+        vm.onStart()
         runCurrent()
         advanceTimeBy(CrewRunResultViewModel.REREAD_MILLIS + 1)
         runCurrent()
@@ -589,6 +593,7 @@ class CrewRunViewModelTest {
         w.crews.resultState = crewRunResult.copy(myRecordId = null)
         val vm = vms.track(resultVm(w))
         vm.load(31)
+        vm.onStart()
         advanceTimeBy(10 * 60_000L)
         runCurrent()
         assertEquals(1 + CrewRunResultViewModel.REREADS, w.crews.calls.count { it.startsWith("result") })
@@ -600,6 +605,7 @@ class CrewRunViewModelTest {
         w.crews.resultState = crewRunResult.copy(status = CrewRunStatus.RUNNING)
         val vm = vms.track(resultVm(w))
         vm.load(31)
+        vm.onStart()
         advanceTimeBy(CrewRunResultViewModel.RUNNING_WATCH_MILLIS + CrewRunResultViewModel.MAX_REREAD_MILLIS)
         runCurrent()
         val stopped = w.crews.calls.count { it.startsWith("result") }

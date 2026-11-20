@@ -1,5 +1,6 @@
 package com.a207.runkk.app.domain.battle
 
+import com.a207.runkk.app.core.model.AppError
 import com.a207.runkk.app.core.model.CardKind
 import com.a207.runkk.app.core.model.Distance
 import com.a207.runkk.app.core.model.GpsReadiness
@@ -22,8 +23,23 @@ sealed interface BattleRunState {
     /** 랜덤 대결 성사. [gps]는 출발 전 GPS 예열 상태(W55)이고 예열하지 않으면(위치 권한 없음 등) null이다. */
     data class Matched(val match: MatchFound, val gps: GpsReadiness? = null) : BattleRunState
 
-    /** 출발 카운트다운. [gps]는 [Matched]와 같고, 기록 대결(나와의 싸움·유명인)은 예열하지 않아 null이다. */
-    data class Countdown(val battleId: Long, val startAt: Instant, val gps: GpsReadiness? = null) : BattleRunState
+    /**
+     * 출발 카운트다운. [gps]는 [Matched]와 같고, 기록 대결(나와의 싸움·유명인)은 예열하지 않아 null이다.
+     * [isAwaitingServer]면 셀프런·셀럽런 대결 만들기 응답을 아직 받지 못했다(S15P31A207-335 9회차). [battleId]는 그동안 임시 번호(음수)이고,
+     * 화면은 응답이 올 때까지 숫자 3에서 멈춘다(응답을 받으면 출발 = max(누름 + 3초, 응답 + 2초)).
+     */
+    data class Countdown(
+        val battleId: Long,
+        val startAt: Instant,
+        val gps: GpsReadiness? = null,
+        val isAwaitingServer: Boolean = false
+    ) : BattleRunState
+
+    /**
+     * 셀프런·셀럽런 대결 만들기가 실패했거나 제한 시간 안에 응답이 없어 카운트다운을 멈췄다(S15P31A207-335 9회차). [battleId]는 임시 번호다.
+     * 회는 열려 있어 BattleRunCoordinator.retryRecordBattle로 다시 보내거나 cancel로 닫는다(서버에 만든 대결이 없어 보낼 것이 없다).
+     */
+    data class StartFailed(val battleId: Long, val error: AppError) : BattleRunState
 
     /**
      * 측정 중. [opponentConnection]은 랜덤 대결 상대의 연결 상태(FR-088 "상대 연결 확인 중")이고, 기록 상대(고스트·나와의 싸움·

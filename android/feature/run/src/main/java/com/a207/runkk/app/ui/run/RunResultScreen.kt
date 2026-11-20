@@ -81,7 +81,7 @@ fun RunResultRoute(recordId: String, isJustFinished: Boolean = false, viewModel:
             when (event) {
                 is RunResultEvent.NavigateEvaluation -> event.evaluation.let {
                     isEvaluationOpened = true
-                    navigator.navigate(Routes.Evaluation(it.tier, it.validRuns, it.runimalType))
+                    navigator.navigate(Routes.Evaluation(it.tier, it.validRuns, it.runimalType, it.previousTier))
                 }
             }
         }

@@ -366,7 +366,7 @@ class RunningV014Test {
                                 Tier.GOLD,
                                 1,
                                 2,
-                                new TierEvaluation(EvaluationKind.REEVALUATION, 10)));
+                                new TierEvaluation(EvaluationKind.REEVALUATION, 10, Tier.SILVER)));
         TierApplier applier = new TierApplier(tiers, applied, records);
         com.a207.runkk.member.RunScoreInput input =
                 new com.a207.runkk.member.RunScoreInput(
@@ -383,6 +383,7 @@ class RunningV014Test {
         assertThat(view.tier()).isEqualTo(Tier.GOLD);
         assertThat(view.validRuns()).isEqualTo(10);
         assertThat(view.runimalType()).isEqualTo("LONE_WOLF");
+        assertThat(view.previousTier()).as("재평가 직전 티어(D-성-972)").isEqualTo(Tier.SILVER);
 
         send(m, upload(id(2), START.plusHours(1), 5_000, 1_500));
         new RunEvaluationNote(records).noteRunimalType(id(2), "LONE_WOLF");

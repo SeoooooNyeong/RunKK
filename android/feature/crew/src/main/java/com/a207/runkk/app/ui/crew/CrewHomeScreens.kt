@@ -178,6 +178,7 @@ internal fun CrewHomeActions.withNavigation(crewId: Long, navigate: (NavKey) -> 
     onPastRuns = { navigate(Routes.CrewPastRuns(crewId)) },
     onLobby = { post -> navigate(Routes.CrewRunLobby(post.postId)) },
     onJoinRun = { post -> navigate(Routes.CrewRunLobby(post.postId, join = true)) },
+    onResumeRun = { post -> navigate(Routes.CrewRunLobby(post.postId)) },
     onResult = { post -> navigate(Routes.CrewRunResult(post.postId)) },
     onGoalEdit = { navigate(Routes.CrewGoalSet(crewId)) },
     onPastGoals = { navigate(Routes.CrewPastGoals(crewId)) }

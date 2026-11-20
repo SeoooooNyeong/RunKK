@@ -1,5 +1,8 @@
 package com.a207.runkk.app
 
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +38,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import androidx.navigation3.ui.defaultTransitionSpec
 import com.a207.runkk.app.core.designsystem.GuideAnchors
 import com.a207.runkk.app.core.designsystem.LocalCoveredBySplash
 import com.a207.runkk.app.core.designsystem.LocalGuideAnchors
@@ -48,6 +52,7 @@ import com.a207.runkk.app.core.designsystem.RunkkTab
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
 import com.a207.runkk.app.core.designsystem.media.RunkkBackgroundMusic
 import com.a207.runkk.app.core.navigation.BattleReturnRequest
+import com.a207.runkk.app.core.navigation.EntryTransition
 import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.LocalBattleReturnRequest
 import com.a207.runkk.app.core.navigation.LocalRunReturnReceipts
@@ -125,6 +130,7 @@ fun RunkkNavHost(
         }
         withBottomSpace(withBetaLock(entries, releaseScope))
     }
+    val fade = remember { defaultTransitionSpec<NavKey>() }
     val top = backStack.lastOrNull()
     val selectedTab = tabOf(top)
     val lockedTabs = BetaLock.lockedTabs(releaseScope)
@@ -170,6 +176,10 @@ fun RunkkNavHost(
                 backStack = backStack,
                 modifier = Modifier.padding(topAndSides).consumeWindowInsets(topAndSides),
                 onBack = { navigator.back() },
+                // 바로 그리는 경로(대결 진행: 출발 카운트다운)는 기본 넘어가기(0.7초 엇갈려 나타나기) 없이 그린다(S15P31A207-335 8회차)
+                transitionSpec = {
+                    if (EntryTransition.isInstant(targetState.metadata)) INSTANT_TRANSITION else fade(this)
+                },
                 entryDecorators = listOf(
                     rememberSaveableStateHolderNavEntryDecorator(),
                     rememberViewModelStoreNavEntryDecorator()
@@ -298,6 +308,9 @@ internal fun routeOf(tab: RunkkTab): String = when (tab) {
     RunkkTab.RANKING -> Routes.RANKING
     RunkkTab.ME -> Routes.ME
 }
+
+/** 바로 그리는 경로로 넘어갈 때: 앞 화면을 바로 치우고 새 화면을 바로 그린다(크기 변화 애니메이션도 없다). */
+private val INSTANT_TRANSITION = ContentTransform(EnterTransition.None, ExitTransition.None, sizeTransform = null)
 
 /** [scope]에서 닫힌 기능의 경로([BetaLock])는 등록된 화면 대신 잠긴 기능 안내를 띄우고 뒤로 돌린다(우회 진입 방어, D-251). */
 private fun withBetaLock(entries: (NavKey) -> NavEntry<NavKey>, scope: ReleaseScope): (NavKey) -> NavEntry<NavKey> =

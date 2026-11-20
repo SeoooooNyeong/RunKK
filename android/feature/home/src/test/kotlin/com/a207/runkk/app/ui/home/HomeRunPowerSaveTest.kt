@@ -63,7 +63,8 @@ class HomeRunPowerSaveTest {
         LocationConsentUseCase(account, settings),
         TodayPlanCache(),
         FakePendingRunRepository(),
-        Clock.fixed(Instant.parse("2026-10-20T01:00:00Z"), ZoneId.of("Asia/Seoul"))
+        Clock.fixed(Instant.parse("2026-10-20T01:00:00Z"), ZoneId.of("Asia/Seoul")),
+        settings
     )
 
     @Before

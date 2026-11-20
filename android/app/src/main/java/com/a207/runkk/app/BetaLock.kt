@@ -35,6 +35,8 @@ internal object BetaLock {
         is Routes.CrewMeetupDetail,
         is Routes.CrewGoalSet -> UnreleasedFeature.CREW
 
+        is Routes.RunBodyDetail -> UnreleasedFeature.RUNBODY
+
         else -> null
     }
 

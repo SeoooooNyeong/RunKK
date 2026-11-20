@@ -43,7 +43,9 @@ internal data class RecordDetailResponse(
         val kind: String? = null,
         val tier: String? = null,
         val validRuns: Int = 0,
-        val runimalType: String? = null
+        val runimalType: String? = null,
+        /** 재평가 직전 티어 이름(과거 기록·옛 서버면 null). */
+        val previousTier: String? = null
     )
 
     /** 신호 불안정 구간. 서버가 빠뜨린 항목은 0으로 읽어 기록 상세 전체가 실패하지 않게 한다. */

@@ -45,3 +45,16 @@ A-추적표가 100KB에 가까워 v0.40 병합(서버 시간대, 피그마 맞�
 | NFR-063 | OutfitAssetSpecTest, 의상 자산 규격 | core.avatar | v0.40 신규: 05-30 5.5, D-746 |
 | NFR-064 | 읽기 전용 계정 표·열 권한, 비밀번호 CI 변수 | (infra) | v0.40 신규: 05-29-설계-이벤트현황-성 D-860~D-867 |
 | NFR-065 | 환경별 DB 전용 internal 망 | (infra) | v0.40 신규: 05-29-설계-이벤트현황-성 D-860~D-867 |
+
+#### v0.43 병합 행 (2026-11-18, srs 7.13.31)
+
+행마다의 설계 요소와 시험은 srs [07-11 v0.34 병합 행](../srs/07-11-추적표-v0.18.md)에 있다. 여기에는 요구 묶음 → 설계 조각만 둔다.
+
+| 요구 | 클래스·부품 | 패키지 | 설계 |
+|------|-------------|--------|------|
+| FR-376, FR-389, FR-390 | CrewMembersView, ChatPage, 얼굴 캐시, KakaoLinkSharer, InviteLinkReader, CrewInviteJoin | web.crew, web.chat, feature.crew, feature.chat | v0.43 신규: 05-31 A절 D-896~D-915, D절 D-975~D-984 |
+| FR-377~FR-384, NFR-066 | OpponentLooks, RunRecord.LookColumns, TrackLayout, TrackScene, RunkkTrackCard, MatchViewModel | running, battle, core.ui, feature.battle, feature.crew | v0.43 신규: 05-31 B절 D-916~D-949, D.1 D-985~D-1006 |
+| FR-385~FR-388, NFR-067 | ResultStage, RecordCardFront, FirstRunGuide, GuideReplay | core.ui, feature.run, feature.record, feature.home | v0.43 신규: 05-31 C절 D-950~D-974, D.1 |
+| FR-346~FR-353 | HeadTarget, SideNeckRegistration, 얼굴 원 ASSET_SCALE, 본인 성별 보정 | core.avatar, feature.chat, feature.crew | v0.43 신규: 05-31 D.2 D-868~D-876 |
+| FR-354~FR-372, NFR-068~NFR-073 | CrewReadSession, CrewRunService, CrewRunCoordinator, CrewRunPost, CrewRunCompletion | crew, web.crew, feature.crew, domain.run | v0.43 신규: 05-32 D-877~D-892 |
+| FR-373~FR-375, NFR-074 | 절전 판정과 설정 대체, 공용 안내 상태 | core.ui, feature.home, feature.battle, feature.crew | v0.43 신규: 05-31 E절 D-893~D-895 |

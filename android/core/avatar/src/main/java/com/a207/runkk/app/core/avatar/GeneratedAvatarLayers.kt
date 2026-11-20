@@ -16,7 +16,8 @@ import kotlin.math.roundToInt
  *
  * 정면: 목 중심·턱은 mobile.neckMask, 없으면 얼굴 알파([GeneratedHeadGeometry])에서 찾고 턱 경계를 밝기 대비로 다듬는다.
  * 눈 밑은 피부색으로 받쳐 깜박일 때 비지 않게 하고, 반쯤·완전히 감은 눈을 만든다. 측면: 아래쪽 목 폭이 넓어지는 줄을 턱으로 보고
- * 목을 줄여 몸체 옷깃에 잇는다. 체형 1·2단계 볼 레이어는 턱 위 띠를 가로로 넓혀 만든다.
+ * 목을 줄여 몸체 옷깃에 잇는다. 체형 1·2단계 볼 레이어는 턱 위 띠를 가로로 넓혀 만든다. 머리 아래에는 몸 쪽 목 층([NeckUnderlay],
+ * 몸 목 폭·얼굴 피부색)을 깔아 목이 짧거나 가는 셀카도 옷 깃 안이 비지 않는다(볼 레이어는 목 층 없는 얼굴에서 만든다).
  */
 internal object GeneratedAvatarLayers {
     private const val SIZE = HeadResultPolicy.CANVAS
@@ -33,12 +34,15 @@ internal object GeneratedAvatarLayers {
         val bitmaps = mutableListOf<Bitmap>()
         fun decode(bytes: ByteArray) = decodeLayer(bytes).also(bitmaps::add)
         try {
+            val decodeAt = AvatarPrepareTrace.now()
             val face = decode(input.face)
             val eyes = decode(input.eyes)
             val hair = decode(input.hair)
             val sideFace = decode(input.rightFace)
             val sideEyes = decode(input.rightEyes)
             val sideHair = decode(input.rightHair)
+            AvatarPrepareTrace.mark("head-decode", decodeAt)
+            val variantsAt = AvatarPrepareTrace.now()
             val facePixels = pixels(face)
             val reported = input.neckMask
             val detected = if (reported == null) GeneratedHeadGeometry.detect(facePixels, SIZE, SIZE) else null
@@ -75,10 +79,12 @@ internal object GeneratedAvatarLayers {
                 val side = HeadPlacement.fit(sideCenterX, sideChin, sideCrown, sideTarget).matrix()
                 val normalizedFace = transform(backed, front).also(bitmaps::add)
                 val sideSkin = transform(shortenedSide, side).also(bitmaps::add)
+                // 몸 쪽 목 층: 정면은 얼굴 레이어 아래에 굽고, 측면은 합성할 때 깐다(목 등록 뒤 자리, 같은 톤).
+                val neckedFace = NeckUnderlay(BodyNeck.front(gender), skin).under(normalizedFace).also(bitmaps::add)
                 try {
                     AvatarVariantAssets(
                         front = mapOf(
-                            "face_layer" to AvatarImages.encode(normalizedFace),
+                            "face_layer" to AvatarImages.encode(neckedFace),
                             "hair_layer" to transformed(hair, front),
                             "eyes_open" to transformed(eyes, front),
                             "eyes_half" to transformed(half, front),
@@ -87,7 +93,8 @@ internal object GeneratedAvatarLayers {
                         sideLayers = SideHeadLayers(
                             AvatarImages.encode(sideSkin),
                             transformed(sideEyes, side),
-                            transformed(sideHair, side)
+                            transformed(sideHair, side),
+                            neckUnderlay = NeckUnderlay(BodyNeck.side(gender), skin)
                         ),
                         frontFullness = (1..2).associateWith {
                             fullness(normalizedFace, frontTarget.centerX, frontTarget.chinY, it, top = eyeBottom)
@@ -100,8 +107,10 @@ internal object GeneratedAvatarLayers {
                     // 성공하면 바로 놓고, 실패하면 바깥 finally가 놓는다(recycle은 두 번 불러도 된다).
                     normalizedFace.recycle()
                     sideSkin.recycle()
+                    neckedFace.recycle()
                 }
             }
+            AvatarPrepareTrace.mark("head-variants", variantsAt, "genders=${variants.size}")
             return GeneratedHeadLayers(variants, skin)
         } finally {
             bitmaps.forEach(Bitmap::recycle)

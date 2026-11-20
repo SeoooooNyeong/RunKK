@@ -116,7 +116,15 @@ private fun String?.figureKey(): String? = this?.trim()?.takeIf { it.isNotEmpty(
 /** tier가 없으면(옛 서버·깨진 값) 평가 없음으로 본다(D-289). */
 private fun BattleResultResponse.EvaluationDto.toDomain(): BattleResult.Evaluation? {
     val tier = tier?.takeIf { it.isNotBlank() } ?: return null
-    return BattleResult.Evaluation(kind.orEmpty(), tier, validRuns, runimalType)
+    return BattleResult.Evaluation(
+        kind.orEmpty(),
+        tier,
+        validRuns,
+        runimalType,
+        previousTier?.takeIf {
+            it.isNotBlank()
+        }
+    )
 }
 
 internal fun InviteResponse.toDomain(): FriendInvite = FriendInvite(

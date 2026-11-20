@@ -21,6 +21,11 @@ class KakaoLinkSharerTest {
     )
 
     @Test
+    fun `공유_카드_그림은_JPEG_주소다`() {
+        assertEquals("https://k15a207.p.ssafy.io/invite/card.jpg", KakaoLinkSharer.INVITE_CARD_IMAGE)
+    }
+
+    @Test
     fun `메시지에_크루_이름과_crewInvite_인자`() {
         val template = crewInviteTemplate(resources, invite)
         val button = template.buttons!!.single()

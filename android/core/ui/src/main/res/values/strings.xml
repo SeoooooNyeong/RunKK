@@ -82,6 +82,7 @@
     <string name="core_spoken_running">측정 중</string>
     <string name="core_spoken_paused">일시정지</string>
     <string name="core_spoken_my_runimal">내 러니멀</string>
+    <string name="core_runimal_confirmed">Runimal 확정</string>
     <string name="core_spoken_crew_run">크루런</string>
     <string name="core_spoken_crew_run_result">크루런 결과</string>
     <string name="core_spoken_free_run">자유런</string>
@@ -197,4 +198,19 @@
     <string name="core_run_power_save_message">화면을 끄면 기록이 끊길 수 있어요.</string>
     <string name="core_run_power_save_settings">설정 열기</string>
     <string name="core_run_power_save_start">그냥 시작</string>
+    <!-- 시작 로딩 화면 에셋 미리 받기(S15P31A207-345) -->
+    <string name="core_start_loading_percent">%1$d%%</string>
+    <!-- 시작 로딩 문구(S15P31A207-345 2차, Codex 최종안) -->
+    <string name="core_start_loading_start">시작할 준비를 하고 있어요</string>
+    <string name="core_start_loading_my_avatar_fetch">내 아바타를 불러오고 있어요</string>
+    <string name="core_start_loading_my_avatar_prepare">내 아바타를 준비하고 있어요</string>
+    <string name="core_start_loading_ranking">랭킹을 불러오고 있어요</string>
+    <string name="core_start_loading_celeb">셀럽런을 불러오고 있어요</string>
+    <string name="core_start_loading_records_crew_friends">기록, 크루, 친구를 불러오고 있어요</string>
+    <string name="core_start_loading_almost_done">준비가 거의 끝났어요</string>
+    <string name="core_start_loading_retrying">연결이 느려 다시 시도하고 있어요</string>
+    <string name="core_start_loading_failed_title">준비를 마치지 못했어요</string>
+    <string name="core_start_loading_failed_body">인터넷 연결을 확인해 주세요</string>
+    <string name="core_start_loading_failed_button">다시 시도</string>
+    <string name="core_start_loading_first_install_hint">처음 실행을 준비하고 있어요</string>
 </resources>

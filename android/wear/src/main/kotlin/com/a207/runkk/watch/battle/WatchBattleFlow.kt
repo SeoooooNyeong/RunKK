@@ -299,6 +299,9 @@ class WatchBattleFlow @Inject constructor(
             is BattleRunState.Finished -> BattleStep.Finished(state.battleId)
 
             is BattleRunState.Discarded -> BattleStep.Discarded
+
+            // 폰에서 누르자마자 연 기록 대결의 만들기 실패(S15P31A207-335 9회차). 워치는 응답 뒤에 시작해(onRecordBattleStart) 오지 않는다.
+            is BattleRunState.StartFailed -> BattleStep.Idle
         }
     }
 }

@@ -6,6 +6,7 @@ import com.a207.runkk.app.domain.crew.CrewDetail
 import com.a207.runkk.app.domain.crew.CrewMembers
 import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewRole
+import com.a207.runkk.app.domain.crew.CrewRunResult
 import com.a207.runkk.app.domain.crew.LobbyAvailability
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
@@ -35,6 +36,8 @@ data class CrewHomeUiState(
     val isSharing: Boolean = false,
     /** 크루런 모집글별 대기실 단추 상태(postId → LobbyAvailability). 서버 시각 추정으로 1초마다 다시 판단한다. */
     val lobbyEntries: Map<Long, LobbyAvailability> = emptyMap(),
+    /** 진행 중 강조 카드의 크루런 결과(postId → 결과): 출발 시각과 내 거리. 아직 못 읽었으면 없다. */
+    val heroResults: Map<Long, CrewRunResult> = emptyMap(),
     val members: CrewMembers? = null,
     /** 크루원 셀카 얼굴 부위 그림(faceKey → 층, [임시:D-성-236]). 없는 키는 기본 얼굴로 그린다. */
     val memberFaces: Map<String, List<FaceLayer>> = emptyMap(),
