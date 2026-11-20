@@ -44,6 +44,8 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -75,6 +77,7 @@ import com.a207.runkk.app.core.designsystem.RunkkHint
 import com.a207.runkk.app.core.designsystem.RunkkIcons
 import com.a207.runkk.app.core.designsystem.RunkkLongPressButton
 import com.a207.runkk.app.core.designsystem.RunkkMeMap
+import com.a207.runkk.app.core.designsystem.RunkkPrimaryButton
 import com.a207.runkk.app.core.designsystem.RunkkRoundControl
 import com.a207.runkk.app.core.designsystem.RunkkRunDistance
 import com.a207.runkk.app.core.designsystem.RunkkRunLabel
@@ -140,7 +143,8 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
         viewModel.onFailureClosed()
         navigator.back()
     }
-    // 뒤로가기는 그만두기와 같다: 포기 확인을 띄운다(셀프런·셀럽런 출발 전이면 취소 확인, D-337). 시작하지 못한 화면은 닫는다.
+    // 뒤로가기는 그만두기와 같다: 포기 확인을 띄운다(셀프런·셀럽런 출발 전이면 취소 확인, D-337, 대결 만들기 실패로 멈췄으면 바로 닫는다).
+    // 시작하지 못한 화면은 닫는다.
     BackHandler {
         if (state.phase == BattlePhase.FAILED) close() else viewModel.onForfeitLongPressed()
     }
@@ -155,6 +159,8 @@ fun BattleRunningRoute(key: Routes.BattleRunning, viewModel: BattleRunningViewMo
             onCancelConfirm = viewModel::onCancelConfirmed,
             onCancelDismiss = viewModel::onCancelDismissed,
             onReselect = viewModel::onReselect,
+            onRetryStart = viewModel::onRetryStart,
+            onLeave = viewModel::onForfeitLongPressed,
             onClose = close,
             onViewModeChange = viewModel::onViewModeChange
         )
@@ -171,6 +177,10 @@ data class BattleRunningActions(
     val onCancelConfirm: () -> Unit = {},
     val onCancelDismiss: () -> Unit = {},
     val onReselect: () -> Unit = {},
+    /** 대결 만들기 실패로 멈춘 카운트다운의 「다시 시도」(S15P31A207-335 9회차). */
+    val onRetryStart: () -> Unit = {},
+    /** 대결 만들기 실패로 멈춘 셀럽런 카운트다운의 「돌아가기」(셀프런은 「다시 고르기」). */
+    val onLeave: () -> Unit = {},
     val onClose: () -> Unit = {},
     val onViewModeChange: (RunViewMode) -> Unit = {}
 )
@@ -186,7 +196,7 @@ fun BattleRunningScreen(state: BattleRunningUiState, actions: BattleRunningActio
     ) {
         Header(state)
         when (state.phase) {
-            BattlePhase.STARTING, BattlePhase.COUNTDOWN -> Countdown(state, actions.onReselect)
+            BattlePhase.STARTING, BattlePhase.COUNTDOWN, BattlePhase.START_FAILED -> Countdown(state, actions)
 
             BattlePhase.FAILED -> RunkkErrorState(
                 state.error?.asString() ?: stringResource(R.string.battle_running_start_failed),
@@ -280,7 +290,7 @@ internal fun opponentLabel(state: BattleRunningUiState): String = when (state.ki
  * 배틀런은 성사 화면이 카운트다운을 그리므로 여기서는 고리만 보인다(진행 화면을 다시 연 경우).
  */
 @Composable
-private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () -> Unit) {
+private fun ColumnScope.Countdown(state: BattleRunningUiState, actions: BattleRunningActions) {
     val distance = distanceLabel(state.distance).asString()
     val opponent = opponentLabel(state)
     Column(
@@ -315,26 +325,62 @@ private fun ColumnScope.Countdown(state: BattleRunningUiState, onReselect: () ->
                 }
             )
         }
-        Box {
-            StartRing(state.countdown, total = RECORD_COUNTDOWN_SECONDS, modifier = Modifier.padding(top = 24.dp))
-            // 출발 전에 트랙의 내 아바타와 상대를 미리 그려 둔다(S15P31A207-335): 출발 직후 몸이 비거나 깜빡이지 않는다. 내 아바타는
-            // 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다). 숫자가 바로 보이게 카운트다운 첫 판 다음 판에 붙인다(8회차).
-            var isWarming by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) {
-                withFrameNanos { }
-                isWarming = true
-            }
-            if (isWarming) {
-                val mine: @Composable () -> Unit = { MyTrackRunner(AvatarSlotPose.RUN, null, isMoving = false) }
-                val theirs: @Composable () -> Unit = { OpponentRunner(state) }
-                RunkkTrackAvatarWarmup(listOf(mine, theirs))
+        if (state.phase == BattlePhase.START_FAILED) {
+            StartFailedNotice(state.error, actions.onRetryStart)
+        } else {
+            Box {
+                StartRing(state.countdown, total = RECORD_COUNTDOWN_SECONDS, modifier = Modifier.padding(top = 24.dp))
+                // 출발 전에 트랙의 내 아바타와 상대를 미리 그려 둔다(S15P31A207-335): 출발 직후 몸이 비거나 깜빡이지 않는다. 내 아바타는
+                // 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다). 숫자가 바로 보이게 카운트다운 첫 판 다음 판에 붙인다(8회차).
+                var isWarming by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    withFrameNanos { }
+                    isWarming = true
+                }
+                if (isWarming) {
+                    val mine: @Composable () -> Unit = { MyTrackRunner(AvatarSlotPose.RUN, null, isMoving = false) }
+                    val theirs: @Composable () -> Unit = { OpponentRunner(state) }
+                    RunkkTrackAvatarWarmup(listOf(mine, theirs))
+                }
             }
         }
     }
     if (state.kind == OpponentKind.SELF) {
         RunkkSecondaryButton(
             stringResource(R.string.battle_countdown_reselect),
-            onClick = onReselect,
+            onClick = actions.onReselect,
+            modifier = Modifier.fillMaxWidth()
+        )
+    } else if (state.phase == BattlePhase.START_FAILED) {
+        RunkkSecondaryButton(
+            stringResource(R.string.battle_running_back),
+            onClick = actions.onLeave,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/**
+ * 누르자마자 연 카운트다운이 대결 만들기 실패(또는 제한 시간 안에 응답 없음)로 멈췄다(S15P31A207-335 9회차): 숫자 고리 자리에 사유와
+ * 「다시 시도」. 다시 시도하면 대결을 다시 만들고 3부터 센다.
+ */
+@Composable
+private fun StartFailedNotice(error: UiText?, onRetry: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            error?.asString() ?: stringResource(R.string.battle_running_start_failed),
+            style = RunkkTextStyles.Body,
+            color = RunkkColors.TextPrimary,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        RunkkPrimaryButton(
+            stringResource(R.string.battle_countdown_retry),
+            onClick = onRetry,
             modifier = Modifier.fillMaxWidth()
         )
     }

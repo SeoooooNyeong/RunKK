@@ -47,6 +47,8 @@
     <string name="battle_countdown_celeb_title">%1$s%2$s 달려요</string>
     <string name="battle_countdown_first_try">첫 도전</string>
     <string name="battle_countdown_reselect">다시 고르기</string>
+    <!-- 누르자마자 연 카운트다운이 대결 만들기 실패로 멈췄을 때(S15P31A207-335 9회차) -->
+    <string name="battle_countdown_retry">다시 시도</string>
 
     <!-- 대결 진행(C-4·D-3·E-3) -->
     <string name="battle_running_hold_to_end">길게 눌러 종료</string>

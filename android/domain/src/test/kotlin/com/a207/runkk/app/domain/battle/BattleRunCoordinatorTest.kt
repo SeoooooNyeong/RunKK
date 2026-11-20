@@ -492,6 +492,165 @@ class BattleRunCoordinatorTest {
         assertEquals(BattleRunState.Discarded(7), coordinator.state.value)
     }
 
+    /** 대결 만들기 응답을 붙잡아 두는 문과 부른 횟수(S15P31A207-335 9회차: 누르자마자 카운트다운, 응답은 카운트다운 중에). */
+    private class CreateGate(private val log: CallLog) {
+        var gate = CompletableDeferred<Outcome<RecordBattleStart>>()
+
+        suspend fun create(): Outcome<RecordBattleStart> {
+            log.add("battle.startSelf")
+            return gate.await()
+        }
+    }
+
+    @Test
+    fun `S15P31A207-335 누르자마자 3초 카운트다운을 열고 응답이 오면 서버 대결 번호로 바꿔 3초에 출발한다`() = runTest {
+        val (_, coordinator) = setUp()
+        val create = CreateGate(log)
+        val ticket = coordinator.startRecordBattle(Distance(100), create::create)
+        val first = assertIs<BattleRunState.Countdown>(coordinator.state.value, "응답을 기다리지 않고 바로 카운트다운")
+        assertTrue(ticket < 0, "응답 전에는 임시 번호")
+        assertEquals(BattleRunState.Countdown(ticket, T0.plusSeconds(3), isAwaitingServer = true), first)
+        assertTrue(coordinator.isRunning(ticket))
+
+        clock.now = T0.plusMillis(200)
+        advanceTimeBy(200)
+        create.gate.complete(Outcome.Success(selfStart))
+        runCurrent()
+        assertEquals(listOf("battle.startSelf"), log.calls)
+        assertEquals(BattleRunState.Countdown(7, T0.plusSeconds(3)), coordinator.state.value, "출발 시각은 누름 + 3초 그대로")
+        assertEquals(7, coordinator.resolve(ticket))
+        assertEquals(selfStart, coordinator.createdRecordBattle(ticket))
+        assertTrue(coordinator.isRunning(ticket) && coordinator.isRunning(7))
+
+        clock.now = T0.plusSeconds(3)
+        advanceTimeBy(2_801)
+        assertEquals(1, host.started)
+        assertEquals(listOf("battle.startSelf", "battle.markStarted:7"), log.calls)
+        assertIs<BattleRunState.Running>(coordinator.state.value)
+    }
+
+    @Test
+    fun `S15P31A207-335 응답이 1초를 넘으면 3에 멈춰 기다리고 응답 뒤 2초를 세어 출발한다`() = runTest {
+        val (_, coordinator) = setUp()
+        val create = CreateGate(log)
+        val ticket = coordinator.startRecordBattle(Distance(100), create::create)
+        clock.now = T0.plusMillis(1_500)
+        advanceTimeBy(1_500)
+        assertEquals(
+            BattleRunState.Countdown(ticket, T0.plusSeconds(3), isAwaitingServer = true),
+            coordinator.state.value
+        )
+
+        create.gate.complete(Outcome.Success(selfStart))
+        runCurrent()
+        assertEquals(BattleRunState.Countdown(7, T0.plusMillis(3_500)), coordinator.state.value, "출발 = 응답 + 2초")
+        clock.now = T0.plusSeconds(3)
+        advanceTimeBy(1_500)
+        assertEquals(0, host.started, "누름 + 3초에는 아직 출발하지 않는다")
+        clock.now = T0.plusMillis(3_500)
+        advanceTimeBy(501)
+        assertEquals(1, host.started)
+    }
+
+    @Test
+    fun `S15P31A207-335 응답이 실패하면 카운트다운을 멈추고 다시 시도하면 3초부터 다시 센다`() = runTest {
+        val (_, coordinator) = setUp()
+        val create = CreateGate(log)
+        val ticket = coordinator.startRecordBattle(Distance(100), create::create)
+        create.gate.complete(Outcome.Failure(AppError.Network))
+        runCurrent()
+        assertEquals(BattleRunState.StartFailed(ticket, AppError.Network), coordinator.state.value)
+        clock.now = T0.plusSeconds(5)
+        advanceTimeBy(5_000)
+        assertEquals(0, host.started, "실패하면 출발하지 않는다")
+        assertTrue(coordinator.isRunning(ticket), "다시 시도할 수 있게 회는 열어 둔다")
+
+        create.gate = CompletableDeferred()
+        coordinator.retryRecordBattle()
+        assertEquals(
+            BattleRunState.Countdown(ticket, T0.plusSeconds(8), isAwaitingServer = true),
+            coordinator.state.value,
+            "다시 시도하면 바로 3부터"
+        )
+        create.gate.complete(Outcome.Success(selfStart))
+        runCurrent()
+        clock.now = T0.plusSeconds(8)
+        advanceTimeBy(3_001)
+        assertEquals(1, host.started)
+        assertEquals(listOf("battle.startSelf", "battle.startSelf", "battle.markStarted:7"), log.calls)
+    }
+
+    @Test
+    fun `S15P31A207-335 10초 안에 응답이 없으면 실패로 멈추고 늦게 만들어진 대결은 취소한다`() = runTest {
+        val (_, coordinator) = setUp()
+        val create = CreateGate(log)
+        val ticket = coordinator.startRecordBattle(Distance(100), create::create)
+        clock.now = T0.plusSeconds(10)
+        advanceTimeBy(10_001)
+        assertEquals(BattleRunState.StartFailed(ticket, AppError.Network), coordinator.state.value)
+        create.gate.complete(Outcome.Success(selfStart))
+        runCurrent()
+        assertEquals(listOf("battle.startSelf", "battle.cancel:7"), log.calls)
+        assertEquals(0, host.started)
+        assertIs<BattleRunState.StartFailed>(coordinator.state.value)
+    }
+
+    @Test
+    fun `S15P31A207-335 응답 전에 다시 고르면 바로 Discarded로 닫고 응답이 오면 그 대결을 취소한다(D-200, D-264)`() = runTest {
+        val (_, coordinator) = setUp()
+        val create = CreateGate(log)
+        val ticket = coordinator.startRecordBattle(Distance(100), create::create)
+        coordinator.cancel()
+        runCurrent()
+        assertEquals(BattleRunState.Discarded(ticket), coordinator.state.value, "응답을 기다리지 않고 닫는다")
+        create.gate.complete(Outcome.Success(selfStart))
+        runCurrent()
+        clock.now = T0.plusSeconds(5)
+        advanceTimeBy(5_000)
+        assertEquals(listOf("battle.startSelf", "battle.cancel:7"), log.calls)
+        assertEquals(0, host.started)
+    }
+
+    @Test
+    fun `S15P31A207-335 응답 뒤 카운트다운 중 다시 고르면 서버 대결 번호로 취소한다`() = runTest {
+        val (_, coordinator) = setUp()
+        val create = CreateGate(log)
+        coordinator.startRecordBattle(Distance(100), create::create)
+        create.gate.complete(Outcome.Success(selfStart))
+        runCurrent()
+        coordinator.cancel()
+        runCurrent()
+        assertEquals(listOf("battle.startSelf", "battle.cancel:7"), log.calls)
+        assertEquals(BattleRunState.Discarded(7), coordinator.state.value)
+    }
+
+    @Test
+    fun `S15P31A207-335 응답 전에 실패한 회를 닫으면 서버에 보낼 것이 없다`() = runTest {
+        val (_, coordinator) = setUp()
+        val create = CreateGate(log)
+        val ticket = coordinator.startRecordBattle(Distance(100), create::create)
+        create.gate.complete(Outcome.Failure(AppError.Network))
+        runCurrent()
+        coordinator.cancel()
+        runCurrent()
+        assertEquals(listOf("battle.startSelf"), log.calls)
+        assertEquals(BattleRunState.Discarded(ticket), coordinator.state.value)
+    }
+
+    @Test
+    fun `S15P31A207-335 먼저 연 카운트다운도 측정을 시작하지 못하면 서버 대결을 취소한다(S15P31A207-336)`() = runTest {
+        val (_, coordinator) = setUp()
+        host.startFailure = AppError.Rejected("LOCATION_CONSENT")
+        val create = CreateGate(log)
+        coordinator.startRecordBattle(Distance(100), create::create)
+        create.gate.complete(Outcome.Success(selfStart))
+        clock.now = T0.plusSeconds(3)
+        advanceTimeBy(3_001)
+        runCurrent()
+        assertEquals(listOf("battle.startSelf", "battle.cancel:7"), log.calls)
+        assertEquals(BattleRunState.Finished(7, null), coordinator.state.value)
+    }
+
     @Test
     fun `TC-9635 discardMeasuring은 두 번 불러도 한 번만 버린다`() = runTest {
         val (tracker, _) = setUp()

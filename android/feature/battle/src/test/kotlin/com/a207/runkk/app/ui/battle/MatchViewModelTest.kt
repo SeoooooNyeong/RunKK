@@ -31,9 +31,11 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import org.junit.Rule
@@ -537,6 +539,59 @@ class MatchViewModelTest {
         runCurrent()
         assertIs<BattleRunState.Countdown>(w.coordinator.state.value)
         assertEquals(10L, vm.state.value.startsInSeconds)
+    }
+
+    @Test
+    fun `S15P31A207-335 성사와 출발 예약이 잇따라 오면 성사 판부터 출발 숫자를 보인다(조정자를 거치지 않는다)`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        val seen = mutableListOf<MatchUiState>()
+        val watching = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            vm.state.collect { seen += it }
+        }
+        val match = matchFound()
+        w.channels.channel.push(match)
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(13), opponentTrack = null))
+        runCurrent()
+        watching.cancel()
+        val matched = seen.filter { it.phase == MatchPhase.MATCHED && !it.isAwaitingStart }
+        assertTrue(matched.isNotEmpty())
+        assertTrue(
+            matched.all {
+                it.startsInSeconds == 13L
+            },
+            "성사 판에 숫자 없는 상태가 없다: ${matched.map { it.startsInSeconds }}"
+        )
+    }
+
+    @Test
+    fun `S15P31A207-335 출발 예약이 0_3초 안에 오지 않으면 숫자 없이 성사 판을 보인다`() = main.runVmTest { vms ->
+        val w = world()
+        val vm = quick(w, vms)
+        w.channels.channel.push(matchFound())
+        runCurrent()
+        assertTrue(vm.state.value.isAwaitingStart, "출발 예약을 잠깐 기다린다")
+        advanceTimeBy(299)
+        runCurrent()
+        assertTrue(vm.state.value.isAwaitingStart)
+        advanceTimeBy(2)
+        runCurrent()
+        assertFalse(vm.state.value.isAwaitingStart)
+        assertNull(vm.state.value.startsInSeconds)
+    }
+
+    @Test
+    fun `S15P31A207-335 성사 뒤에 온 출발 예약도 조정자 상태를 기다리지 않고 바로 숫자를 보인다`() = main.runVmTest { vms ->
+        val w = world(paused = true)
+        val vm = quick(w, vms)
+        val match = matchFound()
+        w.channels.channel.push(match)
+        runCurrent()
+        assertEquals(MatchPhase.MATCHED, vm.state.value.phase)
+        w.channels.channel.push(BattleStart(match.battleId, w.clock.now.plusSeconds(13), opponentTrack = null))
+        runCurrent()
+        assertIs<BattleRunState.Idle>(w.coordinator.state.value, "조정자는 아직 돌지 않았다")
+        assertEquals(13L, vm.state.value.startsInSeconds)
     }
 
     @Test
