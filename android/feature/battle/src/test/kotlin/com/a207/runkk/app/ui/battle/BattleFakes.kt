@@ -185,7 +185,15 @@ class FakeBattleRepository : BattleRepository {
         return celebResult
     }
 
-    override suspend fun cachedCelebrityCandidates(distance: Distance?): RecordBattleCandidates? =
+    /** 있으면 사본 읽기(기기 파일 읽기)를 이 값이 끝날 때까지 미룬다(실제처럼 IO로 넘어가는 동안의 첫 프레임 시험). */
+    var celebCopyGate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    override suspend fun cachedCelebrityCandidates(distance: Distance?): RecordBattleCandidates? {
+        celebCopyGate?.await()
+        return celebCopy?.takeIf { distance == null }
+    }
+
+    override fun peekCelebrityCandidates(distance: Distance?): RecordBattleCandidates? =
         celebCopy?.takeIf { distance == null }
 
     override suspend fun cachedHistory(filter: BattleHistory.Type?): BattleHistory? = historyCopy

@@ -25,13 +25,13 @@ import com.a207.runkk.app.core.navigation.FeatureEntry
 import com.a207.runkk.app.core.navigation.Routes
 import com.a207.runkk.app.domain.sync.PreloadProgress
 import com.a207.runkk.app.domain.sync.PreloadState
-import kotlinx.coroutines.delay
 
 /**
  * 앱 화면의 시작점. 로그인 상태(SessionRepository.loggedIn)를 처음 알게 되면 시작 경로를 한 번 정한다:
  * 로그인했으면 홈, 아니면 로그인. 아직 모르면([loggedIn] = null) 스플래시를 유지한다.
- * 워드마크가 다 뛰고 나면 첫 화면을 스플래시 아래에서 미리 그려 두고, 첫 화면이 다 읽을 때까지(HoldSplashUntil,
- * 길어도 [FIRST_SCREEN_MAX_WAIT_MS]) 스플래시를 걷지 않는다(사용자 요청 2026-10-31: 남자 캐릭터가 보였다가 여자로 바뀌지 않게).
+ * 워드마크가 다 뛰고 나면 첫 화면을 스플래시 아래에서 미리 그려 두고, 첫 화면이 다 읽을 때까지(HoldSplashUntil) 스플래시를 걷지
+ * 않는다(사용자 요청 2026-10-31: 남자 캐릭터가 보였다가 여자로 바뀌지 않게). 시간 상한은 없다(S15P31A207-345 9회차, 사용자 결정 "다
+ * 받을 때까지 기다린다"): 첫 화면은 시작 로딩이 받아 둔 사본으로 바로 그리고, 받지 못해도 첫 화면이 오류 상태로 붙잡기를 놓는다.
  * 첫 화면을 워드마크가 뛰는 동안 같이 그리면 첫 화면 구성(글꼴·아바타 그림 읽기)이 메인 스레드를 잡아 글자 뜀 프레임이 통째로
  * 빠진다. 그래서 "런"·"크"·"크"가 차례로 뛰는 릴리스(v0.11.x) 모습이 보이도록 뜀이 끝난 뒤에 첫 화면을 그린다.
  * 시작 뒤 로그인 상태가 풀리면 RunkkNavHost가 로그인으로 돌린다.
@@ -73,11 +73,6 @@ fun RunkkAppContent(
         if (!canReveal) return@LaunchedEffect
         // 첫 화면이 처음 그려진 프레임의 붙잡기(HoldSplashUntil)가 돈 뒤에 걷는다: 그 사이 붙잡으면 이 효과는 취소된다
         withFrameNanos {}
-        isRevealed = true
-    }
-    LaunchedEffect(canShowFirst) {
-        if (!canShowFirst) return@LaunchedEffect
-        delay(FIRST_SCREEN_MAX_WAIT_MS)
         isRevealed = true
     }
     Box(modifier = modifier.fillMaxSize()) {
@@ -124,9 +119,6 @@ fun RunkkAppContent(
         }
     }
 }
-
-/** 첫 화면이 다 읽기를 기다리는 가장 긴 시간(네트워크가 느려도 스플래시에 갇히지 않게). */
-private const val FIRST_SCREEN_MAX_WAIT_MS = 4_000L
 
 /** 로그인 상태 → 시작 경로. */
 internal fun startRouteFor(loggedIn: Boolean): String = if (loggedIn) Routes.HOME else Routes.LOGIN

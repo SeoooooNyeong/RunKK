@@ -25,6 +25,16 @@ class ScreenCopyStoreTest {
     data class Body(val name: String, val mine: Int? = null)
 
     @Test
+    fun `바로 보기는 파일을 읽지 않고 메모리에 올린 사본만 준다(적중 확인·받기 뒤에는 있다)`() {
+        ScreenCopyStore(dir, json).write(A, KEY, "WEEKLY", Body.serializer(), Body("a"))
+
+        val reopened = ScreenCopyStore(dir, json)
+        assertNull(reopened.peek(A, KEY, Body.serializer()), "새 실행에서 아직 읽지 않은 사본은 기다리지 않고 없다고 한다")
+        assertEquals("WEEKLY", reopened.paramOf(A, KEY), "시작 로딩의 적중 확인이 읽는다")
+        assertEquals("WEEKLY" to Body("a"), reopened.peek(A, KEY, Body.serializer()))
+    }
+
+    @Test
     fun `계정별 칸은 서로 보이지 않고 지우지 않으며 돌아오면 바로 준다`() {
         val store = ScreenCopyStore(dir, json)
         store.write(A, KEY, "WEEKLY", Body.serializer(), Body("a", mine = 3))

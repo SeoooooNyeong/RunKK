@@ -69,6 +69,14 @@ constructor(
         }
     }
 
+    override fun peekCelebrityCandidates(distance: Distance?): RecordBattleCandidates? {
+        if (distance != null) return null
+        val store = copies ?: return null
+        val member = self?.memberId() ?: return null
+        val serializer = CandidatesResponse.serializer()
+        return (store.peek(member, CELEB, serializer) ?: store.peek(null, CELEB, serializer))?.second?.toDomain()
+    }
+
     override suspend fun recordTracks(kind: RecordBattleKind): Outcome<List<RecordTrack>> =
         ApiErrorMapper.call { api.recordTracks(kind.name).tracks.map { it.toDomain(kind) } }
 

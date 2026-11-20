@@ -58,6 +58,27 @@ class ScreenCopyBattleTest {
     }
 
     @Test
+    fun `셀럽런은 받아 둔 사본이 있으면 첫 상태부터 사본이라 로딩 원을 한 프레임도 그리지 않는다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.celebCopy = RecordBattleCandidates(listOf(celebCandidates[0]))
+        w.battles.celebGate = CompletableDeferred()
+        // 사본 파일 읽기는 IO로 넘어가 한 프레임 넘게 걸린다
+        val copyRead = CompletableDeferred<Unit>()
+        w.battles.celebCopyGate = copyRead
+        val vm = vms.track(CelebBattleViewModel(w.battles, w.coordinator))
+
+        // 사본 파일 읽기가 끝나기 전(화면 첫 프레임이 읽는 상태)
+        val first = vm.state.value
+        copyRead.complete(Unit)
+        assertTrue(first.isShowingCopy, "첫 상태가 사본이다")
+        assertEquals(listOf(celebCandidates[0].displayName), first.candidates.map { it.name })
+        assertFalse(first.isLoading && !first.isShowingCopy, "로딩 원 조건(받는 중 + 사본 없음)이 아니다")
+        w.battles.celebGate?.complete(Unit)
+        runCurrent()
+        advanceTimeBy(3_100)
+    }
+
+    @Test
     fun `셀럽런을 새로 받지 못해도 사본이 있으면 오류 화면으로 덮지 않는다`() = main.runVmTest { vms ->
         val w = world()
         w.battles.celebCopy = RecordBattleCandidates(listOf(celebCandidates[0]))

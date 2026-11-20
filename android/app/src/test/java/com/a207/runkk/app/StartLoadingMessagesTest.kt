@@ -15,6 +15,17 @@ class StartLoadingMessagesTest {
         PreloadState.Loading(PreloadProgress(done, total), remaining.toMap(), isRetrying)
 
     @Test
+    fun `지금 받고 있는 일의 문구를 고른다(차례를 기다리는 단계는 남은 파일이 많아도 고르지 않는다)`() {
+        // 8회차 관찰: 랭킹 칸 11개 가운데 러너 머리 10칸이 남아 「랭킹」이 4~5초 남았지만 실제로는 내 머리를 받고 있었다
+        val state = PreloadState.Loading(
+            PreloadProgress(5, 30),
+            remaining = mapOf(PreloadStage.RANKING to 10, PreloadStage.MY_AVATAR_FETCH to 7),
+            active = mapOf(PreloadStage.MY_AVATAR_FETCH to 7)
+        )
+        assertEquals(StartLoadingMessage.MY_AVATAR_FETCH, startLoadingMessageOf(state))
+    }
+
+    @Test
     fun `목록을 만드는 동안은 시작 문구`() {
         assertEquals(StartLoadingMessage.START, startLoadingMessageOf(PreloadState.Loading(PreloadProgress.UNKNOWN)))
     }

@@ -45,11 +45,14 @@ internal object RivFiles {
 
     /** 막는 가져오기(가져오기 스레드). 로더가 가져오는 동안 내장 그림 자리를 잡는다. */
     private fun import(key: RivKey): ImportedRiv {
+        val startedAt = AvatarPrepareTrace.now()
         val loader: FileAssetLoader = when (key.motion) {
             AvatarMotion.STAND -> FrontAvatarAssetLoader(key.prepared.legacyStandingBody)
             AvatarMotion.RUN -> RunAvatarAssetLoader()
         }
-        return ImportedRiv(File(key.prepared.riv(key.motion), RendererType.Rive, loader), loader)
+        return ImportedRiv(File(key.prepared.riv(key.motion), RendererType.Rive, loader), loader).also {
+            AvatarPrepareTrace.mark("rive-import", startedAt, "motion=${key.motion} track=${key.forTrack}")
+        }
     }
 
     private const val IMPORT_THREADS = 2

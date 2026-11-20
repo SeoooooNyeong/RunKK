@@ -2,6 +2,7 @@ package com.a207.runkk.app
 
 import com.a207.runkk.app.domain.sync.AssetPreloadSource
 import com.a207.runkk.app.domain.sync.AvatarPrepareSource
+import com.a207.runkk.app.domain.sync.PodiumPrepareSource
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -18,4 +19,9 @@ internal interface PreloadModule {
     @Binds
     @IntoSet
     fun avatarPrepare(source: AvatarPrepareSource): AssetPreloadSource
+
+    /** 랭킹 시상대 아바타(S15P31A207-345 9회차). */
+    @Binds
+    @IntoSet
+    fun podiumPrepare(source: PodiumPrepareSource): AssetPreloadSource
 }

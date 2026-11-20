@@ -34,12 +34,15 @@ internal object GeneratedAvatarLayers {
         val bitmaps = mutableListOf<Bitmap>()
         fun decode(bytes: ByteArray) = decodeLayer(bytes).also(bitmaps::add)
         try {
+            val decodeAt = AvatarPrepareTrace.now()
             val face = decode(input.face)
             val eyes = decode(input.eyes)
             val hair = decode(input.hair)
             val sideFace = decode(input.rightFace)
             val sideEyes = decode(input.rightEyes)
             val sideHair = decode(input.rightHair)
+            AvatarPrepareTrace.mark("head-decode", decodeAt)
+            val variantsAt = AvatarPrepareTrace.now()
             val facePixels = pixels(face)
             val reported = input.neckMask
             val detected = if (reported == null) GeneratedHeadGeometry.detect(facePixels, SIZE, SIZE) else null
@@ -107,6 +110,7 @@ internal object GeneratedAvatarLayers {
                     neckedFace.recycle()
                 }
             }
+            AvatarPrepareTrace.mark("head-variants", variantsAt, "genders=${variants.size}")
             return GeneratedHeadLayers(variants, skin)
         } finally {
             bitmaps.forEach(Bitmap::recycle)

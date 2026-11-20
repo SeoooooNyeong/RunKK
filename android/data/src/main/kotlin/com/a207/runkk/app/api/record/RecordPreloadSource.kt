@@ -21,7 +21,8 @@ import javax.inject.Inject
  *
  * - 랭킹(ranking:personal): 랭킹 탭 첫 화면(개인·주간) 응답 1 + 첫 화면에 보이는 러너 머리 최대 [RANKING_FACES]개(목록 원 256, 화면과
  *   같은 FaceImageSource 열쇠). 응답은 [records]가 화면 사본(내 계정 칸 + 내 순위를 뺀 공용 칸)에 남기고, 머리는 얼굴 디스크 캐시(공용)에
- *   남는다. 머리가 [RANKING_FACES]보다 적으면 남은 칸은 다 받은 것으로 채운다.
+ *   남는다. 받을 머리가 [RANKING_FACES]보다 적으면 남은 칸은 응답을 받자마자 채운다. 내 머리는 내 아바타 받기 칸(head:…)이 받으므로
+ *   여기서 받지 않는다(9회차).
  * - 기록(records:month): 기록 탭 첫 화면(이번 달 달력)의 대시보드(오늘)와 이번 달 내 기록 목록, 파일 2. 홈 대시보드와 같은 사본이다.
  * - 적중: 지금 부를 값(기간·오늘·이번 달)의 사본이 내 계정 칸에 있으면 받지 않는다. 지난 사본만 있으면 받되 실패해도 건너뛴다(오프라인
  *   시작을 막지 않는다, 화면이 지난 사본 대신 받아서 그린다).
@@ -79,9 +80,14 @@ internal class RecordPreloadSource(
             is Outcome.Failure -> return result
         }
         onFile()
+        // 내 머리("head:{나}:…")는 내 아바타 받기 칸이 받는다(같은 머리를 기다리면 랭킹 칸이 내 머리 받기에 묶여 늦게 끝나 로딩 문구가
+        // 「랭킹」에 남았다, S15P31A207-345 9회차).
+        val mine = self.memberId()?.let { "head:$it:" }
         val faces = ranking.entries.take(RANKING_FACES).mapNotNull { it.look?.faceKey }
-            .filter { key -> FACE_PREFIXES.any(key::startsWith) }
+            .filter { key -> FACE_PREFIXES.any(key::startsWith) && (mine == null || !key.startsWith(mine)) }
             .distinct()
+        // 받을 머리가 없는 칸은 응답을 받자마자 채운다(막대·단계 문구가 실제로 받을 것만 남긴다).
+        repeat(RANKING_FACES - faces.size) { onFile() }
         for (key in faces) {
             val result = records.faceLayers(key)
             // 연결이 끊기면 다시 받는다(받은 머리는 디스크 캐시라 다시 받지 않는다). 거부(비공개 등)는 건너뛴다.

@@ -23,6 +23,12 @@ interface BattleRepository {
     suspend fun cachedCelebrityCandidates(distance: Distance?): RecordBattleCandidates? = null
 
     /**
+     * [cachedCelebrityCandidates]를 기다리지 않고(파일을 읽지 않고) 이미 읽어 둔 사본만 준다(S15P31A207-345 9회차). 시작 로딩이 받아 둔
+     * 사본이면 있다. 셀럽 탭이 첫 상태를 이것으로 시작해 로딩 원을 한 프레임도 그리지 않는다. 없으면 null.
+     */
+    fun peekCelebrityCandidates(distance: Distance?): RecordBattleCandidates? = null
+
+    /**
      * 셀프·셀럽 상대 기록과 진행용 구간 기록을 미리 받는다(GET /battles/record-tracks?kind=, D-377, U3 (나)). 서버에 대결을 만들지 않는다.
      * 셀프런은 거리별 내 최고 기록(기록 없는 거리는 없음), 셀럽런은 공개된 셀럽 기록 전부다. 거리 오름차순, 같은 거리는 완주 시간 오름차순.
      * 셀럽런 목록은 구간 기록이 비어 있다(W31): 고를 때 [celebrityTrack]으로 받는다.

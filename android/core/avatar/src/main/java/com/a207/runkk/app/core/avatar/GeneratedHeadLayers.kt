@@ -10,7 +10,12 @@ import androidx.annotation.WorkerThread
 class GeneratedHeadLayers internal constructor(
     internal val variants: Map<AvatarGender, AvatarVariantAssets>,
     /** 생성 얼굴의 피부색(불투명 ARGB). 몸 피부 바탕을 이 색에 맞춘다. */
-    internal val skinColor: Int
+    internal val skinColor: Int,
+    /**
+     * 기기 사본 열쇠(합성 입력의 해시, 디스크 칸을 넘겨 [fromLayers]로 만든 머리만). 이 머리로 합성한 톤을 기기에 남길 때 머리를 가르는
+     * 값이다(S15P31A207-345 9회차). null이면 이 머리로 합성한 것은 기기에 남기지 않는다.
+     */
+    internal val sourceKey: String? = null
 ) {
     companion object {
         /**
@@ -41,5 +46,36 @@ class GeneratedHeadLayers internal constructor(
         ): GeneratedHeadLayers = GeneratedAvatarLayers.prepare(
             GeneratedHeadInput.of(face, eyes, hair, rightFace, rightEyes, rightHair, metaJson)
         )
+
+        /**
+         * [fromLayers]에 기기 사본을 더한 것(S15P31A207-345 9회차). 열쇠는 머리 키 [faceKey]·층·메타·앱 판의 해시다. [disk]에 같은 열쇠의
+         * 사본이 있으면 그림을 풀지 않고 그것을 읽고, 없으면 합성한 뒤 남긴다(같은 칸의 옛 머리 사본은 새 사본을 남긴 뒤에 지운다).
+         * [disk]가 null이면 위 [fromLayers]와 같다. 주 스레드에서 부르지 않는다.
+         */
+        @WorkerThread
+        fun fromLayers(
+            disk: AvatarLookDisk?,
+            faceKey: String,
+            face: ByteArray,
+            eyes: ByteArray,
+            hair: ByteArray,
+            rightFace: ByteArray,
+            rightEyes: ByteArray,
+            rightHair: ByteArray,
+            metaJson: String
+        ): GeneratedHeadLayers {
+            if (disk == null) return fromLayers(face, eyes, hair, rightFace, rightEyes, rightHair, metaJson)
+            val startedAt = AvatarPrepareTrace.now()
+            val key = disk.headKey(faceKey, metaJson, listOf(face, eyes, hair, rightFace, rightEyes, rightHair))
+            disk.readHead(key)?.let { saved ->
+                AvatarPrepareTrace.mark("head-layers", startedAt, "disk=hit")
+                return saved
+            }
+            val made = fromLayers(face, eyes, hair, rightFace, rightEyes, rightHair, metaJson)
+            val result = GeneratedHeadLayers(made.variants, made.skinColor, key)
+            disk.writeHead(key, result)
+            AvatarPrepareTrace.mark("head-layers", startedAt, "disk=miss")
+            return result
+        }
     }
 }

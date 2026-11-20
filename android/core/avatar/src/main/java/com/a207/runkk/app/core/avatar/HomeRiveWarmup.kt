@@ -15,8 +15,10 @@ import timber.log.Timber
  */
 suspend fun holdHomeRiveAvatar(context: Context, gender: AvatarGender) {
     val hold = try {
+        val startedAt = AvatarPrepareTrace.now()
         val prepared = RiveAvatarAssets.shared.load(context, gender)
         RiveRuntime.ensureInitialized(context)
+        AvatarPrepareTrace.mark("rive-hold", startedAt, "gender=$gender")
         RivFiles.shared.hold(RivKey(prepared, AvatarMotion.STAND, forTrack = false))
     } catch (e: CancellationException) {
         throw e
