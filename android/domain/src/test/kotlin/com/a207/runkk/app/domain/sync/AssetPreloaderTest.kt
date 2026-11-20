@@ -217,8 +217,8 @@ class AssetPreloaderTest {
 
     @Test
     fun `앞당기기 에셋은 연결 실패여도 다시 받지 않고 건너뛰어 준비를 막지 않는다`() = runTest {
-        val optional =
-            PreloadAsset("avatar:prepare", files = 2, stage = PreloadStage.MY_AVATAR_PREPARE, isOptional = true)
+        // 지난 사본이 있는 기록 첫 화면처럼 앞당기기인 것(홈 아바타 합성은 9회차부터 앞당기기가 아니다)
+        val optional = PreloadAsset("records:month", files = 2, stage = PreloadStage.OTHERS, isOptional = true)
         val source = FakeSource(member = listOf(optional), failures = mutableListOf(AppError.Network))
         val preloader = preloader(source)
 
@@ -227,7 +227,7 @@ class AssetPreloaderTest {
 
         assertEquals(PreloadState.Ready(PreloadProgress(2, 2)), preloader.state.value)
         assertEquals(1, source.fetched.size, "자동 재시도 없이 한 번")
-        assertTrue(source.marks.any { it.startsWith("AssetPreload avatar skip avatar:prepare") }, "${source.marks}")
+        assertTrue(source.marks.any { it.startsWith("AssetPreload records skip records:month") }, "${source.marks}")
     }
 
     @Test
@@ -295,6 +295,62 @@ class AssetPreloaderTest {
         assertIs<PreloadState.Ready>(preloader.state.value)
         preloader.retry()
         assertIs<PreloadState.Ready>(preloader.state.value, "준비가 끝난 뒤 누름은 아무것도 하지 않는다")
+    }
+
+    @Test
+    fun `홈 아바타 합성은 건너뛰지 않는다 - 받지 못하면 실패 화면으로 가고 다시 시도로 다시 한다`() = runTest {
+        val preparation = FakePreparation(
+            results = MutableList(1 + AssetPreloader.RETRY_DELAYS_MILLIS.size) { Outcome.Failure(AppError.Network) }
+        )
+        val journal = FakeSource()
+        val preloader = AssetPreloader(listOf(AvatarPrepareSource(preparation)), journal, this)
+
+        preloader.start(isLoggedIn = true)
+        advanceUntilIdle()
+
+        assertIs<PreloadState.Failed>(preloader.state.value, "합성이 끝나지 않으면 홈으로 넘어가지 않는다")
+        assertEquals(1 + AssetPreloader.RETRY_DELAYS_MILLIS.size, preparation.calls, "연결 실패는 자동으로 다시 한다")
+        preparation.results.clear()
+        preloader.retry()
+        advanceUntilIdle()
+        assertEquals(PreloadState.Ready(PreloadProgress(2, 2)), preloader.state.value)
+    }
+
+    @Test
+    fun `홈 아바타 합성이 아주 오래 걸려도 시간으로 끊거나 건너뛰지 않고 끝날 때까지 기다린다`() = runTest {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val preparation = FakePreparation(gate = gate)
+        val journal = FakeSource()
+        val preloader = AssetPreloader(listOf(AvatarPrepareSource(preparation)), journal, this)
+
+        preloader.start(isLoggedIn = true)
+        advanceTimeBy(ONE_DAY_MILLIS)
+        runCurrent()
+        assertIs<PreloadState.Loading>(preloader.state.value, "하루가 지나도 기다린다")
+        assertFalse(journal.marks.any { "skip" in it || "failed" in it }, "${journal.marks}")
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(PreloadState.Ready(PreloadProgress(2, 2)), preloader.state.value)
+    }
+
+    /** 홈 아바타 미리 준비 포트 가짜: [results]를 차례로 돌려주고(없으면 성공), [gate]가 있으면 열릴 때까지 기다린다. */
+    private class FakePreparation(
+        val results: MutableList<Outcome<Unit>> = mutableListOf(),
+        private val gate: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    ) : com.a207.runkk.app.domain.avatar.MyAvatarPreparation {
+        var calls = 0
+
+        override fun isPrepared(): Boolean = false
+
+        override suspend fun prepare(onStep: () -> Unit): Outcome<Unit> {
+            calls++
+            gate?.await()
+            results.removeFirstOrNull()?.let { return it }
+            onStep()
+            onStep()
+            return Outcome.Success(Unit)
+        }
     }
 
     private fun TestScope.preloader(source: FakeSource, vararg more: AssetPreloadSource) =
@@ -386,5 +442,6 @@ class AssetPreloaderTest {
         val PUBLIC = PreloadAsset("public:stage", files = 1)
         val RANKING = PreloadAsset("ranking:personal", files = 3, stage = PreloadStage.RANKING)
         const val OFFLINE_FILES = 3
+        const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1_000
     }
 }

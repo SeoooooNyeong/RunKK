@@ -3,7 +3,9 @@ package com.a207.runkk.app.ui.avatar
 import android.content.Context
 import android.util.Log
 import com.a207.runkk.app.core.avatar.AvatarGender
+import com.a207.runkk.app.core.avatar.AvatarLookDisk
 import com.a207.runkk.app.core.avatar.AvatarMotion
+import com.a207.runkk.app.core.avatar.AvatarPrepareTrace
 import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.avatar.preloadRiveAvatar
 import com.a207.runkk.app.core.avatar.prepareRiveAvatarLook
@@ -104,17 +106,8 @@ class MyAvatarStore internal constructor(
         myGender = accounts.myGender,
         heads = heads,
         preload = { gender -> preloadRiveAvatar(context, gender) },
-        prepare = { look, motion ->
-            prepareRiveAvatarLook(
-                context,
-                look.gender,
-                look.outfit,
-                look.bodyShape,
-                look.runningAmount,
-                look.headLayers,
-                motion
-            )
-        },
+        // 합성 결과는 내 회원 칸에 남겨 앱을 다시 켜도 같은 입력이면 다시 합성하지 않는다(S15P31A207-345 9회차).
+        prepare = { look, motion -> prepareMyLook(context, accounts.selfMemberId(), look, motion) },
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + LOG_FAILURE),
         loggedIn = sessions.loggedIn,
         onLoggedOut = { photo.clear() },
@@ -148,6 +141,9 @@ class MyAvatarStore internal constructor(
 
     /** 마지막으로 본 로그인 상태(로그인 → 로그아웃 바뀜을 가린다). */
     private var wasLoggedIn = loggedIn.value
+
+    /** 준비할 성별을 아는가(기기에 남긴 성별이나 프로필 성별). 모르면 [warm] 뒤에도 성별을 알 때까지 Loading이다. */
+    val isGenderKnown: Boolean get() = gender != null
 
     init {
         scope.launch {
@@ -286,11 +282,17 @@ class MyAvatarStore internal constructor(
     }
 
     private suspend fun load(target: AvatarGender): MyAvatarState = coroutineScope {
-        val riv = launch { quietly { preload(target) } }
+        val rivAt = AvatarPrepareTrace.now()
+        val riv = launch {
+            quietly { preload(target) }
+            AvatarPrepareTrace.mark("riv-read", rivAt, "gender=$target")
+        }
+        val inputsAt = AvatarPrepareTrace.now()
         val runnerCall = async { avatars.runner() }
         val shopCall = async { avatars.shop(null) }
         val avatar = avatars.avatar()
         val runner = runnerCall.await()
+        AvatarPrepareTrace.mark("inputs", inputsAt)
         if (avatar !is Outcome.Success || runner !is Outcome.Success) {
             shopCall.cancel()
             return@coroutineScope MyAvatarState.Failed
@@ -302,7 +304,9 @@ class MyAvatarStore internal constructor(
             saveTone(tone)
         }
         val items = shopCall.await().getOrNull()?.items.orEmpty()
+        val headAt = AvatarPrepareTrace.now()
         val face = heads.look(avatar.value.faceKey)
+        AvatarPrepareTrace.mark("head", headAt)
         val rive = RiveAvatarLook(
             gender = target,
             outfit = outfitOf(avatar.value.equipped, items),
@@ -310,8 +314,12 @@ class MyAvatarStore internal constructor(
             runningAmount = runner.value.runAmount,
             headLayers = face.headLayers
         )
+        val rivWaitAt = AvatarPrepareTrace.now()
         riv.join()
+        AvatarPrepareTrace.mark("riv-wait", rivWaitAt)
+        val toneAt = AvatarPrepareTrace.now()
         quietly { prepare(rive, AvatarMotion.STAND) }
+        AvatarPrepareTrace.mark("tone", toneAt, "motion=STAND")
         MyAvatarState.Ready(MyAvatarLook(rive, avatar.value.backgroundKey, avatar.value.faceKey, face.faceLayers))
     }
 
@@ -332,6 +340,22 @@ class MyAvatarStore internal constructor(
 /** 저장소 작업에서 놓친 예외를 기록만 하고 앱을 멈추지 않는다(리뷰 R2-8). */
 private val LOG_FAILURE =
     CoroutineExceptionHandler { _, e -> Log.w("MyAvatarStore", "내 아바타 준비 실패: ${e.javaClass.simpleName}") }
+
+/**
+ * 내 모습 합성(홈 칸과 같은 공용 캐시). [member] 회원 칸에 결과를 남기고, 같은 입력의 사본이 있으면 합성하지 않고 그것을 올린다
+ * (S15P31A207-345 9회차). 로그아웃 상태(null)면 기기에 남기지 않는다.
+ */
+internal suspend fun prepareMyLook(context: Context, member: Long?, look: RiveAvatarLook, motion: AvatarMotion) =
+    prepareRiveAvatarLook(
+        context,
+        look.gender,
+        look.outfit,
+        look.bodyShape,
+        look.runningAmount,
+        look.headLayers,
+        motion,
+        member?.let { AvatarLookDisk.member(context, it) }
+    )
 
 /** 프로필 성별 → Rive 몸체(FR-162: 여성이면 여 몸체, 남성·비공개는 남 몸체). */
 private fun avatarGenderOf(gender: Gender): AvatarGender =

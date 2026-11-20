@@ -1,8 +1,10 @@
 package com.a207.runkk.app.core.avatar
 
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
@@ -111,9 +113,134 @@ class AvatarLookPreparerTest {
     }
 
     @Test
+    fun `기기 사본이 있으면 새 프로세스에서도 합성기를 다시 부르지 않고 공용 캐시에 올린다`() = runBlocking {
+        val disk = AvatarLookDisk.of(dir("m7"), STAMP, keep = 1)
+        val outfit = AvatarOutfit(top = 1)
+        preparer.prepare(context, AvatarGender.FEMALE, outfit, AvatarBodyShape.BASE, 30, null, AvatarMotion.STAND, disk)
+        assertEquals(1, requests.size)
+        val first = assertNotNull(tones.hit(AvatarGender.FEMALE, setOf(AvatarMotion.STAND), null, lookOf(outfit, 30)))
+
+        // 새 프로세스 흉내: 빈 공용 캐시, 새 합성기
+        val nextTones = SharedToneCache()
+        val nextRequests = mutableListOf<AvatarToneRequest>()
+        val next =
+            AvatarLookPreparer(RiveAvatarAssets(Dispatchers.IO), nextTones, Dispatchers.Default) { request, cache ->
+                nextRequests += request
+                AvatarTextureComposer.compose(request, cache)
+            }
+        next.prepare(context, AvatarGender.FEMALE, outfit, AvatarBodyShape.BASE, 30, null, AvatarMotion.STAND, disk)
+
+        assertTrue(nextRequests.isEmpty(), "같은 입력이면 합성하지 않는다")
+        val restored = assertNotNull(
+            nextTones.hit(AvatarGender.FEMALE, setOf(AvatarMotion.STAND), null, lookOf(outfit, 30)),
+            "홈 칸이 찾는 열쇠(성별·동작·머리·모습)로 적중한다"
+        )
+        assertContentEquals(first.face?.bytes, restored.face?.bytes)
+        assertContentEquals(
+            first.skinRenders.getValue(BodySkinLayers.STANDING_BODY).bytes,
+            restored.skinRenders.getValue(BodySkinLayers.STANDING_BODY).bytes
+        )
+        assertEquals(first.frontOverlay?.shape, restored.frontOverlay?.shape)
+    }
+
+    @Test
+    fun `입력이 바뀌면 다시 합성해 새 사본을 남긴 뒤에만 옛 사본을 지운다`() = runBlocking {
+        val dir = dir("m7")
+        val disk = AvatarLookDisk.of(dir, STAMP, keep = 1)
+        val old = assertNotNull(disk.toneKey(AvatarGender.MALE, AvatarMotion.STAND, lookOf(AvatarOutfit(), 10), null))
+        val new = assertNotNull(disk.toneKey(AvatarGender.MALE, AvatarMotion.STAND, lookOf(AvatarOutfit(), 60), null))
+        fun has(key: String) = dir.listFiles().orEmpty().any { it.name.endsWith("$key.bin") }
+
+        preparer.prepare(
+            context,
+            AvatarGender.MALE,
+            AvatarOutfit(),
+            AvatarBodyShape.BASE,
+            10,
+            null,
+            AvatarMotion.STAND,
+            disk
+        )
+        assertTrue(has(old))
+
+        // 새 사본을 남기지 못하면(쓰기 실패) 옛 사본은 그대로다
+        File(dir, "tone-MALE-STAND-$new.bin.tmp").mkdirs()
+        preparer.prepare(
+            context,
+            AvatarGender.MALE,
+            AvatarOutfit(),
+            AvatarBodyShape.BASE,
+            60,
+            null,
+            AvatarMotion.STAND,
+            disk
+        )
+        assertEquals(2, requests.size, "러닝량이 바뀌면 다시 합성")
+        assertTrue(has(old), "새 사본이 없으니 옛 사본을 지우지 않는다")
+        assertFalse(has(new))
+
+        File(dir, "tone-MALE-STAND-$new.bin.tmp").delete()
+        val again = AvatarLookPreparer(RiveAvatarAssets(Dispatchers.IO), SharedToneCache(), Dispatchers.Default)
+        again.prepare(
+            context,
+            AvatarGender.MALE,
+            AvatarOutfit(),
+            AvatarBodyShape.BASE,
+            60,
+            null,
+            AvatarMotion.STAND,
+            disk
+        )
+        assertTrue(has(new), "새 사본을 남겼다")
+        assertFalse(has(old), "새 사본을 남긴 뒤 옛 사본을 지운다")
+    }
+
+    @Test
+    fun `앱이 갱신되면(판 표지가 다르면) 기기 사본을 쓰지 않고 다시 합성한다`() = runBlocking {
+        val dir = dir("m7")
+        preparer.prepare(
+            context,
+            AvatarGender.FEMALE,
+            AvatarOutfit(),
+            AvatarBodyShape.BASE,
+            0,
+            null,
+            AvatarMotion.STAND,
+            AvatarLookDisk.of(dir, STAMP, keep = 1)
+        )
+        val fresh =
+            AvatarLookPreparer(RiveAvatarAssets(Dispatchers.IO), SharedToneCache(), Dispatchers.Default) {
+                    request,
+                    cache
+                ->
+                requests += request
+                AvatarTextureComposer.compose(request, cache)
+            }
+        fresh.prepare(
+            context,
+            AvatarGender.FEMALE,
+            AvatarOutfit(),
+            AvatarBodyShape.BASE,
+            0,
+            null,
+            AvatarMotion.STAND,
+            AvatarLookDisk.of(dir, "$STAMP-next", keep = 1)
+        )
+        assertEquals(2, requests.size)
+    }
+
+    private fun lookOf(outfit: AvatarOutfit, amount: Int) = AvatarLookKey(outfit, AvatarBodyShape.BASE, amount)
+
+    private fun dir(name: String) = File(context.filesDir, "avatar-look-test/$name").also { it.deleteRecursively() }
+
+    @Test
     fun `공개 prepareRiveAvatarLook은 프로세스 공용 캐시를 채운다`() = runBlocking {
         prepareRiveAvatarLook(context, AvatarGender.FEMALE, AvatarOutfit(), AvatarBodyShape.BASE, 10, null)
         val entry = assertNotNull(SharedToneCache.shared.entry(AvatarGender.FEMALE, AvatarMotion.STAND))
         assertEquals(AvatarLookKey(AvatarOutfit(), AvatarBodyShape.BASE, 10), entry.look)
+    }
+
+    private companion object {
+        const val STAMP = "test-1"
     }
 }

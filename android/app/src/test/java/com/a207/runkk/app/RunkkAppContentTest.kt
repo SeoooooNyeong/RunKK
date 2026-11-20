@@ -145,17 +145,20 @@ class RunkkAppContentTest {
     }
 
     @Test
-    fun `첫 화면이 계속 붙잡아도 4초 뒤에는 스플래시를 걷는다(FR-239)`() {
+    fun `첫 화면이 붙잡는 동안은 아주 오래 지나도 시간으로 걷지 않고 다 읽으면 걷는다(S15P31A207-345 9회차)`() {
+        var isReady by mutableStateOf(false)
         loggedIn = true
         compose.mainClock.autoAdvance = false
         compose.setContent {
             RunkkTheme(reduceMotion = true) {
-                RunkkAppContent(setOf(HoldingEntries { false }), loggedIn = loggedIn, onExit = {})
+                RunkkAppContent(setOf(HoldingEntries { isReady }), loggedIn = loggedIn, onExit = {})
             }
         }
-        compose.mainClock.advanceTimeBy(3_000)
+        compose.mainClock.advanceTimeBy(10 * 60_000L)
         compose.onNodeWithContentDescription("런크크 시작 중").assertExists()
-        compose.mainClock.advanceTimeBy(1_500)
+        isReady = true
+        compose.mainClock.autoAdvance = true
+        compose.waitForIdle()
         compose.onNodeWithContentDescription("런크크 시작 중").assertDoesNotExist()
     }
 

@@ -15,6 +15,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -99,18 +100,74 @@ class HomeAvatarPreparationTest {
     }
 
     @Test
-    fun `입력을 읽지 못하면 실패를 돌려준다(시작 미리 받기는 건너뛴다)`() = runTest {
+    fun `입력을 읽지 못하면 다시 받을 만한 실패를 돌려주고 다시 하면 이어서 준비한다`() = runTest {
         repo.runnerResult = Outcome.Failure(AppError.Network)
         val preparation = preparation(store())
         assertEquals(Outcome.Failure(AppError.Network), preparation.prepare {})
         assertTrue(held.isEmpty())
+
+        repo.runnerResult = Outcome.Success(AvatarRunner("STAGE3", 1, "MORNING", 7, 3, Distance(15_400), 51, 4))
+        assertEquals(Outcome.Success(Unit), preparation.prepare {}, "다시 시도로 이어 준비한다")
     }
 
     @Test
-    fun `성별을 오래 모르면 기다리지 않고 실패로 돌려준다`() = runTest {
+    fun `서기 합성이 예외로 끝나면 실패로 돌려주고 다시 시도하면 다시 합성한다`() = runTest {
+        var failures = 1
+        val looks = mutableListOf<RiveAvatarLook>()
+        val preparation = HomeAvatarPreparation(
+            store(),
+            holdRive = { awaitCancellation() },
+            scope = backgroundScope,
+            main = StandardTestDispatcher(testScheduler),
+            prepareLook = { look ->
+                looks += look
+                if (failures-- > 0) throw IllegalStateException("compose failed")
+            }
+        )
+        var steps = 0
+        assertEquals(Outcome.Failure(AppError.Network), preparation.prepare { steps++ })
+        assertEquals(0, steps, "합성을 마치지 못하면 단계를 올리지 않는다")
+        assertFalse(preparation.isPrepared())
+
+        assertEquals(Outcome.Success(Unit), preparation.prepare { steps++ })
+        assertEquals(2, steps)
+        assertEquals(2, looks.size, "다시 시도하면 다시 합성한다")
+        assertSame(looks[0], looks[1], "같은 모습(홈 칸 열쇠)")
+    }
+
+    @Test
+    fun `성별을 모르면 프로필을 물어 알게 하고 받지 못하면 다시 받을 만한 실패다`() = runTest {
+        gender.value = null
+        var asked = 0
+        val preparation = HomeAvatarPreparation(
+            store(),
+            holdRive = { awaitCancellation() },
+            scope = backgroundScope,
+            main = StandardTestDispatcher(testScheduler),
+            knowGender = {
+                asked++
+                Outcome.Failure(AppError.Network)
+            }
+        )
+        assertEquals(Outcome.Failure(AppError.Network), preparation.prepare {})
+        assertEquals(1, asked)
+    }
+
+    @Test
+    fun `성별을 아주 오래 몰라도 시간으로 끊지 않고 알 때까지 기다린다(시작 로딩 시간 상한 없음)`() = runTest {
         gender.value = null
         val preparation = preparation(store())
-        val result = preparation.prepare {}
-        assertEquals(Outcome.Failure(AppError.Network), result)
+        val result = async { preparation.prepare {} }
+        advanceTimeBy(ONE_DAY_MILLIS)
+        runCurrent()
+        assertFalse(result.isCompleted, "하루가 지나도 실패·건너뛰기 없이 기다린다")
+
+        gender.value = Gender.FEMALE
+        runCurrent()
+        assertEquals(Outcome.Success(Unit), result.await())
+    }
+
+    private companion object {
+        const val ONE_DAY_MILLIS = 24L * 60 * 60 * 1_000
     }
 }
