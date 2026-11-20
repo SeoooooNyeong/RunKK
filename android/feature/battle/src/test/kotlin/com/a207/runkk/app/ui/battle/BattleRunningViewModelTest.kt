@@ -238,6 +238,119 @@ class BattleRunningViewModelTest {
         assertEquals(OpponentKind.SELF, vm.state.value.kind)
     }
 
+    /** 셀프런을 누른 것처럼 조정자에 먼저 카운트다운을 열고(대결 만들기는 [BattleWorld.battles]로 보낸다) 진행 화면을 붙인다. */
+    private fun TestScope.pressSelf(w: BattleWorld, vms: ViewModelCloser): Pair<Long, BattleRunningViewModel> {
+        val ticket = w.coordinator.startRecordBattle(Distance(5_000)) { w.battles.startSelfBattle(Distance(5_000)) }
+        val vm = vms.track(BattleRunningViewModel(w.coordinator, w.clock, w.screens, w.accounts))
+        vm.bind(Routes.BattleRunning(ticket, "나", 5_000, OpponentKind.SELF.name))
+        runCurrent()
+        return ticket to vm
+    }
+
+    @Test
+    fun `S15P31A207-335 누르자마자 연 카운트다운은 응답 전에도 3이고 응답 뒤 서버 대결로 이어 3초에 출발한다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.startGate = kotlinx.coroutines.CompletableDeferred()
+        val (ticket, vm) = pressSelf(w, vms)
+        assertEquals(BattlePhase.COUNTDOWN, vm.state.value.phase)
+        assertEquals(3L, vm.state.value.countdown, "응답 전에도 숫자 3")
+        assertEquals("startSelf:5000", w.battles.calls.single())
+
+        w.clock.now = w.clock.now.plusMillis(200)
+        advanceTimeBy(200)
+        w.battles.startGate?.complete(Unit)
+        runCurrent()
+        assertEquals(42, vm.state.value.battleId, "응답을 받으면 서버 대결 번호로 바꾼다")
+        assertEquals("과거의 나", vm.state.value.opponentName)
+        assertTrue(w.screens.key()?.battleId == ticket, "돌아가기 키는 경로 그대로")
+        assertEquals(3L, vm.state.value.countdown)
+
+        w.clock.now = w.clock.now.plusMillis(2_800)
+        advanceTimeBy(2_801)
+        runCurrent()
+        assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
+        assertTrue("started:42" in w.battles.calls)
+    }
+
+    @Test
+    fun `S15P31A207-335 응답이 1초를 넘으면 숫자 3에서 멈추고 응답 뒤 2와 1을 1초씩 센다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.startGate = kotlinx.coroutines.CompletableDeferred()
+        val (_, vm) = pressSelf(w, vms)
+        w.clock.now = w.clock.now.plusMillis(1_500)
+        advanceTimeBy(1_500)
+        runCurrent()
+        assertEquals(3L, vm.state.value.countdown, "응답을 기다리는 동안 3에서 멈춘다")
+
+        w.battles.startGate?.complete(Unit)
+        runCurrent()
+        assertEquals(2L, vm.state.value.countdown, "응답을 받으면 바로 2")
+        w.clock.now = w.clock.now.plusMillis(1_000)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(1L, vm.state.value.countdown)
+        assertEquals(BattlePhase.COUNTDOWN, vm.state.value.phase, "누름 + 3초(2.5초 지남)에 아직 출발하지 않는다")
+        w.clock.now = w.clock.now.plusMillis(1_000)
+        advanceTimeBy(1_001)
+        runCurrent()
+        assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
+    }
+
+    @Test
+    fun `S15P31A207-335 대결 만들기가 실패하면 카운트다운을 멈추고 오류와 다시 시도를 보인다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.startResult = Outcome.Failure(AppError.Network)
+        val (_, vm) = pressSelf(w, vms)
+        assertEquals(BattlePhase.START_FAILED, vm.state.value.phase)
+        assertNull(vm.state.value.countdown, "숫자를 지운다")
+        assertEquals(BattleErrorText.of(AppError.Network), vm.state.value.error)
+        w.clock.now = w.clock.now.plusSeconds(5)
+        advanceTimeBy(5_000)
+        runCurrent()
+        assertEquals(BattlePhase.START_FAILED, vm.state.value.phase, "출발하지 않는다")
+
+        w.battles.startResult = null
+        vm.onRetryStart()
+        runCurrent()
+        assertEquals(BattlePhase.COUNTDOWN, vm.state.value.phase)
+        assertEquals(3L, vm.state.value.countdown, "다시 시도하면 3부터")
+        assertNull(vm.state.value.error)
+        assertEquals(2, w.battles.calls.count { it == "startSelf:5000" })
+        w.clock.now = w.clock.now.plusSeconds(3)
+        advanceTimeBy(3_001)
+        runCurrent()
+        assertEquals(BattlePhase.RUNNING, vm.state.value.phase)
+    }
+
+    @Test
+    fun `S15P31A207-335 응답 전 다시 고르기는 바로 기록런 탭으로 가고 만들어진 대결은 취소한다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.startGate = kotlinx.coroutines.CompletableDeferred()
+        val (_, vm) = pressSelf(w, vms)
+        vm.events.test {
+            vm.onReselect()
+            runCurrent()
+            assertEquals(BattleRunningEvent.Discarded, awaitItem())
+        }
+        w.battles.startGate?.complete(Unit)
+        runCurrent()
+        assertEquals(listOf("startSelf:5000", "cancel:42"), w.battles.calls)
+    }
+
+    @Test
+    fun `S15P31A207-335 실패 화면에서 뒤로 가면 확인 없이 기록런 탭으로 간다`() = main.runVmTest { vms ->
+        val w = world()
+        w.battles.startResult = Outcome.Failure(AppError.Network)
+        val (_, vm) = pressSelf(w, vms)
+        vm.events.test {
+            vm.onForfeitLongPressed()
+            runCurrent()
+            assertFalse(vm.state.value.isConfirmingCancel)
+            assertEquals(BattleRunningEvent.Discarded, awaitItem())
+        }
+        assertEquals(listOf("startSelf:5000"), w.battles.calls, "서버에 만든 대결이 없어 보낼 것이 없다")
+    }
+
     @Test
     fun `기록 대결 카운트다운은 화면이 늦게 붙어도 3부터 보이고 남은 시간이 정수 초를 지날 때 바로 줄어든다`() = main.runVmTest { vms ->
         val w = world()

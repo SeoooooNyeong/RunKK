@@ -20,9 +20,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
- * 나와의 싸움·유명인 대결 공통 흐름(FR-096·FR-097·FR-100): 후보 조회 → 고르기 → 시작 요청 →
- * BattleRunCoordinator.onRecordBattleStart(3초 카운트다운 뒤 측정, design-review.md M34) → 대결 진행 화면. 진행 화면의 카운트다운(D-2·E-2)이
- * 상대 기록·날짜·내 최고 기록을 그리도록 고른 후보의 값을 경로 인자로 넘긴다. 셀럽 그림 키는 시작 응답 값, 없으면 후보 값이다.
+ * 나와의 싸움·유명인 대결 공통 흐름(FR-096·FR-097·FR-100): 후보 조회 → 고르기 → 누르면 바로 대결 진행 화면의 3초 카운트다운
+ * (BattleRunCoordinator.startRecordBattle, 시작 요청은 카운트다운 중에 받는다, S15P31A207-335 9회차) → 측정(design-review.md M34).
+ * 진행 화면의 카운트다운(D-2·E-2)이 상대 기록·날짜·내 최고 기록을 그리도록 고른 후보의 값을 경로 인자로 넘긴다. 셀럽 그림 키·상대 모습은
+ * 후보 값이고, 시작 응답에 있으면 진행 화면이 응답 값으로 바꾼다.
  * 처음에는 고른 후보가 없다(D-288).
  */
 abstract class RecordBattleViewModel(
@@ -100,41 +101,33 @@ abstract class RecordBattleViewModel(
             return
         }
         mutableState.update { it.copy(isStarting = true) }
-        viewModelScope.launch {
-            when (val started = begin(candidate)) {
-                is Outcome.Success -> {
-                    val start = started.value
-                    coordinator.onRecordBattleStart(start)
-                    // 진행 화면으로 넘어갈 때까지 다시 누르지 못하게 isStarting을 둔다. 화면에 돌아오면 onScreenResumed가 푼다.
-                    _events.trySend(
-                        RecordBattleEvent.Start(
-                            Routes.BattleRunning(
-                                start.battleId,
-                                start.opponentName,
-                                start.distance.meters,
-                                kind.name,
-                                opponentRecordSeconds = candidate.finishTime?.seconds,
-                                opponentRecordedOnEpochDay = candidate.recordedOn?.toEpochDay(),
-                                myBestSeconds = candidate.myBest?.seconds,
-                                celebrityFigure = start.celebrityFigure ?: candidate.celebrityFigure,
-                                // 셀프런은 그 기록의 나(시작 응답, 없으면 후보에 실린 모습)다. 셀럽은 null이다.
-                                opponentLook = (start.opponentLook ?: candidate.look)?.toSlot()
-                            )
-                        )
-                    )
-                }
+        // 서버 응답을 기다리지 않고 카운트다운부터 연다(S15P31A207-335 9회차). 대결 만들기는 카운트다운 중에 조정자가 받고, 실패하면
+        // 진행 화면이 멈추고 다시 시도를 보인다. 진행 화면으로 넘어갈 때까지 다시 누르지 못하게 isStarting을 두고 화면에 돌아오면 푼다.
+        val ticket = coordinator.startRecordBattle(candidate.distance) { begin(candidate).also(::onBegun) }
+        _events.trySend(
+            RecordBattleEvent.Start(
+                Routes.BattleRunning(
+                    ticket,
+                    candidate.name,
+                    candidate.distance.meters,
+                    kind.name,
+                    opponentRecordSeconds = candidate.finishTime?.seconds,
+                    opponentRecordedOnEpochDay = candidate.recordedOn?.toEpochDay(),
+                    myBestSeconds = candidate.myBest?.seconds,
+                    celebrityFigure = candidate.celebrityFigure,
+                    // 셀프런은 그 기록의 나(후보에 실린 모습, 응답 값이 오면 진행 화면이 바꾼다)다. 셀럽은 null이다.
+                    opponentLook = candidate.look?.toSlot()
+                )
+            )
+        )
+    }
 
-                is Outcome.Failure -> {
-                    mutableState.update {
-                        it.copy(isStarting = false, message = BattleErrorText.of(started.error))
-                    }
-                    if ((started.error as? AppError.Rejected)?.code == CELEBRITY_REMOVED) {
-                        mutableState.update { it.copy(selected = null) }
-                        load()
-                    }
-                }
-            }
-        }
+    /** 대결 만들기 응답(카운트다운 중). 지워진 셀럽 기록이면 안내하고 고른 것을 풀어 목록을 다시 불러온다. */
+    private fun onBegun(started: Outcome<RecordBattleStart>) {
+        val error = (started as? Outcome.Failure)?.error ?: return
+        if ((error as? AppError.Rejected)?.code != CELEBRITY_REMOVED) return
+        mutableState.update { it.copy(message = BattleErrorText.of(error), selected = null) }
+        load()
     }
 
     private companion object {

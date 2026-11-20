@@ -56,6 +56,9 @@ class BattleRunningViewModel @Inject constructor(
     private var bound: Long? = null
     private var closesAt: Instant? = null
     private var countdownTo: Instant? = null
+
+    /** 셀프런·셀럽런 대결 만들기 응답을 기다리는 카운트다운이면 참: 숫자를 3 아래로 내리지 않는다(S15P31A207-335 9회차). */
+    private var isAwaitingServer = false
     private var sawRunning = false
     private var lastGuidanceSeen: BattleGuidance.Kind? = null
     private var tickJob: Job? = null
@@ -78,10 +81,11 @@ class BattleRunningViewModel @Inject constructor(
         tickJob?.cancel()
         closesAt = null
         countdownTo = null
+        isAwaitingServer = false
         sawRunning = false
         lastGuidanceSeen = null
         _state.value = BattleRunningUiState(
-            battleId = key.battleId,
+            battleId = coordinator.resolve(key.battleId),
             opponentName = key.opponentName,
             distance = Distance(key.distanceMeters),
             kind = OpponentKind.of(key.opponentKind),
@@ -151,6 +155,9 @@ class BattleRunningViewModel @Inject constructor(
     fun onForfeitLongPressed() {
         val s = _state.value
         when {
+            // 대결 만들기가 실패해 멈춘 카운트다운: 버릴 기록도 서버 대결도 없어 묻지 않고 닫는다(S15P31A207-335 9회차).
+            s.phase == BattlePhase.START_FAILED -> coordinator.cancel()
+
             s.kind.isCancellable && (s.phase == BattlePhase.STARTING || s.phase == BattlePhase.COUNTDOWN) ->
                 _state.update { it.copy(isConfirmingCancel = true) }
 
@@ -188,25 +195,49 @@ class BattleRunningViewModel @Inject constructor(
      */
     fun onReselect() {
         val s = _state.value
-        if (s.kind != OpponentKind.SELF || (s.phase != BattlePhase.COUNTDOWN && s.phase != BattlePhase.STARTING)) return
+        if (s.kind != OpponentKind.SELF || s.phase !in RESELECTABLE) return
         coordinator.cancel()
+    }
+
+    /** 대결 만들기 실패로 멈춘 카운트다운의 「다시 시도」: 다시 보내고 3부터 센다(S15P31A207-335 9회차). */
+    fun onRetryStart() {
+        if (_state.value.phase != BattlePhase.START_FAILED) return
+        coordinator.retryRecordBattle()
     }
 
     /** 시작하지 못하고 끝난 화면을 닫을 때. */
     fun onFailureClosed() = coordinator.acknowledgeFinished()
 
     private fun onCoordinator(s: BattleRunState) {
+        adoptCreatedBattle()
         val battleId = _state.value.battleId
+        val isMine = s.battleIdOrNull()?.let { it == battleId || it == bound } == true
+        if (!isMine) return
         when (s) {
-            is BattleRunState.Countdown -> if (s.battleId == battleId) {
+            is BattleRunState.Countdown -> {
                 countdownTo = s.startAt
-                _state.update { it.copy(phase = BattlePhase.COUNTDOWN) }
+                isAwaitingServer = s.isAwaitingServer
+                // 다시 시도로 돌아오면 멈출 때 보인 오류를 지운다.
+                _state.update {
+                    it.copy(
+                        phase = BattlePhase.COUNTDOWN,
+                        error = if (it.phase == BattlePhase.START_FAILED) null else it.error
+                    )
+                }
                 tick()
             }
 
-            is BattleRunState.Running -> if (s.battleId == battleId) onRunning(s)
+            is BattleRunState.StartFailed -> {
+                tickJob?.cancel()
+                countdownTo = null
+                _state.update {
+                    it.copy(phase = BattlePhase.START_FAILED, countdown = null, error = BattleErrorText.of(s.error))
+                }
+            }
 
-            is BattleRunState.Closing -> if (s.battleId == battleId) {
+            is BattleRunState.Running -> onRunning(s)
+
+            is BattleRunState.Closing -> {
                 closesAt = s.endsAt
                 sawRunning = true
                 val limit = Duration.between(clock.instant(), s.endsAt).seconds.coerceAtLeast(0)
@@ -220,12 +251,40 @@ class BattleRunningViewModel @Inject constructor(
                 tick()
             }
 
-            is BattleRunState.Finished -> if (s.battleId == battleId) onFinished(battleId)
+            is BattleRunState.Finished -> onFinished(battleId)
 
-            is BattleRunState.Discarded -> if (s.battleId == battleId) onDiscarded()
+            is BattleRunState.Discarded -> onDiscarded()
 
-            else -> Unit
+            BattleRunState.Idle, is BattleRunState.Matched -> Unit
         }
+    }
+
+    /**
+     * 누르자마자 연 셀프런·셀럽런(경로 번호가 임시 번호)의 대결 만들기 응답이 왔으면 서버 대결 번호와 응답 값(상대 이름·셀럽 그림·모습)으로
+     * 바꾼다(S15P31A207-335 9회차). 결과 화면은 서버 번호로 연다. 경로와 돌아가기 키는 임시 번호 그대로다(조정자가 둘 다 이 회로 안다).
+     */
+    private fun adoptCreatedBattle() {
+        val key = bound ?: return
+        if (_state.value.battleId != key) return
+        val start = coordinator.createdRecordBattle(key) ?: return
+        _state.update {
+            it.copy(
+                battleId = start.battleId,
+                opponentName = start.opponentName,
+                celebrityFigure = start.celebrityFigure ?: it.celebrityFigure,
+                opponentLook = start.opponentLook ?: it.opponentLook
+            )
+        }
+    }
+
+    private fun BattleRunState.battleIdOrNull(): Long? = when (this) {
+        is BattleRunState.Countdown -> battleId
+        is BattleRunState.StartFailed -> battleId
+        is BattleRunState.Running -> battleId
+        is BattleRunState.Closing -> battleId
+        is BattleRunState.Finished -> battleId
+        is BattleRunState.Discarded -> battleId
+        BattleRunState.Idle, is BattleRunState.Matched -> null
     }
 
     private fun onRunning(s: BattleRunState.Running) {
@@ -307,7 +366,10 @@ class BattleRunningViewModel @Inject constructor(
         }?.let { Duration.between(now, it) }
         _state.update { s ->
             s.copy(
-                countdown = startIn?.let(CountdownSeconds::left),
+                countdown = startIn?.let(CountdownSeconds::left)?.let { left ->
+                    // 응답을 기다리는 동안은 3에서 멈춘다(응답을 받으면 조정자가 출발을 응답 + 2초로 미룬다).
+                    if (isAwaitingServer) maxOf(left, RECORD_COUNTDOWN_SECONDS) else left
+                },
                 closingSeconds = closesAt?.takeIf { s.phase == BattlePhase.CLOSING }
                     ?.let { Duration.between(now, it).seconds.coerceAtLeast(0) }
             )
@@ -334,6 +396,8 @@ class BattleRunningViewModel @Inject constructor(
     }
 
     private companion object {
+        val RESELECTABLE = setOf(BattlePhase.STARTING, BattlePhase.COUNTDOWN, BattlePhase.START_FAILED)
+        const val RECORD_COUNTDOWN_SECONDS = 3L
         const val TICK_MILLIS = 1_000L
         const val GUIDANCE_MILLIS = 5_000L
         const val HINT_MILLIS = 2_500L
