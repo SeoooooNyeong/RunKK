@@ -546,6 +546,9 @@
     }, {
       "name" : "runimalType",
       "kind" : "leaf"
+    }, {
+      "name" : "previousTier",
+      "kind" : "leaf"
     } ],
     "file" : "web/battle/BattleDtos.java"
   },
@@ -1689,6 +1692,9 @@
     }, {
       "name" : "title",
       "kind" : "leaf"
+    }, {
+      "name" : "myRun",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewDtos.java"
   },
@@ -2133,6 +2139,9 @@
       "name" : "attendees",
       "kind" : "list",
       "ref" : "CrewScheduleDtos.CrewRunDetailResponse.Attendee"
+    }, {
+      "name" : "myRun",
+      "kind" : "leaf"
     } ],
     "file" : "web/crew/CrewScheduleDtos.java"
   },
@@ -2510,6 +2519,9 @@
       "name" : "rounds",
       "kind" : "list",
       "ref" : "MeController.PlacementResponse.Round"
+    }, {
+      "name" : "runimalType",
+      "kind" : "leaf"
     } ],
     "file" : "web/me/MeController.java"
   },
@@ -2989,6 +3001,9 @@
       "kind" : "leaf"
     }, {
       "name" : "runimalType",
+      "kind" : "leaf"
+    }, {
+      "name" : "previousTier",
       "kind" : "leaf"
     } ],
     "file" : "web/record/RecordDtos.java"

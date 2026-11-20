@@ -361,4 +361,28 @@ class RunBodyViewModelTest {
         assertIs<RunBodySessionState.Done>(vm.state.value.session)
         assertEquals(2, runBody.scoresCalls)
     }
+
+    @Test
+    fun `기록 상세에서 바로 열면 러닝 선택 없이 그 기록의 상세를 열고 뒤로 가기는 화면을 닫는다`() {
+        val vm = viewModel()
+        vm.openDetail("r7")
+
+        assertEquals(RunBodyPage.DETAIL, vm.state.value.page)
+        assertEquals("r7", vm.state.value.selectedRecordId)
+        assertEquals(listOf("r7"), runBody.sessionCalls)
+        assertTrue(vm.state.value.session is RunBodySessionState.Done)
+        assertFalse(vm.onBack(), "탭 화면으로 가지 않고 이전 화면(기록 상세)으로 닫는다")
+
+        vm.openDetail("r7")
+        assertEquals(listOf("r7"), runBody.sessionCalls, "같은 기록을 다시 열면 또 읽지 않는다")
+    }
+
+    @Test
+    fun `바로 연 상세는 분석 중·데이터 부족이면 그 상태를 그대로 담는다`() {
+        runBody.reply("r8", Outcome.Failure(AppError.Rejected(RunBodyRepository.NOT_FOUND)))
+        val vm = viewModel()
+        vm.openDetail("r8")
+        assertEquals(RunBodyPage.DETAIL, vm.state.value.page)
+        assertEquals(RunBodySessionState.NotAnalyzable, vm.state.value.session)
+    }
 }

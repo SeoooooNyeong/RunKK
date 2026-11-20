@@ -28,6 +28,7 @@ import com.a207.runkk.app.domain.crew.Lobby
 import com.a207.runkk.app.domain.crew.LobbyPhase
 import com.a207.runkk.app.domain.crew.Meetup
 import com.a207.runkk.app.domain.crew.MyCrew
+import com.a207.runkk.app.domain.crew.MyRunState
 import com.a207.runkk.app.domain.crew.Notice
 import com.a207.runkk.app.domain.crew.PastCrewRun
 import com.a207.runkk.app.domain.crew.PastCrewRuns
@@ -87,8 +88,12 @@ internal fun CrewRunDetailResponse.toDomain(): CrewRunDetail = CrewRunDetail(
             shownGender = enumByName<Gender>(it.shownGender),
             distance = it.distanceMeters?.let(::Distance)
         )
-    }
+    },
+    myRun = myRunOf(myRun)
 )
+
+/** 열람자의 참여 상태. 옛 서버가 빼거나 모르는 값이면 NONE이다. */
+private fun myRunOf(name: String?): MyRunState = enumByName<MyRunState>(name) ?: MyRunState.NONE
 
 /** 모르는 공개 범위는 비공개로, 가입 방식은 승인제로, 역할은 크루 밖(null)으로 읽는다(넓게 허용하지 않는 쪽). */
 internal fun CrewDetailResponse.toDomain(): CrewDetail = CrewDetail(
@@ -322,7 +327,8 @@ private fun PostListResponse.Item.CrewRun.toDomain(): PostList.CrewRunInfo = Pos
     raceContribution = raceContributionMeters?.let(::Distance),
     notGoingCount = notGoingCount,
     undecidedCount = undecidedCount,
-    title = title.orEmpty()
+    title = title.orEmpty(),
+    myRun = myRunOf(myRun)
 )
 
 internal fun LobbyResponse.toDomain(): Lobby = Lobby(

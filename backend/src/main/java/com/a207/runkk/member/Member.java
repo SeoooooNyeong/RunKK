@@ -334,7 +334,8 @@ public class Member {
                 previousLevel,
                 level,
                 reevaluate
-                        ? new TierEvaluation(EvaluationKind.REEVALUATION, point.getAsInt())
+                        ? new TierEvaluation(
+                                EvaluationKind.REEVALUATION, point.getAsInt(), previousTier)
                         : null);
     }
 

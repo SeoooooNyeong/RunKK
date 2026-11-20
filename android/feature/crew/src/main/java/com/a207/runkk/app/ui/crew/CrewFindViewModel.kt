@@ -77,6 +77,11 @@ class CrewFindViewModel internal constructor(private val crews: CrewRepository, 
         mineJob?.cancel()
         if (!isQuiet) _state.update { it.copy(isCheckingMine = true, mineError = null) }
         mineJob = viewModelScope.launch {
+            // 처음 열 때 받아 둔 내 크루(시작 로딩이 남긴 사본, S15P31A207-345 2차)가 있으면 먼저 그리고 뒤에서 새로 받아 바꾼다.
+            val copy = if (isQuiet || _state.value.mine != null) null else crews.cachedMyCrew()
+            if (copy != null) {
+                _state.update { it.copy(isCheckingMine = false, mine = copy.crew, pending = copy.pendingRequests) }
+            }
             when (val r = crews.myCrew()) {
                 is Outcome.Success -> {
                     val crew = r.value.crew
@@ -94,7 +99,7 @@ class CrewFindViewModel internal constructor(private val crews: CrewRepository, 
                 }
 
                 is Outcome.Failure -> _state.update {
-                    if (isQuiet) {
+                    if (isQuiet || copy != null) {
                         it.copy(message = CrewErrorText.of(r.error))
                     } else {
                         it.copy(isCheckingMine = false, mineError = CrewErrorText.of(r.error))

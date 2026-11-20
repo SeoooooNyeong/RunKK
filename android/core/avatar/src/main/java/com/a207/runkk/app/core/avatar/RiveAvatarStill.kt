@@ -54,6 +54,7 @@ fun RiveAvatarStill(
     pending: @Composable () -> Unit = {}
 ) {
     val currentOnReady by rememberUpdatedState(onReady)
+    val context = LocalContext.current
     BoxWithConstraints(modifier) {
         if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) return@BoxWithConstraints
         val width = constraints.maxWidth
@@ -80,6 +81,8 @@ fun RiveAvatarStill(
                 height = height,
                 onCaptured = { bitmap ->
                     AvatarStillCache.put(key, bitmap)
+                    // 기기에도 남겨 앱을 다시 켜면 시작 로딩이 이 그림을 바로 올린다(S15P31A207-345 9회차).
+                    AvatarStillDisk.save(context, look, width, height, bitmap)
                     still = bitmap.asImageBitmap()
                 },
                 onError = onError

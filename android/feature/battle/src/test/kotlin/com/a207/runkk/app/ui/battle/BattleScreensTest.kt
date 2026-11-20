@@ -6,6 +6,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
@@ -13,6 +14,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -32,6 +34,7 @@ import com.a207.runkk.app.core.designsystem.DEFAULT_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.LocalReleaseScope
 import com.a207.runkk.app.core.designsystem.RIVAL_AVATAR_TAG
 import com.a207.runkk.app.core.designsystem.RUNKK_BOTTOM_BAR_RISE
+import com.a207.runkk.app.core.designsystem.RUNKK_GUIDANCE_TOAST_TAG
 import com.a207.runkk.app.core.designsystem.ReleaseScope
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.designsystem.TRACK_AHEAD_TAG
@@ -56,13 +59,16 @@ import com.a207.runkk.app.core.navigation.LocalSlotAvatarStill
 import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.SlotKey
 import com.a207.runkk.app.domain.battle.BattleHistory
+import com.a207.runkk.app.domain.live.BattleGuidance
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /** 대결 화면: 디자인 문구, 주요 버튼과 접근성 라벨. */
 @RunWith(RobolectricTestRunner::class)
@@ -73,11 +79,12 @@ class BattleScreensTest {
     private val calls = mutableListOf<String>()
 
     /** 1차 배포 모습(아바타 꾸미기 닫힘: 기본 아바타 2표정, D-254)으로 그린다. */
-    private fun show(content: @androidx.compose.runtime.Composable () -> Unit) = compose.setContent {
-        CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
-            RunkkTheme(reduceMotion = true) { content() }
+    private fun show(isDark: Boolean = false, content: @androidx.compose.runtime.Composable () -> Unit) =
+        compose.setContent {
+            CompositionLocalProvider(LocalReleaseScope provides ReleaseScope.FIRST_RELEASE) {
+                RunkkTheme(darkTheme = isDark, reduceMotion = true) { content() }
+            }
         }
-    }
 
     @Test
     fun `랜덤 대결 화면 - 고른 거리로 n km 매칭 시작, 최고 기록이 없으면 안내(FR-285)`() {
@@ -578,6 +585,126 @@ class BattleScreensTest {
     }
 
     @Test
+    fun `대결 진행 - 추월·역전·종료 카운트다운·힌트·오류 글자가 떠도 트랙 칸 크기와 자리는 그대로다(S15P31A207-334)`() {
+        assertTrackStaysPut(OpponentKind.RANDOM)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h640dp")
+    fun `작은 화면 셀프런 - 안내가 떠도 트랙 칸과 내 아바타 자리가 그대로다(S15P31A207-334)`() {
+        assertTrackStaysPut(OpponentKind.SELF)
+    }
+
+    @Test
+    @Config(qualifiers = "w411dp-h914dp")
+    fun `큰 화면 셀럽런 - 안내가 떠도 트랙 칸과 내 아바타 자리가 그대로다(S15P31A207-334)`() {
+        assertTrackStaysPut(OpponentKind.CELEBRITY)
+    }
+
+    @Test
+    fun `대결 진행 - 추월·역전 안내는 큰 거리 숫자 위에 흰 띠로 겹쳐 뜨고 사라진다(S15P31A207-334 2차)`() {
+        assertGuidanceFloats(OpponentKind.RANDOM, isDark = false)
+    }
+
+    @Test
+    fun `다크 셀프런 - 앞지름·역전 안내도 흰 띠로 큰 거리 숫자 위에 겹친다(S15P31A207-334 2차)`() {
+        assertGuidanceFloats(OpponentKind.SELF, isDark = true)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h640dp")
+    fun `작은 화면 셀럽런 - 추월·역전 안내가 겹쳐 떠도 거리 숫자와 트랙 칸은 그대로다(S15P31A207-334 2차)`() {
+        assertGuidanceFloats(OpponentKind.CELEBRITY, isDark = false)
+    }
+
+    /**
+     * 안내 없음 → 추월 → 역전 → 종료 카운트다운 → 없음. 안내 띠는 큰 거리 숫자와 겹치는 자리(세로 줄의 형제라면 겹칠 수 없다)에 흰 배경으로
+     * 뜨고, 트랙 칸보다 위에 있으며, 바로 읽힌다. 사라지면 노드가 없다.
+     */
+    private fun assertGuidanceFloats(kind: OpponentKind, isDark: Boolean) {
+        val base = runningBase(kind)
+        var state by mutableStateOf(base)
+        show(isDark) { BattleRunningScreen(state, BattleRunningActions()) }
+        compose.onNodeWithTag(GUIDANCE_TOAST, useUnmergedTree = true).assertDoesNotExist()
+        val overtook = if (kind == OpponentKind.SELF) "과거의 나를 앞질렀어요" else "추월했어요!"
+        listOf(
+            base.copy(guidance = BattleGuidance.Kind.OVERTOOK) to overtook,
+            base.copy(guidance = BattleGuidance.Kind.OVERTAKEN) to "역전당했어요"
+        ).forEach { (variant, text) ->
+            state = variant
+            compose.waitForIdle()
+            val toast = compose.onNodeWithTag(GUIDANCE_TOAST, useUnmergedTree = true)
+            val bounds = toast.getUnclippedBoundsInRoot()
+            val distance = compose.onNodeWithTag(BATTLE_DISTANCE, useUnmergedTree = true).getUnclippedBoundsInRoot()
+            val view = compose.onNodeWithTag(BATTLE_VIEW_TAG, useUnmergedTree = true).getUnclippedBoundsInRoot()
+            assertTrue(
+                bounds.top < distance.bottom && bounds.bottom > distance.top,
+                "$text 띠가 거리 숫자와 겹친다: $bounds / $distance"
+            )
+            assertTrue(bounds.top < view.top, "$text 띠는 트랙 칸보다 위에 뜬다: $bounds / $view")
+            compose.onNodeWithText(text)
+                .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+            val image = toast.captureToImage().asAndroidBitmap()
+            val edge = with(compose.density) { 8.dp.roundToPx() }
+            assertEquals(
+                android.graphics.Color.WHITE,
+                image.getPixel(image.width - edge, image.height / 2),
+                "$text 띠 바탕은 테마와 상관없이 흰색이다(다크 $isDark)"
+            )
+        }
+        state =
+            base.copy(phase = BattlePhase.CLOSING, arrivedName = "바람처럼", closingSeconds = 27, closingLimitSeconds = 30)
+        compose.waitForIdle()
+        compose.onNodeWithTag(GUIDANCE_TOAST, useUnmergedTree = true).assertExists()
+        state = base
+        compose.waitForIdle()
+        compose.onNodeWithTag(GUIDANCE_TOAST, useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    private fun runningBase(kind: OpponentKind) = BattleRunningUiState(
+        battleId = 9,
+        opponentName = "바람처럼",
+        kind = kind,
+        phase = BattlePhase.RUNNING,
+        gapMeters = -12,
+        opponentDistance = Distance(2_354),
+        myDistance = Distance(2_342),
+        currentPace = Pace(330)
+    )
+
+    /** 안내 없는 상태에서 트랙(또는 지도) 칸·내 아바타·큰 거리 숫자의 위·높이를 재고, 안내마다 같은지 본다. 안내 글자는 바로 읽힌다. */
+    private fun assertTrackStaysPut(kind: OpponentKind) {
+        val base = runningBase(kind)
+        var state by mutableStateOf(base)
+        show { BattleRunningScreen(state, BattleRunningActions()) }
+        fun measure() = listOf(BATTLE_VIEW_TAG, TRACK_ME_TAG, BATTLE_DISTANCE).map { tag ->
+            compose.onNodeWithTag(tag, useUnmergedTree = true).getUnclippedBoundsInRoot()
+                .let { it.top to it.bottom - it.top }
+        }
+        val expected = measure()
+        val variants = listOf(
+            base.copy(guidance = BattleGuidance.Kind.OVERTOOK),
+            base.copy(guidance = BattleGuidance.Kind.OVERTAKEN),
+            base.copy(phase = BattlePhase.CLOSING, arrivedName = "바람처럼", closingSeconds = 27, closingLimitSeconds = 30),
+            base.copy(hint = UiText.Plain("길게 눌러 종료해요")),
+            base.copy(error = UiText.Plain("상대 기록을 받지 못했어요")),
+            base.copy(guidance = BattleGuidance.Kind.OVERTAKEN, hint = UiText.Plain("길게 눌러 종료해요"))
+        )
+        variants.forEach { variant ->
+            state = variant
+            compose.waitForIdle()
+            assertEquals(expected, measure(), "안내 상태 $variant")
+        }
+        state = base.copy(guidance = BattleGuidance.Kind.OVERTAKEN)
+        compose.waitForIdle()
+        compose.onNodeWithText("역전당했어요")
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.LiveRegion, LiveRegionMode.Polite))
+        state = base
+        compose.waitForIdle()
+        assertEquals(expected, measure(), "안내가 사라진 뒤")
+    }
+
+    @Test
     fun `TC-9739 대결 탭은 대결·승·패 수, 필터 칩, 날짜·종류·거리·상대·승패 배지를 보이고 누르면 대결 결과로 간다`() {
         val filters = mutableListOf<Int>()
         val opened = mutableListOf<Long>()
@@ -740,3 +867,7 @@ class BattleScreensTest {
         assertEquals(listOf("records"), calls)
     }
 }
+
+/** 안내 띠와 큰 거리 숫자의 시험 표지. */
+private const val GUIDANCE_TOAST = RUNKK_GUIDANCE_TOAST_TAG
+private const val BATTLE_DISTANCE = BATTLE_DISTANCE_TAG

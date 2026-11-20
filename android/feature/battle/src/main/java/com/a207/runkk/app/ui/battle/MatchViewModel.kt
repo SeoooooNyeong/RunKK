@@ -108,6 +108,9 @@ class MatchViewModel @Inject constructor(
     private var startsJob: Job? = null
     private var waitingLease: LiveChannel? = null
     private var earlyStart: BattleStart? = null
+
+    /** 성사 판을 출발 예약까지 미루는 상한 타이머([MatchUiState.isAwaitingStart]). */
+    private var awaitStartJob: Job? = null
     private var matchedBattleId: Long? = null
 
     /**
@@ -625,6 +628,8 @@ class MatchViewModel @Inject constructor(
         handedOver = true
         waitingLease = channel
         channel = null
+        // 출발 예약을 먼저 받았으면 성사 판부터 숫자를 함께 그린다(S15P31A207-335 9회차: 조정자를 거쳐 한 판 늦게 붙었다).
+        val early = earlyStart?.takeIf { it.battleId == match.battleId }
         _state.update {
             it.copy(
                 phase = MatchPhase.MATCHED,
@@ -632,8 +637,18 @@ class MatchViewModel @Inject constructor(
                 match = match,
                 distance = match.distance,
                 error = null,
-                placementRound = match.placementRound
+                placementRound = match.placementRound,
+                startsInSeconds = early?.let { start -> secondsUntil(start.startAt) } ?: it.startsInSeconds,
+                isAwaitingStart = early == null
             )
+        }
+        if (early == null) {
+            // 출발 예약이 끝내 늦으면(재연결 등) 숫자 없이 성사 판을 보인다.
+            awaitStartJob?.cancel()
+            awaitStartJob = viewModelScope.launch {
+                delay(START_GRACE_MILLIS)
+                _state.update { it.copy(isAwaitingStart = false) }
+            }
         }
         coordinator.onMatched(match)
         matchedBattleId = match.battleId
@@ -665,9 +680,13 @@ class MatchViewModel @Inject constructor(
         }
     }
 
-    /** 성사된 대결의 출발 예약이면 조정자에 넘긴다. 조정자가 직접 받은 것과 겹쳐도 한 번만 시작한다(BattleRun.schedule). */
+    /**
+     * 성사된 대결의 출발 예약이면 조정자에 넘긴다. 조정자가 직접 받은 것과 겹쳐도 한 번만 시작한다(BattleRun.schedule). 남은 초는 조정자
+     * 상태를 기다리지 않고 받은 자리에서 바로 센다(S15P31A207-335 9회차).
+     */
     private fun forwardStart(start: BattleStart) {
         if (start.battleId != matchedBattleId) return
+        countdownTo(start.startAt)
         coordinator.onStart(start)
         startsJob?.cancel()
     }
@@ -690,7 +709,7 @@ class MatchViewModel @Inject constructor(
                     is BattleRunState.Countdown -> if (s.battleId == match.battleId) {
                         showGps(s.gps)
                         // GPS 상태만 바뀐 값이면 출발 카운트다운을 다시 세지 않는다.
-                        if (s.startAt != startAt) countdownTo(s)
+                        if (s.startAt != startAt) countdownTo(s.startAt)
                     }
 
                     is BattleRunState.Running -> if (s.battleId == match.battleId) {
@@ -729,19 +748,27 @@ class MatchViewModel @Inject constructor(
         if (text == null) _events.trySend(MatchEvent.Exit) else showNotice(text)
     }
 
-    private fun countdownTo(s: BattleRunState.Countdown) {
-        startAt = s.startAt
-        watchStuck(s.startAt.plus(START_STUCK))
+    /** 출발 예약까지 남은 초(올림)를 지금 바로 보이고 정수 초마다 줄인다. 같은 예약을 다시 받으면(조정자 상태) 다시 세지 않는다. */
+    private fun countdownTo(at: Instant) {
+        if (at == startAt) return
+        startAt = at
+        watchStuck(at.plus(START_STUCK))
+        awaitStartJob?.cancel()
+        _state.update { it.copy(startsInSeconds = secondsUntil(at), isAwaitingStart = false) }
         countdownJob?.cancel()
         countdownJob = viewModelScope.launch {
+            // 올려 세고 정수 초를 지나는 순간 바꾼다(진행 화면 카운트다운과 같다, S15P31A207-335 8회차)
             while (isActive) {
-                val left = Duration.between(clock.instant(), s.startAt).seconds.coerceAtLeast(0)
+                val remaining = Duration.between(clock.instant(), at)
+                val left = CountdownSeconds.left(remaining)
                 _state.update { it.copy(startsInSeconds = left) }
                 if (left == 0L) break
-                delay(TICK_MILLIS)
+                delay(CountdownSeconds.untilNext(remaining))
             }
         }
     }
+
+    private fun secondsUntil(at: Instant): Long = CountdownSeconds.left(Duration.between(clock.instant(), at))
 
     private fun started(match: MatchFound) {
         if (navigated) return
@@ -808,6 +835,9 @@ class MatchViewModel @Inject constructor(
         /** 출발 예약을 받지 못한 채 성사 화면에 머무는 한도와, 출발 시각이 지나고도 측정이 시작되지 않는 한도(배틀 QA 2번). */
         val MATCHED_STUCK: Duration = Duration.ofSeconds(30)
         val START_STUCK: Duration = Duration.ofSeconds(15)
+
+        /** 성사 판을 출발 예약까지 미루는 상한(서버는 MatchFound 바로 뒤에 BattleStart를 보낸다, S15P31A207-335 9회차). */
+        const val START_GRACE_MILLIS = 300L
 
         /** 초대 만료 유예(D-271 기본값): 서버 만료 알림이 연결 끊김으로 사라져도 만료 + 2초에 끝낸다. */
         val EXPIRY_GRACE: Duration = Duration.ofSeconds(2)

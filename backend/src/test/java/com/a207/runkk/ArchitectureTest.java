@@ -83,6 +83,7 @@ class ArchitectureTest {
                     "web.report",
                     "web.attempt",
                     "web.error",
+                    "web.support",
                     "web.runbody",
                     "web.coach",
                     "realtime",
@@ -205,7 +206,8 @@ class ArchitectureTest {
         m.put("report.target", Set.of("crew", "crew.chat", "report"));
         // 표현 (D45~D54, D63, D64, D68~D70)
         m.put("web.auth", Set.of("member", "web.attempt")); // + V6(D-132)
-        m.put("web.me", Set.of("member", "profile"));
+        // + runimal: 배치고사 완료 화면의 확정 Runimal 유형(RunimalQuery.confirmedTypeOf, v0.14 S15P31A207-332)
+        m.put("web.me", Set.of("member", "profile", "runimal"));
         m.put("web.notification", Set.of("notification"));
         m.put("web.run", Set.of("running"));
         // v0.14 W1·W2: 기록 목록 대결 결과(BattleHistoryService.outcomesOf), 기록
@@ -231,6 +233,9 @@ class ArchitectureTest {
         m.put("web.admin.model", Set.of("aimodel"));
         m.put("web.admin.audit", Set.of("audit"));
         m.put("web.error", Set.of());
+        // v0.14 S15P31A207-327 요청 압축 해제 필터(GzipRequestFilter). 오류 본문은 공통 형식을 직접 써서 다른 패키지를 import하지
+        // 않는다
+        m.put("web.support", Set.of());
         // v0.11 (N12~N14), web.chat → web.attempt(V8, D-132)
         m.put("web.chat", Set.of("crew.chat", "web.attempt"));
         // web.attempt는 java.*만 import한다(Fan-Out 0, 12.2 D67 예외, 13.1 규칙 12)
@@ -763,7 +768,7 @@ class ArchitectureTest {
 
     @Test
     void designPackageList_has77NamesAndEachHasAnAllowList() {
-        assertThat(Set.copyOf(PACKAGES)).hasSize(83);
+        assertThat(Set.copyOf(PACKAGES)).hasSize(84); // + v0.14 web.support(D-성-963)
         assertThat(ALLOWED.keySet()).containsExactlyInAnyOrderElementsOf(PACKAGES);
     }
 

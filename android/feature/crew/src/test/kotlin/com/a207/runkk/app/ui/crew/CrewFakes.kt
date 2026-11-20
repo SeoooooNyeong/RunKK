@@ -544,6 +544,9 @@ class FakeCrewRepository : CrewRepository {
     var searchNext: Long? = null
     var postsNext: Long? = null
 
+    /** 크루런 탭 목록(kind CREW_RUN). */
+    var crewRunList = crewRunPosts
+
     /** 다음 쪽 응답의 다음 커서(기본 끝). 같은 커서를 넣으면 서버가 같은 쪽을 되풀이하는 상황이다. */
     var cursorPageNext: Long? = null
 
@@ -551,6 +554,11 @@ class FakeCrewRepository : CrewRepository {
     var searchFirstPage = listOf(crewA, crewB, crewC)
 
     override suspend fun myCrew() = answer("myCrew", mine)
+
+    /** 기기에 남긴 내 크루 사본(S15P31A207-345 2차). null이면 없음. */
+    var mineCopy: MyCrew? = null
+
+    override suspend fun cachedMyCrew(): MyCrew? = mineCopy
 
     /** 정보 수정(changeInfo)이 받아들인 크루명. 크루 조회가 이 이름을 돌려준다. */
     private var renamed: String? = null
@@ -716,7 +724,7 @@ class FakeCrewRepository : CrewRepository {
             // 전체(kind 없음): 일정 글과 게시판 글이 섞여 온다.
             null -> PostList(crewRunPosts.posts + notices().posts + polls.posts + cheers.posts + boards.posts)
 
-            else -> crewRunPosts
+            else -> crewRunList
         }
         val answered = first.posts.map { post ->
             val mine = attendance[post.postId] ?: return@map post

@@ -28,6 +28,7 @@ import com.a207.runkk.app.domain.account.AccountRepository
 import com.a207.runkk.app.domain.account.SessionRepository
 import com.a207.runkk.app.domain.settings.ScreenTheme
 import com.a207.runkk.app.domain.settings.SettingsRepository
+import com.a207.runkk.app.domain.sync.AssetPreloader
 import dagger.hilt.android.AndroidEntryPoint
 import java.time.Instant
 import javax.inject.Inject
@@ -50,6 +51,13 @@ class MainActivity : ComponentActivity() {
     /** 내 성별(domain.account). 여성이면 기본 캐릭터를 여자로 그린다(LocalAvatarCharacter, 2026-10-30). */
     @Inject
     lateinit var account: AccountRepository
+
+    /**
+     * 시작 에셋 미리 받기(S15P31A207-345, domain.sync). 로그인 상태를 알면 시작하고(로그인 전이면 공용, 뒤면 내 아바타까지), 로딩 화면은
+     * 다 받을 때까지 다음 화면으로 가지 않는다. 앱 범위에서 받으므로 Activity가 다시 만들어져도 이어진다.
+     */
+    @Inject
+    lateinit var preloader: AssetPreloader
 
     /** 앱 키가 없으면 카카오 실행 링크를 받지 않는다(빈 스킴, 매니페스트도 쓰지 않는 스킴을 둔다). */
     private val inviteLinks =
@@ -103,6 +111,8 @@ class MainActivity : ComponentActivity() {
                 }
                 // 로그아웃하면 내 성별 사본을 비운다(다음 회원이 이전 회원의 기본 캐릭터를 보지 않게, 리뷰 AN10-5)
                 LaunchedEffect(loggedIn) { if (loggedIn == false) account.forgetMyGender() }
+                LaunchedEffect(loggedIn) { loggedIn?.let(preloader::start) }
+                val preload by preloader.state.collectAsState()
                 val gender by account.myGender.collectAsState()
                 val character = AvatarCharacter.of(gender)
                 // Kakao 지도 키는 플레이버별 값(패키지마다 다른 네이티브 앱 키)을 화면 전체에 넣는다(LocalKakaoMapKey).
@@ -120,6 +130,8 @@ class MainActivity : ComponentActivity() {
                         onBattleReturnDone = { pendingBattleReturn = null },
                         pendingSelfieResult = pendingSelfieResult,
                         onSelfieResultDone = { pendingSelfieResult = false },
+                        preload = preload,
+                        onRetryPreload = preloader::retry,
                         // Modifier.testTag를 UI Automator 리소스 ID로 내보낸다(E2E Maestro 선택자 id:, android/e2e/maestro).
                         // debug 빌드에서만 켠다: release에서는 testTag를 접근성 트리에 리소스 ID로 내보이지 않는다(리뷰 N-1).
                         modifier = Modifier.semantics { testTagsAsResourceId = BuildConfig.DEBUG }

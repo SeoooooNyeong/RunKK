@@ -46,19 +46,20 @@ class RecordBattleViewModelTest {
     }
 
     @Test
-    fun `나와의 싸움 시작 - 조정자에 시작 정보를 넘기고 진행 화면 키를 보낸다`() = runTest(main.dispatcher) {
+    fun `S15P31A207-335 나와의 싸움 시작 - 서버 응답 전에 카운트다운을 열고 진행 화면 키를 보낸다`() = runTest(main.dispatcher) {
         val w = world()
         val vm = SelfBattleViewModel(w.battles, w.coordinator)
         runCurrent()
         vm.onSelect(vm.state.value.candidates[1])
+        w.battles.startGate = kotlinx.coroutines.CompletableDeferred()
         vm.events.test {
             vm.onStart()
-            runCurrent()
-            val event = assertIs<RecordBattleEvent.Start>(awaitItem())
+            val event = assertIs<RecordBattleEvent.Start>(awaitItem(), "응답을 기다리지 않고 진행 화면으로 간다")
+            assertTrue(event.key.battleId < 0, "응답 전이라 임시 번호")
             assertEquals(
                 Routes.BattleRunning(
-                    42,
-                    "과거의 나",
+                    event.key.battleId,
+                    "나",
                     5_000,
                     OpponentKind.SELF.name,
                     opponentRecordSeconds = 1_650,
@@ -67,9 +68,15 @@ class RecordBattleViewModelTest {
                 event.key,
                 "카운트다운이 과거의 나 기록·날짜를 그린다(D-264)"
             )
+            val countdown = assertIs<BattleRunState.Countdown>(w.coordinator.state.value)
+            assertTrue(countdown.isAwaitingServer)
+            runCurrent()
+            assertTrue("startSelf:5000" in w.battles.calls, "대결 만들기는 카운트다운 중에 보낸다")
+            w.battles.startGate?.complete(Unit)
+            runCurrent()
+            assertEquals(42, w.coordinator.resolve(event.key.battleId))
         }
-        assertTrue("startSelf:5000" in w.battles.calls)
-        assertIs<BattleRunState.Countdown>(w.coordinator.state.value)
+        w.clock.now = w.clock.now.plusSeconds(3)
         advanceTimeBy(3_100)
         runCurrent()
         assertIs<BattleRunState.Running>(w.coordinator.state.value)
@@ -167,7 +174,8 @@ class RecordBattleViewModelTest {
         assertEquals(UiText.Res(R.string.battle_error_celebrity_removed), vm.state.value.message)
         assertNull(vm.state.value.selected)
         assertEquals(2, w.battles.calls.count { it.startsWith("celeb") })
-        assertIs<BattleRunState.Idle>(w.coordinator.state.value)
+        // 카운트다운 화면은 멈추고 오류를 보인다(S15P31A207-335 9회차)
+        assertIs<BattleRunState.StartFailed>(w.coordinator.state.value)
     }
 
     @Test

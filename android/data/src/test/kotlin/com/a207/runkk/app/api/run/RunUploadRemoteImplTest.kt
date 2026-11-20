@@ -33,6 +33,7 @@ import retrofit2.create
 class RunUploadRemoteImplTest {
     private val api = ApiTestServer()
     private val runApi: RunApi = api.retrofit.create()
+    private val uploadApi: RunUploadApi = api.retrofit.create()
 
     @AfterTest
     fun tearDown() = api.close()
@@ -210,11 +211,37 @@ class RunUploadRemoteImplTest {
     fun `upload는 POST runs로 보내고 이미 저장됨을 읽는다`() = runTest {
         api.reply("""{"recordId":"${RUN.recordId}","status":"ALREADY_STORED","valid":true}""")
 
-        val receipt = RunUploadRemoteImpl(runApi).upload(RUN)
+        val receipt = RunUploadRemoteImpl(runApi, uploadApi).upload(RUN)
 
         assertEquals(Outcome.Success(UploadReceipt(RUN.recordId, isAlreadySaved = true)), receipt)
         val request = api.take()
         assertEquals("POST /api/v1/runs", "${request.method} ${request.url.encodedPath}")
+    }
+
+    @Test
+    fun `업로드 전용 클라이언트(gzip)로 POST runs만 압축하고 늦은 심박은 압축하지 않는다(Jira 327)`() = runTest {
+        val gzipClient = okhttp3.OkHttpClient.Builder().addInterceptor(
+            com.a207.runkk.app.api.core.GzipRequestInterceptor()
+        )
+            .build()
+        val uploads: RunUploadApi = api.retrofit.newBuilder().client(gzipClient).build().create()
+        api.reply("""{"recordId":"${RUN.recordId}","status":"STORED","valid":true}""")
+        api.replyEmpty()
+        val remote = RunUploadRemoteImpl(runApi, uploads)
+
+        assertEquals(Outcome.Success(UploadReceipt(RUN.recordId, isAlreadySaved = false)), remote.upload(RUN))
+        remote.appendHeartRates(RUN.recordId, listOf(HeartRateSample(Instant.parse("2026-10-19T22:15:00Z"), 150)))
+
+        val upload = api.take()
+        assertEquals(
+            "POST /api/v1/runs gzip",
+            "${upload.method} ${upload.url.encodedPath} ${upload.headers["Content-Encoding"]}"
+        )
+        val inflated = java.util.zip.GZIPInputStream(
+            upload.body!!.toByteArray().inputStream()
+        ).readBytes().decodeToString()
+        assertEquals(api.json.encodeToString(RunUploadRequest.serializer(), RUN.toFittedRequest()), inflated)
+        assertEquals(null, api.take().headers["Content-Encoding"], "늦은 심박은 서버 압축 해제 허용 목록 밖이다")
     }
 
     @Test
@@ -223,7 +250,7 @@ class RunUploadRemoteImplTest {
 
         assertEquals(
             Outcome.Success(UploadReceipt(RUN.recordId, isAlreadySaved = false)),
-            RunUploadRemoteImpl(runApi).upload(RUN)
+            RunUploadRemoteImpl(runApi, uploadApi).upload(RUN)
         )
     }
 
@@ -244,7 +271,7 @@ class RunUploadRemoteImplTest {
         api.replyEmpty()
 
         val result =
-            RunUploadRemoteImpl(runApi).appendHeartRates(
+            RunUploadRemoteImpl(runApi, uploadApi).appendHeartRates(
                 RUN.recordId,
                 listOf(HeartRateSample(Instant.parse("2026-10-19T22:15:00Z"), 150))
             )
@@ -259,7 +286,10 @@ class RunUploadRemoteImplTest {
     fun `전송 실패는 AppError로 돌아온다`() = runTest {
         api.reply("""{"code":"INVALID_STATE"}""", code = 409)
 
-        assertEquals(Outcome.Failure(AppError.Rejected("INVALID_STATE")), RunUploadRemoteImpl(runApi).upload(RUN))
+        assertEquals(
+            Outcome.Failure(AppError.Rejected("INVALID_STATE")),
+            RunUploadRemoteImpl(runApi, uploadApi).upload(RUN)
+        )
     }
 
     @Test

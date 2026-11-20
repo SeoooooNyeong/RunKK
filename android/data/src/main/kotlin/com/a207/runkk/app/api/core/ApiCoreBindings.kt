@@ -61,10 +61,29 @@ object ApiCoreBindings {
         return SessionRefresher(tokens, base, refreshUrl, json)
     }
 
+    /**
+     * 인증된 기본 클라이언트. 서버가 Cache-Control을 주는 응답(크루 로고 등)은 디스크 캐시(cacheDir/api-http, 16MiB)에 남긴다(Jira 328).
+     * 캐시는 계정별 칸으로 나눠 계정이 바뀌어도 비우지 않는다(ApiCacheGuard, S15P31A207-345 2차).
+     */
     @Provides
     @Singleton
-    fun okHttpClient(tokens: TokenProvider, refresher: SessionRefresher): OkHttpClient =
-        authenticatedClient(refresher.client, tokens, refresher)
+    internal fun okHttpClient(
+        tokens: TokenProvider,
+        refresher: SessionRefresher,
+        serverClock: ServerClock,
+        self: SelfMember,
+        @ApplicationContext context: Context
+    ): OkHttpClient {
+        val cache = Cache(File(context.cacheDir, API_CACHE_DIR), API_CACHE_BYTES)
+        return authenticatedClient(refresher.client, tokens, refresher, serverClock)
+            .newBuilder()
+            .cache(cache)
+            .addInterceptor(ApiCacheGuard(self::memberId))
+            .build()
+    }
+
+    private const val API_CACHE_DIR = "api-http"
+    private const val API_CACHE_BYTES = 16L * 1024 * 1024
 
     /** 인증 없는 base 위에 접근 토큰 부착과 401 갱신을 얹는다. 갱신 요청은 base로 보낸다(시험도 이 조립을 쓴다). */
     internal fun authenticatedClient(
@@ -74,13 +93,15 @@ object ApiCoreBindings {
         json: Json
     ): OkHttpClient = authenticatedClient(base, tokens, SessionRefresher(tokens, base, refreshUrl, json))
 
+    /** [clock]을 주면 접근 토큰 만료 60초 전에 원 요청보다 먼저 갱신한다(Jira 326). */
     internal fun authenticatedClient(
         base: OkHttpClient,
         tokens: TokenProvider,
-        refresher: SessionRefresher
+        refresher: SessionRefresher,
+        clock: ServerClock? = null
     ): OkHttpClient = base
         .newBuilder()
-        .addInterceptor(AuthInterceptor(tokens))
+        .addInterceptor(AuthInterceptor(tokens, refresher.takeIf { clock != null }, clock))
         .addNetworkInterceptor { chain ->
             val request = chain.request()
             if (request.tag(BoundSession::class.java)?.isCurrent(tokens) == false) {
@@ -92,7 +113,8 @@ object ApiCoreBindings {
         .build()
 
     /**
-     * 아바타 얼굴 부위 그림. 인증된 클라이언트에 디스크 캐시(10MiB, 서버 Cache-Control을 따른다)를 얹는다.
+     * 아바타 얼굴 그림. 인증된 클라이언트에 디스크 캐시(64MiB, 서버 Cache-Control을 따른다)를 얹는다. 셀카 머리 층(S15P31A207-300)은
+     * 서버가 immutable로 주어 앱을 다시 켜도 여기서 준다: 내 머리 1024 층 여섯 장 약 4~5MB, 다른 러너 얼굴 원 512 층 세 장 수백 KB.
      * 같은 연결 풀을 쓰고 인증 헤더·토큰 갱신은 그대로다. 내 얼굴의 마지막 모습은 앱 전용 저장소(files/my-face)에 남긴다.
      */
     @Provides
@@ -102,19 +124,45 @@ object ApiCoreBindings {
         self: SelfMember,
         @ApplicationContext context: Context
     ): FaceImageSource = FaceImageSource(
-        client.newBuilder().cache(Cache(File(context.cacheDir, FACE_CACHE_DIR), FACE_CACHE_BYTES)).build(),
+        client.newBuilder()
+            // 다른 러너 머리는 공용이라 계정 칸을 나누지 않는다(내 머리는 HTTP 캐시에 남기지 않고 내 얼굴 저장소의 계정 칸에 둔다).
+            .apply { interceptors().removeAll { it is ApiCacheGuard } }
+            .cache(Cache(File(context.cacheDir, FACE_CACHE_DIR), FACE_CACHE_BYTES))
+            .build(),
         BuildConfig.API_BASE_URL.toHttpUrl(),
         selfId = self::memberId,
         selfStore = SelfFaceStore(File(context.filesDir, SELF_FACE_DIR))
     )
 
+    /**
+     * 화면 첫 응답 사본(S15P31A207-345 2차): files/screen-copy에 계정별 칸·공용 칸으로 둔다(캐시 폴더가 아니라 시스템이 지우지 않는다).
+     * 로그아웃·계정 바뀜에도 지우지 않는다.
+     */
+    @Provides
+    @Singleton
+    internal fun screenCopyStore(json: Json, @ApplicationContext context: Context): ScreenCopyStore =
+        ScreenCopyStore(File(context.filesDir, SCREEN_COPY_DIR), json)
+
+    private const val SCREEN_COPY_DIR = "screen-copy"
     private const val FACE_CACHE_DIR = "avatar-face"
     private const val SELF_FACE_DIR = "my-face"
-    private const val FACE_CACHE_BYTES = 10L * 1024 * 1024
+    private const val FACE_CACHE_BYTES = 64L * 1024 * 1024
 
     @Provides
     @Singleton
-    fun retrofit(client: OkHttpClient, json: Json): Retrofit = Retrofit
+    fun retrofit(client: OkHttpClient, json: Json): Retrofit = retrofitOn(client, json)
+
+    /**
+     * 업로드 전용(Jira 327): 기본 클라이언트에 요청 본문 gzip을 얹는다(newBuilder라 연결 풀·인증·갱신을 함께 쓴다). 서버가 압축을
+     * 모르면(415, 또는 400·413 뒤 무압축 재전송 성공) 인터셉터가 그 실행 동안 압축을 끈다.
+     */
+    @Provides
+    @Singleton
+    @UploadClient
+    fun uploadRetrofit(client: OkHttpClient, json: Json): Retrofit =
+        retrofitOn(client.newBuilder().addInterceptor(GzipRequestInterceptor()).build(), json)
+
+    private fun retrofitOn(client: OkHttpClient, json: Json): Retrofit = Retrofit
         .Builder()
         .baseUrl(BuildConfig.API_BASE_URL)
         .client(client)

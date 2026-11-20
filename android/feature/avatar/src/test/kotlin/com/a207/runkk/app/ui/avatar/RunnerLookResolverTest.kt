@@ -12,6 +12,7 @@ import com.a207.runkk.app.domain.avatar.Shop
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlinx.coroutines.test.runTest
 
 /** 다른 러너 모습 값을 렌더러 값으로 만든다([임시:D-성-260]): 내 아바타와 같은 재료(outfitOf, bodyShapeOf, 셀카 머리)를 쓴다. */
@@ -108,6 +109,18 @@ class RunnerLookResolverTest {
         assertEquals(AvatarOutfit(), female.outfit)
         assertEquals(AvatarBodyShape.BASE, female.bodyShape)
         assertEquals(0, female.runningAmount)
+    }
+
+    @Test
+    fun `한 번 만든 모습은 기다리지 않고 바로 꺼낸다(출발 화면 첫 구성에 상대 칸을 만든다)`() = runTest {
+        val look = SlotRunnerLook(isFemale = false, topItemId = 12, runAmount = 30)
+        assertNull(resolver.peek(look), "만들기 전에는 없다")
+
+        val resolved = resolver.resolve(look)
+
+        assertSame(resolved, resolver.peek(look), "같은 모습 값이면 만든 것을 그대로 준다(Rive 칸이 참조로 비교한다)")
+        assertSame(resolved, resolver.resolve(look), "다시 만들지 않는다")
+        assertNull(resolver.peek(look.copy(runAmount = 31)), "다른 모습은 없다")
     }
 
     private fun Outcome<Shop>.items(): List<Shop.Item> = (this as Outcome.Success).value.items

@@ -33,6 +33,7 @@ import com.a207.runkk.app.core.navigation.LocalSlots
 import com.a207.runkk.app.core.navigation.RunAvatarSubject
 import com.a207.runkk.app.core.navigation.SlotKey
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -238,14 +239,51 @@ class BattleAvatarSlotTest {
     }
 
     @Test
-    fun `대결 중이어도 페이스를 모르면 STAND이고 빠르기는 기준값이다`() {
-        compose.setContent {
-            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(probe))) {
-                RunkkTheme(reduceMotion = true) { BattleRunningScreen(running(pace = null), BattleRunningActions()) }
+    fun `출발 뒤 첫 거리가 5초 늦어도 RUN이고 첫 거리 뒤 3초 그대로면 STAND다(S15P31A207-335 3차)`() {
+        var latest: AvatarSlotPose? = null
+        val startProbe: @Composable () -> Unit = {
+            if (LocalSlotAvatarRunSubject.current.isMine) {
+                val value = LocalSlotAvatarPose.current
+                speed = LocalSlotAvatarRunSpeed.current
+                SideEffect { latest = value }
             }
         }
-        compose.waitForIdle()
-        assertEquals(AvatarSlotPose.STAND, pose)
-        assertEquals(1f, checkNotNull(speed), 0.001f)
+        var state by mutableStateOf(running(distance = 0, pace = null))
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            CompositionLocalProvider(LocalSlots provides mapOf(SlotKey.RUN_AVATAR to listOf(startProbe))) {
+                RunkkTheme(reduceMotion = true) { BattleRunningScreen(state, BattleRunningActions()) }
+            }
+        }
+        // 16ms 프레임마다 내 자세를 적는다. GPS 첫 거리는 출발 5초 뒤에 온다(에뮬레이터 녹화: 5.7초).
+        val rows = mutableListOf<Pair<Long, AvatarSlotPose?>>()
+        var t = 0L
+        fun runUntil(end: Long) {
+            while (t < end) {
+                compose.mainClock.advanceTimeByFrame()
+                t += FRAME_MILLIS
+                rows += t to latest
+            }
+        }
+        runUntil(FIRST_DISTANCE_AT)
+        assertEquals(
+            emptyList(),
+            rows.filter { it.second != AvatarSlotPose.RUN }.map { it.first },
+            "첫 거리 전(거리 0)에는 정면으로 서지 않는다(ms)"
+        )
+        assertEquals(1f, checkNotNull(speed), 0.001f, "페이스를 모르면 빠르기는 기준값이다")
+
+        state = state.copy(myDistance = Distance(10))
+        Snapshot.sendApplyNotifications()
+        runUntil(FIRST_DISTANCE_AT + 4_000)
+        val afterFirst = rows.filter { it.first > FIRST_DISTANCE_AT }
+        val standAt = afterFirst.first { it.second == AvatarSlotPose.STAND }.first - FIRST_DISTANCE_AT
+        assertTrue(standAt in 3_000L..3_100L, "첫 거리 뒤 3초 그대로면 선다: +$standAt ms")
+        assertTrue(afterFirst.filter { it.first - FIRST_DISTANCE_AT < 3_000 }.all { it.second == AvatarSlotPose.RUN })
+    }
+
+    private companion object {
+        const val FRAME_MILLIS = 16L
+        const val FIRST_DISTANCE_AT = 5_008L
     }
 }

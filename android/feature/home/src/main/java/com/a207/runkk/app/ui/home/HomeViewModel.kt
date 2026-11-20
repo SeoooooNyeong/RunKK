@@ -18,6 +18,8 @@ import com.a207.runkk.app.domain.record.RecordRepository
 import com.a207.runkk.app.domain.run.PendingRunRepository
 import com.a207.runkk.app.domain.run.PlanSnapshot
 import com.a207.runkk.app.domain.run.TodayPlanCache
+import com.a207.runkk.app.domain.settings.RefreshGate
+import com.a207.runkk.app.domain.settings.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.time.Clock
 import java.time.LocalDate
@@ -26,6 +28,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +48,9 @@ import kotlinx.coroutines.launch
  * 다시 세고, 조건이 풀리면 띠를 내린다. 안내만 하고 기록을 지우거나 측정을 막지 않는다(W47).
  * 크루런 결과 「확인」의 복귀 값(설계 05-32 HomeRunReturnReceipt)을 받으면 대시보드를 다시 읽고, 읽기에 성공한 첫 표시부터 내 유효
  * 거리(「+0.80km 크루런」)를 2초 강조한다. 같은 복귀 값은 한 번만 강조하고 거리를 손으로 더하지 않는다(원본을 다시 읽는다).
+ * 서버 다시 읽기는 문지기(RefreshGate "home", 30초, Jira 325)를 거친다: 마지막 성공에서 30초 안에 다시 보이면 서버를 부르지 않고,
+ * 다시 시도·새 복귀 값·오늘 날짜 바뀜은 간격을 무시한다. 러닝 설정(음성·진동)과 배치 진행은 기기 사본을 읽고(설정 사본은 다시 보일
+ * 때마다), 사본이 없을 때만 서버에서 읽는다. 다시 시도는 배치 진행도 서버에서 다시 읽는다.
  */
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -53,7 +59,9 @@ class HomeViewModel @Inject constructor(
     private val locationConsent: LocationConsentUseCase,
     private val todayPlans: TodayPlanCache,
     private val pendingRuns: PendingRunRepository,
-    private val clock: Clock
+    private val clock: Clock,
+    private val settings: SettingsRepository,
+    private val gate: RefreshGate = RefreshGate()
 ) : ViewModel() {
     // 기기에 남긴 마지막 내 얼굴(셀카 머리)을 첫 값으로 둬 앱을 켠 첫 그림부터 상단 얼굴이 내 얼굴이다. 셀카 그림은 성별과 상관없으므로
     // 본인 요약을 읽기 전에도 그린다(기본 머리는 성별을 알아야 해 그대로 기다린다, TF-V12-02).
@@ -69,6 +77,15 @@ class HomeViewModel @Inject constructor(
 
     private var refreshJob: Job? = null
 
+    /** 받아 둔 사본을 한 번 그려 보았는가(S15P31A207-345 2차). */
+    private var hasTriedCopy = false
+
+    /** 서버 읽기 차례. 취소된 앞 읽기가 문지기의 진행 중 표시를 풀지 않게 마지막 차례만 끝을 알린다. */
+    private var loadTurn = 0
+
+    /** 마지막으로 서버 읽기를 시작한 홈 날짜(KST). 날짜가 바뀌면 간격을 무시한다. */
+    private var loadedDate: LocalDate? = null
+
     /** 배치 진행 읽기 차례. 늦게 끝난 앞 읽기(새로 고침·시트 열기)가 새 값을 덮지 않게 마지막 차례 결과만 쓴다. */
     private var placementTurn = 0
 
@@ -83,7 +100,8 @@ class HomeViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { pendingRuns.observePending().collect { checkResendReminder() } }
-        refresh()
+        applySettingsCopy()
+        load(force = false)
     }
 
     /**
@@ -92,9 +110,13 @@ class HomeViewModel @Inject constructor(
      */
     fun onResumed(receipt: HomeRunReturnReceipt? = null) {
         _state.update { it.copy(isSummaryExpanded = false) }
+        applySettingsCopy()
         val isNew = receipt != null && receipt.receiptId !in consumedReturns
         if (isNew) pendingReturn = receipt
-        if (resumedOnce || isNew) refresh()
+        // 재전송 안내는 기기 보관함만 세므로 문지기와 상관없이 다시 센다.
+        if (resumedOnce && !isNew) viewModelScope.launch { checkResendReminder() }
+        // 새 복귀 값(다른 화면에서 기록을 저장하고 돌아옴)은 간격을 무시한다.
+        if (resumedOnce || isNew) load(force = isNew)
         resumedOnce = true
     }
 
@@ -142,34 +164,96 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun refresh() {
+    /** 다시 시도(당겨서 새로고침): 간격을 무시하고 배치 진행도 서버에서 다시 읽는다. */
+    fun refresh() = load(force = true)
+
+    /**
+     * 문지기를 거쳐 서버에서 다시 읽는다. [force](다시 시도·새 복귀 값)나 오늘 날짜가 바뀐 경우는 간격을 무시하고, 읽는 중이면 앞 읽기를
+     * 취소하고 새로 읽는다(늦게 끝난 앞 요청이 새 결과를 덮지 않게). 그 밖에 읽는 중이면 새로 읽지 않는다.
+     */
+    private fun load(force: Boolean) {
         // 앱 시계는 UTC라(DeviceBindings) 한국 0~9시에 하루 앞이 된다. 홈 날짜는 서버 날짜 기준(KST)으로 센다(PL1-A1).
         val today = LocalDate.now(clock.withZone(HOME_ZONE))
+        val now = clock.instant()
+        val isForced = force || (loadedDate != null && loadedDate != today)
+        if (isForced && refreshJob?.isActive == true) {
+            refreshJob?.cancel()
+            gate.markDone(HOME_KEY, now, ok = false)
+        }
+        if (!gate.shouldRun(HOME_KEY, now, isForced)) return
+        loadedDate = today
+        val turn = ++loadTurn
         _state.update { it.copy(isLoading = true, error = null) }
-        // 늦게 끝난 앞 요청이 새 결과를 덮지 않게 취소한다.
-        refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
-            checkResendReminder()
-            val dashboard = async { records.dashboard(today) }
-            val plan = async { records.todayPlan() }
-            val profile = async { account.mySummary().getOrNull() }
-            val settings = async { account.settings().getOrNull() }
-            val placementTurnNow = ++placementTurn
-            val placement = async { account.placement() }
+            var ok = false
+            try {
+                ok = read(today, isPlacementFromServer = force)
+            } finally {
+                if (turn == loadTurn) gate.markDone(HOME_KEY, clock.instant(), ok)
+            }
+        }
+    }
+
+    /**
+     * 처음 읽을 때 한 번: 받아 둔 오늘 대시보드·내 요약 사본(시작 로딩이 남긴 것, S15P31A207-345 2차)이 있으면 먼저 그린다. 둘 다 있으면
+     * 첫 화면을 바로 그리고(로딩 끝), 서버에서 새로 읽은 값이 오면 바꾼다.
+     */
+    private suspend fun showCopy(today: LocalDate) {
+        if (hasTriedCopy) return
+        hasTriedCopy = true
+        val summary = records.cachedDashboard(today)
+        val me = account.cachedMySummary()
+        if (summary == null && me == null) return
+        _state.update {
+            val withSummary = if (summary != null) it.withSummary(summary, today) else it
+            withSummary.copy(
+                isLoading = it.isLoading && (summary == null || me == null),
+                header = me?.let { p -> HomeHeader(p.displayName, p.tier, p.level, summary?.rewardBalance) }
+                    ?: it.header,
+                isHeaderLoading = it.isHeaderLoading && me == null
+            )
+        }
+    }
+
+    /** 러닝 설정 기기 사본이 있으면 자유런 카드의 음성·진동을 그 값으로 바꾼다(서버를 부르지 않는다). */
+    private fun applySettingsCopy() {
+        if (!settings.hasCopy()) return
+        val guidance = settings.guidanceSettings()
+        _state.update { it.copy(isRunVoiceOn = guidance.isRunVoiceOn, isRunVibrationOn = guidance.isRunVibrationOn) }
+    }
+
+    /** 홈 값을 서버에서 읽어 상태에 넣는다. 대시보드를 읽었으면 참(문지기에 성공으로 남긴다). */
+    private suspend fun read(today: LocalDate, isPlacementFromServer: Boolean): Boolean = coroutineScope {
+        checkResendReminder()
+        showCopy(today)
+        val dashboard = async { records.dashboard(today) }
+        val plan = async { records.todayPlan() }
+        val profile = async { account.mySummary().getOrNull() }
+        // 러닝 설정은 기기 사본이 있으면 그것을 쓴다(쓰기 UseCase가 사본을 갱신한다). 없을 때만 서버에서 읽는다.
+        val serverSettings = if (settings.hasCopy()) null else async { account.settings().getOrNull() }
+        val placementTurnNow = ++placementTurn
+        val placementCopy = if (isPlacementFromServer) null else account.cachedPlacement()
+        val placement = if (placementCopy != null) null else async { account.placement() }
+        run {
             val dashboardResult = dashboard.await()
             val planResult = plan.await()
             if (planResult is Outcome.Success) {
                 todayPlans.put(planResult.value?.let { PlanSnapshot(it.distance, it.pace) })
             }
             val me = profile.await()
-            val memberSettings = settings.await()
+            val memberSettings = serverSettings?.await()
             // 받아 둔 그림이 있으면 다시 받지 않는다. 받지 못하면 null.
             val face = me?.let {
                 account.cachedFaceLayers(it.faceKey)
                     ?: it.faceKey?.let { key -> account.faceLayers(key).getOrNull() }
             }
             val summary = dashboardResult.getOrNull()
-            applyPlacement(placement.await(), placementTurnNow)
+            applyPlacement(
+                placementCopy?.let {
+                    Outcome.Success(it)
+                } ?: requireNotNull(placement).await(),
+                placementTurnNow
+            )
             // 대시보드를 새로 읽었을 때만 결과 복귀 값을 강조한다(읽지 못하면 다음 읽기까지 둔다).
             val returned = pendingReturn.takeIf { dashboardResult is Outcome.Success }
             _state.update {
@@ -197,6 +281,7 @@ class HomeViewModel @Inject constructor(
                 )
             }
             returned?.let(::highlight)
+            dashboardResult is Outcome.Success
         }
     }
 
@@ -244,6 +329,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private companion object {
+        /** 홈 다시 읽기 문지기 열쇠. */
+        const val HOME_KEY = "home"
+
         /** 결과 복귀 강조 시간(설계 05-32 [임시:D-성-889]). */
         const val HIGHLIGHT_MILLIS = 2_000L
 

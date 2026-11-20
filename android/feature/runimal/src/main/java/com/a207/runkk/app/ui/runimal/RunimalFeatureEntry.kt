@@ -16,7 +16,7 @@ class RunimalFeatureEntry @Inject constructor() : FeatureEntry {
         builder.route(Routes.RUNIMAL_TYPES) { RunimalTypesRoute() }
         builder.addEntryProvider(Routes.RunimalType::class) { key -> RunimalTypeRoute(key.type) }
         builder.addEntryProvider(Routes.Evaluation::class) { key ->
-            EvaluationRoute(key.tier, key.validRuns, key.runimalType)
+            EvaluationRoute(key.tier, key.validRuns, key.runimalType, key.previousTier)
         }
     }
 }

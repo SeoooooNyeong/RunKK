@@ -32,12 +32,10 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.role
@@ -45,7 +43,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -306,7 +303,10 @@ fun RunkkSegmentBar(segments: List<Pair<Float, Color>>, modifier: Modifier = Mod
     }
 }
 
-/** 강조 배너(라임 배경, "최장 거리 신기록") 또는 안내 배너(어두운 라임, "2km 통과"). */
+/**
+ * 강조 배너(라임 배경, "최장 거리 신기록") 또는 안내 배너(어두운 라임, "2km 통과"). 달리기 화면 위에 겹쳐 띄우는 추월·역전 안내는
+ * [RunkkGuidanceToast]다.
+ */
 @Composable
 fun RunkkBanner(
     text: String,
@@ -336,31 +336,6 @@ fun RunkkBanner(
                 RunkkTextStyles.BodyStrong
             },
             color = if (isStrong) RunkkColors.OnLimeFill else RunkkColors.Lime
-        )
-    }
-}
-
-/**
- * 종료 카운트다운 배너(라벤더 배경, 검은 글자): "상대 도착! 27초 안에 …". 바뀌는 초는 보이기만 하고 보조 기술에는 고정 문구
- * [spoken]을 한 번 즉시 알린다(매초 끊어 읽지 않게).
- */
-@Composable
-fun RunkkCountdownBanner(text: String, spoken: String, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RunkkShapes.Medium)
-            .background(RunkkColors.Lavender)
-            .padding(16.dp)
-            .clearAndSetSemantics {
-                contentDescription = spoken
-                liveRegion = LiveRegionMode.Assertive
-            }
-    ) {
-        Text(
-            text = text,
-            style = RunkkTextStyles.text(15, FontWeight.Black),
-            color = RunkkColors.OnLime
         )
     }
 }

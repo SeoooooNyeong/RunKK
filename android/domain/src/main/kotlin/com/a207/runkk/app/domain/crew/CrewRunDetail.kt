@@ -27,7 +27,9 @@ data class CrewRunDetail(
     val canDelete: Boolean,
     val repeat: CrewRunRepeat,
     val repeatDay: DayOfWeek?,
-    val attendees: List<Attendee>
+    val attendees: List<Attendee>,
+    /** 열람자의 참여 상태. 옛 서버면 NONE. */
+    val myRun: MyRunState = MyRunState.NONE
 ) {
     /** 내가 참석 중이다(하단 버튼 "참석 취소하기"). */
     val isGoing: Boolean get() = myAnswer == AttendanceAnswer.GOING

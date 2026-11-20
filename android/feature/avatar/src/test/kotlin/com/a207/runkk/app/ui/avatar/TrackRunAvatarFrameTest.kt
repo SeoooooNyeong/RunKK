@@ -12,10 +12,13 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
+import com.a207.runkk.app.core.avatar.RiveAvatarLook
 import com.a207.runkk.app.core.designsystem.AvatarCharacter
 import com.a207.runkk.app.core.designsystem.LocalTrackAvatarLoading
+import com.a207.runkk.app.core.designsystem.LocalTrackAvatarWarmup
 import com.a207.runkk.app.core.designsystem.RunkkTheme
 import com.a207.runkk.app.core.navigation.AvatarSlotPose
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -74,6 +77,35 @@ class TrackRunAvatarFrameTest {
         compose.runOnIdle { assertEquals(false, reports.last()) }
         compose.runOnIdle { key = "second" }
         compose.runOnIdle { assertEquals(true, reports.last()) }
+    }
+
+    @Test
+    fun `출발 전 데우기에서는 Rive 칸을 만들지 않고 그 모습의 파일과 텍스처만 미리 준비한다`() {
+        val held = mutableListOf<RiveAvatarLook>()
+        var errors = 0
+        val look = defaultRiveLook(isFemale = false)
+        compose.setContent {
+            RunkkTheme(reduceMotion = false) {
+                CompositionLocalProvider(
+                    LocalTrackAvatarWarmup provides true,
+                    LocalTrackAvatarHold provides {
+                        held += it
+                        awaitCancellation()
+                    }
+                ) {
+                    Box(Modifier.size(88.dp)) {
+                        TrackRunAvatarFigure(RunFigureState.Ready(look), AvatarSlotPose.RUN, facingLeft = false) {
+                            errors++
+                        }
+                    }
+                }
+            }
+        }
+        compose.runOnIdle {
+            assertEquals(listOf(look), held)
+            // Rive 칸을 만들면 Robolectric에서 네이티브 런타임을 읽지 못해 onError가 온다. 오지 않으면 만들지 않은 것이다.
+            assertEquals(0, errors)
+        }
     }
 
     @Test

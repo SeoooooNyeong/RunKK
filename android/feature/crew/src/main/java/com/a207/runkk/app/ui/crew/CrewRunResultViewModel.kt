@@ -13,6 +13,7 @@ import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunCompletion
 import com.a207.runkk.app.domain.crew.CrewRunCoordinator
 import com.a207.runkk.app.domain.crew.CrewRunResult
+import com.a207.runkk.app.domain.crew.CrewRunSignal
 import com.a207.runkk.app.domain.crew.CrewRunSignals
 import com.a207.runkk.app.domain.crew.CrewRunState
 import com.a207.runkk.app.domain.crew.MyRecordUpload
@@ -43,8 +44,12 @@ import kotlinx.coroutines.launch
  * 넘기면 멈춘다. 크루런은 닫혔고 내 기록만 아직이면(myRecordId 없음) [REREAD_MILLIS] 간격으로 [REREADS]번까지만 읽는다. 읽기가 실패해도
  * 이미 받은 결과가 있으면 같은 규칙으로 이어 간다.
  *
- * 다시 읽기는 화면 수명을 따른다(확인 리뷰 CR2-A1): 화면이 가려지거나 앱이 백그라운드면([onStop]) 멈추고, 돌아오면([onStart]) 바로 한 번 읽은
- * 뒤 같은 간격 규칙을 잇는다. 상한 [RUNNING_WATCH_MILLIS]는 처음 읽은 때부터의 실제 경과([timeSource])로 센다.
+ * 다시 읽기는 화면 수명을 따른다(확인 리뷰 CR2-A1): 처음 읽기 뒤 주기 다시 읽기는 화면이 STARTED일 때만 돈다. 가려지거나 앱이
+ * 백그라운드면([onStop]) 멈추고, 돌아오면([onStart]) 바로 한 번 읽은 뒤 같은 간격 규칙을 잇는다. 상한 [RUNNING_WATCH_MILLIS]는 처음 읽은
+ * 때부터의 실제 경과([timeSource])로 센다.
+ *
+ * 실시간 연결(CrewRunSignals.watch)이 CONNECTED인 동안은 주기 다시 읽기를 쉬고 결과 변경 신호(RESULT)만 따른다. 연결이 끊기면 간격 규칙을
+ * 처음(3초)부터 다시 시작한다.
  *
  * 가운데 내 아바타는 홈과 같은 출처(본인 요약의 얼굴·배경, AccountRepository.myAvatar)로 한 번 읽는다([myAvatar]).
  *
@@ -52,7 +57,7 @@ import kotlinx.coroutines.launch
  * 기다린다. 서버가 받았다(STORED·ALREADY_STORED, 또는 결과 응답이 그 기록을 이었다)고 확인되면 바로 복귀 값(내 유효 거리)과 함께 나간다.
  * 다른 크루원의 종료·업로드나 크루 집계는 기다리지 않는다. 내 전송 실패는 다시 보내기, 서버 거부·기기 저장 실패는 안내 뒤 복귀 값
  * 없이 나간다. 기록이 없으면(측정 전 끝·기록 미생성, 지난 결과 열람) 기다리지 않고 나간다. 기존 결과 다시 읽기는 그대로다.
- * 크루런 결과 변경 신호(RESULT)를 받으면 결과를 한 번 더 읽는다(기존 다시 읽기와 별도, 화면이 보일 때만).
+ * 크루런 결과 변경 신호(RESULT)를 받으면 결과를 한 번 더 읽는다(화면이 보일 때만).
  */
 @HiltViewModel
 class CrewRunResultViewModel internal constructor(
@@ -69,8 +74,8 @@ class CrewRunResultViewModel internal constructor(
     ) -> Flow<MyRecordUpload> = { _, _ -> flowOf(MyRecordUpload.Waiting) },
     /** 내 기록 다시 보내기(CrewRunCompletion.retry). */
     private val retryUpload: (String) -> Unit = {},
-    /** 크루런 변경 신호(CrewRunSignals.changes). */
-    private val changes: () -> Flow<CrewChange> = { emptyFlow() },
+    /** 크루런 변경 신호와 실시간 연결 여부(CrewRunSignals.watch). */
+    private val signals: () -> Flow<CrewRunSignal> = { emptyFlow() },
     private val now: () -> Instant = Instant::now,
     private val details: CrewRunDetailSource
 ) : ViewModel() {
@@ -90,7 +95,7 @@ class CrewRunResultViewModel internal constructor(
         account::lastMyAvatar,
         completion::observe,
         completion::retry,
-        signals::changes,
+        signals::watch,
         Instant::now,
         details
     )
@@ -123,8 +128,20 @@ class CrewRunResultViewModel internal constructor(
     /** 처음 읽은 때. 상한을 실제 경과로 센다. */
     private var watchStart: TimeMark? = null
 
-    /** 화면이 가려져 다시 읽기를 멈췄고 아직 더 읽어야 한다. */
+    /** 화면이 STARTED가 아니거나 가려져 다시 읽기를 멈췄고 아직 더 읽어야 한다. */
     private var isPaused = false
+
+    /** 화면이 STARTED다(onStart ~ onStop). */
+    private var isStarted = false
+
+    /** 한 번 가려졌다가 돌아온다(돌아오면 바로 한 번 읽는다). */
+    private var wasHidden = false
+
+    /** 실시간 연결 중이다(주기 다시 읽기를 쉰다). */
+    private var isLive = false
+
+    /** 마지막 결과로 보아 아직 더 읽어야 한다. */
+    private var needsMore = false
 
     /**
      * 결과 읽기 하나로 합친다(리뷰 결함 3): 간격 다시 읽기와 결과 변경 신호가 같은 읽기를 부르고, 읽는 중에 온 요청은 끝난 뒤 한 번만
@@ -145,6 +162,7 @@ class CrewRunResultViewModel internal constructor(
         rereads = 0
         watchStart = null
         isPaused = false
+        wasHidden = false
         _state.update { it.copy(isLoading = true, error = null) }
         job?.cancel()
         resultReads.cancel()
@@ -229,35 +247,68 @@ class CrewRunResultViewModel internal constructor(
         _events.trySend(CrewRunResultEvent.Leave(receipt))
     }
 
-    /** 화면이 다시 보인다. 가려져 멈췄던 다시 읽기를 바로 한 번 읽고 잇는다. */
+    /** 화면이 보인다(STARTED). 가려졌다 돌아왔으면 바로 한 번 읽고, 처음 보이면 간격 규칙대로 다음 읽기를 잡는다. */
     fun onStart() {
-        listenResultChanges()
+        isStarted = true
+        listenSignals()
         if (loaded == null || !isPaused || job?.isActive == true) return
         isPaused = false
-        resultReads.refresh()
+        if (wasHidden) {
+            wasHidden = false
+            resultReads.refresh()
+        } else if (!isLive) {
+            scheduleNext()
+        }
     }
 
-    /** 이 크루런의 결과 변경 신호(RESULT)를 받으면 결과를 한 번 더 읽는다(보이는 동안만, 설계 05-32 5.3). */
-    private fun listenResultChanges() {
+    /**
+     * 이 크루런의 결과 변경 신호(RESULT)를 받으면 결과를 한 번 더 읽고, 실시간 연결이 CONNECTED면 주기 다시 읽기를 쉬며 끊기면 3초부터
+     * 다시 시작한다(보이는 동안만, 설계 05-32 5.3·05-33 2.4).
+     */
+    private fun listenSignals() {
         if (signalJob?.isActive == true) return
         signalJob = viewModelScope.launch {
-            changes().collect { change ->
-                val postId = loaded
-                if (postId != null && change.postId == postId && change.resource == CrewChange.Resource.RESULT) {
-                    resultReads.refresh()
+            signals().collect { signal ->
+                when (signal) {
+                    is CrewRunSignal.Changed -> onChange(signal.change)
+                    is CrewRunSignal.Link -> onLink(signal.isConnected)
                 }
             }
         }
     }
 
-    /** 화면이 가려졌다(다른 화면을 위에 쌓음·백그라운드). 다시 읽기를 멈춘다. */
+    private fun onChange(change: CrewChange) {
+        val postId = loaded
+        if (postId != null && change.postId == postId && change.resource == CrewChange.Resource.RESULT) {
+            resultReads.refresh()
+        }
+    }
+
+    private fun onLink(isConnected: Boolean) {
+        val wasLive = isLive
+        isLive = isConnected
+        if (isConnected) {
+            job?.cancel()
+            return
+        }
+        if (!wasLive || !isStarted || loaded == null || !needsMore) return
+        rereads = 0
+        // 읽는 중이면 그 읽기가 끝날 때 0부터 센 간격(3초)으로 다음을 정한다
+        if (resultReads.isReading) return
+        scheduleNext()
+    }
+
+    /** 화면이 가려졌다(다른 화면을 위에 쌓음·백그라운드). 다시 읽기와 신호 받기를 멈춘다. */
     fun onStop() {
+        isStarted = false
+        isLive = false
         signalJob?.cancel()
         signalJob = null
-        if (job?.isActive != true && !resultReads.isReading) return
+        if (!needsMore && job?.isActive != true && !resultReads.isReading) return
         job?.cancel()
         resultReads.cancel()
         isPaused = true
+        wasHidden = true
     }
 
     /**
@@ -274,12 +325,23 @@ class CrewRunResultViewModel internal constructor(
             return
         }
         val start = watchStart ?: timeSource.markNow().also { watchStart = it }
-        if (!last.needsReread(rereads, start.elapsedNow().inWholeMilliseconds)) {
+        needsMore = last.needsReread(rereads, start.elapsedNow().inWholeMilliseconds)
+        if (!needsMore) {
             job?.cancel()
             isPaused = false
             return
         }
+        if (!isStarted) {
+            isPaused = true
+            return
+        }
+        if (isLive) return
         if (job?.isActive == true && !wasTimer) return
+        scheduleNext()
+    }
+
+    /** 간격 규칙의 다음 다시 읽기를 잡는다. */
+    private fun scheduleNext() {
         val pause = rereadDelay(rereads)
         rereads++
         job = viewModelScope.launch {

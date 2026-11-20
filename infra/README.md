@@ -74,6 +74,7 @@ cd ~/S15P31A207 && docker build -t runkk-android-sdk:37 ci/android   # 이후 ci
 # /etc/gitlab-runner/config.toml의 docker 러너 [runners.docker]를 아래처럼 둔다(러너가 자동으로 다시 읽는다)
 #   allowed_pull_policies = ["always", "if-not-present"]
 #   volumes = ["/var/run/docker.sock:/var/run/docker.sock", "/srv/gitlab-runner/cache:/cache"]
+#   cpu_shares = 256   # CI 작업 컨테이너의 CPU 우선순위를 낮춰 prod(api·nginx 기본 1024)가 먼저 돈다(2026-11-17 운영 적용, S15P31A207-318)
 sudo mkdir -p /srv/gitlab-runner/cache
 ```
 
@@ -206,6 +207,12 @@ docker exec runkk-prod-avatar-1 node scripts/recompress-heads.mjs --data /app/da
 - 머리 응답 ETag는 `head-v3-…`입니다(`SelfieJobController.HEAD_FORMAT`). 이전 `head-v2` 사본을 가진 앱은 한 번 다시 받습니다. 새 api가 뜬 뒤 재압축 전에 받은 앱은 압축 전 사본을 v3로 들고 있으므로 배포 직후 바로 (c)·(d)를 돌립니다.
 - 스크립트는 파일마다 임시 파일에 쓴 뒤 바꾸고, 읽은 뒤 서버가 그 파일을 다시 썼으면 건너뜁니다(「실행 중 바뀌어 건너뜀」). 사용이 적은 시간에 돌립니다.
 - (e) 되돌리기: `.env`(CI 변수 `INFRA_ENV_PROD`)에 `HEAD_PNG_COMPRESSION=off`를 넣고 다시 배포한 뒤, 7절 「실제 복구」의 아바타 볼륨 절차에 `A=$B`(위 백업 묶음 이름)를 넣어 풉니다. 백업 뒤 새로 만든 머리는 잃으므로 복원은 그림이 깨졌을 때만 합니다.
+
+### 정적 파일 압축과 이벤트 그림 이름 (S15P31A207-329)
+
+- nginx는 정적 문서 경로(`/`, `/legal/`, `/events/`, `/invite/battle/`, `/invite/crew/`)에서만 gzip한다(html·css·js·svg, 1KB 이상). api 응답 압축은 Spring이 맡는다.
+- 이벤트 그림은 내용 해시 8자리를 넣은 이름(`banner.59e500fa.png`)일 때만 하루(`immutable`) 캐시한다. 그림을 바꿀 때는 새 해시 이름으로 올리고 event 행의 주소를 바꾼다(관리툴 또는 Flyway). 옛 이름 파일은 옛 앱을 위해 지우지 않는다. 이벤트 html은 지금처럼 60초.
+- 카카오 공유 카드 그림은 `/invite/card.jpg`(약 100KB)다. 옛 앱이 쓰는 `/invite/card.png`도 남긴다. 참조 세 곳(파일, nginx location, 앱 상수 `KakaoInviteSharer`·`KakaoLinkSharer`)을 같은 커밋에서 바꾼다.
 
 ## 5. 로컬에서 같은 구성 띄우기
 

@@ -41,6 +41,7 @@ import com.a207.runkk.app.domain.run.RunStartSpec
 import com.a207.runkk.app.domain.run.RunTracker
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
@@ -105,6 +106,13 @@ constructor(
 
     @Volatile
     private var run: BattleRun? = null
+
+    /** 폰 기록 대결의 임시 번호(응답 전 경로·상태의 battleId, 음수로 겹치지 않게). */
+    private val nextTicket = AtomicLong(-1)
+
+    /** 마지막으로 응답을 받은 폰 기록 대결(임시 번호 → 시작 정보). 진행 화면이 서버 번호로 바꿀 때 읽는다. */
+    @Volatile
+    private var created: Pair<Long, RecordBattleStart>? = null
 
     /** 서버에 가 있는 매칭 요청(이탈 취소가 요청보다 먼저 가지 않게 기다린다). */
     @Volatile
@@ -189,6 +197,75 @@ constructor(
     }
 
     /**
+     * 폰의 나와의 싸움·유명인 시작(S15P31A207-335 9회차): 서버 응답을 기다리지 않고 누른 순간 3초 카운트다운을 열고, 대결 만들기
+     * ([create], POST /battles/self·celebrity)는 카운트다운 중에 받는다. 돌려준 임시 번호(음수)가 진행 화면 경로의 대결 번호이고
+     * 응답 전 상태의 battleId다. 응답을 받으면 서버 대결 번호로 바꾸고([resolve], [createdRecordBattle]) 그 뒤 상태는 서버 번호를 싣는다.
+     * - 응답이 1초 안에 오면 출발은 누름 + 3초 그대로다. 1초를 넘기면 화면은 숫자 3에서 멈추고(Countdown.isAwaitingServer) 응답을 받은 때부터
+     *   2·1을 1초씩 센다: 출발 = max(누름 + 3초, 응답 + 2초).
+     * - 실패하거나 [RECORD_CREATE_LIMIT] 안에 응답이 없으면 카운트다운을 멈추고 [BattleRunState.StartFailed]로 알린다. 회는 열어 두어
+     *   [retryRecordBattle]이 다시 보내고 3초부터 세거나 [cancel]로 닫는다. 제한 시간 뒤 늦게 만들어진 대결은 취소한다.
+     * - 응답 전에 [cancel](다시 고르기·뒤로)하면 바로 Discarded로 닫고, 응답이 대결을 만들었으면 그 대결을 취소한다(D-200).
+     * 측정 시작 실패 때 서버 대결 취소(S15P31A207-336)와 그 밖의 진행은 [onRecordBattleStart]와 같다.
+     */
+    fun startRecordBattle(distance: Distance, create: suspend () -> Outcome<RecordBattleStart>): Long {
+        val ticket = nextTicket.getAndDecrement()
+        val run = openRun(ticket, distance, opponentName = null, RunStartSpec.StartDevice.PHONE)
+        run.create = create
+        countDownRecord(run)
+        return ticket
+    }
+
+    /** 대결 만들기가 실패해 멈춘([BattleRunState.StartFailed]) 회를 다시 보내고 3초부터 센다. 그 밖의 상태면 아무것도 하지 않는다. */
+    fun retryRecordBattle() {
+        val run = run ?: return
+        val failed = _state.value as? BattleRunState.StartFailed ?: return
+        if (failed.battleId != run.ticket || run.isCreated) return
+        countDownRecord(run)
+    }
+
+    /** [startRecordBattle]의 임시 번호면 응답으로 받은 서버 대결 번호, 아직 모르거나 다른 번호면 그대로다. */
+    fun resolve(battleId: Long): Long = createdRecordBattle(battleId)?.battleId ?: battleId
+
+    /** [startRecordBattle]의 임시 번호로 받은 대결 시작 정보. 아직 받지 못했으면 null이다(회가 닫힌 뒤에도 마지막 것은 남긴다). */
+    fun createdRecordBattle(ticket: Long): RecordBattleStart? = created?.takeIf { it.first == ticket }?.second
+
+    /** 카운트다운을 바로 열고(화면 첫 판이 3을 그리게 부른 스레드에서 상태를 둔다) 대결 만들기 응답을 카운트다운 중에 받는다. */
+    private fun countDownRecord(run: BattleRun) {
+        val create = run.create ?: return
+        val startAt = clock.instant().plus(RECORD_COUNTDOWN)
+        _state.value = BattleRunState.Countdown(run.ticket, startAt, isAwaitingServer = true)
+        // 회가 닫혀도(다시 고르기) 응답은 끝까지 받아 만들어진 대결을 취소할 수 있게 앱 범위에서 보낸다.
+        val attempt = applicationScope.async { create() }
+        run.attempt = attempt
+        run.round.scope.launch {
+            val outcome = withTimeoutOrNull(RECORD_CREATE_LIMIT.toMillis()) { attempt.await() }
+            if (outcome !is Outcome.Success) {
+                if (outcome == null) cancelWhenCreated(attempt)
+                run.attempt = null
+                val error = (outcome as? Outcome.Failure)?.error ?: AppError.Network
+                _state.value = BattleRunState.StartFailed(run.ticket, error)
+                return@launch
+            }
+            val start = outcome.value
+            run.adopt(start)
+            created = run.ticket to start
+            val departAt = maxOf(startAt, clock.instant().plus(RECORD_COUNTDOWN.minus(RECORD_HOLD)))
+            _state.value = BattleRunState.Countdown(run.battleId, departAt)
+            val wait = Duration.between(clock.instant(), departAt)
+            if (!wait.isNegative) delay(wait.toMillis())
+            if (begin(run)) report(run) { battleRepository.markStarted(run.battleId) }
+        }
+    }
+
+    /** 대결 만들기 응답이 늦게라도 대결을 만들면 그 대결을 취소한다(보낸 쪽이 이미 떠났거나 제한 시간이 지났다). */
+    private fun cancelWhenCreated(attempt: Deferred<Outcome<RecordBattleStart>>) {
+        applicationScope.launch {
+            val late = attempt.awaitOrNull() as? Outcome.Success ?: return@launch
+            battleRepository.cancel(late.value.battleId)
+        }
+    }
+
+    /**
      * 서버 연결 없이 미리 받은 상대 기록으로 셀프·셀럽런을 진행한다(D-377, 사용자 결정 W18). 진행은 기록 대결과 같다: 3초 카운트다운 뒤
      * 측정하고 구간 기록으로 상대 거리·격차·추월을 낸다(FR-098). 서버 대결이 없으므로 시작·그만두기·취소를 서버에 보고하지 않고,
      * 기록은 대결 ID 없는 자유런으로 확정해 보통 자유런처럼 보낸다. 상태(BattleRunState)의 battleId 자리는 0이다.
@@ -236,6 +313,12 @@ constructor(
      * 예전에는 셀프런·셀럽런 그만두기가 기록을 버렸다). 기록 없이 끝내려면 [cancel]이다.
      */
     fun forfeit() = end { run ->
+        // 대결 만들기 응답 전이면 그만둘 서버 대결이 없다: 취소와 같이 닫는다(S15P31A207-335 9회차).
+        if (!run.isCreated) {
+            run.attempt?.let(::cancelWhenCreated)
+            discard(run)
+            return@end
+        }
         report(run) { battleRepository.forfeit(run.battleId) }
         finish(run, status = null)
     }
@@ -245,7 +328,12 @@ constructor(
      * 버린 뒤 [BattleRunState.Discarded]로 닫는다(D-266, 사용자 요청 2026-10-30).
      */
     fun cancel() = end { run ->
-        report(run) { battleRepository.cancel(run.battleId) }
+        if (run.isCreated) {
+            report(run) { battleRepository.cancel(run.battleId) }
+        } else {
+            // 대결 만들기 응답 전(S15P31A207-335 9회차): 기다리지 않고 닫고, 응답이 대결을 만들었으면 그때 취소한다.
+            run.attempt?.let(::cancelWhenCreated)
+        }
         discard(run)
     }
 
@@ -455,7 +543,7 @@ constructor(
     /**
      * 이 프로세스가 [battleId] 대결을 맡고 있는가(열린 회가 있는가). 앱을 다시 켜 서버에만 남은 대결을 찾을 때 쓴다(배틀 QA 7번).
      */
-    fun isRunning(battleId: Long): Boolean = run?.battleId == battleId
+    fun isRunning(battleId: Long): Boolean = run?.let { it.battleId == battleId || it.ticket == battleId } == true
 
     /** 결과 화면이 Finished를(기록런 탭이 Discarded를) 받은 뒤 부른다. 다음 대결 화면이 지난 회의 종료 상태를 받지 않게 Idle로 돌린다(S-17). */
     fun acknowledgeFinished() {
@@ -544,6 +632,11 @@ constructor(
         // 측정 서비스의 위치 구독이 이어받는다. 예열 위치는 기록에 넘기지 않았다(W55).
         run.stopGpsWarmUp()
         if (started is Outcome.Failure) {
+            // 셀프런·셀럽런은 혼자 하는 대결이라, 측정을 못 시작하면(위치 권한 거절 등) 서버 대결을 취소해 진행 중으로 남기지 않는다
+            // (S15P31A207-336). 상대가 있는 대결은 서버 규칙(시간 초과)에 맡긴다.
+            if (!run.isOffline && run.cardKind in RECORD_BATTLE_KINDS) {
+                applicationScope.launch { battleRepository.cancel(run.battleId) }
+            }
             fail(run, started.error)
             return false
         }
@@ -746,13 +839,39 @@ constructor(
      * [startDevice]는 이 회를 시작한 기기로 기록에 남는다(D-378). [isOffline]이면 서버 대결 없이 워치에서만 진행하는 기록 대결이다(D-377).
      */
     private inner class BattleRun(
-        val battleId: Long,
-        val distance: Distance,
-        val opponentName: String?,
+        val ticket: Long,
+        distance: Distance,
+        opponentName: String?,
         val startDevice: RunStartSpec.StartDevice,
         val isOffline: Boolean
     ) {
         val round = CoordinatedRound(applicationScope, runTracker) { fail(this, AppError.Network) }
+
+        /** 서버 대결 번호. 폰 기록 대결([startRecordBattle])은 응답 전까지 임시 번호([ticket])다. */
+        var battleId: Long = ticket
+            private set
+
+        var distance: Distance = distance
+            private set
+
+        var opponentName: String? = opponentName
+            private set
+
+        /** 폰 기록 대결의 대결 만들기 요청과 지금 가 있는 시도([startRecordBattle]). 다른 회는 null이다. */
+        var create: (suspend () -> Outcome<RecordBattleStart>)? = null
+        var attempt: Deferred<Outcome<RecordBattleStart>>? = null
+
+        /** 서버에 대결이 있는가(폰 기록 대결은 응답을 받은 뒤). */
+        val isCreated: Boolean get() = create == null || battleId != ticket
+
+        /** 대결 만들기 응답을 이 회에 들인다: 서버 번호·거리·상대 이름, 기록 상대·카드 종류 예약. 이 회의 직렬 디스패처에서만 부른다. */
+        fun adopt(start: RecordBattleStart) {
+            battleId = start.battleId
+            distance = start.distance
+            opponentName = start.opponentName
+            attempt = null
+            schedule(start.track, start.cardKind)
+        }
 
         @Volatile
         var channel: LiveChannel? = null
@@ -823,7 +942,16 @@ constructor(
     }
 
     private companion object {
+        /** 혼자 하는 기록 대결(셀프런·셀럽런). */
+        val RECORD_BATTLE_KINDS = setOf(CardKind.SELF_RUN, CardKind.CELEB_RUN)
+
         val RECORD_COUNTDOWN: Duration = Duration.ofSeconds(3)
+
+        /** 폰 기록 대결 응답을 이만큼 넘게 기다리면 숫자 3에서 멈춘다(출발 = max(누름 + 3초, 응답 + 2초), S15P31A207-335 9회차). */
+        val RECORD_HOLD: Duration = Duration.ofSeconds(1)
+
+        /** 폰 기록 대결 응답 제한 시간. 넘으면 카운트다운을 멈추고 실패로 알린다(다시 시도할 수 있다). */
+        val RECORD_CREATE_LIMIT: Duration = Duration.ofSeconds(10)
 
         /** GPS 예열 상한(5분, 워치 W53과 같다). 출발이 늦어져도 GPS를 계속 켜 두지 않는다. */
         val GPS_WARM_UP_LIMIT: Duration = Duration.ofMinutes(5)

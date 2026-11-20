@@ -76,6 +76,30 @@ class PortraitHeadFrameTest {
     }
 
     @Test
+    fun `서버가 512로 줄여 준 층의 구도는 1024 원본 구도와 상자에서 같은 자리다(S15P31A207-300 레이어 합성)`() {
+        // 서버 축소와 같은 2×2 알파 가중 평균으로 줄인 층(다른 러너 얼굴 원은 512 층을 받는다)
+        for ((name, face) in listOf(
+            "곧은 목" to face(),
+            "둥근 목 끝" to face(roundEnd = true),
+            "넓어지는 목" to face(flaredNeck = true)
+        )) {
+            for (inCircle in listOf(true, false)) {
+                val full = assertNotNotNull(PortraitHeadFrame.of(face, hair(), SIZE, SIZE, inCircle))
+                val half = assertNotNotNull(
+                    PortraitHeadFrame.of(halve(face), halve(hair()), SIZE / 2, SIZE / 2, inCircle),
+                    "$name 512 구도"
+                )
+                val label = "$name ${if (inCircle) "원 안" else "원 밖"}"
+                for (y in listOf(CROWN, CHIN, NECK_BOTTOM)) {
+                    assertNear(full.mapY(y.toFloat()), half.mapY(y / 2f), "$label y$y")
+                }
+                assertNear(full.mapX(CENTER), half.mapX(CENTER / 2), "$label 가운데")
+                assertNear(1f, half.scale / 2 / full.scale, "$label 배율 비")
+            }
+        }
+    }
+
+    @Test
     fun `목을 찾지 못하거나 층이 비었으면 구도를 정하지 않는다(그림을 그대로 맞춘다)`() {
         val noNeck = IntArray(SIZE * SIZE).also { fill(it, 312..712, 300 until 750) }
         assertNull(PortraitHeadFrame.of(noNeck, hair(), SIZE, SIZE))
@@ -125,6 +149,38 @@ class PortraitHeadFrameTest {
 
         /** 헤어 층(정수리 y150). */
         fun hair() = IntArray(SIZE * SIZE).also { fill(it, 300..724, CROWN..330) }
+
+        /** 서버(HeadLayerImages.halve)와 같은 2×2 알파 가중 평균 축소(SIZE → SIZE/2). */
+        fun halve(pixels: IntArray): IntArray {
+            val half = SIZE / 2
+            return IntArray(half * half) { index ->
+                val x = index % half
+                val y = index / half
+                var alpha = 0L
+                var red = 0L
+                var green = 0L
+                var blue = 0L
+                for (dy in 0..1) {
+                    for (dx in 0..1) {
+                        val argb = pixels[(y * 2 + dy) * SIZE + x * 2 + dx]
+                        val a = argb.ushr(24).toLong()
+                        alpha += a
+                        red += (argb shr 16 and 0xff) * a
+                        green += (argb shr 8 and 0xff) * a
+                        blue += (argb and 0xff) * a
+                    }
+                }
+                if (alpha == 0L) {
+                    0
+                } else {
+                    val a = ((alpha + 2) / 4).toInt()
+                    val r = ((red + alpha / 2) / alpha).toInt()
+                    val g = ((green + alpha / 2) / alpha).toInt()
+                    val b = ((blue + alpha / 2) / alpha).toInt()
+                    (a shl 24) or (r shl 16) or (g shl 8) or b
+                }
+            }
+        }
 
         fun fill(pixels: IntArray, xs: IntRange, ys: IntRange) {
             for (y in ys) for (x in xs) pixels[y * SIZE + x] = OPAQUE

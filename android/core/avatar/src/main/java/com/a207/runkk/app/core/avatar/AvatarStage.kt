@@ -1,5 +1,6 @@
 package com.a207.runkk.app.core.avatar
 
+import android.os.Process
 import android.os.SystemClock
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
@@ -38,6 +39,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import timber.log.Timber
@@ -173,7 +175,9 @@ fun RiveAvatarStage(
                 onReady = {
                     isReady = true
                     isFailed = false // 앞서 실패했어도 그림이 보이면 로딩 표시 규칙으로 돌아온다
-                    Timber.d("AvatarStage shown=%d ready=%d", shownAt, SystemClock.uptimeMillis())
+                    val readyAt = SystemClock.uptimeMillis()
+                    Timber.d("AvatarStage shown=%d ready=%d", shownAt, readyAt)
+                    logFirstFrame(readyAt)
                     currentOnReady()
                 }
             )
@@ -275,3 +279,15 @@ private fun DrawScope.drawStageShadow(layout: AvatarStageLayout, alpha: Float, b
 
 /** 무대 배경 그림 확대 배율(아래 가운데 기준, 홈 배경과 같다). */
 private const val STAGE_BACKDROP_ZOOM = 1.35f
+
+/** 이 프로세스에서 아바타 첫 프레임을 이미 기록했는가. */
+private val isFirstFrameLogged = AtomicBoolean(false)
+
+/**
+ * 첫 표시 시간 계측(Jira 307): 프로세스 시작(Process.getStartUptimeMillis) → 아바타 첫 프레임(Rive onReady)을 프로세스마다 한 번
+ * 디버그 로그 `AvatarFirstFrame sinceProcessStart=<ms>`로 남긴다(앱은 디버그 빌드에서만 기록).
+ */
+private fun logFirstFrame(readyAt: Long) {
+    if (!isFirstFrameLogged.compareAndSet(false, true)) return
+    Timber.d("AvatarFirstFrame sinceProcessStart=%d", readyAt - Process.getStartUptimeMillis())
+}

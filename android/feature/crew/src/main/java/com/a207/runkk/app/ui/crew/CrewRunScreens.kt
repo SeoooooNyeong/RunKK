@@ -94,6 +94,7 @@ import com.a207.runkk.app.core.designsystem.RunkkStatusChipTone
 import com.a207.runkk.app.core.designsystem.RunkkStopSquare
 import com.a207.runkk.app.core.designsystem.RunkkTextStyles
 import com.a207.runkk.app.core.designsystem.RunkkTopBar
+import com.a207.runkk.app.core.designsystem.RunkkTrackAvatarWarmup
 import com.a207.runkk.app.core.designsystem.RunkkTrackCard
 import com.a207.runkk.app.core.designsystem.RunkkTrackProgressBar
 import com.a207.runkk.app.core.designsystem.RunkkViewModeToggle
@@ -103,6 +104,7 @@ import com.a207.runkk.app.core.designsystem.UnreleasedFeature
 import com.a207.runkk.app.core.designsystem.asString
 import com.a207.runkk.app.core.designsystem.canShowKakaoMap
 import com.a207.runkk.app.core.designsystem.rememberIsMoving
+import com.a207.runkk.app.core.designsystem.rememberRunPose
 import com.a207.runkk.app.core.designsystem.rememberRunPowerSaveStart
 import com.a207.runkk.app.core.designsystem.runFrameMillis
 import com.a207.runkk.app.core.designsystem.runMotionSpeed
@@ -323,6 +325,7 @@ private fun LobbyContent(state: CrewRunUiState, actions: CrewRunActions) {
         ) {
             CrewRunChip(state.distance, isDistanceKnown = true)
             Spacer(Modifier.weight(1f))
+            if (!isCancelled) LobbyTrackWarmup(state, lobby)
             RunkkPillButton(
                 stringResource(R.string.crew_run_lobby_leave),
                 onClick = if (isCancelled) actions.onClose else actions.onLeave,
@@ -861,8 +864,9 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBott
     val edge = layout.other as? TrackLayout.Other.Edge
     val isMoving = rememberIsMoving(mine.distance) && !mine.isPaused && mine.currentPace != null
     val frameMillis = runFrameMillis(mine.currentPace)
-    // 트랙에서는 오른쪽을 보고, 일시정지하거나 움직임과 페이스가 없으면 선다(D-856).
-    val pose = if (state.phase == CrewRunPhase.RUNNING && isMoving) AvatarSlotPose.RUN else AvatarSlotPose.STAND
+    // 트랙에서는 오른쪽을 본다. 출발(재개)과 함께 달리고, 일시정지하거나 거리가 3초 그대로면 선다(D-856, S15P31A207-335 2차).
+    val isRunPose = rememberRunPose(mine.distance, isActive = state.phase == CrewRunPhase.RUNNING && !mine.isPaused)
+    val pose = if (isRunPose) AvatarSlotPose.RUN else AvatarSlotPose.STAND
     val isNearestPaused = nearest?.state?.name == MateState.PAUSED.name
     val nearestName = nearest?.name.orEmpty()
     val isAvatarOpen = LocalReleaseScope.current.isOpen(UnreleasedFeature.AVATAR_CUSTOMIZE)
@@ -875,7 +879,7 @@ private fun CrewTrackView(state: CrewRunUiState, modifier: Modifier, overlayBott
         },
         myAvatar = {
             RunAvatarSlot(pose, facingLeft = false, runSpeed = runMotionSpeed(mine.currentPace)) {
-                RunkkRunningFigure(isMoving, frameMillis)
+                RunkkRunningFigure(isMoving || isRunPose, frameMillis)
             }
         },
         otherAvatar = {
@@ -961,6 +965,41 @@ private fun NearestRunner(state: CrewRunUiState) {
         RunkkRunningFigure(isRunning, runFrameMillis(null), character = character)
     }
 }
+
+/**
+ * 대기실에서 트랙 아바타를 미리 데운다(S15P31A207-335): 내 아바타와 모습을 받은 크루원 앞 [WARM_MATES]명을 보이지 않게 그려 두어
+ * 출발 직후 트랙의 아바타가 비거나 깜빡이지 않는다. 공용 합성 캐시가 성별·동작마다 최근 3개를 두므로 그 안에서만 데운다.
+ */
+@Composable
+private fun LobbyTrackWarmup(state: CrewRunUiState, lobby: Lobby) {
+    val mates = lobby.participants
+        .filter { !it.isMe }
+        .mapNotNull { p -> p.memberId?.let(state.looks::get) }
+        .take(WARM_MATES)
+    // 내 아바타는 출발과 함께 달리므로 달리기 자세로 데운다(서기도 함께 합성된다).
+    val mine: @Composable () -> Unit = {
+        RunAvatarSlot(AvatarSlotPose.RUN, facingLeft = false, runSpeed = runMotionSpeed(null)) {
+            RunkkRunningFigure(false, runFrameMillis(null))
+        }
+    }
+    val others = mates.map { look ->
+        val runner: @Composable () -> Unit = {
+            RunAvatarSlot(
+                pose = AvatarSlotPose.STAND,
+                facingLeft = false,
+                runSpeed = runMotionSpeed(null),
+                subject = RunAvatarSubject.other(look.toSlot(), look.gender == Gender.FEMALE)
+            ) {
+                RunkkRunningFigure(false, runFrameMillis(null), character = AvatarCharacter.of(look.gender))
+            }
+        }
+        runner
+    }
+    RunkkTrackAvatarWarmup(listOf(mine) + others)
+}
+
+/** 대기실에서 미리 데울 크루원 수. */
+private const val WARM_MATES = 2
 
 /** 받은 모습을 칸 값(원시값, core.navigation)으로 옮긴다([임시:D-성-259]). 표시 성별이 여자일 때만 여자 몸이다. */
 internal fun RunnerLook.toSlot(): SlotRunnerLook = SlotRunnerLook(

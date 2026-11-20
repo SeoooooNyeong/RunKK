@@ -18,7 +18,9 @@ import com.a207.runkk.app.domain.crew.CrewRanking
 import com.a207.runkk.app.domain.crew.CrewReadSession
 import com.a207.runkk.app.domain.crew.CrewRepository
 import com.a207.runkk.app.domain.crew.CrewRunSignals
+import com.a207.runkk.app.domain.crew.CrewRunStatus
 import com.a207.runkk.app.domain.crew.LobbyAvailability
+import com.a207.runkk.app.domain.crew.MyRunState
 import com.a207.runkk.app.domain.crew.PendingRequests
 import com.a207.runkk.app.domain.crew.PostList
 import com.a207.runkk.app.domain.crew.RaceStatus
@@ -69,6 +71,10 @@ class CrewHomeViewModel @Inject constructor(
     private val signals: CrewRunSignals? = null
 ) : ViewModel() {
     private val _state = MutableStateFlow(CrewHomeUiState())
+
+    /** 달리는 강조 카드 결과를 다시 읽으라는 신호 횟수(목록을 다시 읽었거나 그 크루런의 결과 신호가 왔을 때 오른다). */
+    private val heroRereads = MutableStateFlow(0)
+
     val state: StateFlow<CrewHomeUiState> = _state.asStateFlow()
 
     /** 화면이 RESUMED인가(LifecycleResumeEffect가 알린다). 시험처럼 알리지 않으면 RESUMED로 본다. */
@@ -84,6 +90,33 @@ class CrewHomeViewModel @Inject constructor(
             ) { runs, isScheduleShown, resumed -> runs to (isScheduleShown && resumed) }
                 .distinctUntilChanged()
                 .collectLatest { (runs, isTicking) -> watchLobbies(runs, isTicking) }
+        }
+        // 달리는 크루런 강조 카드(피그마 F-11e·f·g): 출발 시각, 내 거리, 달리는 인원을 결과에서 읽는다. 내 상태가 바뀌거나 목록을
+        // 다시 읽거나(변경 신호·당겨서 새로고침) 그 크루런의 결과 신호가 오면 다시 읽어 중간 참여·끝냄이 인원에 들어가게 한다
+        // (S15P31A207-314. 서버는 중간 참여·끝냄에 목록 신호 대신 결과·진행 신호를 보낸다).
+        viewModelScope.launch {
+            combine(
+                _state.map { st ->
+                    upcomingSchedules(st).firstOrNull()
+                        ?.takeIf { it.crewRun?.status == CrewRunStatus.RUNNING }
+                        ?.let { it.postId to it.crewRun?.myRun }
+                },
+                heroRereads
+            ) { hero, reads -> hero?.let { it to reads } }
+                .distinctUntilChanged()
+                .collectLatest { key -> key?.let { (hero, _) -> readHeroResult(hero.first, hero.second) } }
+        }
+    }
+
+    /** 달리는 강조 카드의 크루런 결과를 읽어 담는다. 실패하면 모집 일시 기준 시간·숫자 없는 「완주했어요」로 그린다. */
+    private suspend fun readHeroResult(postId: Long, myRun: MyRunState?) {
+        repeat(HERO_READS) {
+            val result = (crews.crewRunResult(postId) as? Outcome.Success)?.value ?: return
+            _state.update { it.copy(heroResults = it.heroResults + (postId to result)) }
+            // 끝냈는데 결과에 내 기록이 아직 없으면(업로드 직전) 잠시 뒤 다시 읽는다. 키가 바뀌면 collectLatest가 끊는다
+            val isSettled = myRun != MyRunState.ENDED || result.participants.any { it.isMe && it.hasEnded }
+            if (isSettled) return
+            delay(HERO_REREAD_MILLIS)
         }
     }
 
@@ -103,12 +136,23 @@ class CrewHomeViewModel @Inject constructor(
         }
     }
 
-    /** 이 크루의 목록 변경이면 크루런 탭이 보일 때만 다시 읽는다. 레이스·결과 신호로는 읽지 않는다. */
+    /**
+     * 이 크루의 목록 변경이면 크루런 탭이 보일 때만 다시 읽는다. 레이스 신호로는 읽지 않고, 결과 신호는 달리는 강조 카드의 크루런일
+     * 때만 그 결과를 다시 읽는다(목록은 읽지 않는다).
+     */
     private fun onChange(change: CrewChange) {
         val s = _state.value
         val isScheduleShown = s.tab == CrewTab.SCHEDULE && s.page == CrewHomePage.HOME
-        if (change.crewId == s.crewId && change.resource == CrewChange.Resource.SCHEDULE && isScheduleShown) {
-            scheduleReads.refresh()
+        if (change.crewId != s.crewId || !isScheduleShown) return
+        when (change.resource) {
+            CrewChange.Resource.SCHEDULE -> scheduleReads.refresh()
+
+            CrewChange.Resource.RESULT -> {
+                val hero = upcomingSchedules(s).firstOrNull()?.takeIf { it.crewRun?.status == CrewRunStatus.RUNNING }
+                if (hero?.postId == change.postId) heroRereads.update { it + 1 }
+            }
+
+            else -> Unit
         }
     }
 
@@ -862,6 +906,7 @@ class CrewHomeViewModel @Inject constructor(
         return when (val r = coveringPages(loaded) { cursor -> crews.activeCrewRuns(crewId, cursor) }) {
             is Outcome.Success -> {
                 _state.update { it.copy(crewRuns = r.value) }
+                heroRereads.update { it + 1 }
                 null
             }
 
@@ -870,6 +915,12 @@ class CrewHomeViewModel @Inject constructor(
     }
 
     private companion object {
+        /** 강조 카드 결과를 읽는 최대 횟수(끝냈는데 내 기록이 아직 결과에 없을 때 다시 읽기 포함). */
+        const val HERO_READS = 4
+
+        /** 강조 카드 결과 다시 읽기 간격. */
+        const val HERO_REREAD_MILLIS = 3_000L
+
         const val LOBBY_TICK_MILLIS = 1_000L
 
         /** 새로 반영된 거리 강조 시간(설계 05-32 [임시:D-성-889]). */

@@ -151,7 +151,12 @@ class SelfieJobControllerTest extends WebTestSupport {
                         .andExpect(jsonPath("$.alignment.pivotX").value(0.5))
                         .andExpect(jsonPath("$.createdAt").value("2026-11-17T00:00:00Z"))
                         .andExpect(
-                                header().string("ETag", matchesPattern("\"head-v3-[0-9a-f]{32}\"")))
+                                header().string(
+                                                "ETag",
+                                                matchesPattern(
+                                                        "\"head-"
+                                                                + HeadFormat.VERSION
+                                                                + "-[0-9a-f]{32}\"")))
                         .andExpect(header().string("Cache-Control", containsString("private")))
                         .andExpect(header().string("Cache-Control", containsString("no-cache")))
                         .andExpect(

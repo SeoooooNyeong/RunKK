@@ -49,7 +49,8 @@ class TierApplier {
                                                         e.kind().name(),
                                                         change.tier(),
                                                         e.validRuns(),
-                                                        null));
+                                                        null,
+                                                        e.previousTier()));
         boolean marked = runRecordRepository.markTierApplied(recordId, evaluation);
         if (!marked) {
             throw new IllegalStateException("이미 티어에 반영한 기록");

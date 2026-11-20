@@ -104,6 +104,79 @@ class GeneratedAvatarLayersTest {
     }
 
     @Test
+    fun `층별로 받은 PNG와 메타로 만든 머리는 통짜 응답 JSON으로 만든 머리와 같다(S15P31A207-300 레이어 합성)`() {
+        val mobile = """{"neckMask":{"centerX":512,"chinY":750},"skinColor":[10,20,30]}"""
+        val whole = GeneratedHeadLayers.fromHeadJson(json(mobile = mobile))
+        val layered = GeneratedHeadLayers.fromLayers(
+            face = frontFace,
+            eyes = frontEyes,
+            hair = frontHair,
+            rightFace = sideFace,
+            rightEyes = sideEyes,
+            rightHair = sideHair,
+            metaJson = """{"format":"png1","headId":"h","canvas":1024,"mobile":$mobile}"""
+        )
+
+        assertEquals(whole.skinColor, layered.skinColor)
+        for (gender in AvatarGender.entries) {
+            val expected = whole.variants.getValue(gender)
+            val actual = layered.variants.getValue(gender)
+            assertEquals(expected.front.keys, actual.front.keys)
+            expected.front.forEach { (slot, png) ->
+                assertSamePixels(png, actual.front.getValue(slot), "$gender $slot")
+            }
+            assertSamePixels(expected.sideLayers.face, actual.sideLayers.face, "$gender 측면 얼굴")
+            assertSamePixels(expected.sideLayers.eyes, actual.sideLayers.eyes, "$gender 측면 눈")
+            assertSamePixels(expected.sideLayers.hair, actual.sideLayers.hair, "$gender 측면 헤어")
+            expected.frontFullness.forEach { (step, png) ->
+                assertSamePixels(png, actual.frontFullness.getValue(step), "$gender 볼 $step")
+            }
+        }
+        // 메타에 합성 정보가 없으면 얼굴 알파에서 목을 찾는다(통짜 응답과 같다)
+        assertEquals(
+            GeneratedHeadLayers.fromHeadJson(json(mobile = null)).skinColor,
+            GeneratedHeadLayers.fromLayers(
+                frontFace,
+                frontEyes,
+                frontHair,
+                sideFace,
+                sideEyes,
+                sideHair,
+                "{}"
+            ).skinColor
+        )
+    }
+
+    @Test
+    fun `층별 입력도 1024 PNG가 아니면 실패한다`() {
+        val small = Bitmap.createBitmap(512, 512, Bitmap.Config.ARGB_8888).let { bitmap ->
+            ByteArrayOutputStream().use {
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                bitmap.recycle()
+                it.toByteArray()
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GeneratedHeadLayers.fromLayers(small, frontEyes, frontHair, sideFace, sideEyes, sideHair, "{}")
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GeneratedHeadLayers.fromLayers(frontFace, frontEyes, frontHair, sideFace, sideEyes, sideHair, "not json")
+        }
+    }
+
+    private fun assertSamePixels(expected: ByteArray, actual: ByteArray, message: String) {
+        val a = decode(expected)
+        val b = decode(actual)
+        try {
+            assertEquals(a.width to a.height, b.width to b.height, message)
+            assertTrue(pixels(a).contentEquals(pixels(b)), "$message 픽셀이 같다")
+        } finally {
+            a.recycle()
+            b.recycle()
+        }
+    }
+
+    @Test
     fun `목 메타가 없고 알파에서도 목을 찾지 못하면 실패한다`() {
         val noNeck = shape { fill(it, 300..720, 300..800, FRONT_SKIN) }
         assertFailsWith<IllegalArgumentException> {

@@ -17,6 +17,8 @@ android {
 }
 
 dependencies {
+    // 그을림 상한 값(SkinTone)을 얼굴 원(core.ui)과 함께 쓴다.
+    implementation(project(":core:model"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     // 아바타 무대(배경·바닥선·그림자·로딩 표시, design-oo 05-30 4절·D-738)의 Box·Image·원형 진행 표시

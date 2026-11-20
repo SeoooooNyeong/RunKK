@@ -19,6 +19,15 @@ class TrackLayoutTest {
     }
 
     @Test
+    fun `가장자리 칩이어도 자르지 않은 가로 위치(rawX)가 있어 트랙 밖에서 들어온다(S15P31A207-335)`() {
+        assertEquals(0.9333f, TrackLayout.of(16.0, 2_000.0).otherRawX)
+        assertEquals(0.9f, TrackLayout.of(15.0, 2_000.0).otherRawX, "창 안은 OnTrack x와 같다")
+        assertEquals(0.0667f, TrackLayout.of(-10.0, 2_000.0).otherRawX)
+        assertEquals(-3.5333f, TrackLayout.of(-118.0, 2_000.0).otherRawX)
+        assertNull(TrackLayout.of(null, 2_000.0).otherRawX, "격차를 모르면 없다")
+    }
+
+    @Test
     fun `앞으로 창을 넘으면 오른쪽 가장자리 칩이다`() {
         assertEquals(TrackLayout.Other.Edge(isAhead = true, meters = 16), TrackLayout.of(16.0, 2_000.0).other)
         assertEquals(TrackLayout.Other.Edge(isAhead = true, meters = 240), TrackLayout.of(240.4, 2_000.0).other)

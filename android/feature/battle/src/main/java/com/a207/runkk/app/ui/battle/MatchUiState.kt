@@ -20,6 +20,11 @@ data class MatchUiState(
     val myTier: String? = null,
     /** 자동 출발까지 남은 초. 시작 예약(BattleStart)을 받기 전이면 null. */
     val startsInSeconds: Long? = null,
+    /**
+     * 성사(MATCHED)했지만 출발 예약을 아직 받지 못했다. 서버는 MatchFound 바로 뒤에 BattleStart를 보내므로 화면은 성사 판을 잠깐(최대
+     * MatchViewModel.START_GRACE_MILLIS) 미뤄 숫자 없는 성사 판을 그리지 않는다(S15P31A207-335 9회차). 그동안은 앞 화면을 그린다.
+     */
+    val isAwaitingStart: Boolean = false,
     /** 대기 화면 아래 짧은 안내(취소가 거부됨 등). */
     val error: UiText? = null,
     /** 확인을 누르면 이전 화면으로 돌아가는 안내(거부·연결 끊김·끝난 초대 등). */
